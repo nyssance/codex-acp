@@ -1,3 +1,10 @@
+> ALwith migration branch: based on upstream commit
+> `082be156aacac3ef21e231da2efcdf5f6af34a6b`.
+> The intended package is `@nyssance/codex-acp-v2` with the `codex-acp-v2`
+> executable. Publication is disabled until the existing client extension
+> contracts are preserved and verified. This branch is not a drop-in replacement
+> for the currently published adapter.
+
 # ACP adapter for Codex CLI
 
 [![npm version](https://img.shields.io/npm/v/%40agentclientprotocol%2Fcodex-acp)](https://www.npmjs.com/package/@agentclientprotocol/codex-acp)
