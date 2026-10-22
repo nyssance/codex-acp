@@ -7,7 +7,7 @@ import type {TurnCompletedNotification} from "../../app-server/v2";
 import {SESSION_STEERING_METHOD} from "../../AcpExtensions";
 
 function createTurn(id: string, status: "inProgress" | "completed" | "interrupted") {
-    return {
+    return {rootTurnId: null,
         id,
         items: [],
         itemsView: "notLoaded" as const,

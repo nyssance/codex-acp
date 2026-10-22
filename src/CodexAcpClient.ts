@@ -1,3 +1,9 @@
+import {replayEntriesOfTurn, withReplayTurnMetadata} from "./ReplayHistory";
+import {hostThreadOptions, seedHistory} from "./alwith/hostSession";
+import {ResponsesRoutes} from "./alwith/codex/responsesRoutes";
+import {ProviderRouting} from "./alwith/agent/providers";
+import {isRecord} from "./alwith/permissions/json";
+import {clientToolsOf, dynamicTools} from "./alwith/agent/clientTools";
 import {
     type ApiKeyAuthRequest,
     CODEX_API_KEY_ENV_VAR,
@@ -22,7 +28,6 @@ import type {
     ReasoningEffort,
     ServerNotification
 } from "./app-server";
-import type {ServiceTier} from "./app-server/ServiceTier";
 import type {JsonValue} from "./app-server/serde_json/JsonValue";
 import {ModelId} from "./ModelId";
 import {AgentMode} from "./AgentMode";
@@ -90,12 +95,14 @@ export type {SessionMetadata, SessionMetadataWithThread} from "./SessionMetadata
  * actually had a rollout for the thread. See {@link CodexAcpClient.resumeThread}.
  */
 type ResumedThread = {
+    readOnly?: boolean;
     thread: Thread;
     model: string | null;
     modelProvider: string;
     reasoningEffort: ReasoningEffort | null;
     serviceTier: string | null;
     itemsBackwardsCursor: string | null;
+    turnsBackwardsCursor: string | null;
     materialized: boolean;
     /** The mode that the resume response reports. Null when the thread has no rollout yet. */
     collaborationMode: ModeKind | null;
@@ -150,6 +157,7 @@ export class CodexAcpClient {
     private readonly codexClient: CodexAppServerClient;
     private readonly config: JsonObject;
     private readonly modelProvider: string | null;
+    providerCatalog: ProviderRouting;
     private gatewayConfig: GatewayConfig | null;
     /**
      * Where the stored gateway routing came from: the `gateway` auth method
@@ -159,19 +167,25 @@ export class CodexAcpClient {
     private gatewayConfigSource: GatewayConfigSource | null;
     private pendingLoginCompleted: Promise<AccountLoginCompletedNotification> | null = null;
     private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null = null;
+    private readonly readOnlySessions = new Set<string>();
     private readonly sessionNotificationQueues = new Map<string, Promise<void>>();
     private readonly subagents: CodexSubagentSubscriptions;
     private skillExtraRoots: string[] = [];
     private configPath: string | null = null;
 
 
-    constructor(codexClient: CodexAppServerClient, codexConfig?: JsonObject, modelProvider?: string) {
+    constructor(codexClient: CodexAppServerClient, codexConfig?: JsonObject, modelProvider?: string, private responsesRoutes = new ResponsesRoutes()) {
         this.codexClient = codexClient;
         this.config = codexConfig ?? {};
         this.modelProvider = modelProvider ?? null;
+        this.providerCatalog = new ProviderRouting(Object.fromEntries(Object.entries(this.config).filter((entry): entry is [string, JsonValue] => entry[1] !== undefined)), this.modelProvider);
         this.gatewayConfig = null;
         this.gatewayConfigSource = null;
         this.subagents = new CodexSubagentSubscriptions(codexClient);
+    }
+
+    closeTransports(): void {
+        this.responsesRoutes.close();
     }
 
     get appServerClient(): CodexAppServerClient {
@@ -183,13 +197,18 @@ export class CodexAcpClient {
      * that the agent set at runtime (gateway auth, `providers/set`) is copied by {@link adoptRoutingFrom}.
      */
     withAppServer(codexClient: CodexAppServerClient): CodexAcpClient {
-        const client = new CodexAcpClient(codexClient, this.config, this.modelProvider ?? undefined);
+        const client = new CodexAcpClient(codexClient, this.config, this.modelProvider ?? undefined, this.responsesRoutes);
         client.adoptRoutingFrom(this);
         return client;
     }
 
     /** Takes the runtime routing of `previous`, the client that this client replaces. */
     adoptRoutingFrom(previous: CodexAcpClient): void {
+        if (this.responsesRoutes !== previous.responsesRoutes) {
+            this.responsesRoutes.close();
+            this.responsesRoutes = previous.responsesRoutes;
+        }
+        this.providerCatalog = previous.providerCatalog;
         this.gatewayConfig = previous.gatewayConfig;
         this.gatewayConfigSource = previous.gatewayConfigSource;
     }
@@ -606,7 +625,7 @@ export class CodexAcpClient {
 
     /** Whether this provider id is client-driven routing set through `providers/set`. */
     isClientConfiguredProvider(providerId: string | null): boolean {
-        return providerId === CUSTOM_GATEWAY_PROVIDER_ID && this.gatewayConfigSource === "acpProviders";
+        return this.providerCatalog.hasGateway(providerId) || (providerId === CUSTOM_GATEWAY_PROVIDER_ID && this.gatewayConfigSource === "acpProviders");
     }
 
     /**
@@ -641,7 +660,7 @@ export class CodexAcpClient {
      * A thread that another Codex client has loaded fails with a clear ACP
      * error instead of the raw Codex message.
      */
-    private async resumeThread(params: ThreadResumeParams): Promise<ResumedThread> {
+    private async resumeThread(params: ThreadResumeParams, allowReadOnly = false): Promise<ResumedThread> {
         try {
             const response = await this.codexClient.threadResume(params);
             return {
@@ -651,11 +670,19 @@ export class CodexAcpClient {
                 reasoningEffort: response.reasoningEffort,
                 serviceTier: response.serviceTier,
                 itemsBackwardsCursor: response.itemsBackwardsCursor ?? null,
+                turnsBackwardsCursor: response.turnsBackwardsCursor ?? null,
                 materialized: true,
                 collaborationMode: response.collaborationMode?.mode ?? null,
             };
         } catch (err) {
-            if (isThreadActiveWriterError(err)) throw threadActiveWriterRequestError(params.threadId, err);
+            if (isThreadActiveWriterError(err)) {
+                if (!allowReadOnly) throw threadActiveWriterRequestError(params.threadId, err);
+                const {thread} = await this.codexClient.threadRead({threadId: params.threadId, includeTurns: false});
+                this.readOnlySessions.add(params.threadId);
+                return {thread, model: thread.model, modelProvider: thread.modelProvider,
+                    reasoningEffort: thread.reasoningEffort, serviceTier: null, itemsBackwardsCursor: null, turnsBackwardsCursor: null,
+                    materialized: true, collaborationMode: null, readOnly: true};
+            }
             if (!isMissingRolloutError(err)) throw err;
             let response;
             try {
@@ -676,6 +703,7 @@ export class CodexAcpClient {
                 // `thread/turns/list` rejects it outright ("not materialized
                 // yet"), and there is nothing to list either way.
                 itemsBackwardsCursor: null,
+                turnsBackwardsCursor: null,
                 materialized: false,
                 collaborationMode: null,
             };
@@ -686,32 +714,38 @@ export class CodexAcpClient {
         request: WithAcpMcpServers<acp.ResumeSessionRequest>,
         onSubscribed?: () => void,
         previousInstructions?: SessionInstructions,
+        allowReadOnly = false,
     ): Promise<SessionMetadata> {
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         await this.refreshSkills(request.cwd, additionalDirectories);
 
-        const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? []);
+        const route = await this.sessionRoute(request);
+        const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? [], route.gatewayId);
         const response = await this.resumeThreadWithInstructions({
+            ...hostThreadOptions(request._meta),
             excludeTurns: true,
             config: sessionConfig.config,
             cwd: request.cwd,
-            modelProvider: await this.getResumeModelProvider(),
+            modelProvider: route.modelProvider,
+            ...(route.model ? {model: route.model} : {}),
             threadId: request.sessionId,
             ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
-        }, request, previousInstructions);
-        onSubscribed?.();
+        }, request, previousInstructions, allowReadOnly);
+        if (!response.readOnly) onSubscribed?.();
         const codexModels = await this.fetchAvailableModels();
-        const currentModelId = this.createModelId(codexModels, response.model, response.reasoningEffort).toString();
+        const currentModelId = this.createModelId(codexModels, this.providerCatalog.selectionId(response.model, response.modelProvider), response.reasoningEffort).toString();
         return {
             sessionId: request.sessionId,
+            readOnly: response.readOnly ?? false,
             currentModelId: currentModelId,
             models: codexModels,
+            lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             threadStatus: response.thread.status,
             modelProvider: response.modelProvider,
-            currentServiceTier: response.serviceTier as ServiceTier ?? null,
+            currentServiceTier: response.serviceTier ?? null,
             additionalDirectories,
             skippedMcpServers: sessionConfig.skippedMcpServers,
             ...(instructions ? {instructions} : {}),
@@ -726,15 +760,17 @@ export class CodexAcpClient {
     ): Promise<SessionMetadata> {
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
+        const route = await this.sessionRoute(request);
         return await runForkSession(request, additionalDirectories, {
             codexClient: this.codexClient,
             refreshSkills: (cwd, directories) => this.refreshSkills(cwd, directories),
             createSessionConfig: (cwd, directories, mcpServers) =>
-                this.createSessionConfig(cwd, directories, mcpServers),
-            getResumeModelProvider: () => this.getResumeModelProvider(),
+                this.createSessionConfig(cwd, directories, mcpServers, route.gatewayId),
+            getResumeModelProvider: async () => route.modelProvider ?? await this.getResumeModelProvider(),
+            ...(route.model ? {initialModel: route.model} : {}),
             fetchAvailableModels: () => this.fetchAvailableModels(),
             createCurrentModelId: (models, model, reasoningEffort) =>
-                this.createModelId(models, model, reasoningEffort).toString(),
+                this.createModelId(models, this.providerCatalog.selectionId(model, route.modelProvider), reasoningEffort).toString(),
             getCollaborationMode: sessionId => this.getCollaborationMode(sessionId),
             releaseFailedFork,
             forkCreated,
@@ -745,26 +781,34 @@ export class CodexAcpClient {
         request: WithAcpMcpServers<acp.LoadSessionRequest>,
         onSubscribed?: () => void,
         previousInstructions?: SessionInstructions,
+        allowReadOnly = false,
     ): Promise<SessionMetadataWithThread> {
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         await this.refreshSkills(request.cwd, additionalDirectories);
 
-        const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? []);
+        const route = await this.sessionRoute(request);
+        const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? [], route.gatewayId);
         const response = await this.resumeThreadWithInstructions({
+            ...hostThreadOptions(request._meta),
             excludeTurns: true,
             config: sessionConfig.config,
             cwd: request.cwd,
-            modelProvider: await this.getResumeModelProvider(),
+            modelProvider: route.modelProvider,
+            ...(route.model ? {model: route.model} : {}),
             threadId: request.sessionId,
             ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
-        }, request, previousInstructions);
-        onSubscribed?.();
+        }, request, previousInstructions, allowReadOnly);
+        if (!response.readOnly) onSubscribed?.();
         // Resume cursors bound durable history; later turns arrive through live events.
         // A null paginated cursor means there was no durable history at resume time.
         let thread: Thread = {...response.thread, turns: []};
         let history: AsyncIterable<ThreadItemEntry[]> = noItems();
-        if (response.materialized && response.thread.historyMode === "paginated") {
+        if (response.readOnly) {
+            const legacy = (await this.codexClient.threadReadWithHistory(response.thread.id)).thread;
+            thread = {...legacy, turns: []};
+            history = oneItemPage(legacy.turns.flatMap(replayEntriesOfTurn));
+        } else if (response.materialized && response.thread.historyMode === "paginated") {
             if (response.itemsBackwardsCursor !== null) {
                 history = this.codexClient.threadItemEntryPages(
                     response.thread.id,
@@ -775,23 +819,26 @@ export class CodexAcpClient {
             // A legacy store reads the whole history in one request.
             const legacy = (await this.codexClient.threadReadWithHistory(response.thread.id)).thread;
             thread = {...legacy, turns: []};
-            history = oneItemPage(legacy.turns.flatMap(turn => turn.items.map(item => ({
-                turnId: turn.id,
-                item,
-                startedAtMs: null,
-                completedAtMs: null,
-            }))));
+            history = oneItemPage(legacy.turns.flatMap<ThreadItemEntry>(turn => allowReadOnly
+                ? replayEntriesOfTurn(turn)
+                : turn.items.map(item => ({turnId: turn.id, item, startedAtMs: null, completedAtMs: null}))));
+        }
+        if (allowReadOnly && !response.readOnly && response.materialized && response.thread.historyMode === "paginated") {
+            history = withReplayTurnMetadata(history,
+                this.codexClient.threadReplayTurnPages(response.thread.id, response.turnsBackwardsCursor));
         }
         const codexModels = await this.fetchAvailableModels();
-        const currentModelId = this.createModelId(codexModels, response.model, response.reasoningEffort).toString();
+        const currentModelId = this.createModelId(codexModels, this.providerCatalog.selectionId(response.model, response.modelProvider), response.reasoningEffort).toString();
         return {
             sessionId: request.sessionId,
+            readOnly: response.readOnly ?? false,
             currentModelId: currentModelId,
             models: codexModels,
+            lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             modelProvider: response.modelProvider,
-            currentServiceTier: response.serviceTier as ServiceTier ?? null,
+            currentServiceTier: response.serviceTier ?? null,
             thread,
             history,
             additionalDirectories,
@@ -804,12 +851,23 @@ export class CodexAcpClient {
      * The items of the turn at `index` of a session, oldest first, in pages.
      * Returns null when the session has fewer turns.
      */
-    async readSessionTurnItems(sessionId: string, index: number): Promise<AsyncIterable<ThreadItem[]> | null> {
+    async readSessionReplay(sessionId: string): Promise<Pick<SessionMetadataWithThread, "thread" | "history">> {
+        const {thread} = await this.codexClient.threadRead({threadId: sessionId});
+        if (thread.historyMode === "legacy") {
+            const loaded = await this.codexClient.threadRead({threadId: sessionId, includeTurns: true});
+            return {thread: {...loaded.thread, turns: []}, history: oneItemPage(loaded.thread.turns.flatMap(replayEntriesOfTurn))};
+        }
+        return {thread, history: withReplayTurnMetadata(
+            this.codexClient.threadItemEntryPages(sessionId), this.codexClient.threadReplayTurnPages(sessionId))};
+    }
+
+    async readSessionTurnEntries(sessionId: string, index: number, includeReplayMetadata = false): Promise<AsyncIterable<ThreadItemEntry[]> | null> {
         const metadata = await this.codexClient.threadRead({threadId: sessionId});
         if (metadata.thread.historyMode === "legacy") {
             const legacy = await this.codexClient.threadRead({threadId: sessionId, includeTurns: true});
             const turn = legacy.thread.turns[index];
-            return turn ? oneItemPage(turn.items) : null;
+            return turn ? oneItemPage<ThreadItemEntry>(includeReplayMetadata ? replayEntriesOfTurn(turn)
+                : turn.items.map(item => ({turnId: turn.id, item, startedAtMs: null, completedAtMs: null}))) : null;
         }
         let first = 0;
         const pages = this.codexClient.threadTurnPages({
@@ -820,38 +878,55 @@ export class CodexAcpClient {
         });
         for await (const page of pages) {
             const turn = page[index - first];
-            if (turn) return this.codexClient.threadItemPages(sessionId, {turnId: turn.id});
+            if (turn) {
+                const entries = this.codexClient.threadItemEntryPages(sessionId, {turnId: turn.id});
+                return includeReplayMetadata ? withReplayTurnMetadata(entries, oneItemPage([turn])) : entries;
+            }
             first += page.length;
         }
         return null;
     }
 
     async newSession(request: WithAcpMcpServers<acp.NewSessionRequest>): Promise<SessionMetadata> {
+        const tools = clientToolsOf(request._meta);
+        const seed = seedHistory(request._meta);
         const instructions = await this.resolveSessionInstructions(request, undefined, true);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         const developerInstructions = instructions?.developerInstructions;
         await this.refreshSkills(request.cwd, additionalDirectories);
 
-        const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? []);
+        const route = await this.sessionRoute(request);
+        const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? [], route.gatewayId);
         const response = await this.codexClient.threadStart({
+            ...hostThreadOptions(request._meta),
+            ...(tools ? {dynamicTools: dynamicTools(tools)} : {}),
             config: sessionConfig.config,
-            modelProvider: this.getModelProvider(),
+            modelProvider: route.modelProvider,
+            ...(route.model ? {model: route.model} : {}),
             cwd: request.cwd,
             ...(developerInstructions !== undefined && {developerInstructions}),
         });
 
+        if (seed.length > 0) {
+            try {await this.codexClient.connection.sendRequest("thread/inject_items", {threadId: response.thread.id, items: seed});}
+            catch (error) {
+                await this.closeSession(response.thread.id);
+                throw error;
+            }
+        }
         const codexModels = await this.fetchAvailableModels();
         if (codexModels.length === 0 && !this.isNarrowedByGateway()) {
             throw new Error("Codex did not return any models");
         }
-        const currentModelId = this.createModelId(codexModels, response.model, response.reasoningEffort).toString();
+        const currentModelId = this.createModelId(codexModels, this.providerCatalog.selectionId(response.model, response.modelProvider), response.reasoningEffort).toString();
         return {
             sessionId: response.thread.id,
             currentModelId: currentModelId,
             models: codexModels,
+            lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
             collaborationMode: this.getCollaborationMode(response.thread.id),
             modelProvider: response.modelProvider,
-            currentServiceTier: response.serviceTier as ServiceTier ?? null,
+            currentServiceTier: response.serviceTier ?? null,
             additionalDirectories,
             skippedMcpServers: sessionConfig.skippedMcpServers,
             ...(instructions ? {instructions} : {}),
@@ -889,8 +964,9 @@ export class CodexAcpClient {
         params: ThreadResumeParams,
         request: {sessionId: string; systemPrompt?: unknown; _meta?: unknown},
         previous?: SessionInstructions,
+        allowReadOnly = false,
     ): Promise<ResumedThread> {
-        if (!changesSystemPrompt(request, previous)) return this.resumeThread(params);
+        if (!changesSystemPrompt(request, previous)) return this.resumeThread(params, allowReadOnly);
         const {thread} = await this.codexClient.threadRead({threadId: request.sessionId});
         if (thread.status.type === "notLoaded") return this.resumeThread(params);
         if (thread.status.type !== "idle" || thread.path === null) {
@@ -946,6 +1022,10 @@ export class CodexAcpClient {
     }
 
     async closeSession(sessionId: string): Promise<void> {
+        if (this.readOnlySessions.delete(sessionId)) {
+            this.codexClient.clearThreadHandlers(sessionId);
+            return;
+        }
         try {
             await this.codexClient.threadUnsubscribe({threadId: sessionId});
         } finally {
@@ -1081,7 +1161,8 @@ export class CodexAcpClient {
     private async createSessionConfig(
         projectPath: string,
         additionalDirectories: string[],
-        mcpServers: Array<AcpMcpServer>
+        mcpServers: Array<AcpMcpServer>,
+        gatewayId: string | null = null,
     ): Promise<SessionConfig> {
         const sessionRoots = [projectPath, ...additionalDirectories];
         const activeProvider = this.gatewayConfig
@@ -1098,12 +1179,20 @@ export class CodexAcpClient {
             baseUrl: activeProvider.baseUrl,
         });
         const mergedConfig = {
-            ...forceGitRootTurnDiffPaths(mergeGatewayConfig(this.config, this.gatewayConfig)),
+            ...forceGitRootTurnDiffPaths(this.providerCatalog.active
+                ? this.providerCatalog.routeConfig(Object.fromEntries(Object.entries(this.config).filter((entry): entry is [string, JsonValue] => entry[1] !== undefined)), gatewayId)
+                : mergeGatewayConfig(this.config, this.gatewayConfig)),
             projects: Object.fromEntries(sessionRoots.map(root => [root, {
                 trust_level: "trusted",
             }])),
         };
-        const configWithWorkspaceRoots = mergeSandboxWorkspaceWriteRoots(mergedConfig, additionalDirectories);
+        const transportConfig = await this.responsesRoutes.config(mergedConfig,
+            gatewayId ?? this.getModelProvider() ?? "openai", {
+                cwd: projectPath,
+                readConfig: () => this.codexClient.configRead({includeLayers: false, cwd: projectPath}),
+                readAccount: () => this.getAccount(),
+            });
+        const configWithWorkspaceRoots = mergeSandboxWorkspaceWriteRoots(transportConfig, additionalDirectories);
         if (mcpServers.length === 0) {
             return {config: configWithWorkspaceRoots, skippedMcpServers: []};
         }
@@ -1287,7 +1376,7 @@ export class CodexAcpClient {
         request: acp.PromptRequest,
         agentMode: AgentMode,
         modelId: ModelId,
-        serviceTier: ServiceTier | null,
+        serviceTier: string | null,
         disableSummary: boolean,
         cwd: string,
         additionalDirectories: string[],
@@ -1301,7 +1390,9 @@ export class CodexAcpClient {
         if (shouldCancel?.()) {
             return null;
         }
+        const retryTrigger = (request._meta?.["alwith"] as {retryTrigger?: unknown} | undefined)?.retryTrigger;
         return await this.codexClient.runTurn({
+            ...(retryTrigger === "capacity_retry_manual" || retryTrigger === "capacity_retry_automatic" ? {turnTrigger: retryTrigger} : {}),
             threadId: request.sessionId,
             input: input,
             approvalPolicy: agentMode.approvalPolicy,
@@ -1309,7 +1400,7 @@ export class CodexAcpClient {
             sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(agentMode.sandboxPolicy, additionalDirectories),
             summary: disableSummary ? "none" : "auto",
             effort: effort,
-            model: modelId.model,
+            model: this.providerCatalog.upstreamModel(modelId.model),
             serviceTier: serviceTier,
             ...(clientUserMessageId !== undefined ? {clientUserMessageId} : {}),
         }, onTurnStarted);
@@ -1318,8 +1409,34 @@ export class CodexAcpClient {
     async setCollaborationMode(sessionId: string, mode: ModeKind, currentModelId: string): Promise<void> {
         await this.codexClient.threadSettingsUpdate({
             threadId: sessionId,
-            collaborationMode: createCodexCollaborationMode(mode, currentModelId),
+            collaborationMode: createCodexCollaborationMode(mode, this.upstreamModelId(currentModelId)),
         });
+    }
+
+    private upstreamModelId(value: string): string {
+        const model = ModelId.fromString(value);
+        return ModelId.create(this.providerCatalog.upstreamModel(model.model)!, model.effort as ReasoningEffort).toString();
+    }
+
+    async sessionRoute(request: {sessionId?: string; _meta?: unknown}): Promise<{model?: string; modelProvider: string | null; gatewayId: string | null}> {
+        const meta = isRecord(request._meta) ? request._meta : {};
+        const alwith = isRecord(meta["alwith"]) ? meta["alwith"] : {};
+        const selection = alwith["model"];
+        if (selection !== undefined && (typeof selection !== "string" || !selection)) {
+            throw RequestError.invalidParams(undefined, "Expected a non-empty initial model");
+        }
+        if (typeof selection === "string") {
+            const model = this.providerCatalog.upstreamModel(selection)!;
+            const gatewayId = this.providerCatalog.gatewayIdFor(selection);
+            return {model, gatewayId, modelProvider: gatewayId ?? await this.getResumeModelProvider()};
+        }
+        if (request.sessionId && this.providerCatalog.active) {
+            const {thread} = await this.codexClient.threadRead({threadId: request.sessionId});
+            if (this.providerCatalog.hasGateway(thread.modelProvider)) {
+                return {gatewayId: thread.modelProvider, modelProvider: thread.modelProvider};
+            }
+        }
+        return {gatewayId: null, modelProvider: request.sessionId ? await this.getResumeModelProvider() : this.getModelProvider()};
     }
 
     private getCollaborationMode(sessionId: string): ModeKind {
@@ -1486,7 +1603,7 @@ export class CodexAcpClient {
         } while (cursor);
 
         const listed = this.getGatewayListedModels();
-        return listed === null ? models : narrowToListedModels(models, listed);
+        return this.providerCatalog.catalog(listed === null ? models : narrowToListedModels(models, listed));
     }
 
     private getGatewayListedModels(): GatewayModelIds | null {

@@ -14,7 +14,7 @@ const sessionId = "thread-1";
 const cwd = "/workspace";
 
 function createThread(): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,
@@ -72,7 +72,7 @@ async function connectV2Client(options: {loginSucceeds?: boolean} = {}) {
         }
         switch (method) {
             case "account/read":
-                return {
+                return {workspaceRouting: null,
                     account: loggedIn ? {type: "apiKey"} : null,
                     requiresOpenaiAuth: true,
                 };
@@ -133,7 +133,7 @@ function toError(err: {code: number, message: string, data?: unknown}) {
 }
 
 function dump(value: unknown): string {
-    return `${JSON.stringify(value, null, 2)}\n`;
+    return `${JSON.stringify(value, null, 2)}\n`.replace(/http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g, "<responses-route>");
 }
 
 const apiKeyLogin: acpV2.LoginAuthRequest = {

@@ -156,7 +156,16 @@
         "description": "Sign out of Codex. This option is available when you are logged in via ChatGPT.",
         "input": null
       }
-    ]
+    ],
+    "_meta": {
+      "alwith": {
+        "configRevision": 0
+      },
+      "codex": {
+        "nativeSessionId": "thread-1",
+        "forkedFromId": null
+      }
+    }
   },
   "codexRequests": [
     {
@@ -170,7 +179,8 @@
             "/workspace": {
               "trust_level": "trusted"
             }
-          }
+          },
+          "openai_base_url": "<responses-route>"
         },
         "modelProvider": null,
         "cwd": "/workspace"

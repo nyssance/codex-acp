@@ -1,3 +1,4 @@
+import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
 import {type MessageConnection, RequestType} from "vscode-jsonrpc/node";
 import {AppServerConnectionLostError, ConnectionLoss} from "./app-server-recovery/ConnectionLoss";
 import {explainCodexError} from "./CodexErrorExplanations";
@@ -189,6 +190,8 @@ export class CodexAppServerClient {
     /** The `$CODEX_HOME` of the app-server, for the error explanations. */
     private codexHome: string | null = null;
 
+    getCodexHome(): string | null { return this.codexHome; }
+
     constructor(connection: MessageConnection) {
         this.connection = connection;
         this.connectionLoss = new ConnectionLoss(connection);
@@ -291,6 +294,10 @@ export class CodexAppServerClient {
         });
     }
 
+    onDynamicToolCall(handler: (params: DynamicToolCallParams) => Promise<DynamicToolCallResponse>): void {
+        this.connection.onRequest(new RequestType<DynamicToolCallParams, DynamicToolCallResponse, void>("item/tool/call"), handler);
+    }
+
     onApprovalRequest(threadId: string, handler: ApprovalHandler): void {
         this.approvalHandlers.set(threadId, handler);
     }
@@ -361,6 +368,7 @@ export class CodexAppServerClient {
                     id: error.turnId,
                     items: [],
                     itemsView: "notLoaded",
+                    rootTurnId: null,
                     status: "failed",
                     error: error.error,
                     startedAt: null,
@@ -761,6 +769,25 @@ export class CodexAppServerClient {
         }
     }
 
+    /** Turn metadata bounded by the same resume snapshot as the replayed items. */
+    async *threadReplayTurnPages(threadId: string, lastTurnCursor?: string | null): AsyncGenerator<Turn[]> {
+        if (lastTurnCursor === null) return;
+        const last = await withHistoryTimeout(this.threadTurnsList({
+            threadId, cursor: lastTurnCursor ?? null, limit: 1, sortDirection: "desc", itemsView: "notLoaded",
+        }), "thread/turns/list", threadId);
+        const lastTurnId = last.data[0]?.id;
+        if (lastTurnId === undefined) {
+            if (lastTurnCursor === undefined) return;
+            throw new Error("Resume turn cursor did not resolve to a turn");
+        }
+        for await (const page of this.threadTurnPages({threadId, limit: HISTORY_PAGE_TURNS, sortDirection: "asc", itemsView: "notLoaded"})) {
+            const end = page.findIndex(turn => turn.id === lastTurnId);
+            yield end < 0 ? page : page.slice(0, end + 1);
+            if (end >= 0) return;
+        }
+        throw new Error("Resume turn boundary disappeared during replay");
+    }
+
     async threadReadWithHistory(threadId: string): Promise<ThreadReadResponse> {
         const response = await this.threadRead({threadId});
         // Legacy stores reconstruct the rollout on each read; paging would repeat
@@ -787,7 +814,7 @@ export class CodexAppServerClient {
             limit: 1,
             sortDirection: "desc",
             itemsView: "notLoaded",
-        }), "thread/turns/list", threadId);
+                            }), "thread/turns/list", threadId);
         const lastTurnId = last.data[0]?.id;
         if (lastTurnId === undefined) return;
         const pages = this.threadTurnPages({threadId, limit: HISTORY_PAGE_TURNS, sortDirection: "asc", itemsView: "full"});
@@ -946,6 +973,7 @@ export class CodexAppServerClient {
                 id: turnId,
                 items: [],
                 itemsView: "notLoaded",
+                    rootTurnId: null,
                 status: "interrupted",
                 error: null,
                 startedAt: null,

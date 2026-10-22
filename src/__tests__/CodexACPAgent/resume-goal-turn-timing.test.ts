@@ -87,7 +87,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
         closeClient = () => client.connection.close();
         fireGoalTurnDuring(client, "model/list");
 
-        client.setCodexResponse("thread/read", async () => ({thread: createThread()}));
+        client.setCodexResponse("thread/read", async () => ({readState: null, thread: createThread()}));
         await client.request("session/resume", {sessionId: secondSessionId, cwd, replayFrom: {type: "start"}});
         await settle();
         client.emit(turnCompletedFor(secondSessionId, secondTurnId));
@@ -107,7 +107,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
     it('synchronizes a resumed thread that was already active without needing another turn-start event', async () => {
         const client = await connectSession(2);
         closeClient = () => client.connection.close();
-        client.setCodexResponse("thread/resume", async () => ({
+        client.setCodexResponse("thread/resume", async () => ({readState: null,
             ...(codexResponse("thread/resume") as Record<string, unknown>),
             thread: {...createThread(), id: secondSessionId, status: {type: "active", activeFlags: []}},
         }));
@@ -140,7 +140,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
     it('v1 session/load: renders the goal turn started during setup', async () => {
         const client = await connectSession(1);
         closeClient = () => client.connection.close();
-        client.setCodexResponse("thread/read", async () => ({thread: createThread()}));
+        client.setCodexResponse("thread/read", async () => ({readState: null, thread: createThread()}));
         fireGoalTurnDuring(client, "model/list");
 
         await client.request("session/load", {sessionId: secondSessionId, cwd, mcpServers: []});
@@ -156,7 +156,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
     it('v1 session/load: a live goal turn started during setup renders after replayed history, not interleaved', async () => {
         const client = await connectSession(1);
         closeClient = () => client.connection.close();
-        const replayedTurn: Thread["turns"][number] = {
+        const replayedTurn: Thread["turns"][number] = {rootTurnId: null,
             id: "replayed-turn",
             itemsView: "full",
             status: "completed",
@@ -182,7 +182,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
                 },
             ],
         };
-        client.setCodexResponse("thread/read", async () => ({
+        client.setCodexResponse("thread/read", async () => ({readState: null,
             thread: {...createThread(), turns: [replayedTurn]},
         }));
         fireGoalTurnDuring(client, "model/list");

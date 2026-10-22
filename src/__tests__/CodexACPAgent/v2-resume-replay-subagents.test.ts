@@ -16,7 +16,7 @@ const childId = "child-1";
 const cwd = "/workspace";
 
 function createThread(id: string, overrides?: Partial<Thread>): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id,
         sessionId: id,
         parentThreadId: null,
@@ -56,7 +56,7 @@ function createThread(id: string, overrides?: Partial<Thread>): Thread {
  * fail-loud v2 renderer.
  */
 const rootTurns: Thread["turns"] = [
-    {
+    {rootTurnId: null,
         id: "root-turn-1",
         itemsView: "full",
         status: "completed",
@@ -65,15 +65,15 @@ const rootTurns: Thread["turns"] = [
         completedAt: null,
         durationMs: null,
         items: [
-            {type: "subAgentActivity", id: "activity-started", kind: "started", agentThreadId: childId, agentPath: `/${rootId}/researcher`},
-            {type: "subAgentActivity", id: "activity-completed", kind: "completed", agentThreadId: childId, agentPath: `/${rootId}/researcher`},
+            {model: null, reasoningEffort: null, type: "subAgentActivity", id: "activity-started", kind: "started", agentThreadId: childId, agentPath: `/${rootId}/researcher`},
+            {model: null, reasoningEffort: null, type: "subAgentActivity", id: "activity-completed", kind: "completed", agentThreadId: childId, agentPath: `/${rootId}/researcher`},
         ],
     },
 ];
 
 /** Child thread history: an agent reply plus a still-running background command. */
 const childTurns: Thread["turns"] = [
-    {
+    {rootTurnId: null,
         id: "child-turn-1",
         itemsView: "full",
         status: "completed",
@@ -126,8 +126,8 @@ function codexResponse(method: string, params: unknown, turns: HistoryTurns): un
                 turnsBackwardsCursor: null,
             };
         case "thread/read":
-            if (threadId === childId) return {thread: createThread(childId, {turns: turns.child})};
-            return {thread: createThread(rootId, {turns: turns.root})};
+            if (threadId === childId) return {readState: null, thread: createThread(childId, {turns: turns.child})};
+            return {readState: null, thread: createThread(rootId, {turns: turns.root})};
         case "thread/backgroundTerminals/list":
             if (threadId === childId) {
                 return {data: [{itemId: "child-command-1", processId: "42", command: "npm test"}], nextCursor: null};
@@ -160,7 +160,7 @@ async function connectV2Client(
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
@@ -237,7 +237,7 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
     });
 
     it('replays a follow-up turn of a finished child as a new generation', async () => {
-        const turn = (id: string, items: Thread["turns"][number]["items"]): Thread["turns"][number] => ({
+        const turn = (id: string, items: Thread["turns"][number]["items"]): Thread["turns"][number] => ({rootTurnId: null,
             id,
             itemsView: "full",
             status: "completed",
@@ -247,7 +247,7 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
             durationMs: null,
             items,
         });
-        const activity = (id: string, kind: "started" | "interacted" | "completed") => ({
+        const activity = (id: string, kind: "started" | "interacted" | "completed") => ({model: null, reasoningEffort: null,
             type: "subAgentActivity" as const,
             id,
             kind,

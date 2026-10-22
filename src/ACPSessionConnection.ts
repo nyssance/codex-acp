@@ -1,3 +1,4 @@
+import {questionReplyContent, withQuestionReplyParts} from "./alwith/codex/questionReplies";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {
@@ -19,6 +20,8 @@ export type AcpV2ClientConnection = Pick<acpV2.AgentContext, "notify" | "request
  */
 export class AcpV2Connection {
     readonly client: AcpV2ClientConnection;
+    private configRevision: ((sessionId: string) => number) | undefined;
+    setConfigRevisionSource(source: (sessionId: string) => number): void {this.configRevision = source;}
     private isTurnRunning: (sessionId: string) => boolean = () => true;
     private readonly foreground = new Map<string, AcpV2ForegroundState>();
 
@@ -48,7 +51,27 @@ export class AcpV2Connection {
      * binding. One update can render to several v2 updates (or none), sent in order.
      */
     async updateSession(sessionId: string, update: AcpSessionUpdate): Promise<void> {
-        for (const v2Update of toV2SessionUpdates(update)) {
+        for (let v2Update of toV2SessionUpdates(update)) {
+            if (acpV2.SessionUpdate.isUserMessageChunk(v2Update) && acpV2.ContentBlock.isText(v2Update.content)) {
+                const content = questionReplyContent(v2Update.content.text);
+                if (content) {
+                    const meta = withQuestionReplyParts(content, v2Update._meta as Record<string, unknown> | undefined);
+                    const reply: acpV2.SessionUpdate = {
+                        sessionUpdate: "user_message", messageId: v2Update.messageId, content,
+                        ...(meta ? {_meta: meta} : {}),
+                    };
+                    await this.client.notify(acpV2.methods.client.session.update, {sessionId, update: reply});
+                    continue;
+                }
+            }
+            if (v2Update.sessionUpdate === "config_option_update" && this.configRevision) {
+                const meta = v2Update._meta && typeof v2Update._meta === "object" ? v2Update._meta as Record<string, unknown> : {};
+                const alwith = meta["alwith"];
+                v2Update = {...v2Update, _meta: {...meta, alwith: {
+                    ...(alwith && typeof alwith === "object" ? alwith : {}),
+                    configRevision: this.configRevision(sessionId),
+                }}};
+            }
             await this.client.notify(acpV2.methods.client.session.update, {sessionId, update: v2Update});
         }
     }
@@ -58,8 +81,8 @@ export class AcpV2Connection {
         await this.foregroundFor(sessionId).update(state);
     }
 
-    startForegroundWork(sessionId: string): Promise<void> {
-        return this.foregroundFor(sessionId).start();
+    startForegroundWork(sessionId: string, messageId?: string): Promise<void> {
+        return this.foregroundFor(sessionId).start(messageId);
     }
 
     snapshotForegroundState(sessionId: string): Promise<void> {
@@ -104,17 +127,17 @@ export class AcpV2Connection {
      * `user_message`, `agent_message` and `agent_thought` exist as whole-message updates; there
      * is no v1 shape for them, so this bypasses `toV2SessionUpdates` entirely.
      */
-    async startReplayMessage(sessionId: string, kind: ReplayMessageKind, messageId: string): Promise<void> {
+    async startReplayMessage(sessionId: string, kind: ReplayMessageKind, messageId: string, meta?: Record<string, unknown> | null): Promise<void> {
         let update: acpV2.SessionUpdate;
         switch (kind) {
             case "user_message":
-                update = {sessionUpdate: "user_message", messageId, content: []};
+                update = {sessionUpdate: "user_message", messageId, content: [], ...(meta ? {_meta: meta} : {})};
                 break;
             case "agent_message":
-                update = {sessionUpdate: "agent_message", messageId, content: []};
+                update = {sessionUpdate: "agent_message", messageId, content: [], ...(meta ? {_meta: meta} : {})};
                 break;
             case "agent_thought":
-                update = {sessionUpdate: "agent_thought", messageId, content: []};
+                update = {sessionUpdate: "agent_thought", messageId, content: [], ...(meta ? {_meta: meta} : {})};
                 break;
         }
         await this.client.notify(acpV2.methods.client.session.update, {
@@ -249,11 +272,16 @@ export class ACPSessionConnection {
     }
 
     /** `startReplayMessage`, which only exists on v2 and so needs no v1 shape. */
-    async startReplayMessage(kind: ReplayMessageKind, messageId: string): Promise<void> {
+    async startReplayMessage(kind: ReplayMessageKind, messageId: string, meta?: Record<string, unknown> | null): Promise<void> {
         if (!this.v2Connection) {
             throw acp.RequestError.internalError(undefined, `'${kind}' does not exist in ACP v1`);
         }
-        await this.v2Connection.startReplayMessage(this.sessionId, kind, messageId);
+        await this.v2Connection.startReplayMessage(this.sessionId, kind, messageId, meta);
+    }
+
+    async updateV2(update: acpV2.SessionUpdate, sessionId = this.sessionId): Promise<void> {
+        if (!this.v2Connection) throw acp.RequestError.internalError(undefined, "This update requires ACP v2");
+        await this.v2Connection.client.notify(acpV2.methods.client.session.update, {sessionId, update});
     }
 
     /** On v2, the view renders the update in the v2 shape (`extensionOnlyV1View`). */

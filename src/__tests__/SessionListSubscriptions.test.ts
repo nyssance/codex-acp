@@ -26,7 +26,7 @@ const timings: SessionListSubscriptionTimings = {
 const HOME = "/codex-home";
 
 function thread(id: string, overrides: Partial<Thread> = {}): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id,
         sessionId: id,
         parentThreadId: null,
@@ -72,13 +72,13 @@ class FakeCodex {
         const offset = params.cursor ? Number(params.cursor) : 0;
         const limit = params.limit ?? 25;
         const data = rows.slice(offset, offset + limit);
-        return {data, nextCursor: offset + limit < rows.length ? String(offset + limit) : null, backwardsCursor: null};
+        return {readStates: null, data, nextCursor: offset + limit < rows.length ? String(offset + limit) : null, backwardsCursor: null};
     });
     readonly threadRead = vi.fn(async ({threadId}: {threadId: string}) => {
         const entry = this.threads.get(threadId);
         if (entry === undefined) throw new Error(`thread not found: ${threadId}`);
         const archivedPath = `${HOME}/archived_sessions/rollout-${threadId}.jsonl`;
-        return {thread: {...entry.thread, path: entry.archived ? archivedPath : entry.thread.path}};
+        return {readState: null, thread: {...entry.thread, path: entry.archived ? archivedPath : entry.thread.path}};
     });
 
     put(value: Thread, archived = false): Thread {
@@ -211,7 +211,7 @@ describe("SessionListSubscriptions", () => {
         subscriptions.forkCreated("source", "unmarked");
         codex.put(thread("other", {cwd}));
         for (const id of ["fork", "unmarked", "other"]) {
-            subscriptions.observe(own("thread/started", {thread: codex.threads.get(id)!.thread}));
+            subscriptions.observe(own("thread/started", {readState: null, thread: codex.threads.get(id)!.thread}));
         }
         await vi.advanceTimersByTimeAsync(2_000);
         // A thread that is no fork of the source goes out meanwhile.
@@ -779,7 +779,7 @@ describe("SessionListSubscriptions", () => {
         codex.put(thread("title", {ephemeral: true}));
         codex.put(thread("fresh", {preview: ""}));
 
-        subscriptions.observe(own("thread/started", {thread: codex.threads.get("title")!.thread}));
+        subscriptions.observe(own("thread/started", {readState: null, thread: codex.threads.get("title")!.thread}));
         subscriptions.observe(own("turn/started", {threadId: "title", turn: {}}));
         subscriptions.observe(own("thread/status/changed", {threadId: "fresh", status: {type: "idle"}}));
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);

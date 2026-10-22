@@ -658,7 +658,7 @@ describe('Token Usage Events', () => {
                 threadId: sessionId,
                 turnId: 'turn-id',
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: 'subAgentActivity',
                     id: 'activity-started',
                     kind: 'started',
@@ -672,7 +672,7 @@ describe('Token Usage Events', () => {
             method: 'turn/completed',
             params: {
                 threadId: childThreadId,
-                turn: {
+                turn: {rootTurnId: null,
                     id: 'child-turn-id',
                     items: [],
                     itemsView: 'notLoaded',

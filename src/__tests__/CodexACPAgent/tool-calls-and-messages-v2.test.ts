@@ -96,11 +96,10 @@ describe('tool calls and messages over ACP v2', () => {
         const chunks = updatesTagged(client, "agent_message_chunk", "agent_thought_chunk") as Array<acpV2.SessionUpdate & {messageId: string}>;
         expect(chunks.map(chunk => chunk.messageId).slice(0, 4))
             .toEqual(["item-reasoning", "item-reasoning", "item-agent", "item-agent"]);
-        const mintedId = chunks[4]!.messageId;
-        expect(mintedId).toEqual(expect.any(String));
-        expect(mintedId).not.toBe("");
-        expect(["item-reasoning", "item-agent"]).not.toContain(mintedId);
-        await expect(dump(chunks).replaceAll(mintedId, "<minted-messageId>"))
+        expect(chunks).toHaveLength(4);
+        const errors = updatesTagged(client, "agent_message");
+        expect(errors).toEqual([expect.objectContaining({messageId: `codex-error:${turnId}`, content: [{type: "text", text: "Something went wrong"}]})]);
+        await expect(dump([...chunks, ...errors]))
             .toMatchFileSnapshot('data/tool-calls-and-messages-v2-message-ids.json');
     });
 

@@ -93,7 +93,7 @@ describe("Approval Events", () => {
             command: "/bin/zsh -c npm test",
             cwd: "/workspace",
             reason: "Needed to verify the changes.",
-            availableDecisions,
+            availableDecisions: availableDecisions as Exclude<CommandParams["availableDecisions"], undefined>,
             ...overrides,
         };
     }

@@ -1,10 +1,10 @@
+import {hostThreadOptions} from "./alwith/hostSession";
 import {createHash} from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 import {RequestError} from "@agentclientprotocol/sdk/unstable";
 import type {SessionConfig} from "./CodexAcpClient";
 import type {CodexAppServerClient} from "./CodexAppServerClient";
 import type {ModeKind} from "./app-server/ModeKind";
-import type {ServiceTier} from "./app-server/ServiceTier";
 import type {Model} from "./app-server/v2";
 import type {SessionMetadata} from "./SessionMetadata";
 import type {AcpMcpServer, WithAcpMcpServers} from "./McpServerConfig";
@@ -19,6 +19,7 @@ export type SessionForkDependencies = {
         mcpServers: AcpMcpServer[],
     ): Promise<SessionConfig>;
     getResumeModelProvider(): Promise<string>;
+    initialModel?: string;
     fetchAvailableModels(): Promise<Model[]>;
     createCurrentModelId(models: Model[], model: string, reasoningEffort: string | null): string;
     getCollaborationMode(sessionId: string): ModeKind;
@@ -42,11 +43,13 @@ export async function forkSession(
         request.mcpServers ?? [],
     );
     const response = await dependencies.codexClient.threadFork({
+        ...hostThreadOptions(request._meta),
         excludeTurns: true,
         config: sessionConfig.config,
         cwd: request.cwd,
         ...(lastTurnId !== undefined && {lastTurnId}),
         modelProvider: await dependencies.getResumeModelProvider(),
+        ...(dependencies.initialModel ? {model: dependencies.initialModel} : {}),
         threadId: request.sessionId,
         ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
     });
@@ -66,9 +69,10 @@ export async function forkSession(
         sessionId: response.thread.id,
         currentModelId: dependencies.createCurrentModelId(models, response.model, response.reasoningEffort),
         models,
+        lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
         collaborationMode: dependencies.getCollaborationMode(response.thread.id),
         modelProvider: response.modelProvider,
-        currentServiceTier: response.serviceTier as ServiceTier ?? null,
+        currentServiceTier: response.serviceTier ?? null,
         additionalDirectories,
         skippedMcpServers: sessionConfig.skippedMcpServers,
         ...(instructions ? {instructions} : {}),
@@ -79,6 +83,11 @@ async function resolveForkTurnId(
     request: Pick<acp.ForkSessionRequest, "sessionId" | "_meta">,
     codexClient: CodexAppServerClient,
 ): Promise<string | undefined> {
+    const nativeTurn = (request._meta?.["codex"] as {lastTurnId?: unknown} | undefined)?.lastTurnId;
+    if (nativeTurn !== undefined) {
+        if (typeof nativeTurn !== "string" || !nativeTurn.trim()) throw RequestError.invalidParams(undefined, "lastTurnId must be a non-empty Codex turn id");
+        return nativeTurn;
+    }
     const forkPoint = readAirForkPoint(request._meta);
     if (!forkPoint) return undefined;
 

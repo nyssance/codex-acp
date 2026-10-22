@@ -8,6 +8,9 @@
     "quota": {
       "token_count": null,
       "model_usage": []
+    },
+    "alwith": {
+      "messageId": "<messageId>"
     }
   },
   "state": "idle",

@@ -37,7 +37,7 @@ describe('subagent and async task updates on ACP v2', () => {
                 threadId: "root",
                 turnId: "turn-1",
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "activity-started",
                     kind: "started",
@@ -52,7 +52,7 @@ describe('subagent and async task updates on ACP v2', () => {
                 threadId: "root",
                 turnId: "turn-1",
                 completedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "activity-interrupted",
                     kind: "interrupted",
@@ -85,7 +85,7 @@ describe('subagent and async task updates on ACP v2', () => {
             method: status === "completed" ? "turn/completed" : "turn/started",
             params: {
                 threadId: "child-1",
-                turn: {
+                turn: {rootTurnId: null,
                     id,
                     items: [],
                     itemsView: "notLoaded",
@@ -104,7 +104,7 @@ describe('subagent and async task updates on ACP v2', () => {
                 threadId: "root",
                 turnId: "turn-1",
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "activity-started",
                     kind: "started",
@@ -147,7 +147,7 @@ describe('subagent and async task updates on ACP v2', () => {
                 threadId: "root",
                 turnId: "turn-1",
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "activity-started",
                     kind: "started",

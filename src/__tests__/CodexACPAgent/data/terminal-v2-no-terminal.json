@@ -9,6 +9,11 @@
         "path": "/workspace/src/a.ts"
       }
     ],
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
     "sessionUpdate": "tool_call_update"
   },
   {
@@ -25,6 +30,11 @@
     ],
     "rawOutput": {
       "exit_code": 0
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
     },
     "sessionUpdate": "tool_call_update"
   }

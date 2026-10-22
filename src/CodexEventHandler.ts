@@ -1,3 +1,4 @@
+import {turnErrorUpdate} from "./alwith/agent/turnErrors";
 import type {
     ServerNotification
 } from "./app-server";
@@ -156,7 +157,7 @@ type StructuredCodexErrorKind = KeysOfUnion<StructuredCodexErrorInfo>;
  * to provider_error. The runtime lookup still has a fallback for a newer app-server talking to an
  * older codex-acp build.
  */
-const STRING_CODEX_ERROR_CATEGORIES = {
+const STRING_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> = {
     contextWindowExceeded: "context_exhausted",
     sessionBudgetExceeded: "budget_exhausted",
     usageLimitExceeded: "quota_exhausted",
@@ -174,7 +175,7 @@ const STRING_CODEX_ERROR_CATEGORIES = {
     other: "provider_error",
 } satisfies Record<StringCodexErrorInfo, CodexFailureKind>;
 
-const STRUCTURED_CODEX_ERROR_CATEGORIES = {
+const STRUCTURED_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> = {
     httpConnectionFailed: "transport_lost",
     responseStreamConnectionFailed: "transport_lost",
     responseStreamDisconnected: "transport_lost",
@@ -469,6 +470,15 @@ export class CodexEventHandler {
         if (ignoredBySubagents) return;
         if (updateEvent === undefined) updateEvent = await this.createUpdateEvent(notification);
         if (updateEvent) {
+            const hasContent = Object.keys(updateEvent).some(key => key !== "sessionUpdate" && key !== "toolCallId" && key !== "_meta");
+            if (hasContent && this.session.protocolVersion === 2 && "turnId" in notification.params
+                && typeof notification.params.turnId === "string") {
+                const meta = updateEvent._meta;
+                const codex = meta?.["codex"];
+                updateEvent = {...updateEvent, _meta: {...meta, codex: {
+                    ...(codex && typeof codex === "object" ? codex : {}), turnId: notification.params.turnId,
+                }}};
+            }
             await this.session.update(updateEvent, this.subagents.notificationSessionId(notification));
         }
     }
@@ -616,6 +626,11 @@ export class CodexEventHandler {
                 this.sessionState.currentTurnId = null;
                 this.sessionState.interruptTurnId = null;
                 if (this.session.protocolVersion === 2 && notification.params.turn.status === "failed") {
+                    if (!this.supportsTypedSessionFailures) {
+                        const turn = notification.params.turn;
+                        const error = turn.error ?? (this.terminalTurnError?.turnId === turn.id ? this.terminalTurnError.error : null);
+                        if (error && !this.isAuthenticationRequiredError(error.codexErrorInfo)) await this.session.updateV2(turnErrorUpdate(turn.id, error), this.subagents.notificationSessionId(notification));
+                    }
                     for (const update of this.sessionState.openToolCalls.finishOutstanding()) {
                         await this.session.update(update, this.subagents.notificationSessionId(notification));
                     }
@@ -772,8 +787,11 @@ export class CodexEventHandler {
             case "externalAgentConfig/import/progress":
             case "process/outputDelta":
             case "process/exited":
+            case "thread/prediction/updated":
             case "autoApprovalReview/strictReviewRequired":
                 return null;
+            case "thread/readState/changed":
+                return this.createCodexSessionInfoUpdate({readState: notification.params.readState});
         }
     }
 
@@ -949,6 +967,12 @@ export class CodexEventHandler {
                 return this.renderer.render(this.subagents.legacyCollaborationCompleted(event.item));
             case "agentMessage":
                 this.rememberAgentMessagePhase(event.item);
+                if (this.session.protocolVersion === 2 && (event.item.delivery === "async" || (event.item.questions?.length ?? 0) > 0)) {
+                    await this.session.updateV2({sessionUpdate: "agent_message", messageId: event.item.id,
+                        content: [{type: "text", text: event.item.text}],
+                        _meta: {codex: {turnId: event.turnId, phase: event.item.phase, delivery: event.item.delivery, questions: event.item.questions}},
+                    }, this.subagents.notificationSessionId({method: "item/completed", params: event}));
+                }
                 return null;
             case "plan":
                 return await this.createCompletedPlanEvent(event.item);
@@ -1091,6 +1115,10 @@ export class CodexEventHandler {
         }
         if (this.failure !== null) {
             failuresShownAsMessages.add(this.failure);
+        }
+        if (this.session.protocolVersion === 2) {
+            await this.session.updateV2(turnErrorUpdate(params.turnId, params.error));
+            return null;
         }
         return createAgentTextMessageChunk(`${readableServiceErrorMessage(params.error.message)}\n\n`);
     }

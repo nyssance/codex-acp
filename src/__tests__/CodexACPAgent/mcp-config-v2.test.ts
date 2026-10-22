@@ -15,7 +15,7 @@ async function startSessionWithMcpServers(mcpServers: Array<AcpMcpServer> | unde
 
     vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
     vi.spyOn(codexAppServerClient, "configRead").mockResolvedValue({config: {}, origins: {}, layers: []} as any);
-    const threadStartSpy = vi.spyOn(codexAppServerClient, "threadStart").mockResolvedValue({
+    const threadStartSpy = vi.spyOn(codexAppServerClient, "threadStart").mockResolvedValue({readState: null,
         thread: {id: "thread-id"} as any,
         model: "gpt-5",
         reasoningEffort: "medium",

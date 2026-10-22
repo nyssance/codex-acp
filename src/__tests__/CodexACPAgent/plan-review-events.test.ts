@@ -15,6 +15,7 @@ type TurnCompletion = {
         id: string;
         items: never[];
         itemsView: "notLoaded";
+        rootTurnId: string | null;
         status: "completed" | "failed";
         error: null | {
             message: string;
@@ -33,6 +34,7 @@ type TurnStartResponse = {
         id: string;
         items: never[];
         itemsView: "notLoaded";
+        rootTurnId: string | null;
         status: "inProgress";
         error: null;
         startedAt: null;
@@ -83,7 +85,7 @@ describe("CodexACPAgent - plan review", () => {
         const implementationTurn = deferred<TurnCompletion>();
         const turnStart = vi.spyOn(fixture.getCodexAppServerClient(), "turnStart")
             .mockResolvedValueOnce({
-                turn: {
+                turn: {rootTurnId: null,
                     id: "plan-turn",
                     items: [],
                     itemsView: "notLoaded",
@@ -95,7 +97,7 @@ describe("CodexACPAgent - plan review", () => {
                 },
             })
             .mockImplementationOnce(() => options.implementationStart ?? Promise.resolve({
-                turn: {
+                turn: {rootTurnId: null,
                     id: "implementation-turn",
                     items: [],
                     itemsView: "notLoaded",
@@ -141,7 +143,7 @@ describe("CodexACPAgent - plan review", () => {
         });
         const completion: TurnCompletion = {
             threadId: sessionId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: "plan-turn",
                 items: [],
                 itemsView: "notLoaded",
@@ -216,7 +218,7 @@ describe("CodexACPAgent - plan review", () => {
 
         implementationTurn.resolve({
             threadId: sessionId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: "implementation-turn",
                 items: [],
                 itemsView: "notLoaded",
@@ -363,7 +365,7 @@ describe("CodexACPAgent - plan review", () => {
         await vi.waitFor(() => expect(turnStart).toHaveBeenCalledTimes(2));
         implementationTurn.resolve({
             threadId: sessionId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: "implementation-turn",
                 items: [],
                 itemsView: "notLoaded",
@@ -410,7 +412,7 @@ describe("CodexACPAgent - plan review", () => {
         });
         const failedCompletion: TurnCompletion = {
             threadId: sessionId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: "implementation-turn",
                 items: [],
                 itemsView: "notLoaded",
@@ -471,7 +473,7 @@ describe("CodexACPAgent - plan review", () => {
         expect(sessionState.sessionFailure).toMatchObject({severity: "error", revision: 1});
 
         implementationStart.resolve({
-            turn: {
+            turn: {rootTurnId: null,
                 id: "implementation-turn",
                 items: [],
                 itemsView: "notLoaded",
@@ -484,7 +486,7 @@ describe("CodexACPAgent - plan review", () => {
         });
         implementationTurn.resolve({
             threadId: sessionId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: "implementation-turn",
                 items: [],
                 itemsView: "notLoaded",

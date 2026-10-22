@@ -354,7 +354,7 @@ async function runNextPrompt(
 async function createSession(fixture: CodexMockTestFixture): Promise<SessionState> {
     const codexAcpClient = fixture.getCodexAcpClient();
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
         sessionId,
         currentModelId: "model-id[medium]",
@@ -373,7 +373,7 @@ function turn(
     status: "inProgress" | "completed" | "failed" | "interrupted",
     turnError: ErrorNotification["error"] | null = null,
 ) {
-    return {
+    return {rootTurnId: null,
         id,
         items: [],
         itemsView: "notLoaded" as const,

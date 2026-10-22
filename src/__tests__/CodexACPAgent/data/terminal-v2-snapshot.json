@@ -20,6 +20,11 @@
       "command": "/bin/zsh -lc 'npm test'",
       "cwd": "/workspace"
     },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
     "sessionUpdate": "tool_call_update"
   },
   {
@@ -37,6 +42,11 @@
   {
     "toolCallId": "item-shell",
     "status": "completed",
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
     "sessionUpdate": "tool_call_update"
   }
 ]

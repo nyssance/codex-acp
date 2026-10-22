@@ -1,6 +1,5 @@
 import type {SessionConfigOption} from "@agentclientprotocol/sdk/unstable";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type {ServiceTier} from "./app-server/ServiceTier";
 import type {Model} from "./app-server/v2";
 
 export const FAST_MODE_CONFIG_ID = "fast-mode";
@@ -11,11 +10,11 @@ export const FAST_MODE_OFF = "off";
 const FAST_MODE_DESCRIPTION = "1.5x speed, increased usage";
 
 export function modelSupportsFast(model: Model | undefined): boolean {
-    return model?.additionalSpeedTiers?.includes("fast") ?? false;
+    return model?.additionalSpeedTiers?.some(tier => tier === "fast" || tier === "priority") ?? false;
 }
 
-export function resolveFastServiceTier(fastModeEnabled: boolean, currentModelSupportsFast: boolean): ServiceTier | null {
-    return fastModeEnabled && currentModelSupportsFast ? "fast" : null;
+export function resolveFastServiceTier(fastModeEnabled: boolean, currentModelSupportsFast: boolean): "priority" | null {
+    return fastModeEnabled && currentModelSupportsFast ? "priority" : null;
 }
 
 export function clientSupportsBooleanConfigOptions(clientCapabilities?: acp.ClientCapabilities | null): boolean {

@@ -17,7 +17,7 @@ import {AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES} from "../../AgentFileChangeRepo
 const CHILD_THREAD_ID = "child-thread";
 
 function createTurn(id: string, status: Turn["status"]): Turn {
-    return {
+    return {rootTurnId: null,
         id,
         items: [],
         itemsView: "notLoaded",
@@ -103,7 +103,7 @@ function spawnChild(rootSessionId: string): ServerNotification[] {
                 threadId: rootSessionId,
                 turnId: "main-turn",
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "activity-child",
                     kind: "started",

@@ -144,7 +144,9 @@ export class AgentMode {
     static getInitialAgentMode(): AgentMode {
         const predefinedAgentMode = process.env["INITIAL_AGENT_MODE"];
         if (predefinedAgentMode) {
-            return AgentMode.find(predefinedAgentMode) ?? AgentMode.DEFAULT_AGENT_MODE;
+            const mode = AgentMode.find(predefinedAgentMode);
+            if (!mode) throw new Error(`Unknown INITIAL_AGENT_MODE: ${predefinedAgentMode}`);
+            return mode;
         } else {
             return AgentMode.DEFAULT_AGENT_MODE;
         }

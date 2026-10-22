@@ -40,7 +40,7 @@ function deferred<T>(): {promise: Promise<T>; resolve: (value: T) => void} {
  */
 async function startRunningPrompt(client: PromptSession) {
     client.setTurnStart(async () => ({
-        turn: {id: turnId, items: [], itemsView: "notLoaded" as const, status: "inProgress" as const, error: null, startedAt: null, completedAt: null, durationMs: null},
+        turn: {rootTurnId: null, id: turnId, items: [], itemsView: "notLoaded" as const, status: "inProgress" as const, error: null, startedAt: null, completedAt: null, durationMs: null},
     }));
     const response = client.sendPrompt([{type: "text", text: "Hello"}]);
     await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
@@ -88,7 +88,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "accept", content: null, _meta: {source: "client"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn} = await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
@@ -106,7 +106,7 @@ describe('elicitation/create over ACP v2', () => {
         }]);
         // An answer alone does not establish that the runtime has resumed foreground work.
         expect(stateUpdates(transcript)).toEqual([{state: "requires_action"}]);
-        await expect(dump(transcript)).toMatchFileSnapshot('data/elicitation-v2-oauth-reauth-accepted.json');
+        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot('data/elicitation-v2-oauth-reauth-accepted.json');
 
         // Codex reports the underlying MCP server request as resolved once the OAuth flow lands;
         // a URL elicitation only completes then (see `CodexElicitationHandler`).
@@ -123,7 +123,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "decline", _meta: null}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn} = await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
 
@@ -137,7 +137,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "cancel"}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn} = await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
 
@@ -150,7 +150,7 @@ describe('elicitation/create over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "accept"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn} = await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
@@ -193,7 +193,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "accept", content: null, _meta: {source: "client"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn} = await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         await finishTurn();
         await settle();
         const start = client.transcript.length;
@@ -212,7 +212,7 @@ describe('elicitation/create over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "accept"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn} = await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         await finishTurn();
         await settle();
         const start = client.transcript.length;
@@ -275,7 +275,7 @@ describe('elicitation/create over ACP v2', () => {
         mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string) => {
             switch (method) {
                 case "account/read":
-                    return {account: null, requiresOpenaiAuth: true};
+                    return {workspaceRouting: null, account: null, requiresOpenaiAuth: true};
                 case "account/login/start":
                     return {
                         type: "chatgptDeviceCode",

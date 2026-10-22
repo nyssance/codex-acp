@@ -9,6 +9,7 @@ import type {ServerNotification} from "../../app-server";
 import type {Thread, ThreadItem, Turn} from "../../app-server/v2";
 import {
     createCodexMockTestFixture,
+    awaitFirstAuthStatusPush,
     createTestModel,
     createTestSessionState,
     type CodexMockTestFixture,
@@ -351,7 +352,7 @@ describe("session compaction", () => {
         const appServer = fixture.getCodexAppServerClient();
         const model = createTestModel();
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(client, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(appServer, "listModels").mockResolvedValue({data: [model], nextCursor: null});
         const thread = createThread([
@@ -359,7 +360,7 @@ describe("session compaction", () => {
             {type: "contextCompaction", id: compactionId},
             agentMessage("after-message", "After compaction."),
         ]);
-        vi.spyOn(appServer, "threadResume").mockResolvedValue({
+        vi.spyOn(appServer, "threadResume").mockResolvedValue({runtimeWorkspaceRoots: [], activePermissionProfile: null, multiAgentMode: "explicitRequestOnly", initialTurnsPage: null,
             thread,
             model: model.id,
             modelProvider: "openai",
@@ -375,7 +376,7 @@ describe("session compaction", () => {
             turnsBackwardsCursor: null,
             itemsBackwardsCursor: null,
         });
-        vi.spyOn(appServer, "threadReadWithHistory").mockResolvedValue({thread});
+        vi.spyOn(appServer, "threadReadWithHistory").mockResolvedValue({readState: null, thread});
         await agent.initialize({protocolVersion: 1, clientCapabilities: compactionCapabilities});
         await agent.loadSession({sessionId, cwd: thread.cwd, mcpServers: []});
 
@@ -454,6 +455,7 @@ async function createFixture(clientCapabilities: acp.ClientCapabilities = compac
             : clientCapabilities,
     });
     await agent.prompt({sessionId, prompt: [{type: "text", text: "Continue."}]});
+    await awaitFirstAuthStatusPush(fixture);
     fixture.clearAcpConnectionDump();
     return fixture;
 }
@@ -490,7 +492,7 @@ async function createNativeChildFixture() {
                 threadId: sessionId,
                 turnId,
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "activity-compaction-child",
                     kind: "started",
@@ -524,7 +526,7 @@ function nativeChildActivityStarted(threadId: string): ServerNotification {
             threadId: sessionId,
             turnId,
             startedAtMs: 0,
-            item: {
+            item: {model: null, reasoningEffort: null,
                 type: "subAgentActivity",
                 id: `activity-${threadId}`,
                 kind: "started",
@@ -575,7 +577,7 @@ function nativeCompactionLifecycleDump(fixture: CodexMockTestFixture, childId?: 
 }
 
 function createTurn(status: Turn["status"]): Turn {
-    return {
+    return {rootTurnId: null,
         id: turnId,
         items: [],
         itemsView: "full",
@@ -592,7 +594,7 @@ function agentMessage(id: string, text: string): ThreadItem {
 }
 
 function createThread(items: ThreadItem[]): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,

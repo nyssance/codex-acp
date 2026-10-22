@@ -34,6 +34,11 @@
       },
       {
         "sessionUpdate": {
+          "_meta": {
+            "alwith": {
+              "messageId": "<messageId>"
+            }
+          },
           "state": "running",
           "sessionUpdate": "state_update"
         }
@@ -67,12 +72,54 @@
       },
       {
         "sessionUpdate": {
-          "messageId": "<agentMessageId>",
-          "content": {
-            "text": "You've hit your usage limit.\n\n",
-            "type": "text"
+          "messageId": "codex-error:turn-1",
+          "content": [
+            {
+              "text": "You've hit your usage limit.",
+              "type": "text"
+            }
+          ],
+          "_meta": {
+            "codex": {
+              "turnId": "turn-1",
+              "error": {
+                "category": "usage_limit",
+                "retryable": false,
+                "stopReason": "error",
+                "message": "You've hit your usage limit.",
+                "codexErrorInfo": "usageLimitExceeded",
+                "additionalDetails": null,
+                "misalignment": null
+              }
+            }
           },
-          "sessionUpdate": "agent_message_chunk"
+          "sessionUpdate": "agent_message"
+        }
+      },
+      {
+        "sessionUpdate": {
+          "messageId": "codex-error:turn-1",
+          "content": [
+            {
+              "text": "You've hit your usage limit.",
+              "type": "text"
+            }
+          ],
+          "_meta": {
+            "codex": {
+              "turnId": "turn-1",
+              "error": {
+                "category": "usage_limit",
+                "retryable": false,
+                "stopReason": "error",
+                "message": "You've hit your usage limit.",
+                "codexErrorInfo": "usageLimitExceeded",
+                "additionalDetails": null,
+                "misalignment": null
+              }
+            }
+          },
+          "sessionUpdate": "agent_message"
         }
       },
       {
@@ -86,6 +133,9 @@
             "quota": {
               "token_count": null,
               "model_usage": []
+            },
+            "alwith": {
+              "messageId": "<messageId>"
             }
           },
           "state": "idle",
@@ -129,6 +179,11 @@
       },
       {
         "sessionUpdate": {
+          "_meta": {
+            "alwith": {
+              "messageId": "<messageId>"
+            }
+          },
           "state": "running",
           "sessionUpdate": "state_update"
         }
@@ -181,6 +236,9 @@
             "quota": {
               "token_count": null,
               "model_usage": []
+            },
+            "alwith": {
+              "messageId": "<messageId>"
             }
           },
           "state": "idle",

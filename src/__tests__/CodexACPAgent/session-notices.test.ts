@@ -126,7 +126,7 @@ describe("session notices", () => {
                 threadId: sessionId,
                 turnId,
                 startedAtMs: 0,
-                item: {
+                item: {model: null, reasoningEffort: null,
                     type: "subAgentActivity",
                     id: "notice-child-activity",
                     kind: "started",
@@ -158,11 +158,11 @@ describe("session notices", () => {
         const appServer = fixture.getCodexAppServerClient();
         const model = createTestModel();
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(client, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(appServer, "listModels").mockResolvedValue({data: [model], nextCursor: null});
         const thread = createThread();
-        vi.spyOn(appServer, "threadResume").mockResolvedValue({
+        vi.spyOn(appServer, "threadResume").mockResolvedValue({runtimeWorkspaceRoots: [], activePermissionProfile: null, multiAgentMode: "explicitRequestOnly", initialTurnsPage: null,
             thread,
             model: model.id,
             modelProvider: "openai",
@@ -178,7 +178,7 @@ describe("session notices", () => {
             turnsBackwardsCursor: null,
             itemsBackwardsCursor: null,
         });
-        vi.spyOn(appServer, "threadReadWithHistory").mockResolvedValue({thread});
+        vi.spyOn(appServer, "threadReadWithHistory").mockResolvedValue({readState: null, thread});
         mockCompletedPrompt(fixture);
         await agent.initialize({protocolVersion: 1, clientCapabilities: noticeCapabilities});
         const request = {sessionId, cwd: thread.cwd, mcpServers: []};
@@ -257,11 +257,11 @@ function modelRerouted(threadId: string): ServerNotification {
 }
 
 function createTurn(status: Turn["status"]): Turn {
-    return {id: turnId, items: [], itemsView: "full", status, error: null, startedAt: null, completedAt: null, durationMs: null};
+    return {rootTurnId: null, id: turnId, items: [], itemsView: "full", status, error: null, startedAt: null, completedAt: null, durationMs: null};
 }
 
 function createThread(): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,

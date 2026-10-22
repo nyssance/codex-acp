@@ -185,7 +185,7 @@ describe("ACP session close", () => {
             env: [],
         };
         vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
         vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId,
@@ -256,7 +256,7 @@ describe("ACP session close", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         await codexAcpAgent.initialize({protocolVersion: 1, clientCapabilities: {elicitation: {url: {}}}});
         vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
         vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId,
@@ -539,7 +539,7 @@ async function createSession(options: {
     const model = createTestModel();
 
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
     vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
         sessionId,
@@ -561,7 +561,7 @@ async function createSession(options: {
 
 function createTurnStartResponse(turnId: string): TurnStartResponse {
     return {
-        turn: {
+        turn: {rootTurnId: null,
             id: turnId,
             items: [],
             itemsView: "notLoaded",
@@ -575,7 +575,7 @@ function createTurnStartResponse(turnId: string): TurnStartResponse {
 }
 
 function createCompletedTurn(turnId: string): TurnStartResponse["turn"] {
-    return {
+    return {rootTurnId: null,
         id: turnId,
         items: [],
         itemsView: "notLoaded",

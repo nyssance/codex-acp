@@ -84,7 +84,7 @@ async function startPrompt(): Promise<{
     const appServer = fixture.getCodexAppServerClient();
 
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
         sessionId,
         currentModelId: "model-id[medium]",
@@ -95,7 +95,7 @@ async function startPrompt(): Promise<{
     });
     await codexAcpAgent.newSession({cwd: "/test/cwd", mcpServers: []});
 
-    const inProgressTurn = {
+    const inProgressTurn = {rootTurnId: null,
         id: turnId,
         items: [],
         itemsView: "notLoaded" as const,

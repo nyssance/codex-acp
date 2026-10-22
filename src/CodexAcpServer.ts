@@ -1,3 +1,12 @@
+import type {ReplayEntry} from "./ReplayHistory";
+import {classifyTurnError} from "./alwith/agent/turnErrors";
+import {ConfigRevisions} from "./alwith/ConfigRevisions";
+import {readSessionList} from "./alwith/agent/sessionCatalog";
+import {ProviderRouting} from "./alwith/agent/providers";
+import {clientToolsOf, toolResponse, toolFailure, CLIENT_TOOLS_METHOD, type ClientToolSet} from "./alwith/agent/clientTools";
+import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
+import {abortable} from "./alwith/util/abort";
+import {AlwithExtensions} from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {RequestError, type SessionId, type SessionModeState} from "@agentclientprotocol/sdk/unstable";
 import {CodexEventHandler, type CompletedPlan, failureWasShownAsMessage} from "./CodexEventHandler";
@@ -27,6 +36,8 @@ import {
     isAccountReadAuthFailureError,
     isAccountReadUnavailableError,
     isNoActiveTurnError,
+    isMissingRolloutError,
+    isThreadNotMaterializedError,
     parseExpectedActiveTurnMismatch,
 } from "./CodexThreadErrors";
 import {requiresLogout} from "./CodexErrorExplanations";
@@ -49,7 +60,7 @@ import {
     type ReplayMessageKind,
     type UpdateSessionEvent,
 } from "./ACPSessionConnection";
-import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {toV1ClientCapabilitiesView} from "./AcpV2ClientCapabilities";
 import {toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
 import {toV2AvailableCommands} from "./AcpV2SessionUpdate";
@@ -224,6 +235,9 @@ import {
 
 
 export interface SessionState extends SessionIndexTitleState {
+    clientTools?: ClientToolSet;
+    readOnly?: boolean;
+    lineage?: {nativeSessionId: string | null; forkedFromId: string | null};
     sessionId: string,
     instructions?: SessionInstructions;
     currentModelId: string,
@@ -467,6 +481,7 @@ export interface CodexProcessState {
 }
 
 export class CodexAcpServer {
+    private readonly replayEntries = new WeakMap<ThreadItem, ReplayEntry>();
     private codexAcpClient: CodexAcpClient;
     private readonly connection: AcpClientConnection;
     private readonly mcpServerSignIn: McpServerSignIn;
@@ -580,6 +595,7 @@ export class CodexAcpServer {
             connection.registerView(this.connection);
             // Foreground work includes adapter pauses between runtime turns, such as plan review.
             connection.setTurnRunningCheck((sessionId) => this.isSessionBusy(sessionId));
+            connection.setConfigRevisionSource(id => this.configSnapshot(this.getSessionState(id)).configRevision);
         } else {
             this.protocolVersion = 1;
             this.v2Connection = null;
@@ -640,6 +656,8 @@ export class CodexAcpServer {
         this.sessionIndex.configure(_params.clientCapabilities);
         await this.runWithProcessCheck(() => this.codexAcpClient.initialize(_params));
         this.sessionIndex.observe(this.codexAcpClient);
+        if (this.protocolVersion === 2) this.alwith.observe();
+        this.bindClientTools();
         this.publishFirstAuthStatusAfterResponse();
         const sessionCapabilities: SubagentAwareSessionCapabilities = {
             resume: { },
@@ -703,6 +721,8 @@ export class CodexAcpServer {
         this.sessionIndex.configure(clientCapabilities);
         await this.runWithProcessCheck(() => this.codexAcpClient.initialize({clientInfo: params.info}));
         this.sessionIndex.observe(this.codexAcpClient);
+        if (this.protocolVersion === 2) this.alwith.observe();
+        this.bindClientTools();
         this.publishFirstAuthStatusAfterResponse();
         return {
             protocolVersion: 2,
@@ -712,6 +732,11 @@ export class CodexAcpServer {
                 version: packageJson.version,
             },
             capabilities: {
+                _meta: {alwith: {tools: {version: 1}, configRevision: {version: 1}}, codex: {
+                    sessionHistory: {version: 2, items: true, modes: ["browse", "export"]},
+                    skills: true, plugins: true, pluginEnable: true, account: true, fuzzyFileSearch: true,
+                    sessionList: {version: 1}, archive: true, rename: true, readState: true, providerCatalog: true,
+                }},
                 auth: {
                     _meta: {
                         // Presence means "this agent pushes `_auth/status_update`".
@@ -786,6 +811,162 @@ export class CodexAcpServer {
                 },
             } : {}),
         };
+    }
+
+    private readonly alwith = new AlwithExtensions(
+        () => this.codexAcpClient.appServerClient,
+        (method, params) => this.connection.notify(method, params),
+        id => this.activePrompts.has(id) || !!this.sessions.get(id)?.codexReportedRunningTurnId,
+    );
+
+    private readonly configRevisions = new ConfigRevisions();
+    private configSnapshot(session: SessionState) {
+        return this.configRevisions.read(session, toV2ConfigOptions(this.createSessionConfigOptions(session)));
+    }
+
+    private readonly toolBoundClients = new WeakSet<CodexAppServerClient>();
+    private readonly toolCalls = new WeakMap<ActivePrompt, Map<string, {fingerprint: string; response: Promise<DynamicToolCallResponse>}>>();
+
+    private bindClientTools(): void {
+        const client = this.codexAcpClient.appServerClient;
+        if (this.toolBoundClients.has(client)) return;
+        this.toolBoundClients.add(client);
+        const lifetime = new AbortController();
+        client.connectionLoss.onLost(() => lifetime.abort());
+        client.onDynamicToolCall(params => this.callClientTool(params, lifetime.signal));
+    }
+
+    private async callClientTool(params: DynamicToolCallParams, lifetime: AbortSignal): Promise<DynamicToolCallResponse> {
+        const session = this.sessions.get(params.threadId);
+        const prompt = this.activePrompts.get(params.threadId);
+        if (!session?.clientTools || !prompt || !this.v2Connection || this.sessionIsClosing(params.threadId)) {
+            return toolFailure("Client tool session is no longer active");
+        }
+        const tools = session.clientTools;
+        const tool = tools.definitions.find(tool => `alwith_client_${tool.name}` === params.tool);
+        if (!tool || params.namespace !== null) return toolFailure("Client tool was not declared for this session");
+        let calls = this.toolCalls.get(prompt);
+        if (!calls) {calls = new Map(); this.toolCalls.set(prompt, calls);}
+        const key = `${params.turnId}:${params.callId}`;
+        const fingerprint = JSON.stringify([params.tool, params.arguments, tools.revision]);
+        const previous = calls.get(key);
+        if (previous) return previous.fingerprint === fingerprint ? previous.response
+            : toolFailure("Client tool call ID was reused with different arguments");
+        const execute = async (): Promise<DynamicToolCallResponse> => {
+            const signal = AbortSignal.any([lifetime, prompt.signal, prompt.interactionSignal]);
+            try {
+                signal.throwIfAborted();
+                if (!prompt.currentTurn) {
+                    const pending = this.pendingTurnStarts.get(params.threadId);
+                    if (pending) await abortable(pending.promise, signal);
+                }
+                const assertCurrent = () => {
+                    signal.throwIfAborted();
+                    if (this.activePrompts.get(params.threadId) !== prompt || prompt.currentTurn?.turnId !== params.turnId
+                        || session.currentTurnId !== params.turnId
+                        || this.sessions.get(params.threadId) !== session || this.sessionIsClosing(params.threadId)) {
+                        throw new Error("Client tool turn is no longer active");
+                    }
+                };
+                assertCurrent();
+                if (session.agentMode.approvalPolicy !== "never") {
+                    const permission = await abortable(this.connection.request<acp.RequestPermissionResponse>(acp.methods.client.session.requestPermission, {
+                        sessionId: params.threadId,
+                        toolCall: {toolCallId: params.callId, title: tool.description, kind: "other", status: "pending"},
+                        options: [
+                            {optionId: "allow_once", name: "Allow", kind: "allow_once"},
+                            {optionId: "reject_once", name: "Reject", kind: "reject_once"},
+                        ],
+                    }, {cancellationSignal: signal}), signal);
+                    if (permission.outcome.outcome !== "selected" || permission.outcome.optionId !== "allow_once") {
+                        return toolFailure("Client tool permission was denied");
+                    }
+                }
+                assertCurrent();
+                const response = await abortable(this.v2Connection!.request(CLIENT_TOOLS_METHOD, {
+                    sessionId: params.threadId, turnId: params.turnId, toolCallId: params.callId,
+                    name: tool.name, arguments: params.arguments, toolSetRevision: tools.revision,
+                }, {cancellationSignal: signal}), signal);
+                assertCurrent();
+                return toolResponse(response);
+            } catch (error) {
+                return toolFailure(signal.aborted ? "Client tool call was cancelled"
+                    : `Client tool call failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        };
+        const response = execute();
+        calls.set(key, {fingerprint, response});
+        return response;
+    }
+
+    async alwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+        if (!this.codexAcpClient.initialized) throw RequestError.invalidRequest(undefined, "Initialize before calling ALwith extensions");
+        if (this.providerUpdate !== null) await this.waitForProviderUpdate();
+        const ready = this.ensureAppServer();
+        if (ready) await ready;
+        if (method === "_codex/session_retry") {
+            if (typeof params["sessionId"] === "string") this.assertSessionWritable(params["sessionId"]);
+            const id = params["sessionId"], turnId = params["turnId"], trigger = params["trigger"];
+            if (typeof id !== "string" || typeof turnId !== "string" || (trigger !== "manual" && trigger !== "automatic")) {
+                throw RequestError.invalidParams(undefined, "Expected sessionId, turnId and manual/automatic trigger");
+            }
+            const session = this.getSessionState(id);
+            if (this.isSessionBusy(id) || this.activePrompts.has(id)) throw RequestError.invalidRequest(undefined, "Session is busy");
+            this.alwith.predictions.cancel(id);
+            await this.startNewTurnFromExternalPrompt({sessionId: id, prompt: [], _meta: {alwith: {retryTrigger: `capacity_retry_${trigger}`}}}, "Retry", async () => {
+                const page = await this.codexAcpClient.appServerClient.threadTurnsList({threadId: id, limit: 1, sortDirection: "desc", itemsView: "summary"});
+                const latest = page.data[0];
+                if (this.sessions.get(id) !== session || this.sessionIsClosing(id) || latest?.id !== turnId
+                    || latest.status !== "failed" || latest.error === null) {
+                    throw RequestError.invalidRequest(undefined, "The failed turn is no longer the latest turn");
+                }
+                if (!classifyTurnError(latest.error.codexErrorInfo).retryable
+                    || (trigger === "automatic" && latest.error.codexErrorInfo !== "serverOverloaded")) {
+                    throw RequestError.invalidRequest(undefined, "This failure cannot be retried unchanged");
+                }
+                const native = await this.codexAcpClient.appServerClient.threadRead({threadId: id});
+                if (native.thread.status.type !== "idle" && native.thread.status.type !== "systemError") {
+                    throw RequestError.invalidRequest(undefined, "Session is busy");
+                }
+                return true;
+            });
+            return {};
+        }
+        if (method === "_alwith/config_snapshot") {
+            if (typeof params["sessionId"] !== "string") throw RequestError.invalidParams(undefined, "Expected sessionId");
+            return this.configSnapshot(this.getSessionState(params["sessionId"]));
+        }
+        if (method === "_codex/session_prediction_request") {
+            const id = params["sessionId"], turnId = params["sourceTurnId"];
+            if (typeof id !== "string" || typeof turnId !== "string" || !turnId) throw RequestError.invalidParams(undefined, "Expected sessionId and sourceTurnId");
+            const session = this.getSessionState(id);
+            const ready = () => this.sessions.get(id) === session && !this.sessionIsClosing(id)
+                && !this.activePrompts.has(id) && !this.isSessionBusy(id);
+            if (!ready() || (session.authProvider !== null && session.authProvider !== "openai") || session.collaborationMode === "plan") {
+                throw RequestError.invalidRequest(undefined, "Predictions require an idle OpenAI session outside plan mode");
+            }
+            const page = await this.codexAcpClient.appServerClient.threadTurnsList({threadId: id, limit: 1, sortDirection: "desc"});
+            if (!ready() || page.data[0]?.id !== turnId || page.data[0].status !== "completed") {
+                throw RequestError.invalidRequest(undefined, "Predictions require the latest completed turn");
+            }
+            this.alwith.predictions.start(id, turnId, {update: update => this.v2Connection!.notify(
+                acpV2.methods.client.session.update, {sessionId: id, update})}, this.alwith.codex.disconnectSignal,
+                session.supportedReasoningEfforts.some(option => option.reasoningEffort === "low") ? "low" : undefined);
+            return {};
+        }
+        if (["_codex/session_archive", "_codex/session_unarchive", "_codex/session_rename"].includes(method)) {
+            const sessionId = params["sessionId"];
+            if (typeof sessionId !== "string" || !sessionId) throw RequestError.invalidParams(undefined, "Expected sessionId");
+            this.assertSessionWritable(sessionId);
+            if (method === "_codex/session_rename") {
+                const title = params["name"];
+                if (typeof title !== "string") throw RequestError.invalidParams(undefined, "Expected name");
+                return this.sessionIndex.renameSession(sessionId, title);
+            }
+            const archived = method === "_codex/session_archive";
+            return this.sessionIndex.archiveSession(sessionId, archived, {codex: {archived}});
+        }
+        return this.runWithProcessCheck(() => this.alwith.request(method, params, signal));
     }
 
     async listHooks(cwd: string): Promise<HooksListEntry> {
@@ -1050,6 +1231,12 @@ export class CodexAcpServer {
         throw RequestError.invalidRequest(`Session ${sessionId} is closing`);
     }
 
+    private assertSessionWritable(sessionId: string): void {
+        if (this.sessions.get(sessionId)?.readOnly) {
+            throw RequestError.invalidRequest({codex: {readOnly: true}}, "Thread is open in another Codex client");
+        }
+    }
+
     private sessionIsClosing(sessionId: string): boolean {
         return (this.closingSessions.get(sessionId) ?? 0) > 0;
     }
@@ -1084,12 +1271,20 @@ export class CodexAcpServer {
         operation: "new" | "resume" | "fork" = "sessionId" in request ? "resume" : "new",
     ): Promise<[SessionId, LegacySessionModelState, SessionModeState]> {
         clientSystemPromptText(request.systemPrompt);
+        if ("sessionId" in request) this.alwith.predictions.cancel(request.sessionId);
+        const clientTools = clientToolsOf(request._meta);
+        const modeHint = (request._meta?.["codex"] as {mode?: unknown} | undefined)?.mode;
+        const initialMode = modeHint === undefined ? AgentMode.getInitialAgentMode()
+            : typeof modeHint === "string" ? AgentMode.find(modeHint) : null;
+        if (!initialMode) throw RequestError.invalidParams(undefined, "Unknown Codex session mode");
         const existingSessionRequest = request as WithAcpMcpServers<acp.ResumeSessionRequest> | WithAcpMcpServers<acp.ForkSessionRequest>;
         const previousInstructions = "sessionId" in request ? this.sessions.get(request.sessionId)?.instructions : undefined;
         const requestedSessionGeneration = operation === "resume"
             ? this.beginSessionOpen(existingSessionRequest.sessionId)
             : null;
-        const knownAccount = await this.checkAuthorization();
+        const gatewayRequested = this.codexAcpClient.providerCatalog.active !== null
+            && (await this.codexAcpClient.sessionRoute(request)).gatewayId !== null;
+        const knownAccount = gatewayRequested ? null : await this.checkAuthorization();
         const requestedMcpServers = request.mcpServers ?? [];
         const readMcpServerStartupVersion = () => requestedMcpServers.length > 0
             ? this.codexAcpClient.getMcpServerStartupVersion()
@@ -1118,7 +1313,7 @@ export class CodexAcpServer {
                     mcpServerStartupVersion = readMcpServerStartupVersion();
                     return this.codexAcpClient.resumeSession(resumeRequest, () => {
                         resumeSubscribed = true;
-                    }, previousInstructions);
+                    }, previousInstructions, this.protocolVersion === 2);
                 });
             } catch (err) {
                 settleTrackerReady?.(!resumeSubscribed && this.instructionUpdates.has(resumeRequest.sessionId)
@@ -1179,11 +1374,14 @@ export class CodexAcpServer {
         const currentModelSupportsFast = modelSupportsFast(currentModel);
         const sessionState: SessionState = {
             sessionId: sessionId,
+            readOnly: sessionMetadata.readOnly ?? false,
+            ...(sessionMetadata.lineage ? {lineage: sessionMetadata.lineage} : {}),
             currentModelId: currentModelId,
             availableModels: models,
             supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
             supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: AgentMode.getInitialAgentMode(),
+            agentMode: initialMode,
+            ...(clientTools ? {clientTools} : {}),
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
             interruptTurnId: null,
@@ -1201,7 +1399,7 @@ export class CodexAcpServer {
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            fastModeEnabled: sessionMetadata.currentServiceTier === "fast",
+            fastModeEnabled: (sessionMetadata.currentServiceTier === "priority" || sessionMetadata.currentServiceTier === "fast"),
             currentModelSupportsFast: currentModelSupportsFast,
             sessionMcpServers: sessionMcpServers,
             clientCapabilities: this.capabilities,
@@ -1805,6 +2003,15 @@ export class CodexAcpServer {
         const {systemPrompt, ...rest} = params;
         const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt)};
         const {sessionId} = await this.forkSession(request);
+        const generation = this.getSessionGeneration(sessionId);
+        try {
+            const {thread, history} = await this.codexAcpClient.readSessionReplay(sessionId);
+            if (this.getSessionGeneration(sessionId) !== generation) throw new SessionClosedDuringLoadError();
+            await this.streamThreadHistory(sessionId, thread, history);
+        } catch (error) {
+            if (this.getSessionGeneration(sessionId) === generation) await this.closeSession({sessionId});
+            throw error;
+        }
         return {
             sessionId,
             ...this.createSessionSetupResponseV2(this.getSessionState(sessionId)),
@@ -1817,6 +2024,9 @@ export class CodexAcpServer {
         logger.log("Listing sessions...", {cwd: params.cwd, cursor: params.cursor});
         if (this.sessionIndex.enabled) {
             return await this.sessionIndex.list(params);
+        }
+        if (this.protocolVersion === 2) {
+            return this.runWithProcessCheck(() => readSessionList(this.codexAcpClient.appServerClient, params, false));
         }
         await this.checkAuthorization();
         const response = await this.runWithProcessCheck(() => this.codexAcpClient.listSessions(params));
@@ -1836,6 +2046,7 @@ export class CodexAcpServer {
     }
 
     async closeSession(params: acp.CloseSessionRequest): Promise<acp.CloseSessionResponse> {
+        this.alwith.predictions.cancel(params.sessionId);
         logger.log("Closing session...", {sessionId: params.sessionId});
         const closeGeneration = this.bumpSessionGeneration(params.sessionId);
         const sessionState = this.sessions.get(params.sessionId);
@@ -1845,7 +2056,7 @@ export class CodexAcpServer {
             // Same as `session/cancel`: drop every v2 prompt still queued for this session first.
             this.cancelQueuedV2Prompts(params.sessionId);
             if (sessionState) {
-                await this.interruptSessionTurn(sessionState, "Close", true);
+                if (!sessionState.readOnly) await this.interruptSessionTurn(sessionState, "Close", true);
                 sessionState.asyncTasks.clear();
             } else {
                 logger.log("Close request received for unknown local session", {sessionId: params.sessionId});
@@ -1889,6 +2100,7 @@ export class CodexAcpServer {
     }
 
     async deleteSession(params: acp.DeleteSessionRequest): Promise<acp.DeleteSessionResponse> {
+        this.assertSessionWritable(params.sessionId);
         const appServer = this.ensureAppServer();
         if (appServer) await appServer;
         logger.log("Deleting session...", {sessionId: params.sessionId});
@@ -1903,7 +2115,7 @@ export class CodexAcpServer {
                 this.bumpSessionGeneration(sessionId);
             }
 
-            if (this.sessionIndex.enabled) {
+            if (this.sessionIndex.enabled || this.protocolVersion === 2) {
                 await this.sessionIndex.deleteThread(sessionId, shouldCloseLocalSession);
             } else {
                 await this.runWithProcessCheck(() => this.codexAcpClient.deleteSession(sessionId));
@@ -2031,10 +2243,19 @@ export class CodexAcpServer {
     }
 
     listProviders(_params: acp.ListProvidersRequest): acp.ListProvidersResponse {
+        if (this.codexAcpClient.providerCatalog.active) return this.codexAcpClient.providerCatalog.list();
         return { providers: this.codexAcpClient.listProviders() };
     }
 
     async setProvider(params: acp.SetProviderRequest): Promise<acp.SetProviderResponse> {
+        const mode = (params._meta?.["codex"] as {mode?: unknown} | undefined)?.mode;
+        if (mode === "catalog") {
+            await this.changeProviderCatalog(routing => routing.set(params));
+            return {};
+        }
+        if (this.codexAcpClient.providerCatalog.active) {
+            throw RequestError.invalidRequest(undefined, "Disable the provider catalog before switching to global routing");
+        }
         const request = ++this.providerRequests;
         // A provider restart can replace the client while the models are listed, so the routing goes to the current one.
         const gatewayConfig = await this.codexAcpClient.prepareProvider(params);
@@ -2050,6 +2271,10 @@ export class CodexAcpServer {
     }
 
     async disableProvider(params: acp.DisableProviderRequest): Promise<acp.DisableProviderResponse> {
+        if (this.codexAcpClient.providerCatalog.active) {
+            await this.changeProviderCatalog(routing => routing.disable(params));
+            return {};
+        }
         this.codexAcpClient.disableProvider(params);
         if (params.providerId !== OPENAI_PROVIDER_ID) {
             return { };
@@ -2057,6 +2282,119 @@ export class CodexAcpServer {
         this.appliedProviderRequest = ++this.providerRequests;
         await this.enqueueProviderUpdate((client) => client.disableProvider(params));
         return { };
+    }
+
+    private async changeProviderCatalog(change: (routing: ProviderRouting) => void): Promise<void> {
+        const update = (this.providerUpdate ?? Promise.resolve()).then(async () => {
+            const previous = this.codexAcpClient.providerCatalog;
+            const next = previous.copy();
+            change(next);
+            const affected = [...this.sessions.values()].filter(session => {
+                const id = previous.gatewayIdFor(ModelId.fromString(session.currentModelId).model);
+                return id !== null && previous.gateway(id) !== next.gateway(id);
+            });
+            if (affected.some(session => this.isSessionBusy(session.sessionId) || this.activePrompts.has(session.sessionId))) {
+                throw RequestError.invalidRequest(undefined, "Wait for affected sessions to finish before changing their provider");
+            }
+            const changed: Array<{session: SessionState; model: string; provider: string | null}> = [];
+            const selections = new Map<SessionState, string>();
+            this.codexAcpClient.providerCatalog = next;
+            let models: Model[];
+            try {
+                models = await this.codexAcpClient.fetchAvailableModels();
+                for (const session of affected) {
+                    const old = ModelId.fromString(session.currentModelId).model;
+                    const target = models.find(model => model.id === old) ?? models.find(model => model.isDefault);
+                    if (!target) throw RequestError.invalidRequest(undefined, "No model remains after removing this provider");
+                    const provider = session.authProvider;
+                    await this.rebindSessionProvider(session, target.id, true, previous);
+                    changed.push({session, model: old, provider});
+                    selections.set(session, target.id);
+                }
+            } catch (error) {
+                this.codexAcpClient.providerCatalog = previous;
+                const failures: unknown[] = [error];
+                for (const {session, model, provider} of changed.reverse()) {
+                    try {
+                        await this.rebindSessionProvider(session, model, true);
+                        session.authProvider = provider;
+                    } catch (rollback) {failures.push(rollback);}
+                }
+                if (failures.length > 1) throw new AggregateError(failures, "Provider update and rollback failed");
+                throw error;
+            }
+            for (const session of this.sessions.values()) {
+                session.availableModels = models;
+                const old = ModelId.fromString(session.currentModelId);
+                const selected = models.find(model => model.id === (selections.get(session) ?? old.model));
+                if (selected) this.applyModelAndEffort(session, selected,
+                    findSupportedEffort(selected.supportedReasoningEfforts, old.effort) ?? selected.defaultReasoningEffort);
+            }
+            for (const session of this.sessions.values()) {
+                await new ACPSessionConnection(this.connection, session.sessionId).update({
+                    sessionUpdate: "config_option_update", configOptions: this.createSessionConfigOptions(session),
+                });
+            }
+        });
+        this.providerUpdate = update;
+        try {await update;} finally {if (this.providerUpdate === update) this.providerUpdate = null;}
+    }
+
+    private async rebindSessionProvider(session: SessionState, model: string, force = false, rollbackRouting = this.codexAcpClient.providerCatalog): Promise<void> {
+        this.assertSessionWritable(session.sessionId);
+        this.alwith.predictions.cancel(session.sessionId);
+        const target = this.codexAcpClient.providerCatalog.gatewayIdFor(model);
+        const current = this.codexAcpClient.providerCatalog.gatewayIdFor(ModelId.fromString(session.currentModelId).model);
+        if (!force && target === current) return;
+        if (this.isSessionBusy(session.sessionId) || this.activePrompts.has(session.sessionId)) {
+            throw RequestError.invalidRequest(undefined, "Wait for the current turn before changing its provider");
+        }
+        const reservation = this.acquireTurnStartReservation(session.sessionId);
+        const generation = this.getSessionGeneration(session.sessionId);
+        try {
+            await reservation.wait;
+            if (!this.sessionPublishIsCurrent(session, generation)) throw RequestError.invalidRequest(undefined, "Session closed during provider selection");
+            const client = this.codexAcpClient;
+            const resume = (selection: string) => client.resumeSession({
+                sessionId: session.sessionId, cwd: session.cwd, additionalDirectories: session.additionalDirectories,
+                ...(session.mcpServers ? {mcpServers: session.mcpServers} : {}), _meta: {alwith: {model: selection}},
+            }, undefined, session.instructions);
+            try {
+                await client.appServerClient.threadTurnsList({threadId: session.sessionId, limit: 1, itemsView: "notLoaded"});
+            } catch (error) {
+                if (!isMissingRolloutError(error) && !isThreadNotMaterializedError(error)) throw error;
+                await client.appServerClient.connection.sendRequest("thread/inject_items", {
+                    threadId: session.sessionId,
+                    items: [{type: "message", role: "developer", content: [{type: "input_text", text: "The user changed this conversation's model before sending a message."}]}],
+                });
+            }
+            await client.appServerClient.threadUnsubscribe({threadId: session.sessionId});
+            try {
+                const metadata = await resume(model);
+                if (!this.sessionPublishIsCurrent(session, generation)) {
+                    await client.appServerClient.threadUnsubscribe({threadId: session.sessionId});
+                    throw RequestError.invalidRequest(undefined, "Session closed during provider selection");
+                }
+                const authProvider = metadata.modelProvider ?? null;
+                const auth = await this.getAuthStateForProvider(authProvider);
+                session.authProvider = authProvider;
+                session.account = auth.account;
+                session.authConfigured = auth.authConfigured;
+            } catch (error) {
+                if (this.sessionPublishIsCurrent(session, generation)) {
+                    const failedRouting = client.providerCatalog;
+                    try {
+                        client.providerCatalog = rollbackRouting;
+                        await resume(ModelId.fromString(session.currentModelId).model);
+                    } catch (rollback) {
+                        await this.closeSession({sessionId: session.sessionId});
+                        throw new AggregateError([error, rollback], "Provider selection and rollback failed; session closed");
+                    } finally {client.providerCatalog = failedRouting;}
+                }
+                throw RequestError.internalError({sessionId: session.sessionId},
+                    `Could not change the session provider: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        } finally {reservation.release();}
     }
 
     private async enqueueProviderUpdate(apply: (client: CodexAcpClient) => void): Promise<void> {
@@ -2090,6 +2428,8 @@ export class CodexAcpServer {
             await replacement.initialize(this.initializeRequest);
             this.codexAcpClient = replacement;
             this.sessionIndex.observe(replacement);
+            if (this.protocolVersion === 2) this.alwith.observe();
+            this.bindClientTools();
             this.availableCommands = this.createAvailableCommands(replacement);
 
             const resumeErrors: unknown[] = [];
@@ -2272,6 +2612,7 @@ export class CodexAcpServer {
             resumeSession: async (session, client, onSubscribed) => {
                 const metadata = await client.resumeSession({
                     sessionId: session.sessionId,
+                    _meta: {alwith: {model: ModelId.fromString(session.currentModelId).model}},
                     cwd: session.cwd,
                     additionalDirectories: session.additionalDirectories,
                     mcpServers: session.mcpServers ?? [],
@@ -2299,6 +2640,8 @@ export class CodexAcpServer {
         this.codexAcpClient = client;
         // The session index watches the thread notifications of the app-server that runs now.
         this.sessionIndex.observe(client);
+        if (this.protocolVersion === 2) this.alwith.observe();
+        this.bindClientTools();
         this.availableCommands = this.createAvailableCommands(client);
         for (const session of this.sessions.values()) {
             session.asyncTasks.setAppServer(client.appServerClient);
@@ -2507,7 +2850,10 @@ export class CodexAcpServer {
     }
 
     async setSessionConfigOption(params: acp.SetSessionConfigOptionRequest): Promise<acp.SetSessionConfigOptionResponse> {
+        this.assertSessionWritable(params.sessionId);
+        if (this.providerUpdate && this.codexAcpClient.providerCatalog.active) await this.waitForProviderUpdate();
         this.assertInstructionsReady(params.sessionId);
+        this.alwith.predictions.cancel(params.sessionId);
         logger.log("Set session config option requested", {
             sessionId: params.sessionId,
             configId: params.configId,
@@ -2526,7 +2872,8 @@ export class CodexAcpServer {
         params: acpV2.SetSessionConfigOptionRequest,
     ): Promise<acpV2.SetSessionConfigOptionResponse> {
         const response = await this.setSessionConfigOption(toV1SetSessionConfigOptionRequest(params));
-        return {configOptions: toV2ConfigOptions(response.configOptions)};
+        const snapshot = this.configSnapshot(this.getSessionState(params.sessionId));
+        return {configOptions: toV2ConfigOptions(response.configOptions), _meta: {alwith: {configRevision: snapshot.configRevision}}};
     }
 
     private async applySessionConfigOption(sessionState: SessionState, params: acp.SetSessionConfigOptionRequest): Promise<void> {
@@ -2541,7 +2888,7 @@ export class CodexAcpServer {
                 await this.applyCollaborationModeChange(sessionState, this.stringConfigValue(params));
                 break;
             case MODEL_CONFIG_ID:
-                this.applyModelChange(sessionState, this.stringConfigValue(params));
+                await this.applyModelChange(sessionState, this.stringConfigValue(params));
                 break;
             case REASONING_EFFORT_CONFIG_ID:
                 this.applyReasoningEffortChange(sessionState, this.stringConfigValue(params));
@@ -2592,7 +2939,7 @@ export class CodexAcpServer {
         sessionState.collaborationMode = mode;
     }
 
-    private applyModelChange(sessionState: SessionState, value: string): void {
+    private async applyModelChange(sessionState: SessionState, value: string): Promise<void> {
         const model = sessionState.availableModels.find(m => m.id === value);
         if (!model) {
             const currentModel = ModelId.fromString(sessionState.currentModelId).model;
@@ -2604,6 +2951,7 @@ export class CodexAcpServer {
         const currentEffort = ModelId.fromString(sessionState.currentModelId).effort;
         const effort = findSupportedEffort(model.supportedReasoningEfforts, currentEffort)
             ?? model.defaultReasoningEffort;
+        await this.rebindSessionProvider(sessionState, value);
         this.applyModelAndEffort(sessionState, model, effort);
     }
 
@@ -2672,6 +3020,7 @@ export class CodexAcpServer {
             reasoningEffort = model.defaultReasoningEffort;
         }
 
+        await this.rebindSessionProvider(sessionState, requestedModelName);
         sessionState.availableModels = models;
         this.applyModelAndEffort(sessionState, model, reasoningEffort);
 
@@ -2708,6 +3057,7 @@ export class CodexAcpServer {
      *     {@link performSteeringRequest}.
      */
     async executeOrQueueSteeringRequest(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
+        this.assertSessionWritable(params.sessionId);
         this.assertInstructionsReady(params.sessionId);
         const queue = this.getSteeringQueue(params.sessionId);
         try {
@@ -2869,10 +3219,9 @@ export class CodexAcpServer {
             reservation.release();
             throw RequestError.invalidRequest(`Session ${params.sessionId} is closing`);
         }
-        if (!await canStart()) {
-            reservation.release();
-            return false;
-        }
+        try {
+            if (!await canStart()) {reservation.release(); return false;}
+        } catch (error) {reservation.release(); throw error;}
 
         return await new Promise<boolean>((resolve, reject) => {
             let turnStarted = false;
@@ -2974,7 +3323,7 @@ export class CodexAcpServer {
         ];
         // A gateway that lists none of the Codex models leaves no model to offer, so there is no model option at all.
         if (sessionState.availableModels.length > 0) {
-            configOptions.push(createModelConfigOption(sessionState.availableModels, currentModelId.model, recommendedModelId));
+            configOptions.push(createModelConfigOption(sessionState.availableModels, currentModelId.model, recommendedModelId, this.codexAcpClient.providerCatalog.gatewayGroups()));
         }
         if (sessionState.supportedReasoningEfforts.length > 0) {
             configOptions.push(
@@ -3007,12 +3356,14 @@ export class CodexAcpServer {
 
     /** Initial v2 configuration and commands for new, resumed, and forked sessions. */
     private createSessionSetupResponseV2(sessionState: SessionState): {
+        _meta: Record<string, unknown>;
         configOptions?: Array<acpV2.SessionConfigOption>;
         availableCommands?: Array<acpV2.AvailableCommand>;
     } {
         const {configOptions} = this.createSessionConfigOptionsResponse(sessionState);
         const commands = this.availableCommands.initialCommands(sessionState);
         return {
+            _meta: {alwith: {configRevision: this.configSnapshot(sessionState).configRevision}, ...(sessionState.lineage ? {codex: {...sessionState.lineage, ...(sessionState.readOnly ? {readOnly: true, reason: "active_writer"} : {})}} : {})},
             ...(configOptions ? {configOptions: toV2ConfigOptions(configOptions)} : {}),
             ...(commands.length > 0 ? {availableCommands: toV2AvailableCommands(commands)} : {}),
         };
@@ -3194,7 +3545,7 @@ export class CodexAcpServer {
                     mcpServerStartupVersion = readMcpServerStartupVersion();
                     return this.codexAcpClient.loadSession(request, () => {
                         subscribed = true;
-                    }, previousInstructions);
+                    }, previousInstructions, this.protocolVersion === 2);
                 });
             } catch (err) {
                 // An auth error that is known within the grace time comes first, as it did when the check ran
@@ -3237,6 +3588,8 @@ export class CodexAcpServer {
         const currentModelSupportsFast = modelSupportsFast(currentModel);
         const sessionState: SessionState = {
             sessionId: sessionId,
+            readOnly: sessionMetadata.readOnly ?? false,
+            ...(sessionMetadata.lineage ? {lineage: sessionMetadata.lineage} : {}),
             currentModelId: currentModelId,
             availableModels: models,
             supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
@@ -3259,7 +3612,7 @@ export class CodexAcpServer {
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            fastModeEnabled: sessionMetadata.currentServiceTier === "fast",
+            fastModeEnabled: (sessionMetadata.currentServiceTier === "priority" || sessionMetadata.currentServiceTier === "fast"),
             currentModelSupportsFast: currentModelSupportsFast,
             sessionMcpServers: sessionMcpServers,
             clientCapabilities: this.capabilities,
@@ -3338,7 +3691,7 @@ export class CodexAcpServer {
         const firstPage = first.done ? [] : first.value;
         // The first user message of the first page names the session.
         await this.publishThreadHistoryTitle(session, sessionState, thread, firstPage.map(entry => entry.item));
-        const entryPages = pagesStartingWith(firstPage, pages);
+        const entryPages = recordReplayEntries(pagesStartingWith(firstPage, pages), this.replayEntries);
         // Hiding the `/review` reviewer prompt is a v2-only change (user decision): v1 keeps
         // showing it, as it always has.
         const itemPages = untilSessionClose(
@@ -3392,7 +3745,7 @@ export class CodexAcpServer {
             return;
         }
         started.add(key);
-        await session.startReplayMessage(kind, messageId);
+        await session.startReplayMessage(kind, messageId, update._meta);
     }
 
     private async streamNativeThreadHistory(
@@ -3426,7 +3779,8 @@ export class CodexAcpServer {
                         let childItems: AsyncIterable<ThreadItem[]> | null = null;
                         if (!ancestry.has(item.agentThreadId) && !unreadableChildren.has(item.agentThreadId)) {
                             try {
-                                childItems = await this.codexAcpClient.readSessionTurnItems(item.agentThreadId, generation - 1);
+                                const childEntries = await this.codexAcpClient.readSessionTurnEntries(item.agentThreadId, generation - 1, this.protocolVersion === 2);
+                                childItems = childEntries ? itemsOfEntries(recordReplayEntries(childEntries, this.replayEntries)) : null;
                             }
                             catch (error) {
                                 unreadableChildren.add(item.agentThreadId);
@@ -3621,6 +3975,23 @@ export class CodexAcpServer {
     }
 
     private async createHistoryUpdates(item: ThreadItem, sessionState: SessionState): Promise<UpdateSessionEvent[]> {
+        const updates = await this.renderHistoryItem(item, sessionState);
+        if (this.protocolVersion !== 2) return updates;
+        const entry = this.replayEntries.get(item);
+        return updates.map(update => ({
+            ...update,
+            _meta: {
+                ...update._meta,
+                codex: {
+                    ...(update._meta?.['codex'] as Record<string, unknown> | undefined),
+                    historyReplay: true,
+                    ...(entry ? {turnId: entry.turnId, ...entry.replayMeta} : {}),
+                },
+            },
+        }));
+    }
+
+    private async renderHistoryItem(item: ThreadItem, sessionState: SessionState): Promise<UpdateSessionEvent[]> {
         const renderer = new AcpToolCallRenderer(sessionState.clientCapabilities);
         switch (item.type) {
             case "userMessage":
@@ -3632,7 +4003,10 @@ export class CodexAcpServer {
             case "subAgentActivity":
                 return [renderer.render(SubagentActivityReporter.activity(item, "completed", "start"))];
             case "agentMessage": {
-                const meta = createMessagePhaseMeta(item.phase, sessionState.clientCapabilities.airClient);
+                const phaseMeta = createMessagePhaseMeta(item.phase, sessionState.clientCapabilities.airClient);
+                const meta = this.protocolVersion === 2
+                    ? {...phaseMeta, codex: {phase: item.phase, delivery: item.delivery, questions: item.questions}}
+                    : phaseMeta;
                 return [{
                     sessionUpdate: "agent_message_chunk",
                     messageId: item.id,
@@ -4145,6 +4519,8 @@ export class CodexAcpServer {
      * message; a locally handled command has no Codex turn, so it is inserted right away.
      */
     async promptV2(params: acpV2.PromptRequest, signal?: AbortSignal): Promise<acpV2.PromptResponse> {
+        this.assertSessionWritable(params.sessionId);
+        this.alwith.predictions.cancel(params.sessionId);
         this.assertInstructionsReady(params.sessionId);
         const sessionId = params.sessionId;
         const request = toV1PromptRequest(params);
@@ -4187,8 +4563,16 @@ export class CodexAcpServer {
                 throw RequestError.requestCancelled(undefined, `Session ${sessionId} was cancelled before the prompt was inserted`);
             }
         }
+        let messageId: string;
+        try {
+            this.configRevisions.assert(params._meta, this.configSnapshot(sessionState));
+            const requestedId = (params._meta?.["alwith"] as {messageId?: unknown} | undefined)?.messageId;
+            if (requestedId !== undefined && (typeof requestedId !== "string" || !requestedId)) {
+                throw RequestError.invalidParams(undefined, "_meta.alwith.messageId must be a non-empty string");
+            }
+            messageId = requestedId ?? randomUUID();
+        } catch (error) {reservation.release(); throw error;}
         const promptKind = this.availableCommands.classifyPrompt(request.prompt);
-        const messageId = randomUUID();
         const session = new ACPSessionConnection(this.connection, sessionId);
         let failure: acpV2.Error | null = null;
         this.v2PromptsInFlight.add(sessionId);
@@ -4201,7 +4585,7 @@ export class CodexAcpServer {
         };
         const startWork = async () => {
             try {
-                await AcpV2Connection.of(this.connection)?.startForegroundWork(sessionId);
+                await AcpV2Connection.of(this.connection)?.startForegroundWork(sessionId, messageId);
             } catch (error) {
                 logger.error(`Failed to report foreground work for session ${sessionId}`, error);
             }
@@ -5231,6 +5615,7 @@ export class CodexAcpServer {
     }
 
     async cancel(params: acp.CancelNotification): Promise<void> {
+        this.assertSessionWritable(params.sessionId);
         this.activePrompts.get(params.sessionId)?.requestClientCancel();
         const sessionState = this.sessions.get(params.sessionId);
         if (!sessionState) {
@@ -5360,5 +5745,16 @@ async function* withCommandIds(
             if (item.type === "commandExecution") commandIds.add(item.id);
         }
         yield items;
+    }
+}
+
+/** Retain native turn identity while filtering and rendering paginated replay items. */
+async function* recordReplayEntries(
+    pages: AsyncIterable<ThreadItemEntry[]>,
+    entries: WeakMap<ThreadItem, ReplayEntry>,
+): AsyncGenerator<ThreadItemEntry[]> {
+    for await (const page of pages) {
+        for (const entry of page) entries.set(entry.item, entry);
+        yield page;
     }
 }

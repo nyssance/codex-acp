@@ -27,9 +27,9 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
                 "thread/backgroundTerminals/list": async () => ({data: [], nextCursor: null}),
                 ...Object.fromEntries(methods.map(method => [method, async (params: any) => {
                     calls.push({method, params});
-                    if (method === "thread/read") return {thread};
+                    if (method === "thread/read") return {readState: null, thread};
                     if (method === "thread/fork") {
-                        return {...codexResponse("thread/start") as object, thread: {...thread, id: "fork-1"}};
+                        return {readState: null, ...codexResponse("thread/start") as object, thread: {...thread, id: "fork-1"}};
                     }
                     if (method === "thread/resume" && reportUnload
                         && calls.at(-2)?.method === "thread/unsubscribe") {

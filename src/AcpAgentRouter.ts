@@ -1,3 +1,4 @@
+import {ALWITH_METHODS, objectParams} from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {z} from "zod";
@@ -116,7 +117,7 @@ export function createAcpAgentRouter(
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
         .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
 
-    const v2Agent = acpV2.agent({name: packageJson.name})
+    let v2Agent = acpV2.agent({name: packageJson.name})
         .onConnect((connection) => attachAgent(createAgent(new AcpV2Connection(connection.client)), connection.signal))
         .onRequest(acpV2.methods.agent.initialize, (ctx) => getAgent().initializeV2(ctx.params))
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
@@ -144,6 +145,10 @@ export function createAcpAgentRouter(
         .onRequest(SESSION_UNARCHIVE_METHOD, sessionArchiveParamsParser, (ctx) => getAgent().sessionIndex.setArchived(ctx.params, false))
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
         .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
+
+    for (const method of ALWITH_METHODS) {
+        v2Agent = v2Agent.onRequest(method, {parse: objectParams}, ctx => getAgent().alwithRequest(method, ctx.params, ctx.signal));
+    }
 
     return acpV2.agentProtocolRouter().withV1(v1Agent).withV2(v2Agent);
 }

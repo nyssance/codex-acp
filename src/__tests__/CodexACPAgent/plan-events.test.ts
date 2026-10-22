@@ -225,7 +225,7 @@ describe("CodexEventHandler - plan events", () => {
                 method: "turn/completed",
                 params: {
                     threadId: sessionId,
-                    turn: {
+                    turn: {rootTurnId: null,
                         id: "turn-1",
                         items: [],
                         itemsView: "notLoaded",

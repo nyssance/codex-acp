@@ -6,7 +6,7 @@ import {createAcpAgentRouter} from '../../AcpAgentRouter';
 import {CodexAcpServer} from '../../CodexAcpServer';
 import {CodexAcpClient} from '../../CodexAcpClient';
 import {CodexAppServerClient} from '../../CodexAppServerClient';
-import {createMockConnections} from './test-utils';
+import {createMockConnections, mockInitializeResponse} from './test-utils';
 import {expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 /**
@@ -20,8 +20,9 @@ function connectRaw() {
     // `auth/logout` don't hit the auth-required path.
     mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string) => {
         switch (method) {
+        case "initialize": return mockInitializeResponse();
             case "account/read":
-                return {account: {type: "apiKey"}, requiresOpenaiAuth: true};
+                return {workspaceRouting: null, account: {type: "apiKey"}, requiresOpenaiAuth: true};
             case "thread/list":
                 return {data: [], nextCursor: null};
             case "account/logout":
@@ -129,7 +130,8 @@ describe('v2 requests with omitted params', () => {
 
         expect(Array.isArray(response)).toBe(true);
         const errors = (response as unknown as Array<{id: unknown, error?: unknown}>)
-            .map((entry) => ({id: entry.id, error: errorShape(entry as unknown as AnyWireMessage)}));
+            .map((entry) => ({id: entry.id, error: errorShape(entry as unknown as AnyWireMessage)}))
+            .sort((left, right) => String(left.id).localeCompare(String(right.id)));
         expect(errors).toEqual([
             {id: "a", error: undefined},
             {id: "b", error: undefined},

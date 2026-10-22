@@ -1,7 +1,7 @@
 {
   "protocolVersion": 2,
   "info": {
-    "name": "@agentclientprotocol/codex-acp",
+    "name": "@nyssance/codex-acp-v2",
     "title": "Codex",
     "version": "<version>"
   },
@@ -25,7 +25,39 @@
         "authStatus": {}
       }
     },
-    "providers": {}
+    "providers": {},
+    "_meta": {
+      "alwith": {
+        "tools": {
+          "version": 1
+        },
+        "configRevision": {
+          "version": 1
+        }
+      },
+      "codex": {
+        "sessionHistory": {
+          "version": 2,
+          "items": true,
+          "modes": [
+            "browse",
+            "export"
+          ]
+        },
+        "skills": true,
+        "plugins": true,
+        "pluginEnable": true,
+        "account": true,
+        "fuzzyFileSearch": true,
+        "sessionList": {
+          "version": 1
+        },
+        "archive": true,
+        "rename": true,
+        "readState": true,
+        "providerCatalog": true
+      }
+    }
   },
   "authMethods": [
     {

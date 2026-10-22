@@ -7,7 +7,7 @@ import type {CodexAcpClient} from "../../CodexAcpClient";
 import {stubGatewayModelListing} from "../acp-test-utils";
 
 const resumed = (id: string) => ({
-    thread: {id, turns: [], historyMode: "paginated", status: {type: "idle"}, preview: "", ephemeral: false, modelProvider: "openai",
+    thread: {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null, id, turns: [], historyMode: "paginated", status: {type: "idle"}, preview: "", ephemeral: false, modelProvider: "openai",
         createdAt: 0, updatedAt: 0, path: null, cwd: "/work", cliVersion: "0", source: "appServer", agentNickname: null,
         agentRole: null, gitInfo: null, name: null},
     model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, itemsBackwardsCursor: null, cwd: "/work",
@@ -79,7 +79,7 @@ describe("app-server recovery", () => {
     it("keeps a session list subscription across a crash and reads each change of the new app-server once", async () => {
         const fixture = createRecoveryFixture();
         await initialize(fixture, true, {_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionFailure", "sessionIndex"]}}}});
-        fixture.answers.set("thread/read", (params) => ({thread: {
+        fixture.answers.set("thread/read", (params) => ({readState: null, thread: {
             ...resumed((params as {threadId: string}).threadId).thread,
             preview: "hi", source: "vscode", path: "/codex-home/sessions/t.jsonl", recencyAt: null, name: `title ${fixture.servers.length}`,
         }}));
@@ -137,7 +137,7 @@ describe("app-server recovery", () => {
                 ? [] : [row({type: loaded ? "idle" : "notLoaded"})],
             nextCursor: null,
         }));
-        fixture.answers.set("thread/read", () => ({thread: row({type: loaded ? "idle" : "notLoaded"})}));
+        fixture.answers.set("thread/read", () => ({readState: null, thread: row({type: loaded ? "idle" : "notLoaded"})}));
         const {subscriptionId} = await fixture.agent.sessionIndex.subscribeList({cwd: "/work"});
         expect(((await fixture.agent.listSessions({cwd: "/work"})).sessions[0]!._meta as any).jetbrains.air.state).toBe("idle");
 
@@ -158,7 +158,7 @@ describe("app-server recovery", () => {
     it("starts the app-server again for a rename or an archive of the session index", async () => {
         const fixture = createRecoveryFixture();
         await initialize(fixture, true, {_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionFailure", "sessionIndex"]}}}});
-        fixture.answers.set("thread/read", (params) => ({thread: {...resumed((params as {threadId: string}).threadId).thread, path: "/codex-home/sessions/t.jsonl"}}));
+        fixture.answers.set("thread/read", (params) => ({readState: null, thread: {...resumed((params as {threadId: string}).threadId).thread, path: "/codex-home/sessions/t.jsonl"}}));
 
         await fixture.kill();
         await fixture.agent.sessionIndex.rename({sessionId: "thread-a", title: "New title"});

@@ -78,7 +78,7 @@ function reportsOfEachKind(): Record<string, ToolFacts[]> {
             savedPath: "/w/square.png", failure: null,
         } as never)],
         collab: [CollabAgentReporter.started(collab as never)],
-        subagentActivity: [SubagentActivityReporter.activity({
+        subagentActivity: [SubagentActivityReporter.activity({model: null, reasoningEffort: null,
             type: "subAgentActivity", id: "act", kind: "started", agentThreadId: "child", agentPath: "/root/child",
         } as never, "in_progress", "start")],
         fuzzySearch: [new FuzzySearchReporter().updated({sessionId: "f", query: "App", files: []} as never)],

@@ -73,11 +73,11 @@ describe("New session logout handling", () => {
         const currentModelId = ModelId.create(model.id, model.defaultReasoningEffort).toString();
         vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount")
-            .mockResolvedValueOnce({
+            .mockResolvedValueOnce({workspaceRouting: null,
                 account: { type: "apiKey" },
                 requiresOpenaiAuth: false,
             })
-            .mockResolvedValueOnce({
+            .mockResolvedValueOnce({workspaceRouting: null,
                 account: null,
                 requiresOpenaiAuth: true,
             });

@@ -151,6 +151,11 @@
           "name": "Grouped"
         }
       ],
+      "_meta": {
+        "alwith": {
+          "configRevision": 0
+        }
+      },
       "sessionUpdate": "config_option_update"
     }
   }

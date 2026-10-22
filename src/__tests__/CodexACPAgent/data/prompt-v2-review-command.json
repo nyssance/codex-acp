@@ -11,6 +11,11 @@
   },
   {
     "sessionUpdate": {
+      "_meta": {
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
       "state": "running",
       "sessionUpdate": "state_update"
     }
@@ -39,6 +44,9 @@
         "quota": {
           "token_count": null,
           "model_usage": []
+        },
+        "alwith": {
+          "messageId": "<messageId>"
         }
       },
       "state": "idle",

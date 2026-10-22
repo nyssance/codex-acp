@@ -7,7 +7,7 @@ import {CodexAcpClient} from '../../CodexAcpClient';
 import {CodexAppServerClient} from '../../CodexAppServerClient';
 import type {SkillsListParams, SkillsListResponse, Thread} from '../../app-server/v2';
 import {createTestModel} from '../acp-test-utils';
-import {createMockConnections} from './test-utils';
+import {createMockConnections, mockInitializeResponse} from './test-utils';
 import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 const sessionId = "thread-1";
@@ -15,7 +15,7 @@ const forkedSessionId = "fork-1";
 const cwd = "/workspace";
 
 function createThread(overrides?: Partial<Thread>): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,
@@ -51,6 +51,7 @@ function createThread(overrides?: Partial<Thread>): Thread {
 /** Canned Codex app-server responses, keyed by method. */
 function codexResponse(method: string, replayTurns: Thread["turns"] = []): unknown {
     switch (method) {
+        case "initialize": return mockInitializeResponse();
         case "thread/start":
         case "thread/resume":
             return {
@@ -73,7 +74,7 @@ function codexResponse(method: string, replayTurns: Thread["turns"] = []): unkno
             // `threadReadWithHistory` reads twice for a "legacy" history-mode thread (once to
             // learn the history mode, once with `includeTurns: true`); returning the full
             // history from both is harmless since only the second response is used.
-            return {thread: createThread({turns: replayTurns})};
+            return {readState: null, thread: createThread({turns: replayTurns})};
         case "model/list":
             return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
         case "skills/list":
@@ -97,6 +98,7 @@ const recordedCodexMethods = new Set([
     "thread/list",
     "thread/unsubscribe",
     "thread/archive",
+    "thread/delete",
 ]);
 
 /** Connects a v2 client to the agent through the router, over a mocked Codex app-server. */
@@ -124,7 +126,7 @@ async function connectV2Client(options?: {
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     let agent: CodexAcpServer | null = null;
     const router = createAcpAgentRouter((connection) => {
@@ -163,7 +165,7 @@ async function waitForSessionUpdates(
 }
 
 function dump(value: unknown): string {
-    return `${JSON.stringify(value, null, 2)}\n`;
+    return `${JSON.stringify(value, null, 2)}\n`.replace(/http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g, "<responses-route>");
 }
 
 describe('Session lifecycle over ACP v2', () => {
@@ -242,7 +244,8 @@ describe('Session lifecycle over ACP v2', () => {
         emit({method: "skills/changed", params: {}});
         await vi.waitFor(() => expect(listSkills).toHaveBeenCalledTimes(2));
         await new Promise(resolve => setTimeout(resolve, 20));
-        expect(updates).toEqual([]);
+        expect(updates).toEqual([{sessionId: forkedSessionId, update: {sessionUpdate: "session_info_update", title: "Earlier session"}}]);
+        updates.length = 0;
 
         currentSkills = skills("new-fork-skill");
         emit({method: "skills/changed", params: {}});
@@ -398,7 +401,7 @@ describe('Session lifecycle over ACP v2', () => {
     });
 
     /** A turn with a prompt-inserted user message, a legacy one, an agent message and a tool call. */
-    const replayTurns: Thread["turns"] = [{
+    const replayTurns: Thread["turns"] = [{rootTurnId: null,
         id: "turn-1",
         itemsView: "full",
         status: "completed",
@@ -495,6 +498,21 @@ describe('Session lifecycle over ACP v2', () => {
         await expect(dump({response, codexRequests})).toMatchFileSnapshot('data/session-lifecycle-v2-fork.json');
     });
 
+    it('replays fork history before replying, preserving native fork boundaries', async () => {
+        const {connection, updates, codexRequests} = await connectV2Client({replayTurns});
+        closeClient = () => connection.close();
+        const response = await connection.agent.request(acpV2.methods.agent.session.fork, {
+            sessionId, cwd, _meta: {codex: {lastTurnId: "turn-1"}},
+        });
+        expect(codexRequests).toContainEqual({method: "thread/fork", params: expect.objectContaining({lastTurnId: "turn-1"})});
+        const messages = updates.filter(({update}) => update.sessionUpdate === "agent_message_chunk");
+        expect(messages.length).toBeGreaterThan(0);
+        for (const event of messages) {
+            expect(event.sessionId).toBe(response.sessionId);
+            expect(event.update).toMatchObject({_meta: {codex: {historyReplay: true, turnId: "turn-1"}}});
+        }
+    });
+
     it('installs the forked session so it is immediately usable', async () => {
         const {connection, agent} = await connectV2Client();
         closeClient = () => connection.close();
@@ -543,5 +561,40 @@ describe('Session lifecycle over ACP v2', () => {
 
         await expect(connection.agent.request("session/load", {sessionId, cwd, mcpServers: []}))
             .rejects.toMatchObject({code: -32601});
+    });
+});
+
+describe('ALwith read-only ownership', () => {
+    it.each([null, 'start'] as const)('opens a foreign writer with replayFrom %s without mutating or cancelling it', async (replayFrom) => {
+        const client = await connectV2Client({failMethod: {
+            method: 'thread/resume',
+            error: Object.assign(new Error(`thread ${sessionId} already has an active writer`), {code: -32600}),
+        }});
+        try {
+            const response = await client.connection.agent.request(acpV2.methods.agent.session.resume, {
+                sessionId, cwd, replayFrom: replayFrom === null ? null : {type: "start"},
+            });
+            expect(response._meta).toMatchObject({codex: {readOnly: true, reason: 'active_writer'}});
+            await expect(client.connection.agent.request(acpV2.methods.agent.session.prompt, {
+                sessionId, prompt: [{type: 'text', text: 'must not send'}],
+            })).rejects.toThrow('another Codex client');
+            await expect(client.connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
+                sessionId, configId: 'mode', type: 'id', value: 'read-only',
+            })).rejects.toThrow('another Codex client');
+            await expect(client.agent().cancel({sessionId})).rejects.toThrow('another Codex client');
+            await expect(client.connection.agent.request(acpV2.methods.agent.session.delete, {sessionId}))
+                .rejects.toThrow('another Codex client');
+            for (const method of ['_codex/session_archive', '_codex/session_unarchive', '_codex/session_rename']) {
+                await expect(client.agent().alwithRequest(method, {sessionId, name: 'forbidden rename'}))
+                    .rejects.toThrow('another Codex client');
+            }
+            expect(client.codexRequests.some(request =>
+                ['thread/delete', 'thread/archive', 'thread/unarchive', 'thread/name/set'].includes(request.method))).toBe(false);
+
+            await client.connection.agent.request(acpV2.methods.agent.session.close, {sessionId});
+            expect(client.codexRequests.some(request => request.method === 'thread/unsubscribe')).toBe(false);
+        } finally {
+            client.connection.close();
+        }
     });
 });

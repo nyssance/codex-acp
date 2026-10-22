@@ -18,7 +18,7 @@ export const cwd = "/workspace";
 export const titleThreadId = "title-thread";
 
 export function createThread(): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,
@@ -51,7 +51,7 @@ export function createThread(): Thread {
 }
 
 export function createTurn(status: TurnStatus, id = turnId): Turn {
-    return {
+    return {rootTurnId: null,
         id,
         items: [],
         itemsView: "notLoaded",
@@ -135,6 +135,8 @@ export type PromptSession = {
 /** Connects a client (v2 by default) to the agent through the router, over a mocked Codex app-server, and opens a session. */
 export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
     mcpServers?: acpV2.McpServer[],
+    newSessionMeta?: Record<string, unknown>,
+    onToolCall?: (params: unknown, signal: AbortSignal) => unknown | Promise<unknown>,
     mcpStartup?: McpStartupResult,
     /** Sent on `initialize` (v2 only). */
     clientCapabilities?: acpV2.ClientCapabilities,
@@ -163,7 +165,7 @@ export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
     mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: any) => {
         // The session title is generated on a separate ephemeral thread; keep it out of the way.
         if (method === "thread/start" && params?.ephemeral) {
-            return {thread: {...createThread(), id: titleThreadId, ephemeral: true}};
+            return {readState: null, thread: {...createThread(), id: titleThreadId, ephemeral: true}};
         }
         if (method === "turn/start" && params?.threadId === titleThreadId) {
             return {turn: createTurn("inProgress", "title-turn")};
@@ -182,7 +184,7 @@ export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
     const codexAcpClient = new CodexAcpClient(appServer);
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue(options.mcpStartup ?? {ready: [], failed: [], cancelled: []});
     let agent: CodexAcpServer | null = null;
     const router = createAcpAgentRouter((connection) => {
@@ -226,6 +228,10 @@ export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
                 }
                 return await options.onElicitation(ctx.params, ctx.signal);
             })
+            .onRequest("_alwith/tool/call", {parse: (value: unknown) => value}, async ctx => {
+                if (!options.onToolCall) throw new Error("Unexpected client tool request");
+                return options.onToolCall(ctx.params, ctx.signal);
+            })
             .onNotification(acpV2.methods.client.elicitation.complete, (ctx) => {
                 transcript.push({elicitationComplete: ctx.params});
             })
@@ -235,7 +241,7 @@ export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
             info: {name: "test-client", version: "1.0.0"},
             ...(options.clientCapabilities ? {capabilities: options.clientCapabilities} : {}),
         });
-        await v2Connection.agent.request(acpV2.methods.agent.session.new, {cwd, ...(options.mcpServers ? {mcpServers: options.mcpServers} : {})});
+        await v2Connection.agent.request(acpV2.methods.agent.session.new, {cwd, ...(options.mcpServers ? {mcpServers: options.mcpServers} : {}), ...(options.newSessionMeta ? {_meta: options.newSessionMeta} : {})});
         connection = v2Connection;
         request = (method, params, signal) => v2Connection.agent.request(
             method as typeof acpV2.methods.agent.session.prompt,
@@ -285,7 +291,7 @@ export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
     };
 
     return {
-        connection,
+        connection: {close() {connection.close(); codexAcpClient.closeTransports();}},
         transcript,
         setupUpdates,
         turnStartParams,
@@ -348,7 +354,7 @@ export function createReplacementCodexAcpClient(): {
     const codexAcpClient = new CodexAcpClient(appServer);
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     return {
         codexAcpClient,
         appServer,

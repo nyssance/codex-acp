@@ -27,7 +27,7 @@ export const MODEL = {
 };
 
 function thread(id: string) {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id, preview: "", ephemeral: false, modelProvider: "openai", createdAt: 0, updatedAt: 0, status: {type: "idle"},
         path: null, cwd: "/work", cliVersion: "0", source: "appServer", agentNickname: null, agentRole: null,
         gitInfo: null, name: null, turns: [], historyMode: "paginated",
@@ -40,7 +40,7 @@ export function defaultAnswer(method: string, params: unknown): unknown {
     switch (method) {
         case "initialize": return {userAgent: "codex-test", codexHome: "/codex-home"};
         case "model/list": return {data: [MODEL], nextCursor: null};
-        case "account/read": return {account: null, requiresOpenaiAuth: false};
+        case "account/read": return {workspaceRouting: null, account: null, requiresOpenaiAuth: false};
         case "config/read": return {config: {}, origins: {}, layers: null};
         case "skills/list": return {data: []};
         case "thread/start": return {thread: thread(p.ephemeral ? "title-thread" : "thread-new"), model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, cwd: "/work"};

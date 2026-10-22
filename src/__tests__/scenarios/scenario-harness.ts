@@ -59,13 +59,13 @@ export type RecordedMessage = {direction: string; method: string; params: unknow
 type TurnCompletion = {threadId: string; turn: Record<string, unknown>};
 
 function turn(id: string, status: string): Record<string, unknown> {
-    return {
+    return {rootTurnId: null,
         id, items: [], itemsView: "notLoaded", status, error: null, startedAt: null, completedAt: null, durationMs: null,
     };
 }
 
 function thread(items: Record<string, unknown>[], cwd: string): Record<string, unknown> {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: SESSION_ID, sessionId: SESSION_ID, parentThreadId: null, threadSource: null, originator: null,
         forkedFromId: null, preview: "history", ephemeral: false, modelProvider: "openai", model: null,
         reasoningEffort: null, createdAt: 1, updatedAt: 2, recencyAt: null, status: {type: "idle"}, path: null,
@@ -122,7 +122,7 @@ async function runInWorkspace(
     const anyClient = client as any;
     const anyAppServer = appServer as any;
     anyClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-    anyClient.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    anyClient.getAccount = vi.fn().mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     anyClient.listSkills = vi.fn().mockResolvedValue({data: []});
     anyClient.newSession = vi.fn().mockResolvedValue({
         sessionId: SESSION_ID,
@@ -139,11 +139,11 @@ async function runInWorkspace(
     });
     anyAppServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
     anyAppServer.threadBackgroundTerminalsList = vi.fn().mockResolvedValue({data: [], nextCursor: null});
-    anyAppServer.threadResume = vi.fn().mockResolvedValue({
+    anyAppServer.threadResume = vi.fn().mockResolvedValue({runtimeWorkspaceRoots: [], activePermissionProfile: null, multiAgentMode: "explicitRequestOnly", initialTurnsPage: null,
         thread: thread(scenario.history ?? [], workspace), model: model.id, modelProvider: "openai", cwd: workspace,
         approvalPolicy: "never", sandbox: {type: "dangerFullAccess"}, reasoningEffort: model.defaultReasoningEffort,
     });
-    anyAppServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: thread(scenario.history ?? [], workspace)});
+    anyAppServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread: thread(scenario.history ?? [], workspace)});
 
     const initializeResponse = await agent.initialize({protocolVersion: 1, clientCapabilities: typeof profile === "string" ? PROFILES[profile] : profile});
     recorded.push({direction: "response", method: "initialize", params: initializeResponse});

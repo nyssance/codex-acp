@@ -11,7 +11,7 @@ import {ModelId} from "../../ModelId";
 import type {GetAccountResponse} from "../../app-server/v2";
 
 const SESSION_ID = "session-1";
-const SIGNED_IN: GetAccountResponse = {
+const SIGNED_IN: GetAccountResponse = {workspaceRouting: null,
     account: {type: "chatgpt", email: "user@example.com", planType: "plus"},
     requiresOpenaiAuth: true,
 } as GetAccountResponse;
@@ -88,7 +88,7 @@ function fixtureWithSession(): CodexMockTestFixture {
     const model = createTestModel();
     appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
     appServer.accountLogout = vi.fn().mockResolvedValue({});
-    appServer.threadResume = vi.fn().mockResolvedValue({
+    appServer.threadResume = vi.fn().mockResolvedValue({runtimeWorkspaceRoots: [], activePermissionProfile: null, multiAgentMode: "explicitRequestOnly", initialTurnsPage: null,
         thread: {id: SESSION_ID, historyMode: "paginated", turns: [], cwd: "/test/project", name: null, preview: ""},
         itemsBackwardsCursor: "item:last",
         model: model.id,
@@ -251,7 +251,7 @@ describe("CodexACPAgent - an unavailable account read", () => {
             await initialize(fixture);
 
             await loadAfterGrace(fixture);
-            read.resolve({account: null, requiresOpenaiAuth: true});
+            read.resolve({workspaceRouting: null, account: null, requiresOpenaiAuth: true});
             await drainScheduledWork();
 
             expect(authStatusUpdates(fixture)).toEqual([NONE_STATUS]);
@@ -333,7 +333,7 @@ describe("CodexACPAgent - an unavailable account read", () => {
 
             secondRead.resolve(SIGNED_IN);
             await drainScheduledWork();
-            firstRead.resolve({account: {type: "apiKey"}, requiresOpenaiAuth: true} as GetAccountResponse);
+            firstRead.resolve({workspaceRouting: null, account: {type: "apiKey"}, requiresOpenaiAuth: true} as GetAccountResponse);
             await drainScheduledWork();
 
             expect(authStatusUpdates(fixture)).toEqual([SIGNED_IN_STATUS]);

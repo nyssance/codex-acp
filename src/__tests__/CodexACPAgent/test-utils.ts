@@ -1,4 +1,7 @@
-import { vi, expect } from 'vitest';
+import { vi, expect, afterEach } from 'vitest';
+import {mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import type { CodexAcpServer } from '../../CodexAcpServer';
 
 export interface MockConnections {
@@ -91,4 +94,12 @@ export async function testEventHandling(
     }
 
     await completePrompt();
+}
+
+const testHomes: string[] = [];
+afterEach(() => { for (const home of testHomes.splice(0)) rmSync(home, {recursive: true, force: true}); });
+export function mockInitializeResponse() {
+    const codexHome = mkdtempSync(join(tmpdir(), "acp-mock-home-"));
+    testHomes.push(codexHome);
+    return {userAgent: "codex-test", codexHome, platformFamily: "unix", platformOs: "macos"};
 }

@@ -130,7 +130,12 @@
         "description": "1.5x speed, increased usage",
         "category": "model_config"
       }
-    ]
+    ],
+    "_meta": {
+      "alwith": {
+        "configRevision": 0
+      }
+    }
   },
   "modeResponse": {
     "configOptions": [
@@ -263,6 +268,11 @@
         "description": "1.5x speed, increased usage",
         "category": "model_config"
       }
-    ]
+    ],
+    "_meta": {
+      "alwith": {
+        "configRevision": 1
+      }
+    }
   }
 }

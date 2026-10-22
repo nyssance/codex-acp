@@ -155,7 +155,16 @@
         "description": "Sign out of Codex. This option is available when you are logged in via ChatGPT.",
         "input": null
       }
-    ]
+    ],
+    "_meta": {
+      "alwith": {
+        "configRevision": 0
+      },
+      "codex": {
+        "nativeSessionId": "thread-1",
+        "forkedFromId": null
+      }
+    }
   },
   "codexRequests": [
     {
@@ -170,7 +179,8 @@
             "/workspace": {
               "trust_level": "trusted"
             }
-          }
+          },
+          "openai_base_url": "<responses-route>"
         },
         "cwd": "/workspace",
         "modelProvider": "openai",
@@ -191,6 +201,12 @@
       "update": {
         "messageId": "client-user-1",
         "content": [],
+        "_meta": {
+          "codex": {
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
         "sessionUpdate": "user_message"
       }
     },
@@ -202,6 +218,12 @@
           "text": "Inserted via session/prompt",
           "type": "text"
         },
+        "_meta": {
+          "codex": {
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
         "sessionUpdate": "user_message_chunk"
       }
     },
@@ -210,6 +232,12 @@
       "update": {
         "messageId": "item-user-2",
         "content": [],
+        "_meta": {
+          "codex": {
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
         "sessionUpdate": "user_message"
       }
     },
@@ -221,6 +249,12 @@
           "text": "A legacy message with no clientId",
           "type": "text"
         },
+        "_meta": {
+          "codex": {
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
         "sessionUpdate": "user_message_chunk"
       }
     },
@@ -229,6 +263,15 @@
       "update": {
         "messageId": "item-agent-1",
         "content": [],
+        "_meta": {
+          "codex": {
+            "phase": null,
+            "delivery": null,
+            "questions": null,
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
         "sessionUpdate": "agent_message"
       }
     },
@@ -239,6 +282,15 @@
         "content": {
           "text": "Hello!",
           "type": "text"
+        },
+        "_meta": {
+          "codex": {
+            "phase": null,
+            "delivery": null,
+            "questions": null,
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
         },
         "sessionUpdate": "agent_message_chunk"
       }
@@ -269,6 +321,12 @@
           "command": "ls",
           "cwd": "/workspace"
         },
+        "_meta": {
+          "codex": {
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
         "sessionUpdate": "tool_call_update"
       }
     },
@@ -284,6 +342,19 @@
           "signal": null
         },
         "sessionUpdate": "terminal_update"
+      }
+    },
+    {
+      "sessionId": "thread-1",
+      "update": {
+        "toolCallId": "item-cmd-1",
+        "_meta": {
+          "codex": {
+            "historyReplay": true,
+            "turnId": "turn-1"
+          }
+        },
+        "sessionUpdate": "tool_call_update"
       }
     },
     {

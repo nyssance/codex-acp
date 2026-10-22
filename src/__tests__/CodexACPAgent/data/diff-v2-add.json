@@ -22,11 +22,21 @@
         "type": "diff"
       }
     ],
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
     "sessionUpdate": "tool_call_update"
   },
   {
     "toolCallId": "item-add",
     "status": "completed",
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
     "sessionUpdate": "tool_call_update"
   }
 ]

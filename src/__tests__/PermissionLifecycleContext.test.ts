@@ -88,7 +88,7 @@ function turnCompleted(threadId: string): ServerNotification {
         method: "turn/completed",
         params: {
             threadId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: `turn-${threadId}`,
                 items: [],
                 itemsView: "full",
@@ -111,7 +111,7 @@ describe("PermissionLifecycleContext", () => {
             method: "turn/completed",
             params: {
                 threadId: "thread",
-                turn: {
+                turn: {rootTurnId: null,
                     id: "turn-1",
                     items: [],
                     itemsView: "full",

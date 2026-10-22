@@ -7,7 +7,7 @@
 
 # ACP adapter for Codex CLI
 
-[![npm version](https://img.shields.io/npm/v/%40agentclientprotocol%2Fcodex-acp)](https://www.npmjs.com/package/@agentclientprotocol/codex-acp)
+[![npm version](https://img.shields.io/npm/v/%40nyssance%2Fcodex-acp-v2)](https://www.npmjs.com/package/@nyssance/codex-acp-v2)
 
 Use [OpenAI Codex](https://github.com/openai/codex) from [Agent Client Protocol](https://agentclientprotocol.com/) clients.
 
@@ -36,31 +36,25 @@ Use [OpenAI Codex](https://github.com/openai/codex) from [Agent Client Protocol]
 Run the published package directly:
 
 ```bash
-npx -y @agentclientprotocol/codex-acp
+npx -y @nyssance/codex-acp-v2
 ```
 
 Or install it globally:
 
 ```bash
-npm install -g @agentclientprotocol/codex-acp
-codex-acp --version
+npm install -g @nyssance/codex-acp-v2
+codex-acp-v2 --version
 ```
 
 The npm package includes a compatible `@openai/codex` dependency. Set `CODEX_PATH` only when you want the adapter to run a different Codex binary:
 
 ```bash
-CODEX_PATH=/path/to/codex npx -y @agentclientprotocol/codex-acp
+CODEX_PATH=/path/to/codex npx -y @nyssance/codex-acp-v2
 ```
 
-To try changes that have landed on `main` but are not released yet, install from the
-`preview` channel. Pushes to `main` trigger preview publishing without waiting
-for CI or release-please; release commits are excluded, and newer pushes can
-replace queued previews. See
-[docs/RELEASES.md](docs/RELEASES.md#preview-releases).
-
-```bash
-npx -y @agentclientprotocol/codex-acp@preview
-```
+This fork publishes reviewed, tagged releases through npm Trusted Publishing.
+Main pushes and upstream synchronization do not publish packages. See
+[release and synchronization instructions](docs/RELEASES.md).
 
 ## Authentication
 

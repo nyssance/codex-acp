@@ -217,6 +217,10 @@ export class SessionIndexService {
     /** `_session/rename`. */
     async rename({sessionId, title}: SessionRenameRequest): Promise<Record<string, never>> {
         this.require(SESSION_RENAME_METHOD);
+        return this.renameSession(sessionId, title);
+    }
+
+    async renameSession(sessionId: string, title: string): Promise<Record<string, never>> {
         await this.host.ensureAppServer();
         await this.titles.rename(sessionId, title);
         return {};
@@ -230,6 +234,10 @@ export class SessionIndexService {
      */
     async setArchived({sessionId}: SessionArchiveRequest, archived: boolean): Promise<Record<string, never>> {
         this.require(archived ? SESSION_ARCHIVE_METHOD : SESSION_UNARCHIVE_METHOD);
+        return this.archiveSession(sessionId, archived, withAirMeta(undefined, AIR_ARCHIVED_KEY, archived));
+    }
+
+    async archiveSession(sessionId: string, archived: boolean, meta: Record<string, unknown>): Promise<Record<string, never>> {
         logger.log(archived ? "Archiving session..." : "Unarchiving session...", {sessionId});
         await this.host.ensureAppServer();
         // Read before the fence, which counts as open.
@@ -260,7 +268,7 @@ export class SessionIndexService {
         if (archived ? open : this.host.session(sessionId) !== undefined) {
             await new ACPSessionConnection(this.host.connection(), sessionId).update({
                 sessionUpdate: "session_info_update",
-                _meta: withAirMeta(undefined, AIR_ARCHIVED_KEY, archived),
+                _meta: meta,
             });
         }
         return {};

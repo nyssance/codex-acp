@@ -146,3 +146,28 @@ describe("ACP v2 aggregate foreground state", () => {
         await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-send-order.json");
     });
 });
+
+it('correlates foreground waits and idle with the owning prompt receipt', async () => {
+    const {foreground, updates} = fixture();
+    await foreground.start('prompt-1');
+    await foreground.withUserAction(undefined, async () => {});
+    await foreground.update({state: 'idle', stopReason: 'end_turn'});
+    expect(updates.map(state => state._meta)).toEqual(updates.map(() => ({alwith: {messageId: 'prompt-1'}})));
+    await foreground.start();
+    expect(updates.at(-1)?._meta).toBeUndefined();
+});
+it('captures receipt ownership before a queued state is sent', async () => {
+    const gate = deferred();
+    const updates: acpV2.StateUpdate[] = [];
+    const foreground = new AcpV2ForegroundState(async state => {updates.push(state); if (updates.length === 1) await gate.promise;});
+    const first = foreground.start('first');
+    const idle = foreground.update({state: 'idle', stopReason: 'end_turn'});
+    const second = foreground.start('second');
+    gate.resolve();
+    await Promise.all([first, idle, second]);
+    await foreground.snapshot();
+    expect(updates.map(state => state._meta)).toEqual([
+        {alwith: {messageId: 'first'}}, {alwith: {messageId: 'first'}},
+        {alwith: {messageId: 'second'}}, {alwith: {messageId: 'second'}},
+    ]);
+});

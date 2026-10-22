@@ -295,7 +295,10 @@ export function createCodexMockTestFixture(
     };
 
     const mockCodexConnection = {
-        sendRequest: () => Promise.resolve(undefined),
+        sendRequest: (method: string) => Promise.resolve(
+            method === "config/read" ? {config: {}, origins: {}, layers: []}
+                : method === "account/read" ? {account: null, requiresOpenaiAuth: false, workspaceRouting: null}
+                : undefined),
         onUnhandledNotification: (handler: (notification: any) => void) => {
             unhandledNotificationHandler = handler;
         },
@@ -520,7 +523,7 @@ export function setupPromptTestSession(sessionOverrides?: Partial<SessionState>)
 export function mockPromptTurn(fixture: CodexMockTestFixture, sessionId: string) {
     const codexAppServerClient = fixture.getCodexAppServerClient();
     const turnStartSpy = vi.spyOn(codexAppServerClient, "turnStart").mockResolvedValue({
-        turn: {
+        turn: {rootTurnId: null,
             id: "turn-id",
             items: [],
             itemsView: "notLoaded",
@@ -533,7 +536,7 @@ export function mockPromptTurn(fixture: CodexMockTestFixture, sessionId: string)
     });
     vi.spyOn(codexAppServerClient, "awaitTurnCompleted").mockResolvedValue({
         threadId: sessionId,
-        turn: {
+        turn: {rootTurnId: null,
             id: "turn-id",
             items: [],
             itemsView: "notLoaded",

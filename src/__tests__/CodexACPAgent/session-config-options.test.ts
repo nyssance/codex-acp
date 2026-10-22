@@ -48,7 +48,7 @@ async function createSession(
     const codexAcpClient = fixture.getCodexAcpClient();
 
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
         sessionId: "session-id",
         currentModelId,
@@ -285,7 +285,7 @@ describe("Session config options", () => {
 
         const appServer = fixture.getCodexAppServerClient();
         vi.spyOn(appServer, "listSkills").mockResolvedValue({data: []});
-        const turn: Turn = {
+        const turn: Turn = {rootTurnId: null,
             id: "turn-id", items: [], itemsView: "notLoaded", status: "inProgress", error: null,
             startedAt: null, completedAt: null, durationMs: null,
         };
@@ -428,7 +428,7 @@ describe("Session config options", () => {
         const {fast} = buildModels();
 
         vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId: "session-id",
             currentModelId: "fast-model[medium]",

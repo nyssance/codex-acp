@@ -354,6 +354,7 @@ export class CodexElicitationHandler implements ElicitationHandler {
                 return clientSupportsFormElicitation(this.clientCapabilities);
             case "url":
                 return clientSupportsUrlElicitation(this.clientCapabilities);
+            case "openai/userVerification":
             case "openai/form":
             case "openaiForm":
                 return false;

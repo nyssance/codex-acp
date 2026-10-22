@@ -18,6 +18,11 @@
         ],
         "type": "items"
       },
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
       "sessionUpdate": "plan_update"
     }
   },
@@ -39,6 +44,11 @@
           }
         ],
         "type": "items"
+      },
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
       },
       "sessionUpdate": "plan_update"
     }

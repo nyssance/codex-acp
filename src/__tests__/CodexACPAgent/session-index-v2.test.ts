@@ -17,14 +17,14 @@ import {
 } from '../../SessionIndex';
 import {MAX_SESSION_TITLE_LENGTH} from '../../SessionTitle';
 import {createTestModel} from '../acp-test-utils';
-import {createMockConnections} from './test-utils';
+import {createMockConnections, mockInitializeResponse} from './test-utils';
 import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 const sessionId = "thread-1";
 const cwd = "/workspace";
 
 function createThread(overrides?: Partial<Thread>): Thread {
-    return {
+    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,
@@ -62,6 +62,7 @@ type CodexOverrides = {threads?: Thread[], threadRead?: Thread};
 
 function codexResponse(method: string, overrides: CodexOverrides): unknown {
     switch (method) {
+        case "initialize": return mockInitializeResponse();
         case "thread/start":
             return {
                 thread: createThread({status: {type: "idle"}}),
@@ -71,7 +72,7 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
                 serviceTier: null,
             };
         case "thread/read":
-            return {thread: overrides.threadRead ?? createThread({
+            return {readState: null, thread: overrides.threadRead ?? createThread({
                 status: {type: "active", activeFlags: []},
                 name: "Renamed",
                 path: "/codex-home/sessions/rollout.jsonl",
@@ -111,7 +112,7 @@ async function connectV2Client(airCapabilities: string[], overrides: CodexOverri
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();

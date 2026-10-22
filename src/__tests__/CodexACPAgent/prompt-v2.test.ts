@@ -157,7 +157,7 @@ describe('session/prompt over ACP v2', () => {
 
         const results = [];
         for (const [index, [info, message, expectedText]] of ([
-            ["usageLimitExceeded", "You've hit your usage limit.", "You've hit your usage limit.\n\n"],
+            ["usageLimitExceeded", "You've hit your usage limit.", "You've hit your usage limit."],
             // unauthorized routes through the ACP login flow instead of echoing the provider's text.
             ["unauthorized", "Your access token could not be refreshed.", "Authentication required"],
         ] as const).entries()) {
@@ -172,10 +172,14 @@ describe('session/prompt over ACP v2', () => {
             const transcript = client.transcript.slice(start);
             // The inserted request remains successful; terminal failure belongs to idle/error.
             expect(stateUpdates(transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "error"}]);
-            const agentMessages = sessionUpdates(transcript).filter(update => update.sessionUpdate === "agent_message_chunk");
-            expect(agentMessages).toEqual([expect.objectContaining({content: {type: "text", text: expectedText}})]);
+            const messageType = info === "unauthorized" ? "agent_message_chunk" : "agent_message";
+            const agentMessages = sessionUpdates(transcript).filter(update => update.sessionUpdate === messageType);
+            const content = {type: "text", text: expectedText};
+            expect(agentMessages.length).toBeGreaterThan(0);
+            for (const update of agentMessages) expect(update).toMatchObject({content: messageType === "agent_message" ? [content] : content});
+            if (messageType === "agent_message") expect(new Set(agentMessages.map(update => "messageId" in update ? update.messageId : null))).toEqual(new Set([`codex-error:${id}`]));
             const text = indexOf(transcript, entry => "sessionUpdate" in entry
-                && entry.sessionUpdate.sessionUpdate === "agent_message_chunk");
+                && entry.sessionUpdate.sessionUpdate === messageType);
             expect(indexOf(transcript, isState("running"))).toBeLessThan(text);
             expect(text).toBeLessThan(indexOf(transcript, isState("idle")));
             results.push({info, transcript: stableTranscript(transcript, messageId)});
@@ -306,7 +310,7 @@ describe('session/prompt over ACP v2', () => {
 
         expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
         const idle = sessionUpdates(client.transcript).at(-1);
-        await expect(dump(idle)).toMatchFileSnapshot('data/prompt-v2-idle-usage-and-quota.json');
+        await expect(dump(idle, client.turnStartParams[0]!["clientUserMessageId"] as string)).toMatchFileSnapshot('data/prompt-v2-idle-usage-and-quota.json');
     });
 
     it('ends observed foreground work if the runtime dies before acknowledging turn/start', async () => {

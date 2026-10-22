@@ -23,7 +23,8 @@
             "/workspace": {
               "trust_level": "trusted"
             }
-          }
+          },
+          "openai_base_url": "<responses-route>"
         },
         "modelProvider": null,
         "cwd": "/workspace"

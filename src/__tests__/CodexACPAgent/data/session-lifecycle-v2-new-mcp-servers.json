@@ -11,6 +11,7 @@
             "trust_level": "trusted"
           }
         },
+        "openai_base_url": "<responses-route>",
         "mcp_servers": {
           "files": {
             "command": "/usr/local/bin/mcp-fs",

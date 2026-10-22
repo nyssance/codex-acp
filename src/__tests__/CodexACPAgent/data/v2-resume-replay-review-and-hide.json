@@ -4,6 +4,13 @@
     "update": {
       "messageId": "reviewer-reasoning",
       "content": [],
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000002",
+          "historyInterrupted": true
+        }
+      },
       "sessionUpdate": "agent_thought"
     }
   },
@@ -15,6 +22,13 @@
         "text": "Reviewing the diff",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000002",
+          "historyInterrupted": true
+        }
+      },
       "sessionUpdate": "agent_thought_chunk"
     }
   },
@@ -23,6 +37,12 @@
     "update": {
       "messageId": "review-entered",
       "content": [],
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000001"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -34,6 +54,12 @@
         "text": "Entered review mode: Review the diff",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000001"
+        }
+      },
       "sessionUpdate": "agent_message_chunk"
     }
   },
@@ -42,6 +68,12 @@
     "update": {
       "messageId": "review-exited",
       "content": [],
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000001"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -53,6 +85,12 @@
         "text": "Exited review mode: Looks good",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000001"
+        }
+      },
       "sessionUpdate": "agent_message_chunk"
     }
   },
@@ -61,6 +99,15 @@
     "update": {
       "messageId": "review-summary",
       "content": [],
+      "_meta": {
+        "codex": {
+          "phase": null,
+          "delivery": null,
+          "questions": null,
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000001"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -71,6 +118,15 @@
       "content": {
         "text": "Review complete.",
         "type": "text"
+      },
+      "_meta": {
+        "codex": {
+          "phase": null,
+          "delivery": null,
+          "questions": null,
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000001"
+        }
       },
       "sessionUpdate": "agent_message_chunk"
     }
@@ -83,6 +139,12 @@
         "text": "Reply with just OK.",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000003"
+        }
+      },
       "sessionUpdate": "user_message_chunk"
     }
   },
@@ -91,6 +153,15 @@
     "update": {
       "messageId": "ordinary-reply",
       "content": [],
+      "_meta": {
+        "codex": {
+          "phase": null,
+          "delivery": null,
+          "questions": null,
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000003"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -102,6 +173,15 @@
         "text": "OK",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "phase": null,
+          "delivery": null,
+          "questions": null,
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000003"
+        }
+      },
       "sessionUpdate": "agent_message_chunk"
     }
   },
@@ -110,6 +190,12 @@
     "update": {
       "messageId": "review2-entered",
       "content": [],
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000004"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -121,6 +207,12 @@
         "text": "Entered review mode: Second review",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000004"
+        }
+      },
       "sessionUpdate": "agent_message_chunk"
     }
   },
@@ -129,6 +221,12 @@
     "update": {
       "messageId": "review2-exited",
       "content": [],
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000004"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -140,6 +238,12 @@
         "text": "Exited review mode: All good",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000004"
+        }
+      },
       "sessionUpdate": "agent_message_chunk"
     }
   },
@@ -148,6 +252,15 @@
     "update": {
       "messageId": "review2-summary",
       "content": [],
+      "_meta": {
+        "codex": {
+          "phase": null,
+          "delivery": null,
+          "questions": null,
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000004"
+        }
+      },
       "sessionUpdate": "agent_message"
     }
   },
@@ -158,6 +271,15 @@
       "content": {
         "text": "Second review complete.",
         "type": "text"
+      },
+      "_meta": {
+        "codex": {
+          "phase": null,
+          "delivery": null,
+          "questions": null,
+          "historyReplay": true,
+          "turnId": "01990000-0000-7000-8000-000000000004"
+        }
       },
       "sessionUpdate": "agent_message_chunk"
     }

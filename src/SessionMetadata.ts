@@ -1,15 +1,16 @@
 import type {ModeKind} from "./app-server/ModeKind";
-import type {ServiceTier} from "./app-server/ServiceTier";
 import type {Model, Thread, ThreadItemEntry, ThreadStatus} from "./app-server/v2";
 import type {SessionInstructions} from "./ClientSystemPrompt";
 
 export type SessionMetadata = {
     sessionId: string,
+    readOnly?: boolean,
+    lineage?: {nativeSessionId: string | null; forkedFromId: string | null},
     currentModelId: string,
     models: Model[],
     collaborationMode: ModeKind,
     modelProvider?: string | null,
-    currentServiceTier?: ServiceTier | null,
+    currentServiceTier?: string | null,
     threadStatus?: ThreadStatus,
     additionalDirectories: string[],
     skippedMcpServers?: string[],

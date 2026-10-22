@@ -656,7 +656,7 @@ function turnCompleted(threadId: string) {
         method: "turn/completed" as const,
         params: {
             threadId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: "turn-id",
                 items: [],
                 itemsView: "notLoaded" as const,
@@ -686,7 +686,7 @@ function childSpawned() {
 }
 
 function childMaterialized() {
-    return started({
+    return started({model: null, reasoningEffort: null,
         type: "subAgentActivity",
         id: "child-activity",
         kind: "started",
@@ -696,7 +696,7 @@ function childMaterialized() {
 }
 
 function childInterrupted() {
-    return started({
+    return started({model: null, reasoningEffort: null,
         type: "subAgentActivity",
         id: "child-activity-terminal",
         kind: "interrupted",

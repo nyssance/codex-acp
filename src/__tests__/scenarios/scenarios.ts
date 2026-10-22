@@ -109,7 +109,7 @@ function turnCompleted(threadId = SESSION_ID, turnId = TURN_ID): Record<string, 
         method: "turn/completed",
         params: {
             threadId,
-            turn: {
+            turn: {rootTurnId: null,
                 id: turnId, items: [], itemsView: "notLoaded", status: "completed", error: null,
                 startedAt: null, completedAt: null, durationMs: null,
             },
@@ -137,7 +137,7 @@ export function collab(
 
 /** The activity item that announces the session of a spawned subagent. */
 export function spawnActivity(id: string, agentThreadId: string, agentPath: string, threadId = SESSION_ID): ScenarioStep {
-    return started({type: "subAgentActivity", id, kind: "started", agentThreadId, agentPath}, threadId);
+    return started({model: null, reasoningEffort: null, type: "subAgentActivity", id, kind: "started", agentThreadId, agentPath}, threadId);
 }
 
 /** An event of a subagent thread. */
@@ -308,11 +308,11 @@ export const SCENARIOS: Scenario[] = [
     {
         name: "subagent-activity",
         steps: [
-            started({
+            started({model: null, reasoningEffort: null,
                 type: "subAgentActivity", id: "act-1", kind: "started", agentThreadId: CHILD_THREAD_ID,
                 agentPath: "/root/weather",
             }),
-            completed({
+            completed({model: null, reasoningEffort: null,
                 type: "subAgentActivity", id: "act-1", kind: "started", agentThreadId: CHILD_THREAD_ID,
                 agentPath: "/root/weather",
             }),
@@ -321,11 +321,11 @@ export const SCENARIOS: Scenario[] = [
                 params: {threadId: CHILD_THREAD_ID, turnId: "child-turn", itemId: "child-msg", delta: "Sunny"},
             }},
             {notify: turnCompleted(CHILD_THREAD_ID, "child-turn")},
-            started({
+            started({model: null, reasoningEffort: null,
                 type: "subAgentActivity", id: "act-2", kind: "completed", agentThreadId: CHILD_THREAD_ID,
                 agentPath: "/root/weather",
             }),
-            completed({
+            completed({model: null, reasoningEffort: null,
                 type: "subAgentActivity", id: "act-2", kind: "completed", agentThreadId: CHILD_THREAD_ID,
                 agentPath: "/root/weather",
             }),

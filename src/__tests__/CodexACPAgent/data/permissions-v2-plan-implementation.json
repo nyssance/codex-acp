@@ -31,6 +31,11 @@
   },
   {
     "sessionUpdate": {
+      "_meta": {
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
       "state": "running",
       "sessionUpdate": "state_update"
     }
@@ -74,6 +79,11 @@
   },
   {
     "sessionUpdate": {
+      "_meta": {
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
       "state": "requires_action",
       "sessionUpdate": "state_update"
     }
@@ -198,6 +208,11 @@
           "category": "thought_level"
         }
       ],
+      "_meta": {
+        "alwith": {
+          "configRevision": 2
+        }
+      },
       "sessionUpdate": "config_option_update"
     }
   },
@@ -242,6 +257,11 @@
   },
   {
     "sessionUpdate": {
+      "_meta": {
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
       "state": "running",
       "sessionUpdate": "state_update"
     }
@@ -269,6 +289,9 @@
         "quota": {
           "token_count": null,
           "model_usage": []
+        },
+        "alwith": {
+          "messageId": "<messageId>"
         }
       },
       "state": "idle",

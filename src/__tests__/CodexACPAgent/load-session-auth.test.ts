@@ -3,7 +3,7 @@ import {createCodexMockTestFixture, createTestModel, type CodexMockTestFixture} 
 import type {GetAccountResponse} from "../../app-server/v2";
 
 const SESSION_ID = "session-1";
-const SIGNED_IN: GetAccountResponse = {
+const SIGNED_IN: GetAccountResponse = {workspaceRouting: null,
     account: {type: "chatgpt", email: "user@example.com", planType: "plus"},
     requiresOpenaiAuth: true,
 } as GetAccountResponse;
@@ -16,7 +16,7 @@ function loadFixture(): CodexMockTestFixture {
     client.listSkills = vi.fn().mockResolvedValue({data: []});
     const model = createTestModel();
     appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
-    appServer.threadResume = vi.fn().mockResolvedValue({
+    appServer.threadResume = vi.fn().mockResolvedValue({runtimeWorkspaceRoots: [], activePermissionProfile: null, multiAgentMode: "explicitRequestOnly", initialTurnsPage: null,
         thread: {id: SESSION_ID, historyMode: "paginated", turns: [], cwd: "/test/project", name: null, preview: ""},
         itemsBackwardsCursor: "item:last",
         model: model.id,
@@ -66,7 +66,7 @@ describe("CodexACPAgent - loadSession auth", () => {
         const fixture = loadFixture();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        appServer.accountRead = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: true});
+        appServer.accountRead = vi.fn().mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: true});
         const closeSpy = vi.spyOn(client, "closeSession").mockResolvedValue(undefined as never);
         await initialize(fixture);
 
@@ -81,7 +81,7 @@ describe("CodexACPAgent - loadSession auth", () => {
     it("fails with auth_required when the resume also fails", async () => {
         const fixture = loadFixture();
         const appServer = fixture.getCodexAppServerClient();
-        appServer.accountRead = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: true});
+        appServer.accountRead = vi.fn().mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: true});
         appServer.threadResume = vi.fn().mockRejectedValue(new Error("no rollout found for thread id session-1"));
         await initialize(fixture);
 

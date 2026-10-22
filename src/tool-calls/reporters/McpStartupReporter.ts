@@ -1,5 +1,5 @@
 import {randomUUID} from "node:crypto";
-import type {McpStartupCompleteEvent} from "../../app-server/McpStartupCompleteEvent";
+import type {McpStartupResult} from "../../mcp/McpStartupTracker";
 import {textContent} from "../AcpToolCallRenderer";
 import type {ToolFacts} from "../ToolFacts";
 
@@ -12,7 +12,7 @@ export class McpStartupReporter {
         ));
     }
 
-    static failures(event: McpStartupCompleteEvent): ToolFacts[] {
+    static failures(event: McpStartupResult): ToolFacts[] {
         return [
             ...event.failed.map(server => failure(
                 server.server,

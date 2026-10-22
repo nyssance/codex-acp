@@ -38,7 +38,7 @@ describe("Fast mode session config", () => {
         const slowModel = createTestModel({id: "slow-model"});
 
         vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId: "session-id",
             currentModelId: "fast-model[medium]",
@@ -219,7 +219,7 @@ describe("Fast mode session config", () => {
         await codexAcpAgent.prompt({sessionId: "session-id", prompt: [{type: "text", text: "test"}]});
 
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({
-            serviceTier: "fast",
+            serviceTier: "priority",
         }));
     });
 

@@ -4,6 +4,11 @@
     "update": {
       "compactionId": "compaction-1",
       "status": "in_progress",
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
       "sessionUpdate": "compaction_update"
     }
   },
@@ -12,6 +17,11 @@
     "update": {
       "compactionId": "compaction-1",
       "status": "completed",
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
       "sessionUpdate": "compaction_update"
     }
   },

@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "alwith": {
+      "configRevision": 0
+    }
+  },
   "configOptions": [
     {
       "configId": "mode",

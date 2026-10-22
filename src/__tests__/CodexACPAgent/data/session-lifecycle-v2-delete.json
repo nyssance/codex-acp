@@ -8,7 +8,7 @@
       }
     },
     {
-      "method": "thread/archive",
+      "method": "thread/delete",
       "params": {
         "threadId": "thread-1"
       }
