@@ -31,6 +31,9 @@
         "tools": {
           "version": 1
         },
+        "turns": {
+          "version": 2
+        },
         "configRevision": {
           "version": 1
         }
@@ -55,7 +58,14 @@
         "archive": true,
         "rename": true,
         "readState": true,
-        "providerCatalog": true
+        "providerCatalog": true,
+        "forkAtTurn": true,
+        "sessionLineage": true,
+        "sessionRetry": {
+          "version": 1
+        },
+        "seedHistory": true,
+        "composerPredictions": true
       }
     }
   },

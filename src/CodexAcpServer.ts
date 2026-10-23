@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from "node:async_hooks";
 import type {ReplayEntry} from "./ReplayHistory";
 import {classifyTurnError} from "./alwith/agent/turnErrors";
 import {ConfigRevisions} from "./alwith/ConfigRevisions";
@@ -480,7 +481,39 @@ export interface CodexProcessState {
     supervisor?: CodexAppServerSupervisor;
 }
 
+type SessionOpenScope = {signal: AbortSignal; sessions: Map<string, number>; finished: boolean};
+
 export class CodexAcpServer {
+    private readonly sessionOpenScope = new AsyncLocalStorage<SessionOpenScope>();
+    private readonly sessionOpenOwners = new Map<string, SessionOpenScope>();
+
+    /** Cancellation invalidates only sessions claimed by this opening request. */
+    async runSessionOpen<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T> {
+        const cancelled = () => RequestError.requestCancelled(undefined, "Session opening was cancelled");
+        if (signal.aborted) throw cancelled();
+        const scope: SessionOpenScope = {signal, sessions: new Map(), finished: false};
+        const abort = () => {
+            for (const [sessionId, generation] of scope.sessions) {
+                if (this.sessionOpenOwners.get(sessionId) !== scope || this.getSessionGeneration(sessionId) !== generation) continue;
+                void this.closeSession({sessionId}).catch(error => logger.error(`Failed to close cancelled session open ${sessionId}`, error));
+            }
+        };
+        signal.addEventListener("abort", abort, {once: true});
+        const pending = this.sessionOpenScope.run(scope, async () => operation()).finally(() => {
+            scope.finished = true;
+            signal.removeEventListener("abort", abort);
+            for (const sessionId of scope.sessions.keys()) {
+                if (!this.sessions.has(sessionId) && this.sessionOpenOwners.get(sessionId) === scope) this.sessionOpenOwners.delete(sessionId);
+            }
+        });
+        try {
+            return await abortable(pending, signal);
+        } catch (error) {
+            if (signal.aborted) throw cancelled();
+            throw error;
+        }
+    }
+
     private readonly replayEntries = new WeakMap<ThreadItem, ReplayEntry>();
     private codexAcpClient: CodexAcpClient;
     private readonly connection: AcpClientConnection;
@@ -732,10 +765,11 @@ export class CodexAcpServer {
                 version: packageJson.version,
             },
             capabilities: {
-                _meta: {alwith: {tools: {version: 1}, configRevision: {version: 1}}, codex: {
+                _meta: {alwith: {tools: {version: 1}, turns: {version: 2}, configRevision: {version: 1}}, codex: {
                     sessionHistory: {version: 2, items: true, modes: ["browse", "export"]},
                     skills: true, plugins: true, pluginEnable: true, account: true, fuzzyFileSearch: true,
                     sessionList: {version: 1}, archive: true, rename: true, readState: true, providerCatalog: true,
+                    forkAtTurn: true, sessionLineage: true, sessionRetry: {version: 1}, seedHistory: true, composerPredictions: true,
                 }},
                 auth: {
                     _meta: {
@@ -1170,6 +1204,15 @@ export class CodexAcpServer {
             throw RequestError.invalidRequest(`Session ${sessionId} is closing`);
         }
         this.sessionOpenGenerations.set(sessionId, generation);
+        const scope = this.sessionOpenScope.getStore();
+        if (scope) {
+            scope.sessions.set(sessionId, generation);
+            this.sessionOpenOwners.set(sessionId, scope);
+            // New/fork IDs may become known only after the caller has cancelled.
+            if (scope.signal.aborted) this.bumpSessionGeneration(sessionId);
+        } else {
+            this.sessionOpenOwners.delete(sessionId);
+        }
         return generation;
     }
 
@@ -1202,10 +1245,14 @@ export class CodexAcpServer {
     }
 
     private sessionOpenCanInstall(sessionId: string, generation: number): boolean {
+        const scope = this.sessionOpenScope.getStore();
+        if (scope && (scope.signal.aborted || this.sessionOpenOwners.get(sessionId) !== scope)) return false;
         return !this.sessionIsClosing(sessionId) && this.getSessionGeneration(sessionId) === generation;
     }
 
     private async cleanupStaleSessionOpen(sessionId: string, generation: number): Promise<boolean> {
+        const scope = this.sessionOpenScope.getStore();
+        if (scope && this.sessionOpenOwners.get(sessionId) !== scope) return false;
         if (this.sessionOpenGenerations.get(sessionId) === generation) {
             if (!this.sessionIsClosing(sessionId)) {
                 this.bumpSessionGeneration(sessionId);
@@ -2079,6 +2126,7 @@ export class CodexAcpServer {
         } finally {
             if (this.getSessionGeneration(params.sessionId) === closeGeneration) {
                 this.sessions.delete(params.sessionId);
+                if (this.sessionOpenOwners.get(params.sessionId)?.finished) this.sessionOpenOwners.delete(params.sessionId);
                 if (!this.v2PromptsInFlight.has(params.sessionId)) {
                     AcpV2Connection.of(this.connection)?.forgetSession(params.sessionId);
                 }

@@ -107,7 +107,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         await client.request("session/new", {cwd, mcpServers: [], systemPrompt: prompt("Source"), ...air});
         calls.length = 0;
         await client.request("session/fork", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Fork")});
-        expect(calls.map(call => call.method)).toEqual(["thread/fork"]);
+        expect(calls.map(call => call.method)).toEqual(version === 2 ? ["thread/fork", "thread/read", "thread/read"] : ["thread/fork"]);
         expect(calls[0]?.params.developerInstructions).toBe("AIR instructions\n\nFork");
         expect(client.agent.getSessionState(sessionId).instructions?.text).toBe("Source");
         expect(client.agent.getSessionState("fork-1").instructions?.text).toBe("Fork");

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.29 (unreleased)
+
+- Base the adapter on official codex-acp while retaining the existing package and executable names.
+- Preserve ALwith provider catalogs, host tools, configuration revisions, native history, retries, predictions, and asynchronous questions.
+- Correlate turn states with prompt receipts; preserve replay identity, timing, interrupted status, and failed-turn transcript messages.
+- Replay fork history before replying and isolate cancellation cleanup by opening-request ownership.
+- Publish tagged releases through npm Trusted Publishing and synchronize upstream through reviewed merge PRs.
+
 ## [2.2.2](https://github.com/agentclientprotocol/codex-acp/compare/v2.2.1...v2.2.2) (2026-10-10)
 
 

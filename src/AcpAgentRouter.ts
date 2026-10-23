@@ -121,11 +121,11 @@ export function createAcpAgentRouter(
         .onConnect((connection) => attachAgent(createAgent(new AcpV2Connection(connection.client)), connection.signal))
         .onRequest(acpV2.methods.agent.initialize, (ctx) => getAgent().initializeV2(ctx.params))
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
-        .onRequest(acpV2.methods.agent.session.new, (ctx) => getAgent().newSessionV2(ctx.params))
+        .onRequest(acpV2.methods.agent.session.new, (ctx) => getAgent().runSessionOpen(ctx.signal, () => getAgent().newSessionV2(ctx.params)))
         .onRequest(acpV2.methods.agent.session.list, (ctx) => getAgent().listSessions(ctx.params))
         .onRequest(acpV2.methods.agent.session.delete, (ctx) => getAgent().deleteSession(ctx.params))
-        .onRequest(acpV2.methods.agent.session.resume, (ctx) => getAgent().resumeSessionV2(ctx.params))
-        .onRequest(acpV2.methods.agent.session.fork, (ctx) => getAgent().forkSessionV2(ctx.params))
+        .onRequest(acpV2.methods.agent.session.resume, (ctx) => getAgent().runSessionOpen(ctx.signal, () => getAgent().resumeSessionV2(ctx.params)))
+        .onRequest(acpV2.methods.agent.session.fork, (ctx) => getAgent().runSessionOpen(ctx.signal, () => getAgent().forkSessionV2(ctx.params)))
         .onRequest(acpV2.methods.agent.session.close, (ctx) => getAgent().closeSession(ctx.params))
         // No `session/set_mode`: v2 removed the modes API; modes are config options.
         .onRequest(acpV2.methods.agent.session.setConfigOption, (ctx) => getAgent().setSessionConfigOptionV2(ctx.params))
