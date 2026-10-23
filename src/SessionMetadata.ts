@@ -5,7 +5,7 @@ import type {SessionInstructions} from "./ClientSystemPrompt";
 export type SessionMetadata = {
     sessionId: string,
     readOnly?: boolean,
-    lineage?: {nativeSessionId: string | null; forkedFromId: string | null},
+    lineage?: {nativeSessionId: string | null; forkedFromId: string | null; forkedAtTurnId?: string | null},
     currentModelId: string,
     models: Model[],
     collaborationMode: ModeKind,

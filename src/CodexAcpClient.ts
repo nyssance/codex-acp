@@ -1,3 +1,4 @@
+import {readSessionLineage} from "./alwith/sessionLineage";
 import {replayEntriesOfTurn, withReplayTurnMetadata} from "./ReplayHistory";
 import {hostThreadOptions, seedHistory} from "./alwith/hostSession";
 import {ResponsesRoutes} from "./alwith/codex/responsesRoutes";
@@ -740,7 +741,7 @@ export class CodexAcpClient {
             readOnly: response.readOnly ?? false,
             currentModelId: currentModelId,
             models: codexModels,
-            lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
+            lineage: await readSessionLineage(this.codexClient, response.thread),
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             threadStatus: response.thread.status,
@@ -834,7 +835,7 @@ export class CodexAcpClient {
             readOnly: response.readOnly ?? false,
             currentModelId: currentModelId,
             models: codexModels,
-            lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
+            lineage: await readSessionLineage(this.codexClient, response.thread),
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             modelProvider: response.modelProvider,
@@ -923,7 +924,7 @@ export class CodexAcpClient {
             sessionId: response.thread.id,
             currentModelId: currentModelId,
             models: codexModels,
-            lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
+            lineage: await readSessionLineage(this.codexClient, response.thread),
             collaborationMode: this.getCollaborationMode(response.thread.id),
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,

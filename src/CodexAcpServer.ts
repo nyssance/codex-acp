@@ -238,7 +238,7 @@ import {
 export interface SessionState extends SessionIndexTitleState {
     clientTools?: ClientToolSet;
     readOnly?: boolean;
-    lineage?: {nativeSessionId: string | null; forkedFromId: string | null};
+    lineage?: SessionMetadata["lineage"];
     sessionId: string,
     instructions?: SessionInstructions;
     currentModelId: string,
@@ -3392,13 +3392,12 @@ export class CodexAcpServer {
     }
 
     private createSessionConfigOptionsResponse(sessionState: SessionState): {
+        _meta?: Record<string, unknown>;
         configOptions?: Array<acp.SessionConfigOption>;
     } {
-        if (!this.isSessionConfigEnabled()) {
-            return {};
-        }
         return {
-            configOptions: this.createSessionConfigOptions(sessionState),
+            ...(sessionState.lineage?.forkedAtTurnId !== undefined ? {_meta: {codex: {...sessionState.lineage}}} : {}),
+            ...(this.isSessionConfigEnabled() ? {configOptions: this.createSessionConfigOptions(sessionState)} : {}),
         };
     }
 

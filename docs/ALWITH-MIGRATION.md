@@ -40,3 +40,13 @@ The official-upstream migration has passed release acceptance. Publication and c
 - The canonical repository has its `npm` environment and Actions PR creation enabled. Trusted Publisher migration requires renewed npm authentication; the previous binding still targets `nyssance/codex-acp-v2` until that change succeeds.
 - Remaining release operations: migrate and verify Trusted Publisher, merge the release-ready branch, publish the patch through GitHub Actions, and upgrade U and TV from npm. Desktop has no direct dependency on this adapter and requires no package cutover.
 - Retire the old release path only after publication and consumer verification.
+
+## Native fork boundary metadata
+
+Fork, load, and context-only resume responses expose `_meta.codex.forkedAtTurnId`
+for forked sessions in both ACP v1 and v2. It is the latest native turn ID shared
+by the parent and child, or `null` when they share no turns. The adapter derives
+it from paginated `thread/turns/list` summaries, including after the child has
+continued and both processes have restarted. It does not store a second copy of
+conversation provenance. History failures are propagated rather than reported
+as an empty boundary.

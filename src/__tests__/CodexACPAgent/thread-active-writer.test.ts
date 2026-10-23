@@ -125,6 +125,7 @@ describe("a thread that another Codex client has loaded", () => {
             thread: {...createThread(), id: forkId, sessionId: forkId, forkedFromId: threadId},
         });
 
+        appServer.threadTurnsList = vi.fn().mockResolvedValue({data: [], nextCursor: null, backwardsCursor: null});
         const response = await agent.forkSession({sessionId: threadId, cwd: "/test/cwd", mcpServers: []});
 
         expect(response.sessionId).toBe(forkId);

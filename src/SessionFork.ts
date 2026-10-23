@@ -1,3 +1,4 @@
+import {readSessionLineage} from "./alwith/sessionLineage";
 import {hostThreadOptions} from "./alwith/hostSession";
 import {createHash} from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
@@ -59,8 +60,10 @@ export async function forkSession(
     // unsubscribed thread loaded and runs its turns, but sends their notifications to subscribers only.
     // A fork that fails from here on has no session, so it gives the subscription back.
     let models: Model[];
+    let lineage: SessionMetadata["lineage"];
     try {
         models = await dependencies.fetchAvailableModels();
+        lineage = await readSessionLineage(dependencies.codexClient, response.thread);
     } catch (err) {
         await dependencies.releaseFailedFork(response.thread.id);
         throw err;
@@ -69,7 +72,7 @@ export async function forkSession(
         sessionId: response.thread.id,
         currentModelId: dependencies.createCurrentModelId(models, response.model, response.reasoningEffort),
         models,
-        lineage: {nativeSessionId: response.thread.sessionId, forkedFromId: response.thread.forkedFromId},
+        lineage,
         collaborationMode: dependencies.getCollaborationMode(response.thread.id),
         modelProvider: response.modelProvider,
         currentServiceTier: response.serviceTier ?? null,
