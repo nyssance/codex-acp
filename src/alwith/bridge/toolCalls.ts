@@ -352,7 +352,8 @@ export function imageGenerationCompleted(item: Item<"imageGeneration">): ToolCal
       status: item.status,
       revisedPrompt: item.revisedPrompt,
       savedPath: item.savedPath ?? null,
-      failure: item.failure
+      failure: item.failure,
+      ...("fileId" in item ? { fileId: item.fileId } : {})
     }
   })
 }
@@ -364,7 +365,7 @@ export function imageGenerationSnapshot(item: Item<"imageGeneration">): ToolCall
 function imageGenerationContent(item: Item<"imageGeneration">): acp.ToolCallContent[] {
   const content: acp.ToolCallContent[] = []
   if (item.revisedPrompt?.trim()) content.push(textContent(`Revised prompt: ${item.revisedPrompt}`))
-  if (item.result.trim().length > 0) {
+  if ("result" in item && item.result.trim().length > 0) {
     content.push({
       type: "content",
       content: {
@@ -374,6 +375,10 @@ function imageGenerationContent(item: Item<"imageGeneration">): acp.ToolCallCont
         ...(item.savedPath?.trim() ? { uri: item.savedPath } : {})
       }
     })
+  }
+  if ("fileId" in item) {
+    if (item.savedPath?.trim()) content.push({ type: "content", content: { type: "resource_link", name: item.savedPath, uri: item.savedPath } })
+    else content.push(textContent(`Generated image attachment: ${item.fileId}`))
   }
   if (item.failure) content.push(textContent(`Image generation failed: ${JSON.stringify(item.failure)}`))
   return content

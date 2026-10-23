@@ -1,3 +1,5 @@
+import {imageGenerationCompleted} from "../../alwith/bridge/toolCalls";
+import type {ThreadItem} from "../../app-server/v2";
 import {describe, expect, it} from "vitest";
 import {AcpToolCallRenderer} from "../../tool-calls/AcpToolCallRenderer";
 import {ClientCapabilities} from "../../tool-calls/ClientCapabilities";
@@ -193,5 +195,28 @@ describe("ClientCapabilities", () => {
         expect(ClientCapabilities.from({_meta: {terminal_output_delta: true}}).terminalOutputKey(false))
             .toBe("terminal_output_delta");
         expect(ClientCapabilities.from({_meta: {jetbrains: {air: {version: 1}}}}).terminalOutputKey(true)).toBeNull();
+    });
+});
+
+
+describe("Codex 0.164 image attachments", () => {
+    const item: Extract<ThreadItem, {type: "imageGeneration"}> = {
+        type: "imageGeneration", id: "image-file", status: "completed", revisedPrompt: null,
+        fileId: "file-123", failure: null,
+    };
+    it("preserves attachment identity without inventing inline image bytes", () => {
+        const v1 = ImageGenerationReporter.whole(item);
+        const v2 = imageGenerationCompleted(item);
+        expect(v1.standard?.rawOutput).toMatchObject({fileId: "file-123"});
+        expect(v2.rawOutput).toMatchObject({fileId: "file-123"});
+        for (const content of [v1.result, v2.content]) {
+            expect(content).toEqual([{type: "content", content: {type: "text", text: "Generated image attachment: file-123"}}]);
+        }
+    });
+    it("preserves a local generated image reference in both protocols", () => {
+        const saved = {...item, savedPath: "/tmp/generated.png"};
+        const reference = {type: "content", content: {type: "resource_link", name: saved.savedPath, uri: saved.savedPath}};
+        expect(ImageGenerationReporter.whole(saved).result).toEqual([reference]);
+        expect(imageGenerationCompleted(saved).content).toEqual([reference]);
     });
 });

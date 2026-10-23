@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.7.29",
+  "version": "0.7.30",
   "description": "ACP adapter for Codex with ALwith client extensions",
   "main": "dist/index.js",
   "bin": {
@@ -36,7 +36,7 @@
     "example:simple-client": "node --import tsx examples/simple-client.ts",
     "example:steering": "node --import tsx examples/steering.ts",
     "example:steering:multistep": "node --import tsx examples/steering.ts",
-    "generate-types": "./node_modules/.bin/codex app-server generate-ts --out src/app-server",
+    "generate-types": "./node_modules/.bin/codex app-server generate-ts --experimental --out src/app-server",
     "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**'",
     "test:integration": "vitest run --no-file-parallelism --hookTimeout=30000 src/__tests__/integration",
     "test:e2e": "npm run build && RUN_E2E_TESTS=true vitest run --no-file-parallelism --retry=2 src/__tests__/CodexACPAgent/e2e",
@@ -69,7 +69,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^2.0.1",
-    "@openai/codex": "^0.163.0",
+    "@openai/codex": "^0.164.0",
     "cross-spawn": "^7.0.6",
     "diff": "^9.0.0",
     "open": "^11.0.1",

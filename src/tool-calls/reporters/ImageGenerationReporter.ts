@@ -57,7 +57,7 @@ function standardResult(item: ImageGenerationItem): StandardToolCallFields {
     const rawOutput: Record<string, string | null> = {
         status: item.status,
         revisedPrompt: item.revisedPrompt,
-        result: item.result,
+        ...("result" in item ? {result: item.result} : {fileId: item.fileId}),
     };
     if ("savedPath" in item) rawOutput["savedPath"] = item.savedPath ?? null;
     return {
@@ -73,7 +73,7 @@ function imageResult(item: ImageGenerationItem): acp.ToolCallContent[] {
         result.push(textContent(`Revised prompt: ${item.revisedPrompt}`));
     }
     const savedPath = item.savedPath && item.savedPath.trim() !== "" ? item.savedPath : undefined;
-    if (item.result.trim() !== "") {
+    if ("result" in item && item.result.trim() !== "") {
         result.push({
             type: "content",
             content: {
@@ -86,6 +86,7 @@ function imageResult(item: ImageGenerationItem): acp.ToolCallContent[] {
     } else if (savedPath !== undefined) {
         result.push({type: "content", content: {type: "resource_link", name: savedPath, uri: savedPath}});
     }
+    if ("fileId" in item && savedPath === undefined) result.push(textContent(`Generated image attachment: ${item.fileId}`));
     return result;
 }
 

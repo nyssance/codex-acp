@@ -39,6 +39,21 @@ describe("ALwith host tools over the upstream ACP router", () => {
         expect(host).toHaveBeenCalledTimes(1);
         await finish();
     });
+    it("keeps concurrent host calls independent when responses finish in reverse order", async () => {
+        const pending = new Map<string, (value: unknown) => void>();
+        const {client, finish} = await start({onToolCall: params => {
+            const {toolCallId} = params as {toolCallId: string};
+            return new Promise(resolve => {pending.set(toolCallId, resolve);});
+        }});
+        const first = client.triggerApproval("item/tool/call", {...call, callId: "first"});
+        const second = client.triggerApproval("item/tool/call", {...call, callId: "second"});
+        await vi.waitFor(() => expect([...pending.keys()]).toEqual(["first", "second"]));
+        pending.get("second")!({success: true, contentItems: [{type: "text", text: "second result"}]});
+        expect(await second).toEqual({success: true, contentItems: [{type: "inputText", text: "second result"}]});
+        pending.get("first")!({success: true, contentItems: [{type: "text", text: "first result"}]});
+        expect(await first).toEqual({success: true, contentItems: [{type: "inputText", text: "first result"}]});
+        await finish();
+    });
     it("does not invoke the host when permission is denied", async () => {
         const host = vi.fn();
         const {client, finish} = await start({onToolCall: host, onRequestPermission: () => ({outcome: {outcome: "cancelled"}})});

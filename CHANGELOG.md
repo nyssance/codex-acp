@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.30 (2026-10-23)
+
+- Upgrade Codex to 0.164.0 and regenerate experimental app-server bindings.
+- Preserve generated image attachment IDs and local file references in ACP v1 and v2.
+- Verify concurrent client tool calls complete independently and retain response identity.
+
 ## 0.7.29 (2026-10-23)
 
 - Base the adapter on official codex-acp while retaining the existing package and executable names.
