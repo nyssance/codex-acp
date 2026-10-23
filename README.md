@@ -1,17 +1,10 @@
-> ALwith migration branch: based on upstream commit
-> `082be156aacac3ef21e231da2efcdf5f6af34a6b`.
-> The intended package is `@nyssance/codex-acp-v2` with the `codex-acp-v2`
-> executable. Publication is disabled until the existing client extension
-> contracts are preserved and verified. This branch is not a drop-in replacement
-> for the currently published adapter.
-
 # ACP adapter for Codex CLI
 
 [![npm version](https://img.shields.io/npm/v/%40nyssance%2Fcodex-acp-v2)](https://www.npmjs.com/package/@nyssance/codex-acp-v2)
 
 Use [OpenAI Codex](https://github.com/openai/codex) from [Agent Client Protocol](https://agentclientprotocol.com/) clients.
 
-`codex-acp` is a stdio ACP agent server. It starts the Codex App Server, translates ACP requests into Codex operations, and maps Codex events back into the client.
+`codex-acp-v2` is a stdio ACP agent server based on the official [codex-acp](https://github.com/agentclientprotocol/codex-acp) implementation, with ALwith client extensions. It starts the Codex App Server, translates ACP requests into Codex operations, and maps Codex events back into the client.
 
 ## Features
 

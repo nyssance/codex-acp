@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.29 (unreleased)
+## 0.7.29 (2026-10-23)
 
 - Base the adapter on official codex-acp while retaining the existing package and executable names.
 - Preserve ALwith provider catalogs, host tools, configuration revisions, native history, retries, predictions, and asynchronous questions.

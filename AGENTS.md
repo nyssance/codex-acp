@@ -26,7 +26,7 @@
 - When snapshot response data drifts, prefer replacing that response payload with a stable placeholder over asserting fragile fields (except for 'model/list').
 - Focus on behavior and outputs rather than implementation details.
 - Cover both ACP v1 and v2 when a change affects what a client receives (updates, responses, replay). A change to internal logic only does not need its tests duplicated per version.
-- Use `/run-codex` skill (`.claude/skills/run-codex/`) to test with real Codex and observe actual events.
+- Use `/run-codex` skill (`.agents/skills/run-codex/`) to test with real Codex and observe actual events.
 
 ## Pull Requests
 
