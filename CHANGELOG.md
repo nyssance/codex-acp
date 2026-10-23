@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.31 (2026-10-23)
+
+- Restore fork boundary metadata in fork, load, and context-only resume responses for ACP v1 and v2.
+- Derive fork boundaries from persisted native turn history so they remain available after branches continue and processes restart.
+- Propagate fork history errors instead of reporting an empty boundary.
+
 ## 0.7.30 (2026-10-23)
 
 - Upgrade Codex to 0.164.0 and regenerate experimental app-server bindings.
