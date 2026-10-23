@@ -49,6 +49,7 @@ jobs:
         if: steps.merge.outputs.branch != ''
         with:
           node-version: "24"
+          check-latest: true
       - name: Verify merged source
         if: steps.merge.outputs.branch != ''
         run: |
