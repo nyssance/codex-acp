@@ -1,0 +1,56 @@
+[
+  {
+    "sessionId": "session-1",
+    "update": {
+      "plan": {
+        "planId": "codex-structured-plan",
+        "entries": [
+          {
+            "content": "Add the mapping",
+            "priority": "medium",
+            "status": "in_progress"
+          },
+          {
+            "content": "Verify it",
+            "priority": "medium",
+            "status": "pending"
+          }
+        ],
+        "type": "items"
+      },
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
+      "sessionUpdate": "plan_update"
+    }
+  },
+  {
+    "sessionId": "session-1",
+    "update": {
+      "plan": {
+        "planId": "codex-structured-plan",
+        "entries": [
+          {
+            "content": "Add the mapping",
+            "priority": "medium",
+            "status": "completed"
+          },
+          {
+            "content": "Verify it",
+            "priority": "medium",
+            "status": "in_progress"
+          }
+        ],
+        "type": "items"
+      },
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
+      "sessionUpdate": "plan_update"
+    }
+  }
+]

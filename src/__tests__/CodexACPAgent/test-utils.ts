@@ -1,4 +1,7 @@
-import { vi, expect } from 'vitest';
+import { vi, expect, afterEach } from 'vitest';
+import {mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import type { CodexAcpServer } from '../../CodexAcpServer';
 
 export interface MockConnections {
@@ -6,10 +9,13 @@ export interface MockConnections {
     mockCodexConnection: any;
     notificationHandlers: Map<string, Function>;
     getUnhandledNotificationHandler: () => Function | null;
+    /** The handler `CodexAppServerClient` registered for a `vscode-jsonrpc` `RequestType` (by its `.method`). */
+    getRequestHandler: (method: string) => Function | null;
 }
 
 export function createMockConnections(): MockConnections {
     const notificationHandlers = new Map<string, Function>();
+    const requestHandlers = new Map<string, Function>();
     let unhandledNotificationHandler: Function | null = null;
 
     const mockAcpConnection = {
@@ -25,7 +31,9 @@ export function createMockConnections(): MockConnections {
         onNotification: vi.fn((method: string, handler: Function) => {
             notificationHandlers.set(method, handler);
         }),
-        onRequest: vi.fn(),
+        onRequest: vi.fn((type: {method: string}, handler: Function) => {
+            requestHandlers.set(type.method, handler);
+        }),
         end: vi.fn(),
     };
 
@@ -34,6 +42,7 @@ export function createMockConnections(): MockConnections {
         mockCodexConnection,
         notificationHandlers,
         getUnhandledNotificationHandler: () => unhandledNotificationHandler,
+        getRequestHandler: (method: string) => requestHandlers.get(method) ?? null,
     };
 }
 
@@ -85,4 +94,12 @@ export async function testEventHandling(
     }
 
     await completePrompt();
+}
+
+const testHomes: string[] = [];
+afterEach(() => { for (const home of testHomes.splice(0)) rmSync(home, {recursive: true, force: true}); });
+export function mockInitializeResponse() {
+    const codexHome = mkdtempSync(join(tmpdir(), "acp-mock-home-"));
+    testHomes.push(codexHome);
+    return {userAgent: "codex-test", codexHome, platformFamily: "unix", platformOs: "macos"};
 }

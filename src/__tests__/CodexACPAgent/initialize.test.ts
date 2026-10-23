@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CodexAcpServer } from '../../CodexAcpServer';
-import * as acp from '@agentclientprotocol/sdk';
+import * as acp from '@agentclientprotocol/sdk/unstable';
 import { createMockConnections } from './test-utils';
 import {getCodexAuthMethods} from "../../CodexAuthMethod";
 import {CodexAcpClient} from "../../CodexAcpClient";
@@ -52,12 +52,18 @@ describe('CodexACPAgent - initialize', () => {
                     list: {},
                     close: {},
                     delete: {},
+                    fork: {},
                     additionalDirectories: {},
+                    subagents: {},
+                    systemPrompt: {},
                 },
                 mcpCapabilities: {
                     acp: false,
                     http: true,
                     sse: false,
+                },
+                _meta: {
+                    authStatus: {},
                 },
             },
             authMethods: getCodexAuthMethods(),
@@ -65,16 +71,28 @@ describe('CodexACPAgent - initialize', () => {
                 steering: {
                     supported: true,
                 },
-                goal: {
+            },
+        });
+    });
+
+    it('should advertise the AIR extension only to AIR', async () => {
+        const result = await agent.initialize({
+            protocolVersion: acp.PROTOCOL_VERSION,
+            clientCapabilities: {_meta: {jetbrains: {air: {version: 1, capabilities: []}}}},
+        });
+        expect(result._meta).toEqual({
+            steering: {
+                supported: true,
+            },
+            jetbrains: {
+                air: {
                     version: 1,
-                    controlMethod: "_session/goal",
-                    actions: ["set", "pause", "resume", "clear"],
-                },
-                jetbrains: {
-                    air: {
+                    goal: {
                         version: 1,
-                        capabilities: ["sessionFailure", "agentFileChangeReport"],
+                        controlMethod: "_session/goal",
+                        actions: ["set", "pause", "resume", "clear"],
                     },
+                    capabilities: ["sessionFailure", "diffPatch", "agentFileChangeReport", "customInstructions", "nativeSubagentSessions", "asyncTasks", "recommendedValue", "rawInputRendering", "planContentDelta", "codexHooks"],
                 },
             },
         });

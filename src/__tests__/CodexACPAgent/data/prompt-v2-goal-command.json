@@ -1,0 +1,53 @@
+[
+  {
+    "sessionUpdate": {
+      "messageId": "<messageId>",
+      "content": {
+        "text": "/goal Ship it",
+        "type": "text"
+      },
+      "sessionUpdate": "user_message_chunk"
+    }
+  },
+  {
+    "promptResponse": {
+      "messageId": "<messageId>"
+    }
+  },
+  {
+    "codexNotification": "thread/goal/updated"
+  },
+  {
+    "codexNotification": "turn/started"
+  },
+  {
+    "codexNotification": "turn/completed"
+  },
+  {
+    "sessionUpdate": {
+      "_meta": {
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
+      "state": "running",
+      "sessionUpdate": "state_update"
+    }
+  },
+  {
+    "sessionUpdate": {
+      "stopReason": "end_turn",
+      "_meta": {
+        "quota": {
+          "token_count": null,
+          "model_usage": []
+        },
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
+      "state": "idle",
+      "sessionUpdate": "state_update"
+    }
+  }
+]

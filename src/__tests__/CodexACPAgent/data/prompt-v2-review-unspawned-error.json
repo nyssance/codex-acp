@@ -1,0 +1,77 @@
+[
+  {
+    "sessionUpdate": {
+      "messageId": "<messageId>",
+      "content": {
+        "text": "/review",
+        "type": "text"
+      },
+      "sessionUpdate": "user_message_chunk"
+    }
+  },
+  {
+    "sessionUpdate": {
+      "_meta": {
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
+      "state": "running",
+      "sessionUpdate": "state_update"
+    }
+  },
+  {
+    "promptResponse": {
+      "messageId": "<messageId>"
+    }
+  },
+  {
+    "codexNotification": "error"
+  },
+  {
+    "sessionUpdate": {
+      "messageId": "codex-error:review-parent",
+      "content": [
+        {
+          "text": "/test/cwd is not a git repository",
+          "type": "text"
+        }
+      ],
+      "_meta": {
+        "codex": {
+          "turnId": "review-parent",
+          "error": {
+            "category": "unknown",
+            "retryable": false,
+            "stopReason": "error",
+            "message": "/test/cwd is not a git repository",
+            "codexErrorInfo": null,
+            "additionalDetails": null,
+            "misalignment": null
+          }
+        }
+      },
+      "sessionUpdate": "agent_message"
+    }
+  },
+  {
+    "sessionUpdate": {
+      "error": {
+        "code": -32603,
+        "message": "/test/cwd is not a git repository"
+      },
+      "stopReason": "error",
+      "_meta": {
+        "quota": {
+          "token_count": null,
+          "model_usage": []
+        },
+        "alwith": {
+          "messageId": "<messageId>"
+        }
+      },
+      "state": "idle",
+      "sessionUpdate": "state_update"
+    }
+  }
+]

@@ -1,0 +1,78 @@
+[
+  {
+    "messageId": "item-reasoning",
+    "content": {
+      "text": "Thinking ",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "agent_thought_chunk"
+  },
+  {
+    "messageId": "item-reasoning",
+    "content": {
+      "text": "hard",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "agent_thought_chunk"
+  },
+  {
+    "messageId": "item-agent",
+    "content": {
+      "text": "Hel",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "agent_message_chunk"
+  },
+  {
+    "messageId": "item-agent",
+    "content": {
+      "text": "lo",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "agent_message_chunk"
+  },
+  {
+    "messageId": "codex-error:turn-1",
+    "content": [
+      {
+        "text": "Something went wrong",
+        "type": "text"
+      }
+    ],
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1",
+        "error": {
+          "category": "unknown",
+          "retryable": false,
+          "stopReason": "error",
+          "message": "Something went wrong",
+          "codexErrorInfo": null,
+          "additionalDetails": null,
+          "misalignment": null
+        }
+      }
+    },
+    "sessionUpdate": "agent_message"
+  }
+]

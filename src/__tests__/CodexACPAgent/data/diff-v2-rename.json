@@ -1,0 +1,43 @@
+[
+  {
+    "toolCallId": "item-rename",
+    "title": "Editing files",
+    "kind": "edit",
+    "status": "in_progress",
+    "content": [
+      {
+        "changes": [
+          {
+            "oldPath": "/workspace/renamed-old.ts",
+            "path": "/workspace/renamed-new.ts",
+            "operation": "move"
+          }
+        ],
+        "patch": {
+          "format": "git_patch",
+          "text": "diff --git a/workspace/renamed-old.ts b/workspace/renamed-new.ts\nsimilarity index 100%\nrename from workspace/renamed-old.ts\nrename to workspace/renamed-new.ts\n"
+        },
+        "_meta": {
+          "kind": "update"
+        },
+        "type": "diff"
+      }
+    ],
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "tool_call_update"
+  },
+  {
+    "toolCallId": "item-rename",
+    "status": "completed",
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "tool_call_update"
+  }
+]

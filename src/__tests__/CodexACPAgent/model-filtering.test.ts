@@ -21,6 +21,7 @@ describe("Model filtering", () => {
                 availabilityNux: null,
                 modelSpecialty: null,
                 multiAgentVersion: null,
+                availableAccessPrograms: null,
                 displayName: "GPT-5.2",
                 description: "Allowed by id.",
                 hidden: false,
@@ -41,6 +42,7 @@ describe("Model filtering", () => {
                 availabilityNux: null,
                 modelSpecialty: null,
                 multiAgentVersion: null,
+                availableAccessPrograms: null,
                 displayName: "gpt-5.2",
                 description: "Allowed",
                 hidden: false,
@@ -61,6 +63,7 @@ describe("Model filtering", () => {
                 availabilityNux: null,
                 modelSpecialty: null,
                 multiAgentVersion: null,
+                availableAccessPrograms: null,
                 displayName: "Other",
                 description: "Allowed by id.",
                 hidden: false,
@@ -81,6 +84,7 @@ describe("Model filtering", () => {
                 availabilityNux: null,
                 modelSpecialty: null,
                 multiAgentVersion: null,
+                availableAccessPrograms: null,
                 displayName: "gpt-4o",
                 description: "Allowed.",
                 hidden: false,
@@ -101,6 +105,7 @@ describe("Model filtering", () => {
                 availabilityNux: null,
                 modelSpecialty: null,
                 multiAgentVersion: null,
+                availableAccessPrograms: null,
                 displayName: "gpt-5.3-codex",
                 description: "Codex suffix lowercased.",
                 hidden: false,
@@ -121,6 +126,7 @@ describe("Model filtering", () => {
                 availabilityNux: null,
                 modelSpecialty: null,
                 multiAgentVersion: null,
+                availableAccessPrograms: null,
                 displayName: "gpt-5.4-mini",
                 description: "Mini suffix lowercased.",
                 hidden: false,
@@ -135,7 +141,7 @@ describe("Model filtering", () => {
             },
         ];
 
-        vi.spyOn(codexAcpClient, "authRequired").mockResolvedValue(false);
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId: "session-id",
             currentModelId: "gpt-5.2[medium]",
@@ -143,7 +149,7 @@ describe("Model filtering", () => {
             collaborationMode: "default",
             additionalDirectories: [],
         });
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: false});
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
 
         const newSessionResponse = await codexAcpAgent.newSession({ cwd: "", mcpServers: [] });
         const sessionModels = newSessionResponse.models;

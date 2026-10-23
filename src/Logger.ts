@@ -25,8 +25,18 @@ class Logger {
         }
     }
 
+    /** Whether `log` writes anything. A caller checks it before it formats a large message. */
+    get enabled(): boolean {
+        return this.logFilePath !== null;
+    }
+
     error(message: string, err: unknown) {
-        this.log(`[SYSTEM_ERROR] ${message}`, {exception: this.formatError(err)});
+        const formattedError = this.formatError(err);
+        if (!this.logFilePath) {
+            console.error(`[SYSTEM_ERROR] ${message}: ${formattedError}`);
+            return;
+        }
+        this.log(`[SYSTEM_ERROR] ${message}`, {exception: formattedError});
     }
 
     log(message: string, context?: LogContext) {

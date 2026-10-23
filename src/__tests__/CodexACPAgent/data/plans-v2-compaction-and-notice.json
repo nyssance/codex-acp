@@ -1,0 +1,36 @@
+[
+  {
+    "sessionId": "session-1",
+    "update": {
+      "compactionId": "compaction-1",
+      "status": "in_progress",
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
+      "sessionUpdate": "compaction_update"
+    }
+  },
+  {
+    "sessionId": "session-1",
+    "update": {
+      "compactionId": "compaction-1",
+      "status": "completed",
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
+      "sessionUpdate": "compaction_update"
+    }
+  },
+  {
+    "sessionId": "session-1",
+    "update": {
+      "severity": "warning",
+      "title": "Optional integration unavailable",
+      "sessionUpdate": "notice"
+    }
+  }
+]

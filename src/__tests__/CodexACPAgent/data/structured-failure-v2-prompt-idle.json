@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": -32603,
+    "message": "Provider unavailable"
+  },
+  "stopReason": "error",
+  "_meta": {
+    "quota": {
+      "token_count": null,
+      "model_usage": []
+    },
+    "alwith": {
+      "messageId": "<messageId>"
+    }
+  },
+  "state": "idle",
+  "sessionUpdate": "state_update"
+}
