@@ -1,15 +1,19 @@
-import {afterEach, describe, expect, it, vi} from 'vitest';
-import * as acp from '@agentclientprotocol/sdk/unstable';
-import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import {createAcpAgentRouter} from '../../AcpAgentRouter';
-import {CodexAcpServer} from '../../CodexAcpServer';
-import {CodexAcpClient} from '../../CodexAcpClient';
-import {CodexAppServerClient} from '../../CodexAppServerClient';
-import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY} from '../../AirExtension';
-import type {Thread} from '../../app-server/v2';
-import {createCodexMockTestFixture, createTestModel} from '../acp-test-utils';
-import {createMockConnections} from './test-utils';
-import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
+import { testThreadPermissions } from "../native-thread-permissions";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as acp from "@agentclientprotocol/sdk/unstable";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import { createAcpAgentRouter } from "../../AcpAgentRouter";
+import { CodexAcpServer } from "../../CodexAcpServer";
+import { CodexAcpClient } from "../../CodexAcpClient";
+import { CodexAppServerClient } from "../../CodexAppServerClient";
+import { AIR_NATIVE_SUBAGENT_SESSIONS_KEY } from "../../AirExtension";
+import type { Thread } from "../../app-server/v2";
+import { createCodexMockTestFixture, createTestModel } from "../acp-test-utils";
+import { createMockConnections } from "./test-utils";
+import {
+    checkV2SessionUpdate,
+    expectConformingV2SessionUpdates,
+} from "./v2-session-update-guard";
 
 const sessionId = "thread-1";
 const cwd = "/workspace";
@@ -22,7 +26,11 @@ const T2_ID = "01990000-0000-7000-8000-000000000003"; // an ordinary turn
 const P2_ID = "01990000-0000-7000-8000-000000000004"; // a later review turn, T2_ID predates it normally
 
 function createThread(overrides?: Partial<Thread>): Thread {
-    return {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
+    return {
+        environments: null,
+        extra: null,
+        canAcceptDirectInput: null,
+        daybreakEnabled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,
@@ -37,7 +45,7 @@ function createThread(overrides?: Partial<Thread>): Thread {
         createdAt: 100,
         updatedAt: 200,
         recencyAt: null,
-        status: {type: "idle"},
+        status: { type: "idle" },
         path: null,
         cwd,
         cliVersion: "0.0.0",
@@ -62,7 +70,8 @@ function createThread(overrides?: Partial<Thread>): Thread {
  * NOT be hidden.
  */
 const reviewReplayTurns: Thread["turns"] = [
-    {rootTurnId: null,
+    {
+        rootTurnId: null,
         id: T_ID,
         itemsView: "full",
         status: "interrupted",
@@ -75,12 +84,24 @@ const reviewReplayTurns: Thread["turns"] = [
                 type: "userMessage",
                 id: "reviewer-prompt",
                 clientId: null,
-                content: [{type: "text", text: "Please review my changes", text_elements: []}],
+                content: [
+                    {
+                        type: "text",
+                        text: "Please review my changes",
+                        text_elements: [],
+                    },
+                ],
             },
-            {type: "reasoning", id: "reviewer-reasoning", summary: ["Reviewing the diff"], content: []},
+            {
+                type: "reasoning",
+                id: "reviewer-reasoning",
+                summary: ["Reviewing the diff"],
+                content: [],
+            },
         ],
     },
-    {rootTurnId: null,
+    {
+        rootTurnId: null,
         id: P_ID,
         itemsView: "full",
         status: "completed",
@@ -89,8 +110,16 @@ const reviewReplayTurns: Thread["turns"] = [
         completedAt: null,
         durationMs: null,
         items: [
-            {type: "enteredReviewMode", id: "review-entered", review: "Review the diff"},
-            {type: "exitedReviewMode", id: "review-exited", review: "Looks good"},
+            {
+                type: "enteredReviewMode",
+                id: "review-entered",
+                review: "Review the diff",
+            },
+            {
+                type: "exitedReviewMode",
+                id: "review-exited",
+                review: "Looks good",
+            },
             {
                 type: "agentMessage",
                 id: "review-summary",
@@ -102,7 +131,8 @@ const reviewReplayTurns: Thread["turns"] = [
             },
         ],
     },
-    {rootTurnId: null,
+    {
+        rootTurnId: null,
         id: T2_ID,
         itemsView: "full",
         status: "completed",
@@ -115,7 +145,13 @@ const reviewReplayTurns: Thread["turns"] = [
                 type: "userMessage",
                 id: "ordinary-prompt",
                 clientId: null,
-                content: [{type: "text", text: "Reply with just OK.", text_elements: []}],
+                content: [
+                    {
+                        type: "text",
+                        text: "Reply with just OK.",
+                        text_elements: [],
+                    },
+                ],
             },
             {
                 type: "agentMessage",
@@ -128,7 +164,8 @@ const reviewReplayTurns: Thread["turns"] = [
             },
         ],
     },
-    {rootTurnId: null,
+    {
+        rootTurnId: null,
         id: P2_ID,
         itemsView: "full",
         status: "completed",
@@ -137,8 +174,16 @@ const reviewReplayTurns: Thread["turns"] = [
         completedAt: null,
         durationMs: null,
         items: [
-            {type: "enteredReviewMode", id: "review2-entered", review: "Second review"},
-            {type: "exitedReviewMode", id: "review2-exited", review: "All good"},
+            {
+                type: "enteredReviewMode",
+                id: "review2-entered",
+                review: "Second review",
+            },
+            {
+                type: "exitedReviewMode",
+                id: "review2-exited",
+                review: "All good",
+            },
             {
                 type: "agentMessage",
                 id: "review2-summary",
@@ -158,34 +203,51 @@ const reviewReplayTurns: Thread["turns"] = [
  */
 function codexResponse(
     method: string,
-    params: {cursor?: string | null; sortDirection?: string} | undefined,
+    params: { cursor?: string | null; sortDirection?: string } | undefined,
     replayTurns: Thread["turns"] = [],
     paginated = false,
 ): unknown {
-    const entries = replayTurns.flatMap(turn => turn.items.map(item => ({
-        turnId: turn.id,
-        item,
-        startedAtMs: null,
-        completedAtMs: null,
-    })));
+    const entries = replayTurns.flatMap((turn) =>
+        turn.items.map((item) => ({
+            turnId: turn.id,
+            item,
+            startedAtMs: null,
+            completedAtMs: null,
+        })),
+    );
     switch (method) {
         case "thread/turns/list":
-            return {data: params?.sortDirection === "desc" ? replayTurns.slice(-1) : replayTurns, nextCursor: null, backwardsCursor: null};
+            return {
+                data:
+                    params?.sortDirection === "desc"
+                        ? replayTurns.slice(-1)
+                        : replayTurns,
+                nextCursor: null,
+                backwardsCursor: null,
+            };
         case "thread/items/list": {
             if (params?.sortDirection === "desc") {
-                return {data: entries.slice(-1), nextCursor: null, backwardsCursor: null};
+                return {
+                    data: entries.slice(-1),
+                    nextCursor: null,
+                    backwardsCursor: null,
+                };
             }
             const index = Number(params?.cursor ?? 0);
             return {
                 data: entries.slice(index, index + 1),
-                nextCursor: index + 1 < entries.length ? String(index + 1) : null,
+                nextCursor:
+                    index + 1 < entries.length ? String(index + 1) : null,
                 backwardsCursor: null,
             };
         }
         case "thread/start":
         case "thread/resume":
             return {
-                thread: createThread(paginated ? {historyMode: "paginated"} : {}),
+                thread: createThread(
+                    paginated ? { historyMode: "paginated" } : {},
+                ),
+                ...testThreadPermissions(),
                 model: "gpt-5",
                 modelProvider: "openai",
                 reasoningEffort: "medium",
@@ -194,17 +256,23 @@ function codexResponse(
                 turnsBackwardsCursor: paginated ? "last-turn" : null,
             };
         case "thread/read":
-            return {readState: null, thread: createThread({turns: replayTurns})};
+            return {
+                readState: null,
+                thread: createThread({ turns: replayTurns }),
+            };
         case "model/list":
-            return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
+            return {
+                data: [createTestModel({ id: "gpt-5" })],
+                nextCursor: null,
+            };
         case "skills/list":
-            return {data: []};
+            return { data: [] };
         case "config/read":
-            return {config: {}, origins: {}, layers: []};
+            return { config: {}, origins: {}, layers: [] };
         case "thread/list":
-            return {data: [createThread()], nextCursor: null};
+            return { data: [createThread()], nextCursor: null };
         case "thread/goal/get":
-            return {goal: null};
+            return { goal: null };
         default:
             return {};
     }
@@ -217,33 +285,67 @@ async function connectV2Client(options?: {
     paginated?: boolean;
 }) {
     const mocks = createMockConnections();
-    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: any) => (
-        codexResponse(method, params, options?.replayTurns, options?.paginated)
-    ));
-    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
-    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
+    mocks.mockCodexConnection.sendRequest.mockImplementation(
+        async (method: string, params?: any) =>
+            codexResponse(
+                method,
+                params,
+                options?.replayTurns,
+                options?.paginated,
+            ),
+    );
+    const codexAcpClient = new CodexAcpClient(
+        new CodexAppServerClient(mocks.mockCodexConnection as any),
+    );
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+        required: false,
+        account: null,
+    });
+    vi.spyOn(
+        codexAcpClient,
+        "getAgentConfiguredModelProvider",
+    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        workspaceRouting: null,
+        account: null,
+        requiresOpenaiAuth: false,
+    });
+    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
+        ready: [],
+        failed: [],
+        cancelled: [],
+    });
+    const router = createAcpAgentRouter(
+        (connection) => new CodexAcpServer(connection, codexAcpClient),
+    );
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
-    router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
+    router.connect(
+        acp.ndJsonStream(agentToClient.writable, clientToAgent.readable),
+    );
 
     const updates: acpV2.UpdateSessionNotification[] = [];
-    const connection = acpV2.client({name: "test-client"})
+    const connection = acpV2
+        .client({ name: "test-client" })
         .onNotification(acpV2.methods.client.session.update, (ctx) => {
             checkV2SessionUpdate(ctx.params.update);
             updates.push(ctx.params);
         })
-        .connect(acp.ndJsonStream(clientToAgent.writable, agentToClient.readable));
+        .connect(
+            acp.ndJsonStream(clientToAgent.writable, agentToClient.readable),
+        );
     await connection.agent.request(acpV2.methods.agent.initialize, {
         protocolVersion: 2,
-        info: {name: "test-client", version: "1.0.0"},
-        ...(options?.capabilities ? {capabilities: options.capabilities} : {}),
+        info: { name: "test-client", version: "1.0.0" },
+        ...(options?.capabilities
+            ? { capabilities: options.capabilities }
+            : {}),
     });
-    const codexMethods = () => mocks.mockCodexConnection.sendRequest.mock.calls.map((call: unknown[]) => call[0] as string);
-    return {connection, updates, codexMethods};
+    const codexMethods = () =>
+        mocks.mockCodexConnection.sendRequest.mock.calls.map(
+            (call: unknown[]) => call[0] as string,
+        );
+    return { connection, updates, codexMethods };
 }
 
 function dump(value: unknown): string {
@@ -251,7 +353,10 @@ function dump(value: unknown): string {
 }
 
 /** The whole-message kind a replayed chunk restarts. */
-const wholeMessageKindByChunk: Record<string, acpV2.SessionUpdate["sessionUpdate"]> = {
+const wholeMessageKindByChunk: Record<
+    string,
+    acpV2.SessionUpdate["sessionUpdate"]
+> = {
     user_message_chunk: "user_message",
     agent_message_chunk: "agent_message",
     agent_thought_chunk: "agent_thought",
@@ -262,35 +367,51 @@ const wholeMessageKindByChunk: Record<string, acpV2.SessionUpdate["sessionUpdate
  * the same session's update stream) by a whole-message update of the matching kind and id with
  * `content: []`, sent exactly once per id.
  */
-function assertPrimerBeforeEveryChunk(updates: acpV2.UpdateSessionNotification[]): void {
+function assertPrimerBeforeEveryChunk(
+    updates: acpV2.UpdateSessionNotification[],
+): void {
     const primed = new Set<string>();
     for (let i = 0; i < updates.length; i++) {
         const update = updates[i]!.update;
         const wholeKind = wholeMessageKindByChunk[update.sessionUpdate];
-        const messageId = (update as {messageId?: string | null}).messageId;
+        const messageId = (update as { messageId?: string | null }).messageId;
         if (!wholeKind || !messageId) continue;
         const key = `${wholeKind}:${messageId}`;
         if (primed.has(key)) continue;
-        const hasPrimer = updates.slice(0, i).some((prior) => (
-            prior.update.sessionUpdate === wholeKind
-            && (prior.update as {messageId?: string}).messageId === messageId
-            && Array.isArray((prior.update as {content?: unknown[]}).content)
-            && (prior.update as {content: unknown[]}).content.length === 0
-        ));
-        expect(hasPrimer, `missing '${wholeKind}' primer before the first '${update.sessionUpdate}' for id ${messageId}`)
-            .toBe(true);
+        const hasPrimer = updates
+            .slice(0, i)
+            .some(
+                (prior) =>
+                    prior.update.sessionUpdate === wholeKind &&
+                    (prior.update as { messageId?: string }).messageId ===
+                        messageId &&
+                    Array.isArray(
+                        (prior.update as { content?: unknown[] }).content,
+                    ) &&
+                    (prior.update as { content: unknown[] }).content.length ===
+                        0,
+            );
+        expect(
+            hasPrimer,
+            `missing '${wholeKind}' primer before the first '${update.sessionUpdate}' for id ${messageId}`,
+        ).toBe(true);
         primed.add(key);
     }
 }
 
 /** `(sessionUpdate, messageId)` pairs for updates that carry a replay message id. */
-function messageIdSequence(updates: acpV2.UpdateSessionNotification[]): Array<[string, string | null | undefined]> {
+function messageIdSequence(
+    updates: acpV2.UpdateSessionNotification[],
+): Array<[string, string | null | undefined]> {
     return updates
-        .filter(({update}) => "messageId" in update)
-        .map(({update}) => [update.sessionUpdate, (update as {messageId?: string | null}).messageId]);
+        .filter(({ update }) => "messageId" in update)
+        .map(({ update }) => [
+            update.sessionUpdate,
+            (update as { messageId?: string | null }).messageId,
+        ]);
 }
 
-describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers', () => {
+describe("ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers", () => {
     let closeClient: (() => void) | null = null;
 
     afterEach(() => {
@@ -300,62 +421,114 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
         expectConformingV2SessionUpdates();
     });
 
-    it('gives review-mode chunks a stable messageId, hides only the minted-after reviewer prompt, and primes every replayed chunk', async () => {
-        const {connection, updates} = await connectV2Client({replayTurns: reviewReplayTurns});
+    it("gives review-mode chunks a stable messageId, hides only the minted-after reviewer prompt, and primes every replayed chunk", async () => {
+        const { connection, updates } = await connectV2Client({
+            replayTurns: reviewReplayTurns,
+        });
         closeClient = () => connection.close();
 
         await connection.agent.request(acpV2.methods.agent.session.resume, {
             sessionId,
             cwd,
-            replayFrom: {type: "start"},
+            replayFrom: { type: "start" },
         });
 
-        const messages = updates.filter(({update}) => (
-            update.sessionUpdate.endsWith("_message_chunk")
-            || update.sessionUpdate === "agent_message"
-            || update.sessionUpdate.endsWith("_thought_chunk")
-            || update.sessionUpdate === "agent_thought"
-        ));
-        for (const {update} of messages) {
+        const messages = updates.filter(
+            ({ update }) =>
+                update.sessionUpdate.endsWith("_message_chunk") ||
+                update.sessionUpdate === "agent_message" ||
+                update.sessionUpdate.endsWith("_thought_chunk") ||
+                update.sessionUpdate === "agent_thought",
+        );
+        for (const { update } of messages) {
             const meta = update._meta as Record<string, unknown>;
-            const originalTurn = reviewReplayTurns.find(turn =>
-                turn.items.some(item => "messageId" in update && item.id === update.messageId));
-            expect(meta["codex"]).toMatchObject({historyReplay: true});
-            if (originalTurn) expect(meta["codex"]).toMatchObject({turnId: originalTurn.id});
-        }
-        await expect(dump(messages)).toMatchFileSnapshot('data/v2-resume-replay-review-and-hide.json');
-        assertPrimerBeforeEveryChunk(updates);
-    });
-
-    it.each([false, true])('replays an empty failed turn with stable identity and timing (paginated: %s)', async paginated => {
-        const failed: Thread["turns"][number] = {
-            ...reviewReplayTurns[0]!, id: "failed-turn", items: [], status: "failed",
-            startedAt: 10, completedAt: 12, durationMs: 2000,
-            error: {message: "Capacity exhausted", additionalDetails: null, codexErrorInfo: "serverOverloaded", misalignment: null},
-        };
-        const {connection, updates} = await connectV2Client({replayTurns: [failed], paginated});
-        closeClient = () => connection.close();
-        await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, replayFrom: {type: "start"}});
-        const failure = updates.map(event => event.update).find(update =>
-            update.sessionUpdate === "agent_message_chunk" && update.messageId === "codex-error:failed-turn");
-        expect(failure).toMatchObject({content: {text: "Capacity exhausted"}, _meta: {codex: {
-            historyReplay: true, turnId: "failed-turn", turnStartedAt: 10000,
-            turnCompletedAt: 12000, turnDurationMs: 2000,
-            error: {codexErrorInfo: "serverOverloaded"},
-        }}});
-        assertPrimerBeforeEveryChunk(updates);
-    });
-
-    it('hides the reviewer prompt the same way when the history arrives one item per page', async () => {
-        const replay = async (paginated: boolean) => {
-            const {connection, updates, codexMethods} = await connectV2Client({replayTurns: reviewReplayTurns, paginated});
-            try {
-                await connection.agent.request(acpV2.methods.agent.session.resume, {
-                    sessionId,
-                    cwd,
-                    replayFrom: {type: "start"},
+            const originalTurn = reviewReplayTurns.find((turn) =>
+                turn.items.some(
+                    (item) =>
+                        "messageId" in update && item.id === update.messageId,
+                ),
+            );
+            expect(meta["codex"]).toMatchObject({ historyReplay: true });
+            if (originalTurn)
+                expect(meta["codex"]).toMatchObject({
+                    turnId: originalTurn.id,
                 });
-                expect(codexMethods().includes("thread/items/list")).toBe(paginated);
+        }
+        await expect(dump(messages)).toMatchFileSnapshot(
+            "data/v2-resume-replay-review-and-hide.json",
+        );
+        assertPrimerBeforeEveryChunk(updates);
+    });
+
+    it.each([false, true])(
+        "replays an empty failed turn with stable identity and timing (paginated: %s)",
+        async (paginated) => {
+            const failed: Thread["turns"][number] = {
+                ...reviewReplayTurns[0]!,
+                id: "failed-turn",
+                items: [],
+                status: "failed",
+                startedAt: 10,
+                completedAt: 12,
+                durationMs: 2000,
+                error: {
+                    message: "Capacity exhausted",
+                    additionalDetails: null,
+                    codexErrorInfo: "serverOverloaded",
+                    misalignment: null,
+                },
+            };
+            const { connection, updates } = await connectV2Client({
+                replayTurns: [failed],
+                paginated,
+            });
+            closeClient = () => connection.close();
+            await connection.agent.request(acpV2.methods.agent.session.resume, {
+                sessionId,
+                cwd,
+                replayFrom: { type: "start" },
+            });
+            const failure = updates
+                .map((event) => event.update)
+                .find(
+                    (update) =>
+                        update.sessionUpdate === "agent_message_chunk" &&
+                        update.messageId === "codex-error:failed-turn",
+                );
+            expect(failure).toMatchObject({
+                content: { text: "Capacity exhausted" },
+                _meta: {
+                    codex: {
+                        historyReplay: true,
+                        turnId: "failed-turn",
+                        turnStartedAt: 10000,
+                        turnCompletedAt: 12000,
+                        turnDurationMs: 2000,
+                        error: { codexErrorInfo: "serverOverloaded" },
+                    },
+                },
+            });
+            assertPrimerBeforeEveryChunk(updates);
+        },
+    );
+
+    it("hides the reviewer prompt the same way when the history arrives one item per page", async () => {
+        const replay = async (paginated: boolean) => {
+            const { connection, updates, codexMethods } = await connectV2Client(
+                { replayTurns: reviewReplayTurns, paginated },
+            );
+            try {
+                await connection.agent.request(
+                    acpV2.methods.agent.session.resume,
+                    {
+                        sessionId,
+                        cwd,
+                        replayFrom: { type: "start" },
+                    },
+                );
+                expect(codexMethods().includes("thread/items/list")).toBe(
+                    paginated,
+                );
                 return messageIdSequence(updates);
             } finally {
                 connection.close();
@@ -363,51 +536,80 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
         };
 
         const paged = await replay(true);
-        expect(paged).not.toContainEqual(["user_message_chunk", "reviewer-prompt"]);
+        expect(paged).not.toContainEqual([
+            "user_message_chunk",
+            "reviewer-prompt",
+        ]);
         expect(paged).toContainEqual(["user_message_chunk", "ordinary-prompt"]);
         expect(paged).toEqual(await replay(false));
     });
 
-    it('leaves the reviewer prompt visible on v1 (regression pin: hiding is v2 only)', async () => {
+    it("leaves the reviewer prompt visible on v1 (regression pin: hiding is v2 only)", async () => {
         const fixture = createCodexMockTestFixture();
         const agent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        codexAcpClient.getAccount = vi.fn().mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        codexAcpClient.listSkills = vi.fn().mockResolvedValue({data: []});
+        codexAcpClient.readAuthRequirement = vi
+            .fn()
+            .mockResolvedValue({ required: false, account: null });
+        codexAcpClient.getAccount = vi
+            .fn()
+            .mockResolvedValue({
+                workspaceRouting: null,
+                account: null,
+                requiresOpenaiAuth: false,
+            });
+        codexAcpClient.listSkills = vi.fn().mockResolvedValue({ data: [] });
         const model = createTestModel();
-        appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
-        appServer.threadResume = vi.fn().mockResolvedValue({runtimeWorkspaceRoots: [], activePermissionProfile: null, multiAgentMode: "explicitRequestOnly", initialTurnsPage: null,
-            thread: createThread(),
-            model: model.id,
-            modelProvider: "openai",
-            cwd,
-            approvalPolicy: "never",
-            sandbox: {type: "dangerFullAccess"},
-            reasoningEffort: model.defaultReasoningEffort,
-        });
-        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null,
-            thread: createThread({turns: reviewReplayTurns}),
-        });
+        appServer.listModels = vi
+            .fn()
+            .mockResolvedValue({ data: [model], nextCursor: null });
+        appServer.threadResume = vi
+            .fn()
+            .mockResolvedValue({
+                runtimeWorkspaceRoots: [],
+                activePermissionProfile: null,
+                multiAgentMode: "explicitRequestOnly",
+                initialTurnsPage: null,
+                thread: createThread(),
+                model: model.id,
+                modelProvider: "openai",
+                cwd,
+                approvalPolicy: "never",
+                sandbox: { type: "dangerFullAccess" },
+                reasoningEffort: model.defaultReasoningEffort,
+            });
+        appServer.threadReadWithHistory = vi
+            .fn()
+            .mockResolvedValue({
+                readState: null,
+                thread: createThread({ turns: reviewReplayTurns }),
+            });
 
-        await agent.initialize({protocolVersion: 1});
-        await agent.loadSession({sessionId, cwd, mcpServers: []});
+        await agent.initialize({ protocolVersion: 1 });
+        await agent.loadSession({ sessionId, cwd, mcpServers: [] });
 
-        const userChunkTexts = fixture.getAcpConnectionEvents([])
+        const userChunkTexts = fixture
+            .getAcpConnectionEvents([])
             .filter((event) => event.method === "sessionUpdate")
             .map((event) => event.args[0].update)
-            .filter((update: {sessionUpdate: string}) => update.sessionUpdate === "user_message_chunk")
-            .map((update: {content: {type: string; text?: string}}) => (
-                update.content.type === "text" ? update.content.text : null
-            ));
+            .filter(
+                (update: { sessionUpdate: string }) =>
+                    update.sessionUpdate === "user_message_chunk",
+            )
+            .map((update: { content: { type: string; text?: string } }) =>
+                update.content.type === "text" ? update.content.text : null,
+            );
 
         // v1 is unchanged by the hiding rule: both userMessages, including the reviewer prompt, replay.
-        expect(userChunkTexts).toEqual(["Please review my changes", "Reply with just OK."]);
+        expect(userChunkTexts).toEqual([
+            "Please review my changes",
+            "Reply with just OK.",
+        ]);
     });
 });
 
-describe('ACP v2 resume replay: native path primers and determinism', () => {
+describe("ACP v2 resume replay: native path primers and determinism", () => {
     let closeClient: (() => void) | null = null;
 
     afterEach(() => {
@@ -418,11 +620,18 @@ describe('ACP v2 resume replay: native path primers and determinism', () => {
     });
 
     const nativeCapabilities: acpV2.ClientCapabilities = {
-        _meta: {jetbrains: {air: {version: 1, capabilities: [AIR_NATIVE_SUBAGENT_SESSIONS_KEY]}}},
+        _meta: {
+            jetbrains: {
+                air: {
+                    version: 1,
+                    capabilities: [AIR_NATIVE_SUBAGENT_SESSIONS_KEY],
+                },
+            },
+        },
     };
 
-    it('primes chunked messages in the native (subagent-aware) replay path too', async () => {
-        const {connection, updates} = await connectV2Client({
+    it("primes chunked messages in the native (subagent-aware) replay path too", async () => {
+        const { connection, updates } = await connectV2Client({
             replayTurns: reviewReplayTurns,
             capabilities: nativeCapabilities,
         });
@@ -431,41 +640,56 @@ describe('ACP v2 resume replay: native path primers and determinism', () => {
         await connection.agent.request(acpV2.methods.agent.session.resume, {
             sessionId,
             cwd,
-            replayFrom: {type: "start"},
+            replayFrom: { type: "start" },
         });
 
         assertPrimerBeforeEveryChunk(updates);
         // The reviewer-prompt hiding rule also applies to the native path.
         const userChunkIds = updates
-            .filter(({update}) => update.sessionUpdate === "user_message_chunk")
-            .map(({update}) => (update as {messageId?: string | null}).messageId);
+            .filter(
+                ({ update }) => update.sessionUpdate === "user_message_chunk",
+            )
+            .map(
+                ({ update }) =>
+                    (update as { messageId?: string | null }).messageId,
+            );
         expect(userChunkIds).toEqual(["ordinary-prompt"]);
     });
 
-    it('replays the same thread twice with identical message ids (native path)', async () => {
+    it("replays the same thread twice with identical message ids (native path)", async () => {
         // Every id below comes from a stable source (`item.id`/`clientId`).
-        const {connection: firstConnection, updates: firstUpdates} = await connectV2Client({
-            replayTurns: reviewReplayTurns,
-            capabilities: nativeCapabilities,
-        });
-        await firstConnection.agent.request(acpV2.methods.agent.session.resume, {
-            sessionId,
-            cwd,
-            replayFrom: {type: "start"},
-        });
+        const { connection: firstConnection, updates: firstUpdates } =
+            await connectV2Client({
+                replayTurns: reviewReplayTurns,
+                capabilities: nativeCapabilities,
+            });
+        await firstConnection.agent.request(
+            acpV2.methods.agent.session.resume,
+            {
+                sessionId,
+                cwd,
+                replayFrom: { type: "start" },
+            },
+        );
         firstConnection.close();
 
-        const {connection: secondConnection, updates: secondUpdates} = await connectV2Client({
-            replayTurns: reviewReplayTurns,
-            capabilities: nativeCapabilities,
-        });
+        const { connection: secondConnection, updates: secondUpdates } =
+            await connectV2Client({
+                replayTurns: reviewReplayTurns,
+                capabilities: nativeCapabilities,
+            });
         closeClient = () => secondConnection.close();
-        await secondConnection.agent.request(acpV2.methods.agent.session.resume, {
-            sessionId,
-            cwd,
-            replayFrom: {type: "start"},
-        });
+        await secondConnection.agent.request(
+            acpV2.methods.agent.session.resume,
+            {
+                sessionId,
+                cwd,
+                replayFrom: { type: "start" },
+            },
+        );
 
-        expect(messageIdSequence(secondUpdates)).toEqual(messageIdSequence(firstUpdates));
+        expect(messageIdSequence(secondUpdates)).toEqual(
+            messageIdSequence(firstUpdates),
+        );
     });
 });

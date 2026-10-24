@@ -274,3 +274,25 @@ start response alone does not establish a working voice session: clients must
 observe the native startup/error/closed notifications and stop active realtime
 work before detaching. This low-level export does not implement microphone
 capture or audio playback.
+
+## Permission persistence and runtime transport
+
+Version 0.7.33 includes the permission restoration and Responses transport fixes
+previously carried in ALwith U's application patch. Applications should consume
+the published adapter directly, without modifying its bundle.
+
+Permission selection writes native thread settings before confirming the mode.
+Resume and fork restore the native approval policy, reviewer, and sandbox, while
+named profiles retain their native identity. A late permission response cannot
+update a closed or replaced session.
+
+Responses streaming uses Bun's native fetch with automatic redirects and
+decompression disabled. Node uses its raw HTTP transport to preserve compressed
+response bytes. Both paths preserve cancellation, status codes, and streaming;
+transport failures expose a sanitized error code without credential-bearing URLs.
+
+Local checks can run entirely with Bun (`bun run typecheck`,
+`bun --bun node_modules/vitest/vitest.mjs run`, `bun build.mjs`, and
+`bun x tsc -p tsconfig.client.json`). Native-process test fixtures locate the
+installed Codex platform binary directly; test JavaScript child processes use
+`process.execPath` rather than a hard-coded `node` command.

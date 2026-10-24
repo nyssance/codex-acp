@@ -1,28 +1,46 @@
+import { createRequire } from "node:module";
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import type {CreateElicitationResponse, McpServerStdio, RequestPermissionResponse} from "@agentclientprotocol/sdk/unstable";
-import {CodexAcpClient} from '../CodexAcpClient';
-import {ToolCallReports} from "../ToolCallReports";
-import {CodexAppServerClient, type CodexConnectionEvent} from '../CodexAppServerClient';
-import {type CodexConnection, startCodexConnection} from "../CodexJsonRpcConnection";
-import {CodexAcpServer, type CodexProcessState, type SessionState} from "../CodexAcpServer";
-import {ACPSessionConnection, type AcpClientConnection} from "../ACPSessionConnection";
-import type {ServerNotification} from "../app-server";
-import type {MessageConnection} from "vscode-jsonrpc/node";
+import type {
+    CreateElicitationResponse,
+    McpServerStdio,
+    RequestPermissionResponse,
+} from "@agentclientprotocol/sdk/unstable";
+import { CodexAcpClient } from "../CodexAcpClient";
+import { ToolCallReports } from "../ToolCallReports";
+import {
+    CodexAppServerClient,
+    type CodexConnectionEvent,
+} from "../CodexAppServerClient";
+import {
+    type CodexConnection,
+    startCodexConnection,
+} from "../CodexJsonRpcConnection";
+import {
+    CodexAcpServer,
+    type CodexProcessState,
+    type SessionState,
+} from "../CodexAcpServer";
+import {
+    ACPSessionConnection,
+    type AcpClientConnection,
+} from "../ACPSessionConnection";
+import type { ServerNotification } from "../app-server";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import {AgentMode} from "../AgentMode";
-import {DEFAULT_COLLABORATION_MODE} from "../CollaborationModeConfig";
-import {afterEach, beforeEach, expect, vi} from "vitest";
-import type {Model, ReasoningEffortOption} from "../app-server/v2";
-import {CodexSubagentEventRouter} from "../subagents/CodexSubagentEventRouter";
-import {CodexEventHandler} from "../CodexEventHandler";
-import type {AccountUpdatedNotification} from "../app-server/v2";
-import {CodexBackgroundTerminalTasks} from "../async-tasks/CodexBackgroundTerminalTasks";
-import {CodexSessionCompactions} from "../CodexSessionCompactions";
-import {CodexSessionToolCalls} from "../CodexSessionToolCalls";
-import {AUTH_STATUS_UPDATE_METHOD} from "../AuthStatusMeta";
-import {ClientCapabilities} from "../tool-calls/ClientCapabilities";
+import { AgentMode } from "../AgentMode";
+import { DEFAULT_COLLABORATION_MODE } from "../CollaborationModeConfig";
+import { afterEach, beforeEach, expect, vi } from "vitest";
+import type { Model, ReasoningEffortOption } from "../app-server/v2";
+import { CodexSubagentEventRouter } from "../subagents/CodexSubagentEventRouter";
+import { CodexEventHandler } from "../CodexEventHandler";
+import type { AccountUpdatedNotification } from "../app-server/v2";
+import { CodexBackgroundTerminalTasks } from "../async-tasks/CodexBackgroundTerminalTasks";
+import { CodexSessionCompactions } from "../CodexSessionCompactions";
+import { CodexSessionToolCalls } from "../CodexSessionToolCalls";
+import { AUTH_STATUS_UPDATE_METHOD } from "../AuthStatusMeta";
+import { ClientCapabilities } from "../tool-calls/ClientCapabilities";
 
 export type MethodCallEvent = { method: string; args: any[] };
 
@@ -32,7 +50,7 @@ export interface SmartMockConfig {
 
 export function createSmartMock<T extends object>(
     onCall: (event: MethodCallEvent) => void,
-    config?: SmartMockConfig
+    config?: SmartMockConfig,
 ) {
     return new Proxy({} as T, {
         get(_, prop) {
@@ -44,41 +62,61 @@ export function createSmartMock<T extends object>(
                 }
                 return { mock: "Mocked return" };
             };
-        }
+        },
     });
 }
 
 function normalizeAcpConnectionEvent(event: MethodCallEvent): MethodCallEvent {
-    if (event.method === "request" && event.args[0] === acp.methods.client.session.requestPermission) {
-        return {method: "requestPermission", args: [event.args[1]]};
+    if (
+        event.method === "request" &&
+        event.args[0] === acp.methods.client.session.requestPermission
+    ) {
+        return { method: "requestPermission", args: [event.args[1]] };
     }
-    if (event.method === "request" && event.args[0] === acp.methods.client.elicitation.create) {
-        return {method: "createElicitation", args: [event.args[1]]};
+    if (
+        event.method === "request" &&
+        event.args[0] === acp.methods.client.elicitation.create
+    ) {
+        return { method: "createElicitation", args: [event.args[1]] };
     }
-    if (event.method === "notify" && event.args[0] === acp.methods.client.elicitation.complete) {
-        return {method: "completeElicitation", args: [event.args[1]]};
+    if (
+        event.method === "notify" &&
+        event.args[0] === acp.methods.client.elicitation.complete
+    ) {
+        return { method: "completeElicitation", args: [event.args[1]] };
     }
-    if (event.method === "notify" && event.args[0] === acp.methods.client.session.update) {
-        return {method: "sessionUpdate", args: [event.args[1]]};
+    if (
+        event.method === "notify" &&
+        event.args[0] === acp.methods.client.session.update
+    ) {
+        return { method: "sessionUpdate", args: [event.args[1]] };
     }
     return event;
 }
 
 export interface TestFixture {
-    getCodexAppServerClient(): CodexAppServerClient,
-    getCodexAcpClient(): CodexAcpClient,
-    getCodexAcpAgent(): CodexAcpServer,
+    getCodexAppServerClient(): CodexAppServerClient;
+    getCodexAcpClient(): CodexAcpClient;
+    getCodexAcpAgent(): CodexAcpServer;
 
-    onCodexConnectionEvent(handler: (event: CodexConnectionEvent) => void): void,
-    getCodexConnectionEvents(ignoredFields: string[], options?: CodexConnectionDumpOptions): CodexConnectionEvent[],
-    getCodexConnectionDump(ignoredFields: string[], options?: CodexConnectionDumpOptions): string,
-    clearCodexConnectionDump(): void,
+    onCodexConnectionEvent(
+        handler: (event: CodexConnectionEvent) => void,
+    ): void;
+    getCodexConnectionEvents(
+        ignoredFields: string[],
+        options?: CodexConnectionDumpOptions,
+    ): CodexConnectionEvent[];
+    getCodexConnectionDump(
+        ignoredFields: string[],
+        options?: CodexConnectionDumpOptions,
+    ): string;
+    clearCodexConnectionDump(): void;
 
-    onAcpConnectionEvent(handler: (event: MethodCallEvent) => void): void,
-    getAcpConnectionEvents(ignoredFields: string[]): MethodCallEvent[],
-    getAcpConnectionDump(ignoredFields: string[]): string,
-    clearAcpConnectionDump(): void,
-    getAcpConnection(): AcpClientConnection,
+    onAcpConnectionEvent(handler: (event: MethodCallEvent) => void): void;
+    getAcpConnectionEvents(ignoredFields: string[]): MethodCallEvent[];
+    getAcpConnectionDump(ignoredFields: string[]): string;
+    clearAcpConnectionDump(): void;
+    getAcpConnection(): AcpClientConnection;
 }
 
 export interface CodexConnectionDumpOptions {
@@ -101,11 +139,13 @@ export interface ConnectionConfig {
 export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
     const acpConnectionEvents = config.acpConnection?.events ?? [];
     const acpEventHandlers = config.acpConnection?.eventHandlers ?? [];
-    const acpConnection = config.acpConnection?.connection ?? createSmartMock<AcpClientConnection>((event) => {
-        const normalizedEvent = normalizeAcpConnectionEvent(event);
-        acpConnectionEvents.push(normalizedEvent);
-        acpEventHandlers.forEach(handler => handler(normalizedEvent));
-    });
+    const acpConnection =
+        config.acpConnection?.connection ??
+        createSmartMock<AcpClientConnection>((event) => {
+            const normalizedEvent = normalizeAcpConnectionEvent(event);
+            acpConnectionEvents.push(normalizedEvent);
+            acpEventHandlers.forEach((handler) => handler(normalizedEvent));
+        });
 
     const codexAppServerClient = new CodexAppServerClient(config.connection);
     const codexAcpClient = new CodexAcpClient(codexAppServerClient);
@@ -122,7 +162,7 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
     const codexEventHandlers: ((event: CodexConnectionEvent) => void)[] = [];
     codexAppServerClient.onClientTransportEvent((event) => {
         transportEvents.push(event);
-        codexEventHandlers.forEach(handler => handler(event));
+        codexEventHandlers.forEach((handler) => handler(event));
     });
 
     return {
@@ -132,8 +172,13 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
         getCodexAcpClient(): CodexAcpClient {
             return codexAcpClient;
         },
-        getCodexConnectionEvents(ignoredFields: string[], options?: CodexConnectionDumpOptions): CodexConnectionEvent[] {
-            const placeholderResponseMethods = new Set(options?.placeholderResponseMethods ?? []);
+        getCodexConnectionEvents(
+            ignoredFields: string[],
+            options?: CodexConnectionDumpOptions,
+        ): CodexConnectionEvent[] {
+            const placeholderResponseMethods = new Set(
+                options?.placeholderResponseMethods ?? [],
+            );
             const pendingRequestMethods: string[] = [];
 
             return transportEvents.flatMap((event) => {
@@ -143,23 +188,42 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
                         break;
                     case "response":
                         const requestMethod = pendingRequestMethods.shift();
-                        if (requestMethod && placeholderResponseMethods.has(requestMethod)) {
-                            return [{
-                                eventType: "response" as const,
-                                placeholder: requestMethod,
-                            } as CodexConnectionEvent];
+                        if (
+                            requestMethod &&
+                            placeholderResponseMethods.has(requestMethod)
+                        ) {
+                            return [
+                                {
+                                    eventType: "response" as const,
+                                    placeholder: requestMethod,
+                                } as CodexConnectionEvent,
+                            ];
                         }
                         break;
                 }
 
-                return [anonymizeValue(event, [], new Set(ignoredFields)) as CodexConnectionEvent];
+                return [
+                    anonymizeValue(
+                        event,
+                        [],
+                        new Set(ignoredFields),
+                    ) as CodexConnectionEvent,
+                ];
             });
         },
-        getCodexConnectionDump(ignoredFields: string[], options?: CodexConnectionDumpOptions): string {
-            const filteredEvents = this.getCodexConnectionEvents(ignoredFields, options);
+        getCodexConnectionDump(
+            ignoredFields: string[],
+            options?: CodexConnectionDumpOptions,
+        ): string {
+            const filteredEvents = this.getCodexConnectionEvents(
+                ignoredFields,
+                options,
+            );
             return createArrayDump(filteredEvents, []);
         },
-        onCodexConnectionEvent(handler: (event: CodexConnectionEvent) => void): void {
+        onCodexConnectionEvent(
+            handler: (event: CodexConnectionEvent) => void,
+        ): void {
             codexEventHandlers.push(handler);
         },
         getCodexAppServerClient(): CodexAppServerClient {
@@ -172,17 +236,27 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
             acpEventHandlers.push(handler);
         },
         getAcpConnectionEvents(ignoredFields: string[]): MethodCallEvent[] {
-            return acpConnectionEvents.map(event => anonymizeValue(event, [], new Set(ignoredFields)) as MethodCallEvent);
+            return acpConnectionEvents.map(
+                (event) =>
+                    anonymizeValue(
+                        event,
+                        [],
+                        new Set(ignoredFields),
+                    ) as MethodCallEvent,
+            );
         },
         getAcpConnectionDump(ignoredFields: string[]): string {
-            return createArrayDump(this.getAcpConnectionEvents(ignoredFields), []);
+            return createArrayDump(
+                this.getAcpConnectionEvents(ignoredFields),
+                [],
+            );
         },
         clearAcpConnectionDump() {
             acpConnectionEvents.splice(0, acpConnectionEvents.length);
         },
         getAcpConnection(): AcpClientConnection {
             return acpConnection;
-        }
+        },
     };
 }
 
@@ -191,10 +265,21 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
  * Use for integration tests that need to interact with the actual Codex binary.
  */
 export function createTestFixture(): TestFixture {
-    const pathToCodex = path.resolve(process.cwd(), "node_modules", ".bin", process.platform === 'win32' ? "codex.cmd" : "codex");
-    if (!fs.existsSync(pathToCodex)) {
-        throw new Error(`Codex binary not found at ${pathToCodex}. Did you run 'npm install'?`);
-    }
+    const packageFile = createRequire(import.meta.url).resolve(
+        `@openai/codex-${process.platform}-${process.arch}/package.json`,
+    );
+    const vendor = path.join(path.dirname(packageFile), "vendor");
+    const targets = fs.readdirSync(vendor);
+    if (targets.length !== 1)
+        throw new Error(
+            "Expected exactly one target in the Codex platform package",
+        );
+    const target = path.join(vendor, targets[0]!);
+    const manifest = JSON.parse(
+        fs.readFileSync(path.join(target, "codex-package.json"), "utf8"),
+    ) as { entrypoint: string };
+    const pathToCodex = path.join(target, manifest.entrypoint);
+    fs.accessSync(pathToCodex, fs.constants.X_OK);
 
     const codexHome = createTestCodexHome();
     const codexConnection = startCodexConnection(pathToCodex, {
@@ -207,12 +292,14 @@ export function createTestFixture(): TestFixture {
 
     return createBaseTestFixture({
         connection: codexConnection.connection,
-        getExitCode: () => codexConnection.process.exitCode
+        getExitCode: () => codexConnection.process.exitCode,
     });
 }
 
 function createTestCodexHome(): string {
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-acp-codex-home-"));
+    const codexHome = fs.mkdtempSync(
+        path.join(os.tmpdir(), "codex-acp-codex-home-"),
+    );
     writeCodexHomeConfig(codexHome);
     return codexHome;
 }
@@ -232,11 +319,13 @@ export function writeCodexHomeConfig(
     for (const server of mcpServers) {
         body += `\n\n[mcp_servers."${escapeTOML(server.name)}"]`;
         body += `\ncommand = "${escapeTOML(server.command)}"`;
-        const argsToml = server.args.map(a => `"${escapeTOML(a)}"`).join(", ");
+        const argsToml = server.args
+            .map((a) => `"${escapeTOML(a)}"`)
+            .join(", ");
         body += `\nargs = [${argsToml}]`;
         if (server.env && server.env.length > 0) {
             const envPairs = server.env
-                .map(e => `${e.name} = "${escapeTOML(e.value)}"`)
+                .map((e) => `${e.name} = "${escapeTOML(e.value)}"`)
                 .join(", ");
             body += `\nenv = {${envPairs}}`;
         }
@@ -263,12 +352,20 @@ export function removeDirectoryWithRetry(directory: string): void {
 }
 
 export interface CodexMockTestFixture extends TestFixture {
-    sendServerNotification(notification: ServerNotification | Record<string, unknown>): void,
-    sendServerRequest<T>(method: string, params: unknown): Promise<T>,
-    setPermissionResponse(response: RequestPermissionResponse | Promise<RequestPermissionResponse>): void,
-    setElicitationResponse(response: CreateElicitationResponse | Promise<CreateElicitationResponse>): void,
+    sendServerNotification(
+        notification: ServerNotification | Record<string, unknown>,
+    ): void;
+    sendServerRequest<T>(method: string, params: unknown): Promise<T>;
+    setPermissionResponse(
+        response:
+            RequestPermissionResponse | Promise<RequestPermissionResponse>,
+    ): void;
+    setElicitationResponse(
+        response:
+            CreateElicitationResponse | Promise<CreateElicitationResponse>,
+    ): void;
     /** Raw `options` (e.g. `cancellationSignal`) passed to `connection.request()` calls for the given ACP method. */
-    getAcpRequestOptions(method: string): any[],
+    getAcpRequestOptions(method: string): any[];
 }
 
 /**
@@ -282,36 +379,57 @@ export function createCodexMockTestFixture(
     restartCodexClient?: () => Promise<CodexAcpClient>,
     process?: CodexConnection["process"],
 ): CodexMockTestFixture {
-    let unhandledNotificationHandler: ((notification: any) => void) | null = null;
-    const requestHandlers = new Map<string, (params: unknown) => Promise<unknown>>();
+    let unhandledNotificationHandler: ((notification: any) => void) | null =
+        null;
+    const requestHandlers = new Map<
+        string,
+        (params: unknown) => Promise<unknown>
+    >();
     const disposeListeners = new Set<() => void>();
 
     // State for controlling permission responses
-    const permissionState: { response: RequestPermissionResponse | Promise<RequestPermissionResponse> } = {
-        response: { outcome: { outcome: 'cancelled' } }
+    const permissionState: {
+        response:
+            RequestPermissionResponse | Promise<RequestPermissionResponse>;
+    } = {
+        response: { outcome: { outcome: "cancelled" } },
     };
-    const elicitationState: { response: CreateElicitationResponse | Promise<CreateElicitationResponse> } = {
-        response: { action: 'cancel' }
+    const elicitationState: {
+        response:
+            CreateElicitationResponse | Promise<CreateElicitationResponse>;
+    } = {
+        response: { action: "cancel" },
     };
 
     const mockCodexConnection = {
-        sendRequest: (method: string) => Promise.resolve(
-            method === "config/read" ? {config: {}, origins: {}, layers: []}
-                : method === "account/read" ? {account: null, requiresOpenaiAuth: false, workspaceRouting: null}
-                : undefined),
+        sendRequest: (method: string) =>
+            Promise.resolve(
+                method === "config/read"
+                    ? { config: {}, origins: {}, layers: [] }
+                    : method === "account/read"
+                      ? {
+                            account: null,
+                            requiresOpenaiAuth: false,
+                            workspaceRouting: null,
+                        }
+                      : undefined,
+            ),
         onUnhandledNotification: (handler: (notification: any) => void) => {
             unhandledNotificationHandler = handler;
         },
         onNotification: () => {},
-        onRequest: (type: { method: string }, handler: (params: unknown) => Promise<unknown>) => {
+        onRequest: (
+            type: { method: string },
+            handler: (params: unknown) => Promise<unknown>,
+        ) => {
             requestHandlers.set(type.method, handler);
         },
         // As in vscode-jsonrpc, `dispose()` fires `onDispose`. The exit of the Codex process disposes the connection.
         onDispose: (listener: () => void) => {
             disposeListeners.add(listener);
-            return {dispose: () => disposeListeners.delete(listener)};
+            return { dispose: () => disposeListeners.delete(listener) };
         },
-        dispose: () => [...disposeListeners].forEach(listener => listener()),
+        dispose: () => [...disposeListeners].forEach((listener) => listener()),
         end: () => {},
     } as unknown as MessageConnection;
 
@@ -320,10 +438,10 @@ export function createCodexMockTestFixture(
     const acpEventHandlers: ((event: MethodCallEvent) => void)[] = [];
     // Raw `request()` options (e.g. `cancellationSignal`) are stripped by `normalizeAcpConnectionEvent`
     // before landing in `acpConnectionEvents`; capture them separately so tests can assert on them.
-    const acpRequestOptions: {method: string; options: any}[] = [];
+    const acpRequestOptions: { method: string; options: any }[] = [];
     const returnValues = new Map<string, (args: any[]) => any>();
-    returnValues.set('request', (args) => {
-        acpRequestOptions.push({method: args[0], options: args[2]});
+    returnValues.set("request", (args) => {
+        acpRequestOptions.push({ method: args[0], options: args[2] });
         if (args[0] === acp.methods.client.session.requestPermission) {
             return permissionState.response;
         }
@@ -332,77 +450,114 @@ export function createCodexMockTestFixture(
         }
         return { mock: "Mocked return" };
     });
-    returnValues.set('requestPermission', () => permissionState.response);
+    returnValues.set("requestPermission", () => permissionState.response);
 
-    const acpConnection = createSmartMock<AcpClientConnection>((event) => {
-        const normalizedEvent = normalizeAcpConnectionEvent(event);
-        acpConnectionEvents.push(normalizedEvent);
-        acpEventHandlers.forEach(handler => handler(normalizedEvent));
-    }, { returnValues });
+    const acpConnection = createSmartMock<AcpClientConnection>(
+        (event) => {
+            const normalizedEvent = normalizeAcpConnectionEvent(event);
+            acpConnectionEvents.push(normalizedEvent);
+            acpEventHandlers.forEach((handler) => handler(normalizedEvent));
+        },
+        { returnValues },
+    );
 
     const baseFixture = createBaseTestFixture({
         connection: mockCodexConnection,
         getExitCode: () => null,
-        ...(process ? {codexProcessState: {
-            connection: {connection: mockCodexConnection, process},
-            codexPath: undefined,
-            config: undefined,
-            appServerStartupArgs: ["app-server"],
-            modelProvider: undefined,
-            stderr: "",
-        }} : {}),
+        ...(process
+            ? {
+                  codexProcessState: {
+                      connection: { connection: mockCodexConnection, process },
+                      codexPath: undefined,
+                      config: undefined,
+                      appServerStartupArgs: ["app-server"],
+                      modelProvider: undefined,
+                      stderr: "",
+                  },
+              }
+            : {}),
         acpConnection: {
             connection: acpConnection,
             events: acpConnectionEvents,
             eventHandlers: acpEventHandlers,
-        }
+        },
     });
     if (restartCodexClient) {
-        vi.spyOn(baseFixture.getCodexAcpAgent() as any, "restartCodexClient")
-            .mockImplementation(restartCodexClient);
+        vi.spyOn(
+            baseFixture.getCodexAcpAgent() as any,
+            "restartCodexClient",
+        ).mockImplementation(restartCodexClient);
     }
 
     return {
         ...baseFixture,
-        sendServerNotification(notification: ServerNotification | Record<string, unknown>): void {
+        sendServerNotification(
+            notification: ServerNotification | Record<string, unknown>,
+        ): void {
             if (unhandledNotificationHandler) {
                 unhandledNotificationHandler(notification);
             }
         },
-        async sendServerRequest<T>(method: string, params: unknown): Promise<T> {
+        async sendServerRequest<T>(
+            method: string,
+            params: unknown,
+        ): Promise<T> {
             const handler = requestHandlers.get(method);
             if (!handler) {
                 throw new Error(`No handler registered for ${method}`);
             }
-            return await handler(params) as T;
+            return (await handler(params)) as T;
         },
-        setPermissionResponse(response: RequestPermissionResponse | Promise<RequestPermissionResponse>): void {
+        setPermissionResponse(
+            response:
+                RequestPermissionResponse | Promise<RequestPermissionResponse>,
+        ): void {
             permissionState.response = response;
         },
-        setElicitationResponse(response: CreateElicitationResponse | Promise<CreateElicitationResponse>): void {
+        setElicitationResponse(
+            response:
+                CreateElicitationResponse | Promise<CreateElicitationResponse>,
+        ): void {
             elicitationState.response = response;
         },
         getAcpRequestOptions(method: string): any[] {
-            return acpRequestOptions.filter(entry => entry.method === method).map(entry => entry.options);
+            return acpRequestOptions
+                .filter((entry) => entry.method === method)
+                .map((entry) => entry.options);
         },
     };
 }
 
 export function createObjectDump(obj: any, anonymizedFields: string[] = []) {
-    return JSON.stringify(anonymizeValue(obj, [], new Set(anonymizedFields)), null, 2);
+    return JSON.stringify(
+        anonymizeValue(obj, [], new Set(anonymizedFields)),
+        null,
+        2,
+    );
 }
 
-export function createArrayDump(objects: any[], anonymizedFields: string[]): string {
-    return objects.map(event => createObjectDump(event, anonymizedFields)).join("\n");
+export function createArrayDump(
+    objects: any[],
+    anonymizedFields: string[],
+): string {
+    return objects
+        .map((event) => createObjectDump(event, anonymizedFields))
+        .join("\n");
 }
 
-function anonymizeValue(value: any, path: string[], fieldsToAnonymize: Set<string>): any {
+function anonymizeValue(
+    value: any,
+    path: string[],
+    fieldsToAnonymize: Set<string>,
+): any {
     if (value === null || typeof value !== "object") {
         return value;
     }
 
     if (Array.isArray(value)) {
-        return value.map((item, index) => anonymizeValue(item, [...path, String(index)], fieldsToAnonymize));
+        return value.map((item, index) =>
+            anonymizeValue(item, [...path, String(index)], fieldsToAnonymize),
+        );
     }
 
     return Object.fromEntries(
@@ -413,7 +568,7 @@ function anonymizeValue(value: any, path: string[], fieldsToAnonymize: Set<strin
                 return [key, key];
             }
             return [key, anonymizeValue(val, nextPath, fieldsToAnonymize)];
-        })
+        }),
     );
 }
 
@@ -421,7 +576,9 @@ function anonymizeValue(value: any, path: string[], fieldsToAnonymize: Set<strin
  * Creates a default SessionState for use in tests.
  * Override specific fields as needed.
  */
-export function createTestSessionState(overrides?: Partial<SessionState>): SessionState {
+export function createTestSessionState(
+    overrides?: Partial<SessionState>,
+): SessionState {
     const sessionId = overrides?.sessionId ?? "session-id";
     return {
         currentTurnId: null,
@@ -434,7 +591,10 @@ export function createTestSessionState(overrides?: Partial<SessionState>): Sessi
         modelContextWindow: null,
         rateLimits: null,
         account: null,
-        authConfigured: overrides?.account !== undefined ? overrides.account !== null : false,
+        authConfigured:
+            overrides?.account !== undefined
+                ? overrides.account !== null
+                : false,
         authProvider: null,
         cwd: "/test/cwd",
         additionalDirectories: [],
@@ -447,7 +607,12 @@ export function createTestSessionState(overrides?: Partial<SessionState>): Sessi
         collaborationMode: DEFAULT_COLLABORATION_MODE,
         fastModeEnabled: false,
         currentModelSupportsFast: false,
-        clientCapabilities: ClientCapabilities.from({_meta: {terminal_output_delta: true, jetbrains: {air: {version: 1}}}}),
+        clientCapabilities: ClientCapabilities.from({
+            _meta: {
+                terminal_output_delta: true,
+                jetbrains: { air: { version: 1 } },
+            },
+        }),
         goalRevision: 0,
         sessionTitle: null,
         sessionTitleSource: "unknown",
@@ -457,14 +622,20 @@ export function createTestSessionState(overrides?: Partial<SessionState>): Sessi
         subagents: new CodexSubagentEventRouter(
             sessionId,
             false,
-            new ACPSessionConnection({notify: vi.fn(), request: vi.fn()} as AcpClientConnection, sessionId),
+            new ACPSessionConnection(
+                { notify: vi.fn(), request: vi.fn() } as AcpClientConnection,
+                sessionId,
+            ),
             () => {},
         ),
         asyncTasks: new CodexBackgroundTerminalTasks(
             false,
             sessionId,
             {} as CodexAppServerClient,
-            new ACPSessionConnection({notify: vi.fn(), request: vi.fn()} as AcpClientConnection, sessionId),
+            new ACPSessionConnection(
+                { notify: vi.fn(), request: vi.fn() } as AcpClientConnection,
+                sessionId,
+            ),
         ),
         ...overrides,
     };
@@ -472,7 +643,10 @@ export function createTestSessionState(overrides?: Partial<SessionState>): Sessi
 
 export function createTestModel(overrides?: Partial<Model>): Model {
     const id = overrides?.id ?? "model-id";
-    const defaultEffort: ReasoningEffortOption = {reasoningEffort: "medium", description: "Balanced"};
+    const defaultEffort: ReasoningEffortOption = {
+        reasoningEffort: "medium",
+        description: "Balanced",
+    };
     return {
         id,
         model: id,
@@ -502,41 +676,59 @@ export function createTestModel(overrides?: Partial<Model>): Model {
  * the identity read that produces it and never waits for the read, so a test
  * that must not race it waits here instead.
  */
-export async function awaitFirstAuthStatusPush(fixture: TestFixture): Promise<void> {
+export async function awaitFirstAuthStatusPush(
+    fixture: TestFixture,
+): Promise<void> {
     await vi.waitFor(() => {
-        const pushed = fixture.getAcpConnectionEvents([]).some(event =>
-            event.method === "notify" && event.args[0] === AUTH_STATUS_UPDATE_METHOD);
+        const pushed = fixture
+            .getAcpConnectionEvents([])
+            .some(
+                (event) =>
+                    event.method === "notify" &&
+                    event.args[0] === AUTH_STATUS_UPDATE_METHOD,
+            );
         expect(pushed).toBe(true);
     });
 }
 
-export function setupPromptTestSession(sessionOverrides?: Partial<SessionState>) {
+export function setupPromptTestSession(
+    sessionOverrides?: Partial<SessionState>,
+) {
     const mockFixture = createCodexMockTestFixture();
     const sessionState = createTestSessionState(sessionOverrides);
 
-    vi.spyOn(mockFixture.getCodexAcpAgent(), "getSessionState").mockReturnValue(sessionState);
+    vi.spyOn(mockFixture.getCodexAcpAgent(), "getSessionState").mockReturnValue(
+        sessionState,
+    );
     const turnStartSpy = mockPromptTurn(mockFixture, sessionState.sessionId);
 
-    return {mockFixture, sessionState, turnStartSpy};
+    return { mockFixture, sessionState, turnStartSpy };
 }
 
-export function mockPromptTurn(fixture: CodexMockTestFixture, sessionId: string) {
+export function mockPromptTurn(
+    fixture: CodexMockTestFixture,
+    sessionId: string,
+) {
     const codexAppServerClient = fixture.getCodexAppServerClient();
-    const turnStartSpy = vi.spyOn(codexAppServerClient, "turnStart").mockResolvedValue({
-        turn: {rootTurnId: null,
-            id: "turn-id",
-            items: [],
-            itemsView: "notLoaded",
-            status: "inProgress",
-            error: null,
-            startedAt: null,
-            completedAt: null,
-            durationMs: null,
-        }
-    });
+    const turnStartSpy = vi
+        .spyOn(codexAppServerClient, "turnStart")
+        .mockResolvedValue({
+            turn: {
+                rootTurnId: null,
+                id: "turn-id",
+                items: [],
+                itemsView: "notLoaded",
+                status: "inProgress",
+                error: null,
+                startedAt: null,
+                completedAt: null,
+                durationMs: null,
+            },
+        });
     vi.spyOn(codexAppServerClient, "awaitTurnCompleted").mockResolvedValue({
         threadId: sessionId,
-        turn: {rootTurnId: null,
+        turn: {
+            rootTurnId: null,
             id: "turn-id",
             items: [],
             itemsView: "notLoaded",
@@ -545,7 +737,7 @@ export function mockPromptTurn(fixture: CodexMockTestFixture, sessionId: string)
             startedAt: null,
             completedAt: null,
             durationMs: null,
-        }
+        },
     });
 
     return turnStartSpy;
@@ -555,11 +747,16 @@ export async function setupPromptAndSendNotifications(
     fixture: CodexMockTestFixture,
     sessionId: string,
     sessionState: SessionState,
-    notifications: ServerNotification[]
+    notifications: ServerNotification[],
 ): Promise<void> {
     const codexAcpAgent = fixture.getCodexAcpAgent();
     const codexAppServerClient = fixture.getCodexAppServerClient();
-    const turn = { id: "turn-id", items: [], status: "inProgress" as const, error: null };
+    const turn = {
+        id: "turn-id",
+        items: [],
+        status: "inProgress" as const,
+        error: null,
+    };
 
     codexAppServerClient.turnStart = vi.fn().mockResolvedValue({
         turn,
@@ -619,7 +816,15 @@ export function createTestEventHandler(
  */
 export function stubGatewayModelListing(modelIds: string[]): void {
     beforeEach(() => {
-        vi.stubGlobal("fetch", vi.fn(async () => Response.json({object: "list", data: modelIds.map(id => ({id}))})));
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () =>
+                Response.json({
+                    object: "list",
+                    data: modelIds.map((id) => ({ id })),
+                }),
+            ),
+        );
     });
     afterEach(() => {
         vi.unstubAllGlobals();
@@ -627,12 +832,16 @@ export function stubGatewayModelListing(modelIds: string[]): void {
 }
 
 /** A promise that the test resolves or rejects from outside. */
-export function deferred<T>(): {promise: Promise<T>, resolve: (value: T) => void, reject: (reason: unknown) => void} {
+export function deferred<T>(): {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+    reject: (reason: unknown) => void;
+} {
     let resolve: (value: T) => void = () => {};
     let reject: (reason: unknown) => void = () => {};
     const promise = new Promise<T>((innerResolve, innerReject) => {
         resolve = innerResolve;
         reject = innerReject;
     });
-    return {promise, resolve, reject};
+    return { promise, resolve, reject };
 }

@@ -1,15 +1,16 @@
-import {readSessionLineage} from "./alwith/sessionLineage";
-import {hostThreadOptions} from "./alwith/hostSession";
-import {createHash} from "node:crypto";
+import { AgentMode } from "./AgentMode";
+import { readSessionLineage } from "./alwith/sessionLineage";
+import { hostThreadOptions } from "./alwith/hostSession";
+import { createHash } from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import {RequestError} from "@agentclientprotocol/sdk/unstable";
-import type {SessionConfig} from "./CodexAcpClient";
-import type {CodexAppServerClient} from "./CodexAppServerClient";
-import type {ModeKind} from "./app-server/ModeKind";
-import type {Model} from "./app-server/v2";
-import type {SessionMetadata} from "./SessionMetadata";
-import type {AcpMcpServer, WithAcpMcpServers} from "./McpServerConfig";
-import type {SessionInstructions} from "./ClientSystemPrompt";
+import { RequestError } from "@agentclientprotocol/sdk/unstable";
+import type { SessionConfig } from "./CodexAcpClient";
+import type { CodexAppServerClient } from "./CodexAppServerClient";
+import type { ModeKind } from "./app-server/ModeKind";
+import type { Model } from "./app-server/v2";
+import type { SessionMetadata } from "./SessionMetadata";
+import type { AcpMcpServer, WithAcpMcpServers } from "./McpServerConfig";
+import type { SessionInstructions } from "./ClientSystemPrompt";
 
 export type SessionForkDependencies = {
     codexClient: CodexAppServerClient;
@@ -22,7 +23,11 @@ export type SessionForkDependencies = {
     getResumeModelProvider(): Promise<string>;
     initialModel?: string;
     fetchAvailableModels(): Promise<Model[]>;
-    createCurrentModelId(models: Model[], model: string, reasoningEffort: string | null): string;
+    createCurrentModelId(
+        models: Model[],
+        model: string,
+        reasoningEffort: string | null,
+    ): string;
     getCollaborationMode(sessionId: string): ModeKind;
     /** Gives back the subscription of a fork that failed after `thread/fork`, unless another open of it began. */
     releaseFailedFork(threadId: string): Promise<void>;
@@ -37,7 +42,10 @@ export async function forkSession(
     instructions?: SessionInstructions,
 ): Promise<SessionMetadata> {
     await dependencies.refreshSkills(request.cwd, additionalDirectories);
-    const lastTurnId = await resolveForkTurnId(request, dependencies.codexClient);
+    const lastTurnId = await resolveForkTurnId(
+        request,
+        dependencies.codexClient,
+    );
     const sessionConfig = await dependencies.createSessionConfig(
         request.cwd,
         additionalDirectories,
@@ -48,11 +56,15 @@ export async function forkSession(
         excludeTurns: true,
         config: sessionConfig.config,
         cwd: request.cwd,
-        ...(lastTurnId !== undefined && {lastTurnId}),
+        ...(lastTurnId !== undefined && { lastTurnId }),
         modelProvider: await dependencies.getResumeModelProvider(),
-        ...(dependencies.initialModel ? {model: dependencies.initialModel} : {}),
+        ...(dependencies.initialModel
+            ? { model: dependencies.initialModel }
+            : {}),
         threadId: request.sessionId,
-        ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
+        ...(instructions?.text !== undefined
+            ? { developerInstructions: instructions.developerInstructions }
+            : {}),
     });
     dependencies.forkCreated(response.thread.id);
     // `thread/fork` subscribes this connection to the new thread, and only to it: the source thread keeps the
@@ -63,22 +75,32 @@ export async function forkSession(
     let lineage: SessionMetadata["lineage"];
     try {
         models = await dependencies.fetchAvailableModels();
-        lineage = await readSessionLineage(dependencies.codexClient, response.thread);
+        lineage = await readSessionLineage(
+            dependencies.codexClient,
+            response.thread,
+        );
     } catch (err) {
         await dependencies.releaseFailedFork(response.thread.id);
         throw err;
     }
     return {
         sessionId: response.thread.id,
-        currentModelId: dependencies.createCurrentModelId(models, response.model, response.reasoningEffort),
+        agentMode: AgentMode.fromThread(response),
+        currentModelId: dependencies.createCurrentModelId(
+            models,
+            response.model,
+            response.reasoningEffort,
+        ),
         models,
         lineage,
-        collaborationMode: dependencies.getCollaborationMode(response.thread.id),
+        collaborationMode: dependencies.getCollaborationMode(
+            response.thread.id,
+        ),
         modelProvider: response.modelProvider,
         currentServiceTier: response.serviceTier ?? null,
         additionalDirectories,
         skippedMcpServers: sessionConfig.skippedMcpServers,
-        ...(instructions ? {instructions} : {}),
+        ...(instructions ? { instructions } : {}),
     };
 }
 
@@ -86,9 +108,15 @@ async function resolveForkTurnId(
     request: Pick<acp.ForkSessionRequest, "sessionId" | "_meta">,
     codexClient: CodexAppServerClient,
 ): Promise<string | undefined> {
-    const nativeTurn = (request._meta?.["codex"] as {lastTurnId?: unknown} | undefined)?.lastTurnId;
+    const nativeTurn = (
+        request._meta?.["codex"] as { lastTurnId?: unknown } | undefined
+    )?.lastTurnId;
     if (nativeTurn !== undefined) {
-        if (typeof nativeTurn !== "string" || !nativeTurn.trim()) throw RequestError.invalidParams(undefined, "lastTurnId must be a non-empty Codex turn id");
+        if (typeof nativeTurn !== "string" || !nativeTurn.trim())
+            throw RequestError.invalidParams(
+                undefined,
+                "lastTurnId must be a non-empty Codex turn id",
+            );
         return nativeTurn;
     }
     const forkPoint = readAirForkPoint(request._meta);
@@ -97,21 +125,33 @@ async function resolveForkTurnId(
     const history = await codexClient.threadReadWithHistory(request.sessionId);
     const candidateIds = airForkMessageIdCandidates(forkPoint.messageId);
     const itemTurnId = candidateIds
-        .map(candidateId => history.thread.turns.find(turn => turn.items.some(item => item.id === candidateId))?.id)
-        .find(turnId => turnId !== undefined);
+        .map(
+            (candidateId) =>
+                history.thread.turns.find((turn) =>
+                    turn.items.some((item) => item.id === candidateId),
+                )?.id,
+        )
+        .find((turnId) => turnId !== undefined);
     if (itemTurnId) return itemTurnId;
 
     if (forkPoint.messageFingerprint) {
-        const matchingTurns = history.thread.turns.flatMap(turn => turn.items
-            .filter(item => item.type === "agentMessage"
-                && fingerprintAgentMessage(item.text) === forkPoint.messageFingerprint)
-            .map(() => turn.id));
-        const fingerprintTurnId = matchingTurns[forkPoint.messageOccurrence - 1];
+        const matchingTurns = history.thread.turns.flatMap((turn) =>
+            turn.items
+                .filter(
+                    (item) =>
+                        item.type === "agentMessage" &&
+                        fingerprintAgentMessage(item.text) ===
+                            forkPoint.messageFingerprint,
+                )
+                .map(() => turn.id),
+        );
+        const fingerprintTurnId =
+            matchingTurns[forkPoint.messageOccurrence - 1];
         if (fingerprintTurnId) return fingerprintTurnId;
     }
 
     throw RequestError.invalidParams(
-        {messageId: forkPoint.messageId},
+        { messageId: forkPoint.messageId },
         `Fork point message ${forkPoint.messageId} was not found in session ${request.sessionId}`,
     );
 }
@@ -122,7 +162,9 @@ type AirForkPoint = {
     messageOccurrence: number;
 };
 
-function readAirForkPoint(meta?: Record<string, unknown> | null): AirForkPoint | undefined {
+function readAirForkPoint(
+    meta?: Record<string, unknown> | null,
+): AirForkPoint | undefined {
     const jetbrains = meta?.["jetbrains"];
     if (!isUnknownRecord(jetbrains)) return undefined;
     const air = jetbrains["air"];
@@ -131,20 +173,35 @@ function readAirForkPoint(meta?: Record<string, unknown> | null): AirForkPoint |
     if (!isUnknownRecord(fork) || fork["version"] !== 1) return undefined;
     const messageId = fork["messageId"];
     if (typeof messageId !== "string" || messageId.trim().length === 0) {
-        throw RequestError.invalidParams(undefined, "AIR fork messageId must be a non-empty string");
+        throw RequestError.invalidParams(
+            undefined,
+            "AIR fork messageId must be a non-empty string",
+        );
     }
     const messageFingerprint = fork["messageFingerprint"];
-    if (messageFingerprint !== undefined
-        && (typeof messageFingerprint !== "string" || !/^sha256:[0-9a-f]{64}$/.test(messageFingerprint))) {
-        throw RequestError.invalidParams(undefined, "AIR fork messageFingerprint must be a SHA-256 fingerprint");
+    if (
+        messageFingerprint !== undefined &&
+        (typeof messageFingerprint !== "string" ||
+            !/^sha256:[0-9a-f]{64}$/.test(messageFingerprint))
+    ) {
+        throw RequestError.invalidParams(
+            undefined,
+            "AIR fork messageFingerprint must be a SHA-256 fingerprint",
+        );
     }
     const messageOccurrence = fork["messageOccurrence"] ?? 1;
-    if (!Number.isSafeInteger(messageOccurrence) || (messageOccurrence as number) < 1) {
-        throw RequestError.invalidParams(undefined, "AIR fork messageOccurrence must be a positive integer");
+    if (
+        !Number.isSafeInteger(messageOccurrence) ||
+        (messageOccurrence as number) < 1
+    ) {
+        throw RequestError.invalidParams(
+            undefined,
+            "AIR fork messageOccurrence must be a positive integer",
+        );
     }
     return {
         messageId: messageId.trim(),
-        ...(typeof messageFingerprint === "string" && {messageFingerprint}),
+        ...(typeof messageFingerprint === "string" && { messageFingerprint }),
         messageOccurrence: messageOccurrence as number,
     };
 }
@@ -157,7 +214,9 @@ function airForkMessageIdCandidates(messageId: string): string[] {
     // Older AIR builds sent their visible segment id. Prefer the exact id before its ACP source id.
     const visibleSegmentSuffix = /:segment:\d+$/;
     const protocolMessageId = messageId.replace(visibleSegmentSuffix, "");
-    return protocolMessageId === messageId ? [messageId] : [messageId, protocolMessageId];
+    return protocolMessageId === messageId
+        ? [messageId]
+        : [messageId, protocolMessageId];
 }
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {

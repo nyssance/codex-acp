@@ -171,6 +171,9 @@
     {
       "method": "thread/start",
       "params": {
+        "approvalPolicy": "on-request",
+        "approvalsReviewer": "auto_review",
+        "sandbox": "workspace-write",
         "config": {
           "features": {
             "cwd_relative_turn_diffs": false

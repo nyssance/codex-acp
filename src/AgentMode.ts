@@ -1,6 +1,15 @@
-import type {ApprovalsReviewer, AskForApproval, SandboxMode, SandboxPolicy} from "./app-server/v2";
-import type {SessionConfigOption, SessionMode, SessionModeState} from "@agentclientprotocol/sdk/unstable";
-import {AIR_KIND_KEY, airOnlyMeta} from "./AirExtension";
+import type {
+    ApprovalsReviewer,
+    AskForApproval,
+    SandboxMode,
+    SandboxPolicy,
+} from "./app-server/v2";
+import type {
+    SessionConfigOption,
+    SessionMode,
+    SessionModeState,
+} from "@agentclientprotocol/sdk/unstable";
+import { AIR_KIND_KEY, airOnlyMeta } from "./AirExtension";
 
 export const MODE_CONFIG_ID = "mode";
 
@@ -80,7 +89,7 @@ export class AgentMode {
             writableRoots: [],
             networkAccess: false,
             excludeTmpdirEnvVar: false,
-            excludeSlashTmp: false
+            excludeSlashTmp: false,
         },
         "workspace-write",
     );
@@ -91,13 +100,25 @@ export class AgentMode {
         "full_access",
         "never",
         "user",
-        {"type": "dangerFullAccess"},
+        { type: "dangerFullAccess" },
         "danger-full-access",
     );
 
-    static fromPermissionProfile(id: string, description: string | null = null): AgentMode {
-        return new AgentMode(`profile:${id}`, id, description ?? id, "standard", "on-request", "user",
-            {type: "readOnly", networkAccess: false}, "read-only", id);
+    static fromPermissionProfile(
+        id: string,
+        description: string | null = null,
+    ): AgentMode {
+        return new AgentMode(
+            `profile:${id}`,
+            id,
+            description ?? id,
+            "standard",
+            "on-request",
+            "user",
+            { type: "readOnly", networkAccess: false },
+            "read-only",
+            id,
+        );
     }
 
     static DEFAULT_AGENT_MODE = AgentMode.Agent;
@@ -109,14 +130,16 @@ export class AgentMode {
             id: this.id,
             name: this.name,
             description: this.description,
-            ...(meta ? {_meta: meta} : {}),
+            ...(meta ? { _meta: meta } : {}),
         };
     }
 
     toSessionModeState(airClient: boolean): SessionModeState {
         return {
-            availableModes: AgentMode.all().map(mode => mode.toSessionMode(airClient)),
-            currentModeId: this.id
+            availableModes: AgentMode.all().map((mode) =>
+                mode.toSessionMode(airClient),
+            ),
+            currentModeId: this.id,
         };
     }
 
@@ -128,32 +151,73 @@ export class AgentMode {
             category: "mode",
             type: "select",
             currentValue: this.id,
-            options: [...AgentMode.all(), ...(this.permissionProfile === null ? [] : [this])].map(mode => {
+            options: [
+                ...AgentMode.all(),
+                ...(this.permissionProfile === null ? [] : [this]),
+            ].map((mode) => {
                 const meta = airOnlyMeta(airClient, AIR_KIND_KEY, mode.kind);
                 return {
                     value: mode.id,
                     name: mode.name,
                     description: mode.description,
-                    ...(meta ? {_meta: meta} : {}),
+                    ...(meta ? { _meta: meta } : {}),
                 };
             }),
         };
     }
 
     static all(): AgentMode[] {
-        return [AgentMode.ReadOnly, AgentMode.WorkspaceWrite, AgentMode.Agent, AgentMode.AgentFullAccess];
+        return [
+            AgentMode.ReadOnly,
+            AgentMode.WorkspaceWrite,
+            AgentMode.Agent,
+            AgentMode.AgentFullAccess,
+        ];
     }
 
     static find(modeId: string): AgentMode | null {
-        const match = AgentMode.all().find(m => m.id === modeId);
+        const match = AgentMode.all().find((m) => m.id === modeId);
         return match ?? null;
+    }
+
+    static fromThread(thread: {
+        approvalPolicy: AskForApproval;
+        approvalsReviewer: ApprovalsReviewer;
+        sandbox: SandboxPolicy;
+        activePermissionProfile?: { id: string } | null;
+    }): AgentMode {
+        const profile = thread.activePermissionProfile;
+        if (profile && !profile.id.startsWith(":"))
+            return AgentMode.fromPermissionProfile(profile.id);
+        if (
+            thread.approvalPolicy === "never" &&
+            thread.sandbox.type === "dangerFullAccess"
+        )
+            return AgentMode.AgentFullAccess;
+        if (
+            thread.approvalsReviewer === "auto_review" &&
+            thread.sandbox.type === "workspaceWrite"
+        )
+            return AgentMode.Agent;
+        if (
+            thread.approvalsReviewer === "user" &&
+            thread.approvalPolicy === "on-request"
+        ) {
+            if (thread.sandbox.type === "readOnly") return AgentMode.ReadOnly;
+            if (thread.sandbox.type === "workspaceWrite")
+                return AgentMode.WorkspaceWrite;
+        }
+        throw new Error("Unknown Codex approval mode");
     }
 
     static getInitialAgentMode(): AgentMode {
         const predefinedAgentMode = process.env["INITIAL_AGENT_MODE"];
         if (predefinedAgentMode) {
             const mode = AgentMode.find(predefinedAgentMode);
-            if (!mode) throw new Error(`Unknown INITIAL_AGENT_MODE: ${predefinedAgentMode}`);
+            if (!mode)
+                throw new Error(
+                    `Unknown INITIAL_AGENT_MODE: ${predefinedAgentMode}`,
+                );
             return mode;
         } else {
             return AgentMode.DEFAULT_AGENT_MODE;
