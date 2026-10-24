@@ -192,9 +192,9 @@ export class ResponsesProxy {
     }
 
     private async target(request: IncomingMessage): Promise<URL | null> {
-        // Only fixed Responses endpoints are reachable; route tokens cannot select arbitrary hosts.
+        // Only fixed provider endpoints are reachable; route tokens cannot select arbitrary hosts.
         const match =
-            /^\/([a-f0-9]{48})(\/responses(?:\/compact)?)(\?[^#]*)?$/.exec(
+            /^\/([a-f0-9]{48})(\/(?:responses(?:\/compact)?|live|realtime(?:\/(?:calls|voices))?))(\?[^#]*)?$/.exec(
                 request.url ?? "",
             );
         const base = match?.[1] ? this.routes.get(match[1]) : undefined;
@@ -204,7 +204,16 @@ export class ResponsesProxy {
         );
         if (this.closed)
             throw new Error("Responses compatibility proxy is closed");
-        return new URL(`${resolved}${match[2]}${match[3] ?? ""}`);
+        const path =
+            match[2] === "/live" && resolved.includes("/backend-api")
+                ? "/realtime/calls"
+                : match[2];
+        const target = new URL(`${resolved}${path}${match[3] ?? ""}`);
+        if (match[2] === "/live" && path === "/realtime/calls") {
+            target.searchParams.set("intent", "quicksilver");
+            target.searchParams.set("architecture", "avas");
+        }
+        return target;
     }
 
     private async forwardHttp(
@@ -212,35 +221,80 @@ export class ResponsesProxy {
         response: ServerResponse,
     ): Promise<void> {
         const target = await this.target(request);
-        if (!target || request.method !== "POST") {
+        if (
+            !target ||
+            (request.method !== "POST" &&
+                !(
+                    request.method === "GET" &&
+                    target.pathname.endsWith("/realtime/voices")
+                ))
+        ) {
             response.writeHead(404).end();
             return;
         }
+        const realtime = /\/(?:live|realtime(?:\/(?:calls|voices))?)$/.test(
+            target.pathname,
+        );
         const bytes = await requestBody(request);
         const encoding = request.headers["content-encoding"];
-        if (encoding && encoding !== "identity" && encoding !== "zstd") {
+        if (
+            !realtime &&
+            encoding &&
+            encoding !== "identity" &&
+            encoding !== "zstd"
+        ) {
             response
                 .writeHead(415)
                 .end("Unsupported Responses request encoding");
             return;
         }
         let body: Buffer;
-        try {
-            const decoded =
-                encoding === "zstd"
-                    ? zstdDecompressSync(bytes, {
-                          maxOutputLength: MAX_BODY_BYTES,
-                      })
-                    : bytes;
-            body = Buffer.from(
-                compatibleResponsesRequest(decoded.toString("utf8")),
-            );
-        } catch {
-            response.writeHead(400).end("Invalid Responses request body");
-            return;
-        }
         const headers = forwardingHeaders(request.headers, false);
-        delete headers["content-encoding"];
+        if (realtime) {
+            body = bytes;
+            // Codex selects API multipart from the local URL. ChatGPT's backend requires the
+            // same SDP and session as JSON; preserve that native backend contract at this boundary.
+            if (
+                target.pathname.includes("/backend-api/") &&
+                target.pathname.endsWith("/realtime/calls")
+            ) {
+                const form = await new Request("http://localhost", {
+                    method: request.method,
+                    headers: {
+                        "content-type": request.headers["content-type"] ?? "",
+                    },
+                    body: new Uint8Array(bytes),
+                }).formData();
+                const sdp = form.get("sdp");
+                const session = form.get("session");
+                if (typeof sdp !== "string" || typeof session !== "string") {
+                    response
+                        .writeHead(400)
+                        .end("Invalid realtime call payload");
+                    return;
+                }
+                body = Buffer.from(
+                    JSON.stringify({ sdp, session: JSON.parse(session) }),
+                );
+                headers["content-type"] = "application/json";
+                delete headers["content-encoding"];
+            }
+        } else
+            try {
+                const decoded =
+                    encoding === "zstd"
+                        ? zstdDecompressSync(bytes, {
+                              maxOutputLength: MAX_BODY_BYTES,
+                          })
+                        : bytes;
+                body = Buffer.from(
+                    compatibleResponsesRequest(decoded.toString("utf8")),
+                );
+            } catch {
+                response.writeHead(400).end("Invalid Responses request body");
+                return;
+            }
+        if (!realtime) delete headers["content-encoding"];
         headers["content-length"] = String(body.length);
         const abort = new AbortController();
         this.aborts.add(abort);
@@ -252,7 +306,9 @@ export class ResponsesProxy {
                 const options: RequestInit & { decompress: boolean } = {
                     method: "POST",
                     headers: headers as Record<string, string>,
-                    body: new Uint8Array(body),
+                    ...(request.method === "GET"
+                        ? {}
+                        : { body: new Uint8Array(body) }),
                     signal: abort.signal,
                     redirect: "manual",
                     decompress: false,
@@ -283,7 +339,7 @@ export class ResponsesProxy {
                     target.protocol === "https:" ? httpsRequest : httpRequest;
                 const upstream = send(
                     target,
-                    { method: "POST", headers, signal: abort.signal },
+                    { method: request.method, headers, signal: abort.signal },
                     (incoming) => {
                         response.writeHead(
                             incoming.statusCode ?? 502,
@@ -349,12 +405,20 @@ export class ResponsesProxy {
             }
             handedOff = true;
             this.websocket.handleUpgrade(request, socket, head, (downstream) =>
-                this.forwardWebsocket(downstream, upstream),
+                this.forwardWebsocket(
+                    downstream,
+                    upstream,
+                    target.pathname.endsWith("/responses"),
+                ),
             );
         });
     }
 
-    private forwardWebsocket(downstream: WebSocket, upstream: WebSocket): void {
+    private forwardWebsocket(
+        downstream: WebSocket,
+        upstream: WebSocket,
+        transformResponses: boolean,
+    ): void {
         this.peers.add(downstream);
         const fail = (): void => {
             if (downstream.readyState === WebSocket.OPEN)
@@ -370,9 +434,10 @@ export class ResponsesProxy {
             }
             let message: string;
             try {
-                message = compatibleResponsesRequest(
-                    messageBytes(data).toString("utf8"),
-                );
+                const text = messageBytes(data).toString("utf8");
+                message = transformResponses
+                    ? compatibleResponsesRequest(text)
+                    : text;
             } catch {
                 downstream.close(1007, "Invalid Responses JSON");
                 return;

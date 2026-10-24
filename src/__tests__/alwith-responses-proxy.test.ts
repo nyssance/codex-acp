@@ -294,3 +294,79 @@ describe("Responses compatibility transport", () => {
         );
     });
 });
+
+it("preserves the native ChatGPT realtime call contract behind a local route", async () => {
+    let received: unknown;
+    const upstream = createServer(async (request, response) => {
+        const chunks: Buffer[] = [];
+        for await (const bytes of request) chunks.push(Buffer.from(bytes));
+        expect(request.url).toBe(
+            "/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
+        );
+        expect(request.headers["content-type"]).toBe("application/json");
+        received = JSON.parse(Buffer.concat(chunks).toString());
+        response
+            .writeHead(201, {
+                "content-type": "application/sdp",
+                location: "/realtime/calls/rtc_test",
+            })
+            .end("answer");
+    });
+    const route = await proxy().route(
+        `${await listen(upstream)}/backend-api/codex`,
+    );
+    const form = new FormData();
+    form.set("sdp", "v=0\r\no=offer\r\n");
+    form.set("session", JSON.stringify({ type: "realtime", model: "test" }));
+    const result = await fetch(`${route}/live`, { method: "POST", body: form });
+    expect(result.status).toBe(201);
+    expect(await result.text()).toBe("answer");
+    expect(result.headers.get("location")).toBe("/realtime/calls/rtc_test");
+    expect(received).toEqual({
+        sdp: "v=0\r\no=offer\r\n",
+        session: { type: "realtime", model: "test" },
+    });
+});
+
+it("preserves API realtime multipart bytes without applying Responses transformations", async () => {
+    let received = "";
+    const upstream = createServer(async (request, response) => {
+        for await (const bytes of request) received += bytes.toString();
+        expect(request.url).toBe("/v1/live");
+        expect(request.headers["content-type"]).toBe(
+            "multipart/form-data; boundary=test",
+        );
+        response.writeHead(201).end("answer");
+    });
+    const route = await proxy().route(`${await listen(upstream)}/v1`);
+    const body =
+        '--test\r\nContent-Disposition: form-data; name="sdp"\r\n\r\noffer\r\n--test--\r\n';
+    const result = await fetch(`${route}/live`, {
+        method: "POST",
+        headers: { "content-type": "multipart/form-data; boundary=test" },
+        body,
+    });
+    expect(result.status).toBe(201);
+    expect(await result.text()).toBe("answer");
+    expect(received).toBe(body);
+});
+
+it("forwards realtime websocket messages unchanged", async () => {
+    const server = createServer();
+    const ws = new WebSocketServer({ server });
+    cleanup.push(() => ws.close());
+    ws.on("connection", (socket) =>
+        socket.on("message", (message) =>
+            socket.send(message, { binary: false }),
+        ),
+    );
+    const route = await proxy().route(await listen(server));
+    const socket = new WebSocket(
+        `${route.replace("http:", "ws:")}/realtime?call_id=rtc_test`,
+    );
+    cleanup.push(() => socket.terminate());
+    await once(socket, "open");
+    const reply = receive(socket);
+    socket.send(body);
+    expect(await reply).toBe(body);
+});

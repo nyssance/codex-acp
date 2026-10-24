@@ -296,3 +296,9 @@ Local checks can run entirely with Bun (`bun run typecheck`,
 `bun x tsc -p tsconfig.client.json`). Native-process test fixtures locate the
 installed Codex platform binary directly; test JavaScript child processes use
 `process.execPath` rather than a hard-coded `node` command.
+
+## Realtime through the provider transport
+
+The process-local OpenAI compatibility route also carries native realtime calls and their WebSocket sideband. Responses rewriting applies only to Responses frames. Realtime frames pass unchanged. For ChatGPT's backend, the route preserves Codex's native SDP/session JSON contract and AVAS query parameters; API-key endpoints keep their multipart payload. Resolving the destination remains lazy, so reading history never waits for account discovery.
+
+Browser voice consumers use the shared `@alwith/module-voice` WebRTC lifecycle and explicitly select realtime v3. They must check `supportsCodexRealtime(initializeResponse)` before displaying controls. The native account must support realtime. Verification uses an existing thread, a browser test audio device, and the real ACP/native/backend chain; it does not create another thread or verify a physical microphone.
