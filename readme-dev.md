@@ -256,3 +256,21 @@ the Codex config are not listed.
 - Open question for AIR: AIR's fork points match Codex item ids, but on v2 a user message's
   rendered id is the client-minted `clientId` (when the client supplied one), not the Codex item id.
   A fork at a user message would not resolve. This is flagged for AIR, not fixed here.
+
+## Browser capability client
+
+The `@nyssance/codex-acp-v2/client` export contains `CodexCapabilitiesClient`
+and its declarations. It is bundled separately from the Node agent entry point;
+importing it never starts a process. Pass the existing ACP connection, route all
+session operations by explicit session ID, and dispose the client when that
+connection closes. Consumers must use version 0.7.32 or later.
+
+Hooks, permission profiles, Bedrock setup, and experimental realtime requests use
+`_codex/*` extensions on that connection. Realtime notifications arrive through
+`_codex/realtime/update`; ACP v2 goal snapshots use `session_info_update` metadata
+at `_meta.codex.goal` (omitted preserves the prior value, null clears it).
+Capability availability must be read from initialization metadata. A realtime
+start response alone does not establish a working voice session: clients must
+observe the native startup/error/closed notifications and stop active realtime
+work before detaching. This low-level export does not implement microphone
+capture or audio playback.

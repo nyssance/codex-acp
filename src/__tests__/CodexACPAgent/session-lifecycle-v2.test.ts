@@ -364,7 +364,7 @@ describe('Session lifecycle over ACP v2', () => {
         const response = await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd});
         expect(updates.at(-1)?.update).toEqual({sessionUpdate: "state_update", state: "idle"});
         // Commands are in the response; only the current-state snapshot is notified.
-        const sessionUpdates = await waitForSessionUpdates(updates, ["state_update"]);
+        const sessionUpdates = await waitForSessionUpdates(updates, ["session_info_update", "state_update"]);
 
         await expect(dump({response, codexRequests, updates: sessionUpdates}))
             .toMatchFileSnapshot('data/session-lifecycle-v2-resume.json');
@@ -474,7 +474,7 @@ describe('Session lifecycle over ACP v2', () => {
         closeClient = () => connection.close();
 
         await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd});
-        await waitForSessionUpdates(updates, ["state_update"]);
+        await waitForSessionUpdates(updates, ["session_info_update", "state_update"]);
 
         expect(updates.some(({update}) => update.sessionUpdate.endsWith("_message_chunk")
             || update.sessionUpdate.endsWith("_message")

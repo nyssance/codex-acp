@@ -7,6 +7,7 @@ export const MODE_CONFIG_ID = "mode";
 type AgentModeKind = "plan" | "auto_review" | "standard" | "full_access";
 
 export class AgentMode {
+    readonly permissionProfile: string | null;
     readonly id: string;
     readonly name: string;
     readonly description: string;
@@ -25,7 +26,9 @@ export class AgentMode {
         approvalsReviewer: ApprovalsReviewer,
         sandboxPolicy: SandboxPolicy,
         sandboxMode: SandboxMode,
+        permissionProfile: string | null = null,
     ) {
+        this.permissionProfile = permissionProfile;
         this.id = id;
         this.name = name;
         this.description = description;
@@ -92,6 +95,11 @@ export class AgentMode {
         "danger-full-access",
     );
 
+    static fromPermissionProfile(id: string, description: string | null = null): AgentMode {
+        return new AgentMode(`profile:${id}`, id, description ?? id, "standard", "on-request", "user",
+            {type: "readOnly", networkAccess: false}, "read-only", id);
+    }
+
     static DEFAULT_AGENT_MODE = AgentMode.Agent;
 
     /** Only AIR gets the mode kind, in `_meta.jetbrains.air.kind`. */
@@ -120,7 +128,7 @@ export class AgentMode {
             category: "mode",
             type: "select",
             currentValue: this.id,
-            options: AgentMode.all().map(mode => {
+            options: [...AgentMode.all(), ...(this.permissionProfile === null ? [] : [this])].map(mode => {
                 const meta = airOnlyMeta(airClient, AIR_KIND_KEY, mode.kind);
                 return {
                     value: mode.id,

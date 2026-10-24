@@ -44,11 +44,15 @@ export function sameThreadGoalSnapshot(
     return left.objective === right.objective
         && left.status === right.status
         && left.tokenBudget === right.tokenBudget
-        && left.createdAt === right.createdAt;
+        && left.createdAt === right.createdAt
+        && left.updatedAt === right.updatedAt
+        && left.tokensUsed === right.tokensUsed
+        && left.timeUsedSeconds === right.timeUsedSeconds;
 }
 
-/** Only AIR gets the goal. The update carries nothing else, so another client gets no update. */
-export function goalSessionInfoUpdate(goal: ThreadGoalSnapshot | null, airClient: boolean): UpdateSessionEvent | null {
+/** v2 exposes goals without requiring the client to impersonate AIR. */
+export function goalSessionInfoUpdate(goal: ThreadGoalSnapshot | null, airClient: boolean, v2 = false): UpdateSessionEvent | null {
+    if (v2) return {sessionUpdate: "session_info_update", _meta: {...(airClient ? withAirMeta(undefined, AIR_GOAL_KEY, goal) : {}), codex: {goal}}};
     if (!airClient) return null;
     return {
         sessionUpdate: "session_info_update",

@@ -1,3 +1,4 @@
+import type {ApprovalsReviewer} from "./app-server/v2/ApprovalsReviewer";
 import type {ModeKind} from "./app-server/ModeKind";
 import type {Model, Thread, ThreadItemEntry, ThreadStatus} from "./app-server/v2";
 import type {SessionInstructions} from "./ClientSystemPrompt";
@@ -6,6 +7,8 @@ export type SessionMetadata = {
     sessionId: string,
     readOnly?: boolean,
     lineage?: {nativeSessionId: string | null; forkedFromId: string | null; forkedAtTurnId?: string | null},
+    permissionProfile?: string | null | undefined,
+    approvalsReviewer?: ApprovalsReviewer | undefined,
     currentModelId: string,
     models: Model[],
     collaborationMode: ModeKind,

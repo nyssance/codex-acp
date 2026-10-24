@@ -85,7 +85,7 @@ describe("CodexEventHandler - thread goal events", () => {
         );
     });
 
-    it("should suppress duplicate thread goal updates", async () => {
+    it("should suppress exact duplicates but publish usage progress", async () => {
         const goalUpdatedNotification: ServerNotification = {
             method: "thread/goal/updated",
             params: {
@@ -118,11 +118,15 @@ describe("CodexEventHandler - thread goal events", () => {
 
         await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [
             goalUpdatedNotification,
+            goalUpdatedNotification,
             duplicateGoalUpdatedNotification,
         ]);
 
         const events = mockFixture.getAcpConnectionEvents([]);
-        expect(events).toHaveLength(1);
+        expect(events).toHaveLength(2);
+        expect(events[1]!.args[0].update).toMatchObject({
+            _meta: {jetbrains: {air: {goal: {tokensUsed: 84, timeUsedSeconds: 24, updatedAt: 1710000024000}}}},
+        });
         expect(events[0]!.args[0].update).toEqual({
             sessionUpdate: "session_info_update",
             _meta: {jetbrains: {air: {version: 1,

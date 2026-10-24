@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.7.31",
+  "version": "0.7.32",
   "description": "ACP adapter for Codex with ALwith client extensions",
   "main": "dist/index.js",
   "bin": {
@@ -13,11 +13,13 @@
     "dist/index.js",
     "README.md",
     "LICENSE",
-    "package.json"
+    "package.json",
+    "dist/client.js",
+    "dist/types"
   ],
   "scripts": {
     "prepublishOnly": "npm run build",
-    "build": "node build.mjs",
+    "build": "node build.mjs && tsc -p tsconfig.client.json",
     "bundle:all": "npm run bundle:linux-x64 && npm run bundle:linux-arm64 && npm run bundle:darwin-x64 && npm run bundle:darwin-arm64 && npm run bundle:win-x64 && npm run bundle:win-arm64",
     "bundle:linux-x64": "bun build src/index.ts --minify --sourcemap --compile --target=bun-linux-x64-baseline --outfile dist/bin/codex-acp-v2-x64-linux",
     "bundle:linux-arm64": "bun build src/index.ts --minify --sourcemap --compile --target=bun-linux-arm64 --outfile dist/bin/codex-acp-v2-arm64-linux",
@@ -76,5 +78,12 @@
     "vscode-jsonrpc": "^9.0.1",
     "ws": "^8.22.0",
     "zod": "^4.0.0"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": {
+      "types": "./dist/types/CodexCapabilitiesClient.d.ts",
+      "import": "./dist/client.js"
+    }
   }
 }

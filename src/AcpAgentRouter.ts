@@ -1,3 +1,4 @@
+import {CODEX_NATIVE_METHODS} from "./CodexNativeExtensions";
 import {ALWITH_METHODS, objectParams} from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
@@ -84,7 +85,7 @@ export function createAcpAgentRouter(
         });
     };
 
-    const v1Agent = acp.agent({name: packageJson.name})
+    let v1Agent = acp.agent({name: packageJson.name})
         .onConnect((connection) => attachAgent(createAgent(connection.client), connection.signal))
         .onRequest(acp.methods.agent.initialize, (ctx) => getAgent().initialize(ctx.params))
         .onRequest(acp.methods.agent.session.new, (ctx) => getAgent().newSession(ctx.params))
@@ -137,6 +138,8 @@ export function createAcpAgentRouter(
         .onRequest(acpV2.methods.agent.providers.list, (ctx) => getAgent().listProviders(ctx.params))
         .onRequest(acpV2.methods.agent.providers.set, (ctx) => getAgent().setProvider(ctx.params))
         .onRequest(acpV2.methods.agent.providers.disable, (ctx) => getAgent().disableProvider(ctx.params))
+        .onRequest(CODEX_HOOKS_LIST_METHOD, hooksListParamsParser, (ctx) => getAgent().listHooks(ctx.params.cwd))
+        .onRequest(CODEX_HOOKS_TRUST_METHOD, hooksTrustParamsParser, (ctx) => getAgent().trustHooks(ctx.params.cwd, ctx.params.hooks))
         .onRequest(SESSION_STEERING_METHOD, sessionSteerParamsParser, (ctx) => getAgent().extMethod(SESSION_STEERING_METHOD, ctx.params))
         .onRequest(GOAL_CONTROL_METHOD, goalControlParamsParser, (ctx) => getAgent().extMethod(GOAL_CONTROL_METHOD, ctx.params))
         .onRequest(ASYNC_TASK_STOP_METHOD, asyncTaskStopParamsParser, (ctx) => getAgent().extMethod(ASYNC_TASK_STOP_METHOD, ctx.params))
@@ -145,6 +148,11 @@ export function createAcpAgentRouter(
         .onRequest(SESSION_UNARCHIVE_METHOD, sessionArchiveParamsParser, (ctx) => getAgent().sessionIndex.setArchived(ctx.params, false))
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
         .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
+
+    for (const method of Object.keys(CODEX_NATIVE_METHODS) as Array<keyof typeof CODEX_NATIVE_METHODS>) {
+        v1Agent = v1Agent.onRequest(method, {parse: objectParams}, ctx => getAgent().nativeRequest(method, ctx.params));
+        v2Agent = v2Agent.onRequest(method, {parse: objectParams}, ctx => getAgent().nativeRequest(method, ctx.params));
+    }
 
     for (const method of ALWITH_METHODS) {
         v2Agent = v2Agent.onRequest(method, {parse: objectParams}, ctx => getAgent().alwithRequest(method, ctx.params, ctx.signal));

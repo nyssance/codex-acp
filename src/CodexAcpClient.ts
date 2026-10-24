@@ -1,3 +1,4 @@
+import type {ApprovalsReviewer} from "./app-server/v2/ApprovalsReviewer";
 import {readSessionLineage} from "./alwith/sessionLineage";
 import {replayEntriesOfTurn, withReplayTurnMetadata} from "./ReplayHistory";
 import {hostThreadOptions, seedHistory} from "./alwith/hostSession";
@@ -96,6 +97,8 @@ export type {SessionMetadata, SessionMetadataWithThread} from "./SessionMetadata
  * actually had a rollout for the thread. See {@link CodexAcpClient.resumeThread}.
  */
 type ResumedThread = {
+    permissionProfile?: string | null | undefined;
+    approvalsReviewer?: ApprovalsReviewer | undefined;
     readOnly?: boolean;
     thread: Thread;
     model: string | null;
@@ -666,6 +669,8 @@ export class CodexAcpClient {
             const response = await this.codexClient.threadResume(params);
             return {
                 thread: response.thread,
+                permissionProfile: response.activePermissionProfile?.id,
+                approvalsReviewer: response.approvalsReviewer,
                 model: response.model,
                 modelProvider: response.modelProvider,
                 reasoningEffort: response.reasoningEffort,
@@ -747,6 +752,8 @@ export class CodexAcpClient {
             threadStatus: response.thread.status,
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,
+            permissionProfile: response.permissionProfile,
+            approvalsReviewer: response.approvalsReviewer,
             additionalDirectories,
             skippedMcpServers: sessionConfig.skippedMcpServers,
             ...(instructions ? {instructions} : {}),
@@ -840,6 +847,8 @@ export class CodexAcpClient {
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,
+            permissionProfile: response.permissionProfile,
+            approvalsReviewer: response.approvalsReviewer,
             thread,
             history,
             additionalDirectories,
@@ -928,6 +937,8 @@ export class CodexAcpClient {
             collaborationMode: this.getCollaborationMode(response.thread.id),
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,
+            permissionProfile: response.activePermissionProfile?.id,
+            approvalsReviewer: response.approvalsReviewer,
             additionalDirectories,
             skippedMcpServers: sessionConfig.skippedMcpServers,
             ...(instructions ? {instructions} : {}),
@@ -1396,9 +1407,11 @@ export class CodexAcpClient {
             ...(retryTrigger === "capacity_retry_manual" || retryTrigger === "capacity_retry_automatic" ? {turnTrigger: retryTrigger} : {}),
             threadId: request.sessionId,
             input: input,
-            approvalPolicy: agentMode.approvalPolicy,
-            approvalsReviewer: agentMode.approvalsReviewer,
-            sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(agentMode.sandboxPolicy, additionalDirectories),
+            ...(agentMode.permissionProfile === null ? {
+                approvalPolicy: agentMode.approvalPolicy,
+                approvalsReviewer: agentMode.approvalsReviewer,
+                sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(agentMode.sandboxPolicy, additionalDirectories),
+            } : {permissions: agentMode.permissionProfile}),
             summary: disableSummary ? "none" : "auto",
             effort: effort,
             model: this.providerCatalog.upstreamModel(modelId.model),

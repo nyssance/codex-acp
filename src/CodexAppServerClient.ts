@@ -1,3 +1,4 @@
+import type {ThreadSettingsUpdateParams} from "./app-server/v2/ThreadSettingsUpdateParams";
 import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
 import {type MessageConnection, RequestType} from "vscode-jsonrpc/node";
 import {AppServerConnectionLostError, ConnectionLoss} from "./app-server-recovery/ConnectionLoss";
@@ -690,7 +691,7 @@ export class CodexAppServerClient {
         return this.threadSettings.get(threadId);
     }
 
-    async threadSettingsUpdate(params: ExperimentalThreadSettingsUpdateParams): Promise<void> {
+    async threadSettingsUpdate(params: ExperimentalThreadSettingsUpdateParams | ThreadSettingsUpdateParams): Promise<void> {
         await this.connection.sendRequest("thread/settings/update", params);
     }
 

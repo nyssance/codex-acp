@@ -1,3 +1,5 @@
+import type {PermissionProfileListResponse} from "./app-server/v2/PermissionProfileListResponse";
+import {requestCodexNative, realtimeUpdate, CODEX_REALTIME_UPDATE, type CodexNativeMethod} from "./CodexNativeExtensions";
 import {AsyncLocalStorage} from "node:async_hooks";
 import type {ReplayEntry} from "./ReplayHistory";
 import {classifyTurnError} from "./alwith/agent/turnErrors";
@@ -768,6 +770,10 @@ export class CodexAcpServer {
                 _meta: {alwith: {tools: {version: 1}, turns: {version: 2}, configRevision: {version: 1}}, codex: {
                     sessionHistory: {version: 2, items: true, modes: ["browse", "export"]},
                     skills: true, plugins: true, pluginEnable: true, account: true, fuzzyFileSearch: true,
+                    realtime: {version: 1, notificationMethod: CODEX_REALTIME_UPDATE},
+                    permissionProfiles: {version: 1}, bedrock: {version: 1},
+                    hooks: {version: 1, listMethod: "_codex/hooks/list", trustMethod: "_codex/hooks/trust"},
+                    goal: {version: GOAL_EXTENSION_VERSION, controlMethod: GOAL_CONTROL_METHOD, actions: [...GOAL_CONTROL_ACTIONS]},
                     sessionList: {version: 1}, archive: true, rename: true, readState: true, providerCatalog: true,
                     forkAtTurn: true, sessionLineage: true, sessionRetry: {version: 1}, seedHistory: true, composerPredictions: true,
                 }},
@@ -1001,6 +1007,19 @@ export class CodexAcpServer {
             return this.sessionIndex.archiveSession(sessionId, archived, {codex: {archived}});
         }
         return this.runWithProcessCheck(() => this.alwith.request(method, params, signal));
+    }
+
+    async nativeRequest(method: CodexNativeMethod, params: Record<string, unknown>): Promise<unknown> {
+        if (!this.codexAcpClient.initialized) throw RequestError.invalidRequest(undefined, "Initialize before calling Codex extensions");
+        if (this.providerUpdate !== null) await this.waitForProviderUpdate();
+        const ready = this.ensureAppServer();
+        if (ready) await ready;
+        return this.runWithProcessCheck(() => requestCodexNative(this.codexAcpClient.appServerClient, method, params, async (id, writable) => {
+            const session = this.getSessionState(id);
+            if (writable) this.assertSessionWritable(id);
+            const ready = this.ensureSessionReady(session);
+            if (ready) await ready;
+        }));
     }
 
     async listHooks(cwd: string): Promise<HooksListEntry> {
@@ -1427,7 +1446,7 @@ export class CodexAcpServer {
             availableModels: models,
             supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
             supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: initialMode,
+            agentMode: operation !== "new" || modeHint === undefined ? this.restoredAgentMode(sessionMetadata, initialMode) : initialMode,
             ...(clientTools ? {clientTools} : {}),
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
@@ -1740,6 +1759,11 @@ export class CodexAcpServer {
      * Tracks runtime work before prompt insertion, including parallel items that can still progress.
      */
     private async trackCodexForegroundWork(sessionState: SessionState, event: ServerNotification): Promise<void> {
+        const realtime = realtimeUpdate(event);
+        if (realtime !== null && realtime.sessionId === sessionState.sessionId) {
+            await this.connection.notify(CODEX_REALTIME_UPDATE, realtime);
+        }
+
         const v2 = AcpV2Connection.of(this.connection);
         // Active with no waits means Codex is running, even when no item is currently streaming.
         // Nonempty flags only count pending requests; they do not prove aggregate blocking.
@@ -2893,7 +2917,7 @@ export class CodexAcpServer {
         const sessionState = this.sessions.get(_params.sessionId);
         if (!sessionState) throw new Error(`Session ${_params.sessionId} not found`);
 
-        this.applyModeChange(sessionState, _params.modeId);
+        await this.applyModeChange(sessionState, _params.modeId);
         return {};
     }
 
@@ -2930,7 +2954,7 @@ export class CodexAcpServer {
                 this.applyFastModeChange(sessionState, params);
                 break;
             case MODE_CONFIG_ID:
-                this.applyModeChange(sessionState, this.stringConfigValue(params));
+                await this.applyModeChange(sessionState, this.stringConfigValue(params));
                 break;
             case COLLABORATION_MODE_CONFIG_ID:
                 await this.applyCollaborationModeChange(sessionState, this.stringConfigValue(params));
@@ -2965,7 +2989,29 @@ export class CodexAcpServer {
         return params.value;
     }
 
-    private applyModeChange(sessionState: SessionState, value: string): void {
+    private async applyModeChange(sessionState: SessionState, value: string): Promise<void> {
+        if (value.startsWith("profile:")) {
+            const id = value.slice("profile:".length);
+            const ready = this.ensureSessionReady(sessionState);
+            if (ready) await ready;
+            let cursor: string | null = null;
+            do {
+                const page: PermissionProfileListResponse = await this.runWithProcessCheck(() =>
+                    this.codexAcpClient.appServerClient.connection.sendRequest("permissionProfile/list", {cwd: sessionState.cwd, cursor}));
+                const profile = page.data.find(profile => profile.id === id);
+                if (profile !== undefined) {
+                    if (!profile.allowed) throw RequestError.invalidParams(undefined, "Permission profile is disallowed by policy");
+                    await this.runWithProcessCheck(() => this.codexAcpClient.appServerClient.threadSettingsUpdate({threadId: sessionState.sessionId, permissions: id}));
+                    if (this.sessions.get(sessionState.sessionId) !== sessionState || this.sessionIsClosing(sessionState.sessionId)) {
+                        throw RequestError.invalidRequest(undefined, "Permission selection belongs to a closed session");
+                    }
+                    sessionState.agentMode = AgentMode.fromPermissionProfile(id, profile.description);
+                    return;
+                }
+                cursor = page.nextCursor;
+            } while (cursor !== null);
+            throw RequestError.invalidParams(undefined, "Unknown permission profile");
+        }
         const newMode = AgentMode.find(value);
         if (!newMode) {
             throw RequestError.invalidParams();
@@ -3355,6 +3401,17 @@ export class CodexAcpServer {
         };
     }
 
+    private restoredAgentMode(metadata: SessionMetadata, initialMode: AgentMode): AgentMode {
+        switch (metadata.permissionProfile) {
+            case undefined:
+            case null: return initialMode;
+            case ":read-only": return AgentMode.ReadOnly;
+            case ":workspace": return metadata.approvalsReviewer === "auto_review" ? AgentMode.Agent : AgentMode.WorkspaceWrite;
+            case ":danger-full-access": return AgentMode.AgentFullAccess;
+            default: return AgentMode.fromPermissionProfile(metadata.permissionProfile);
+        }
+    }
+
     private createSessionConfigOptions(sessionState: SessionState): Array<acp.SessionConfigOption> {
         const currentModelId = ModelId.fromString(sessionState.currentModelId);
         const useRecommendedValue = clientSupportsAirCapability(
@@ -3515,7 +3572,7 @@ export class CodexAcpServer {
             return;
         }
         sessionState.currentGoal = snapshot;
-        const update = goalSessionInfoUpdate(snapshot, sessionState.clientCapabilities.airClient);
+        const update = goalSessionInfoUpdate(snapshot, sessionState.clientCapabilities.airClient, this.protocolVersion === 2);
         if (update === null) return;
         await new ACPSessionConnection(this.connection, sessionState.sessionId).update(update);
     }
@@ -3641,7 +3698,7 @@ export class CodexAcpServer {
             availableModels: models,
             supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
             supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: AgentMode.getInitialAgentMode(),
+            agentMode: this.restoredAgentMode(sessionMetadata, AgentMode.getInitialAgentMode()),
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
             interruptTurnId: null,

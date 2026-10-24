@@ -36,6 +36,25 @@
   },
   {
     "sessionUpdate": {
+      "_meta": {
+        "codex": {
+          "goal": {
+            "objective": "Resumed objective",
+            "status": "active",
+            "tokenBudget": null,
+            "tokensUsed": 0,
+            "timeUsedSeconds": 0,
+            "createdAt": 0,
+            "updatedAt": 0,
+            "controlMethod": "_session/goal"
+          }
+        }
+      },
+      "sessionUpdate": "session_info_update"
+    }
+  },
+  {
+    "sessionUpdate": {
       "stopReason": "end_turn",
       "_meta": {
         "quota": {

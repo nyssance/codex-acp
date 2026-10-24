@@ -12,3 +12,5 @@ await build({
     js: "import { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);",
   },
 });
+
+await build({entryPoints: ["src/CodexCapabilitiesClient.ts"], bundle: true, platform: "neutral", format: "esm", outfile: "dist/client.js"});
