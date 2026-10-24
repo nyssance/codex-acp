@@ -2916,13 +2916,14 @@ describe("ACP server test", { timeout: 40_000 }, () => {
                         event.args[0].update.sessionUpdate ===
                             "available_commands_update",
                 ).length;
-        // @ts-expect-error - exercising private helper
-        const publish = () =>
-            codexAcpAgent.availableCommands.publish(
+        const publish = () => {
+            // @ts-expect-error - exercising private helper
+            return codexAcpAgent.availableCommands.publish(
                 sessionState,
                 () => true,
                 true,
             );
+        };
 
         listSkills.mockResolvedValue({
             data: [{ cwd: "/workspace", skills: [skill("build")], errors: [] }],
@@ -2977,12 +2978,13 @@ describe("ACP server test", { timeout: 40_000 }, () => {
             });
             // @ts-expect-error - exercising private state
             codexAcpAgent.sessions.set(sessionState.sessionId, sessionState);
-            // @ts-expect-error - exercising private helper
-            const skillsChanged = () =>
-                codexAcpAgent.handleSkillsChanged(sessionState, {
+            const skillsChanged = () => {
+                // @ts-expect-error - exercising private helper
+                return codexAcpAgent.handleSkillsChanged(sessionState, {
                     method: "skills/changed",
                     params: {},
                 });
+            };
 
             // A writer that never pauses for 300 ms: a trailing debounce alone would never fire.
             for (let elapsed = 0; elapsed < 2_500; elapsed += 200) {
