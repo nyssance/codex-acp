@@ -20,6 +20,11 @@ import {
     type SpawnedAgentFixture,
 } from "./spawned-agent-fixture";
 
+const testRuntime =
+    process.platform === "win32"
+        ? `"${process.execPath}"`
+        : `'${process.execPath.replaceAll("'", "'\"'\"'")}'`;
+
 const hasLiveApiKey = Boolean(
     process.env["CODEX_API_KEY"] || process.env["OPENAI_API_KEY"],
 );
@@ -182,8 +187,7 @@ describe.skipIf(process.env["RUN_E2E_TESTS"] !== "true")(
                                         hooks: [
                                             {
                                                 type: "command",
-                                                command:
-                                                    "node -e \"require('node:fs').writeFileSync('hook.log','started')\"",
+                                                command: `${testRuntime} -e "require('node:fs').writeFileSync('hook.log','started')"`,
                                             },
                                         ],
                                     },

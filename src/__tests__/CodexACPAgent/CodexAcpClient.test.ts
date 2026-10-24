@@ -5785,12 +5785,10 @@ describe("ACP server test", { timeout: 40_000 }, () => {
             account: { type: "apiKey" },
         });
 
-        await mockFixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId: "id",
-                prompt: [{ type: "text", text: "test" }],
-            });
+        await mockFixture.getCodexAcpAgent().prompt({
+            sessionId: "id",
+            prompt: [{ type: "text", text: "test" }],
+        });
 
         expect(turnStartSpy).toHaveBeenCalledWith(
             expect.objectContaining({ summary: "none" }),
@@ -5806,12 +5804,10 @@ describe("ACP server test", { timeout: 40_000 }, () => {
             },
         });
 
-        await mockFixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId: "id",
-                prompt: [{ type: "text", text: "test" }],
-            });
+        await mockFixture.getCodexAcpAgent().prompt({
+            sessionId: "id",
+            prompt: [{ type: "text", text: "test" }],
+        });
 
         expect(turnStartSpy).toHaveBeenCalledWith(
             expect.objectContaining({ summary: "auto" }),
@@ -5830,12 +5826,10 @@ describe("ACP server test", { timeout: 40_000 }, () => {
             ],
         });
 
-        await mockFixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId: "id",
-                prompt: [{ type: "text", text: "test" }],
-            });
+        await mockFixture.getCodexAcpAgent().prompt({
+            sessionId: "id",
+            prompt: [{ type: "text", text: "test" }],
+        });
 
         expect(turnStartSpy).toHaveBeenCalledWith(
             expect.objectContaining({ summary: "none" }),
@@ -5855,12 +5849,10 @@ describe("ACP server test", { timeout: 40_000 }, () => {
             ],
         });
 
-        await mockFixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId: "id",
-                prompt: [{ type: "text", text: "test" }],
-            });
+        await mockFixture.getCodexAcpAgent().prompt({
+            sessionId: "id",
+            prompt: [{ type: "text", text: "test" }],
+        });
 
         expect(turnStartSpy).toHaveBeenCalledWith(
             expect.objectContaining({ summary: "auto" }),
@@ -6040,12 +6032,10 @@ describe("ACP server test", { timeout: 40_000 }, () => {
 
         const { mockFixture } = setupPromptFixture({ rateLimits });
 
-        await mockFixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId: "session-id",
-                prompt: [{ type: "text", text: "/status" }],
-            });
+        await mockFixture.getCodexAcpAgent().prompt({
+            sessionId: "session-id",
+            prompt: [{ type: "text", text: "/status" }],
+        });
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
             "data/command-status-with-rate-limits.json",
         );
