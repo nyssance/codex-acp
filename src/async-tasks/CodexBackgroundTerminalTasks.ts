@@ -1,17 +1,17 @@
-import type {ServerNotification} from "../app-server";
-import type {ThreadItem} from "../app-server/v2";
-import type {ACPSessionConnection} from "../ACPSessionConnection";
-import type {CodexAppServerClient} from "../CodexAppServerClient";
+import type { ServerNotification } from "../app-server";
+import type { ThreadItem } from "../app-server/v2";
+import type { ACPSessionConnection } from "../ACPSessionConnection";
+import type { CodexAppServerClient } from "../CodexAppServerClient";
 import {
     AIR_ASYNC_TASKS_BACKGROUNDED_KEY,
     AIR_ASYNC_TASKS_KEY,
     AIR_META_KEY,
     JETBRAINS_META_KEY,
 } from "../AirExtension";
-import {logger} from "../Logger";
-import type {ThreadBackgroundTerminal} from "./BackgroundTerminalApi";
+import { logger } from "../Logger";
+import type { ThreadBackgroundTerminal } from "./BackgroundTerminalApi";
 
-type CommandExecutionItem = Extract<ThreadItem, {type: "commandExecution"}>;
+type CommandExecutionItem = Extract<ThreadItem, { type: "commandExecution" }>;
 type TerminalState = "completed" | "failed" | "stopped";
 
 type Task = {
@@ -69,18 +69,36 @@ export class CodexBackgroundTerminalTasks {
         const threadId = notificationThreadId(notification);
         if (threadId === null) return;
 
-        if (notification.method === "item/started" && notification.params.item.type === "commandExecution") {
-            this.observeCommandStarted(notification.params.item, threadId, sessionId, commandTitle);
+        if (
+            notification.method === "item/started" &&
+            notification.params.item.type === "commandExecution"
+        ) {
+            this.observeCommandStarted(
+                notification.params.item,
+                threadId,
+                sessionId,
+                commandTitle,
+            );
             return;
         }
-        if (notification.method === "item/completed" && notification.params.item.type === "commandExecution") {
-            await this.observeCommandCompleted(notification.params.item, threadId);
+        if (
+            notification.method === "item/completed" &&
+            notification.params.item.type === "commandExecution"
+        ) {
+            await this.observeCommandCompleted(
+                notification.params.item,
+                threadId,
+            );
             return;
         }
         // Codex sends no event when a command moves to the background or its background process exits, so the
         // adapter lists the background terminals. It does so only while a command of the thread runs. The turn end
         // does not wait for the list: a background task outlives the turn.
-        if (notification.method === "turn/completed" || (notification.method === "item/started" && this.hasRunningTask(threadId))) {
+        if (
+            notification.method === "turn/completed" ||
+            (notification.method === "item/started" &&
+                this.hasRunningTask(threadId))
+        ) {
             this.refresh(threadId, sessionId);
         }
     }
@@ -92,11 +110,16 @@ export class CodexBackgroundTerminalTasks {
         commandTitle?: string,
     ): void {
         if (!this.isActive() || item.processId === null) return;
-        this.remember(threadId, sessionId, {
-            itemId: item.id,
-            processId: item.processId,
-            command: item.command,
-        }, commandTitle);
+        this.remember(
+            threadId,
+            sessionId,
+            {
+                itemId: item.id,
+                processId: item.processId,
+                command: item.command,
+            },
+            commandTitle,
+        );
     }
 
     private async observeCommandCompleted(
@@ -104,19 +127,35 @@ export class CodexBackgroundTerminalTasks {
         threadId: string,
     ): Promise<void> {
         if (!this.isActive()) return;
-        const task = this.tasks.get(wireTaskId(this.rootSessionId, threadId, item.id));
-        if (task) await this.finish(task, item.status === "completed" ? "completed" : "failed");
+        const task = this.tasks.get(
+            wireTaskId(this.rootSessionId, threadId, item.id),
+        );
+        if (task)
+            await this.finish(
+                task,
+                item.status === "completed" ? "completed" : "failed",
+            );
     }
 
-    refresh(threadId: string = this.rootSessionId, sessionId: string = this.rootSessionId): void {
+    refresh(
+        threadId: string = this.rootSessionId,
+        sessionId: string = this.rootSessionId,
+    ): void {
         void this.reconcile(threadId, sessionId);
     }
 
-    async reconcile(threadId: string = this.rootSessionId, sessionId: string = this.rootSessionId): Promise<void> {
+    async reconcile(
+        threadId: string = this.rootSessionId,
+        sessionId: string = this.rootSessionId,
+    ): Promise<void> {
         try {
             await this.sync(threadId, sessionId);
         } catch (error) {
-            if (this.isActive()) logger.error(`Failed to list background terminals for ${threadId}`, error);
+            if (this.isActive())
+                logger.error(
+                    `Failed to list background terminals for ${threadId}`,
+                    error,
+                );
         }
     }
 
@@ -131,16 +170,26 @@ export class CodexBackgroundTerminalTasks {
         this.appServerQueriesEnabled = false;
     }
 
-    async recover(threadId: string, sessionId: string, itemIds: ReadonlySet<string>): Promise<void> {
+    async recover(
+        threadId: string,
+        sessionId: string,
+        itemIds: ReadonlySet<string>,
+    ): Promise<void> {
         if (!this.canQueryAppServer() || itemIds.size === 0) return;
         const snapshot = await this.listAll(threadId);
         if (snapshot === null) return;
         for (const terminal of snapshot.terminals) {
             if (!this.queryIsCurrent(snapshot.generation)) return;
             if (!itemIds.has(terminal.itemId)) continue;
-            if (this.ended.has(wireTaskId(this.rootSessionId, threadId, terminal.itemId))) continue;
+            if (
+                this.ended.has(
+                    wireTaskId(this.rootSessionId, threadId, terminal.itemId),
+                )
+            )
+                continue;
             const task = this.remember(threadId, sessionId, terminal);
-            if (task.publication === "unpublished" && task.state === "running") await this.announce(task);
+            if (task.publication === "unpublished" && task.state === "running")
+                await this.announce(task);
         }
     }
 
@@ -155,7 +204,10 @@ export class CodexBackgroundTerminalTasks {
             }
         }
         if (errors.length > 0) {
-            throw new AggregateError(errors, `Failed to finish ${errors.length} background terminal task(s)`);
+            throw new AggregateError(
+                errors,
+                `Failed to finish ${errors.length} background terminal task(s)`,
+            );
         }
     }
 
@@ -176,9 +228,12 @@ export class CodexBackgroundTerminalTasks {
             sessionId,
             promise: Promise.resolve(),
         };
-        pending.promise = this.syncUntilCurrent(threadId, pending).finally(() => {
-            if (this.syncs.get(threadId) === pending) this.syncs.delete(threadId);
-        });
+        pending.promise = this.syncUntilCurrent(threadId, pending).finally(
+            () => {
+                if (this.syncs.get(threadId) === pending)
+                    this.syncs.delete(threadId);
+            },
+        );
         this.syncs.set(threadId, pending);
         await pending.promise;
     }
@@ -186,7 +241,7 @@ export class CodexBackgroundTerminalTasks {
     async stop(taskId: string): Promise<boolean> {
         if (!this.isActive()) return false;
         const task = this.tasks.get(taskId);
-        if (!task || task.publication !== "published") return false;
+        if (task?.publication !== "published") return false;
         if (task.state === "stopped" && !task.terminalPublished) {
             await this.publishTerminalState(task);
             return true;
@@ -194,10 +249,11 @@ export class CodexBackgroundTerminalTasks {
         if (task.state !== "running") return false;
         task.state = "stopping";
         try {
-            const response = await this.appServer.threadBackgroundTerminalsTerminate({
-                threadId: task.threadId,
-                processId: task.processId,
-            });
+            const response =
+                await this.appServer.threadBackgroundTerminalsTerminate({
+                    threadId: task.threadId,
+                    processId: task.processId,
+                });
             if (!response.terminated) {
                 if (task.state === "stopping") task.state = "running";
                 return false;
@@ -221,7 +277,8 @@ export class CodexBackgroundTerminalTasks {
 
     private hasRunningTask(threadId: string): boolean {
         for (const task of this.tasks.values()) {
-            if (task.threadId === threadId && task.state === "running") return true;
+            if (task.threadId === threadId && task.state === "running")
+                return true;
         }
         return false;
     }
@@ -233,35 +290,55 @@ export class CodexBackgroundTerminalTasks {
         this.ended.set(task.asyncTaskId, task.threadId);
     }
 
-    private async syncThread(threadId: string, sessionId: string): Promise<void> {
+    private async syncThread(
+        threadId: string,
+        sessionId: string,
+    ): Promise<void> {
         const snapshot = await this.listAll(threadId);
-        if (snapshot === null || !this.queryIsCurrent(snapshot.generation)) return;
+        if (snapshot === null || !this.queryIsCurrent(snapshot.generation))
+            return;
 
         const liveTaskIds = new Set<string>();
-        const listedTaskIds = new Set(snapshot.terminals.map(terminal => wireTaskId(this.rootSessionId, threadId, terminal.itemId)));
+        const listedTaskIds = new Set(
+            snapshot.terminals.map((terminal) =>
+                wireTaskId(this.rootSessionId, threadId, terminal.itemId),
+            ),
+        );
         for (const [taskId, taskThreadId] of [...this.ended]) {
-            if (taskThreadId === threadId && !listedTaskIds.has(taskId)) this.ended.delete(taskId);
+            if (taskThreadId === threadId && !listedTaskIds.has(taskId))
+                this.ended.delete(taskId);
         }
         for (const terminal of snapshot.terminals) {
             if (!this.queryIsCurrent(snapshot.generation)) return;
             liveTaskIds.add(terminal.itemId);
-            if (this.ended.has(wireTaskId(this.rootSessionId, threadId, terminal.itemId))) continue;
+            if (
+                this.ended.has(
+                    wireTaskId(this.rootSessionId, threadId, terminal.itemId),
+                )
+            )
+                continue;
             const task = this.remember(threadId, sessionId, terminal);
-            if (task.publication === "unpublished" && task.state === "running") await this.announce(task);
+            if (task.publication === "unpublished" && task.state === "running")
+                await this.announce(task);
         }
 
         for (const task of [...this.tasks.values()]) {
             if (!this.queryIsCurrent(snapshot.generation)) return;
-            if (task.threadId === threadId
-                && task.publication === "published"
-                && (task.state === "running" || task.state === "stopping")
-                && !liveTaskIds.has(task.itemId)) {
+            if (
+                task.threadId === threadId &&
+                task.publication === "published" &&
+                (task.state === "running" || task.state === "stopping") &&
+                !liveTaskIds.has(task.itemId)
+            ) {
                 await this.finish(task, "stopped");
             }
         }
     }
 
-    private async syncUntilCurrent(threadId: string, pending: PendingSync): Promise<void> {
+    private async syncUntilCurrent(
+        threadId: string,
+        pending: PendingSync,
+    ): Promise<void> {
         let hasFailure = false;
         let failure: unknown;
         do {
@@ -306,28 +383,34 @@ export class CodexBackgroundTerminalTasks {
     }
 
     private async publishSpawn(task: Task): Promise<void> {
-        await this.session.update({
-            sessionUpdate: "tool_call_update",
-            toolCallId: task.itemId,
-            _meta: {
-                [JETBRAINS_META_KEY]: {
-                    [AIR_META_KEY]: {
-                        [AIR_ASYNC_TASKS_KEY]: {
-                            [AIR_ASYNC_TASKS_BACKGROUNDED_KEY]: true,
+        await this.session.update(
+            {
+                sessionUpdate: "tool_call_update",
+                toolCallId: task.itemId,
+                _meta: {
+                    [JETBRAINS_META_KEY]: {
+                        [AIR_META_KEY]: {
+                            [AIR_ASYNC_TASKS_KEY]: {
+                                [AIR_ASYNC_TASKS_BACKGROUNDED_KEY]: true,
+                            },
                         },
                     },
                 },
             },
-        }, task.sessionId);
-        await this.session.update({
-            sessionUpdate: "async_task_spawned",
-            asyncTaskId: task.asyncTaskId,
-            name: task.name,
-            taskType: "shell",
-            showInTranscript: false,
-            canStop: true,
-            toolCallId: task.itemId,
-        }, task.sessionId);
+            task.sessionId,
+        );
+        await this.session.update(
+            {
+                sessionUpdate: "async_task_spawned",
+                asyncTaskId: task.asyncTaskId,
+                name: task.name,
+                taskType: "shell",
+                showInTranscript: false,
+                canStop: true,
+                toolCallId: task.itemId,
+            },
+            task.sessionId,
+        );
     }
 
     private remember(
@@ -336,7 +419,11 @@ export class CodexBackgroundTerminalTasks {
         terminal: ThreadBackgroundTerminal,
         commandTitle?: string,
     ): Task {
-        const asyncTaskId = wireTaskId(this.rootSessionId, threadId, terminal.itemId);
+        const asyncTaskId = wireTaskId(
+            this.rootSessionId,
+            threadId,
+            terminal.itemId,
+        );
         const existing = this.tasks.get(asyncTaskId);
         if (existing) {
             existing.processId = terminal.processId;
@@ -367,7 +454,8 @@ export class CodexBackgroundTerminalTasks {
             return;
         }
         if (task.announcement !== null) await task.announcement;
-        if (task.publication === "published") await this.publishTerminalState(task);
+        if (task.publication === "published")
+            await this.publishTerminalState(task);
         else this.forget(task);
     }
 
@@ -377,19 +465,23 @@ export class CodexBackgroundTerminalTasks {
             await task.terminalUpdate;
             return;
         }
-        const terminalUpdate = this.session.update({
-            sessionUpdate: "async_task_state_update",
-            asyncTaskId: task.asyncTaskId,
-            state: task.state,
-            toolCallId: task.itemId,
-        }, task.sessionId);
+        const terminalUpdate = this.session.update(
+            {
+                sessionUpdate: "async_task_state_update",
+                asyncTaskId: task.asyncTaskId,
+                state: task.state,
+                toolCallId: task.itemId,
+            },
+            task.sessionId,
+        );
         task.terminalUpdate = terminalUpdate;
         try {
             await terminalUpdate;
             task.terminalPublished = true;
             this.forget(task);
         } finally {
-            if (task.terminalUpdate === terminalUpdate) task.terminalUpdate = null;
+            if (task.terminalUpdate === terminalUpdate)
+                task.terminalUpdate = null;
         }
     }
 
@@ -409,12 +501,14 @@ export class CodexBackgroundTerminalTasks {
             cursor = response.nextCursor;
             if (cursor !== null) {
                 if (seenCursors.has(cursor)) {
-                    throw new Error("Codex returned a repeated background terminal cursor");
+                    throw new Error(
+                        "Codex returned a repeated background terminal cursor",
+                    );
                 }
                 seenCursors.add(cursor);
             }
         } while (cursor !== null);
-        return {generation, terminals};
+        return { generation, terminals };
     }
 
     private isActive(): boolean {
@@ -426,7 +520,9 @@ export class CodexBackgroundTerminalTasks {
     }
 
     private queryIsCurrent(generation: number): boolean {
-        return this.canQueryAppServer() && generation === this.appServerGeneration;
+        return (
+            this.canQueryAppServer() && generation === this.appServerGeneration
+        );
     }
 }
 
@@ -434,11 +530,15 @@ function isTerminalState(state: Task["state"]): state is TerminalState {
     return state === "completed" || state === "failed" || state === "stopped";
 }
 
-function wireTaskId(rootSessionId: string, threadId: string, itemId: string): string {
+function wireTaskId(
+    rootSessionId: string,
+    threadId: string,
+    itemId: string,
+): string {
     return threadId === rootSessionId ? itemId : `${threadId}:${itemId}`;
 }
 
 function notificationThreadId(notification: ServerNotification): string | null {
-    const threadId = (notification.params as {threadId?: unknown}).threadId;
+    const threadId = (notification.params as { threadId?: unknown }).threadId;
     return typeof threadId === "string" ? threadId : null;
 }

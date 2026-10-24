@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import type { ErrorNotification, TurnCompletedNotification } from "../../app-server/v2";
+import type {
+    ErrorNotification,
+    TurnCompletedNotification,
+} from "../../app-server/v2";
 import type { SessionState } from "../../CodexAcpServer";
 import {
     createCodexMockTestFixture,
@@ -8,9 +11,9 @@ import {
     createTestSessionState,
     deferred,
 } from "../acp-test-utils";
-import {logger} from "../../Logger";
-import type {AcpClientConnection} from "../../ACPSessionConnection";
-import {CodexCommands, type CommandHandleResult} from "../../CodexCommands";
+import { logger } from "../../Logger";
+import type { AcpClientConnection } from "../../ACPSessionConnection";
+import { CodexCommands, type CommandHandleResult } from "../../CodexCommands";
 
 const configuredAuthFailureCases: Array<{
     name: string;
@@ -73,93 +76,196 @@ const configuredAuthFailureCases: Array<{
 ];
 
 const typedFailureCapabilities: acp.ClientCapabilities = {
-    _meta: {jetbrains: {air: {version: 1, capabilities: ["sessionFailure"]}}},
+    _meta: {
+        jetbrains: { air: { version: 1, capabilities: ["sessionFailure"] } },
+    },
 };
 
-const modelRefusalMessage = "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.";
+const modelRefusalMessage =
+    "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.";
 const modelRefusalEnvelope = JSON.stringify({
-    type: "error", status: 400, error: {type: "invalid_request_error", message: modelRefusalMessage},
+    type: "error",
+    status: 400,
+    error: { type: "invalid_request_error", message: modelRefusalMessage },
 });
 
 describe("CodexEventHandler - auth error events", () => {
     it.each([
-        {name: "terminal", retry: false, turnId: "turn-id"},
-        {name: "retry", retry: true, turnId: "turn-id"},
-        {name: "foreign turn", retry: false, turnId: "previous-turn"},
-    ])("reads a known service message for a typed $name failure", async ({retry, turnId}) => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "service-envelope-session", account: {type: "apiKey"},
-        }), {
-            message: modelRefusalEnvelope, codexErrorInfo: "badRequest",
-            additionalDetails: "raw provider diagnostics", misalignment: null,
-        }, retry, typedFailureCapabilities, turnId);
-        const failureContainer = retry || turnId !== "turn-id" ? updates[0] : result;
-        expect(failureContainer).toMatchObject({
-            _meta: {jetbrains: {air: {sessionFailure: {
-                title: modelRefusalMessage, category: "request", severity: retry ? "warning" : "error",
-            }}}},
-        });
-        expect(JSON.stringify({result, updates})).not.toContain(modelRefusalEnvelope);
-    });
+        { name: "terminal", retry: false, turnId: "turn-id" },
+        { name: "retry", retry: true, turnId: "turn-id" },
+        { name: "foreign turn", retry: false, turnId: "previous-turn" },
+    ])(
+        "reads a known service message for a typed $name failure",
+        async ({ retry, turnId }) => {
+            const { result, updates } = await runPromptWithError(
+                createTestSessionState({
+                    sessionId: "service-envelope-session",
+                    account: { type: "apiKey" },
+                }),
+                {
+                    message: modelRefusalEnvelope,
+                    codexErrorInfo: "badRequest",
+                    additionalDetails: "raw provider diagnostics",
+                    misalignment: null,
+                },
+                retry,
+                typedFailureCapabilities,
+                turnId,
+            );
+            const failureContainer =
+                retry || turnId !== "turn-id" ? updates[0] : result;
+            expect(failureContainer).toMatchObject({
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            sessionFailure: {
+                                title: modelRefusalMessage,
+                                category: "request",
+                                severity: retry ? "warning" : "error",
+                            },
+                        },
+                    },
+                },
+            });
+            expect(JSON.stringify({ result, updates })).not.toContain(
+                modelRefusalEnvelope,
+            );
+        },
+    );
 
-    it.each([false, true])("reads a known service message after a turn ends (retry=%s)", async willRetry => {
-        const state = createTestSessionState({sessionId: "late-service-envelope", account: {type: "apiKey"}});
-        const updates: unknown[] = [];
-        const connection = {
-            notify: vi.fn(async (_method: unknown, params: {update: unknown}) => updates.push(params.update)),
-        } as unknown as AcpClientConnection;
-        const handler = createTestEventHandler(connection, state, {typedSessionFailures: true});
-        const notification = {
-            method: "error" as const,
-            params: {
-                threadId: state.sessionId, turnId: "completed-turn", willRetry,
-                error: {message: modelRefusalEnvelope, codexErrorInfo: "badRequest" as const,
-                    additionalDetails: "raw provider diagnostics", misalignment: null},
-            },
-        };
-        await handler.handleSessionScopedNotification(notification);
-        expect(updates).toEqual([expect.objectContaining({
-            _meta: {jetbrains: {air: expect.objectContaining({sessionFailure: expect.objectContaining({
-                title: modelRefusalMessage, severity: willRetry ? "warning" : "error",
-            })})}},
-        })]);
-        expect(notification.params.error.message).toBe(modelRefusalEnvelope);
-        expect(notification.params.error.additionalDetails).toBe("raw provider diagnostics");
-    });
+    it.each([false, true])(
+        "reads a known service message after a turn ends (retry=%s)",
+        async (willRetry) => {
+            const state = createTestSessionState({
+                sessionId: "late-service-envelope",
+                account: { type: "apiKey" },
+            });
+            const updates: unknown[] = [];
+            const connection = {
+                notify: vi.fn(
+                    async (_method: unknown, params: { update: unknown }) =>
+                        updates.push(params.update),
+                ),
+            } as unknown as AcpClientConnection;
+            const handler = createTestEventHandler(connection, state, {
+                typedSessionFailures: true,
+            });
+            const notification = {
+                method: "error" as const,
+                params: {
+                    threadId: state.sessionId,
+                    turnId: "completed-turn",
+                    willRetry,
+                    error: {
+                        message: modelRefusalEnvelope,
+                        codexErrorInfo: "badRequest" as const,
+                        additionalDetails: "raw provider diagnostics",
+                        misalignment: null,
+                    },
+                },
+            };
+            await handler.handleSessionScopedNotification(notification);
+            expect(updates).toEqual([
+                expect.objectContaining({
+                    _meta: {
+                        jetbrains: {
+                            air: expect.objectContaining({
+                                sessionFailure: expect.objectContaining({
+                                    title: modelRefusalMessage,
+                                    severity: willRetry ? "warning" : "error",
+                                }),
+                            }),
+                        },
+                    },
+                }),
+            ]);
+            expect(notification.params.error.message).toBe(
+                modelRefusalEnvelope,
+            );
+            expect(notification.params.error.additionalDetails).toBe(
+                "raw provider diagnostics",
+            );
+        },
+    );
 
     it("reads the legacy error text and keeps the raw request error diagnostics", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "legacy-service-envelope", account: {type: "apiKey"},
-        }), {
-            message: modelRefusalEnvelope, codexErrorInfo: "usageLimitExceeded", additionalDetails: null, misalignment: null,
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "legacy-service-envelope",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: modelRefusalEnvelope,
+                codexErrorInfo: "usageLimitExceeded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+        );
+        expect(updates).toEqual([
+            expect.objectContaining({
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: `${modelRefusalMessage}\n\n` },
+            }),
+        ]);
+        expect(result).toMatchObject({
+            data: {
+                message: modelRefusalEnvelope,
+                codexErrorInfo: "usageLimitExceeded",
+            },
         });
-        expect(updates).toEqual([expect.objectContaining({
-            sessionUpdate: "agent_message_chunk", content: {type: "text", text: `${modelRefusalMessage}\n\n`},
-        })]);
-        expect(result).toMatchObject({data: {message: modelRefusalEnvelope, codexErrorInfo: "usageLimitExceeded"}});
     });
 
     it.each([
-        "Plain error", "", "{invalid JSON}",
-        JSON.stringify({type: "error", status: 400, error: {type: "custom_error", message: "custom text"}}),
-        JSON.stringify({type: "error", status: 400, error: {type: "invalid_request_error", message: ""}}),
-    ])("keeps custom or malformed typed failure text: %s", async message => {
-        const {result} = await runPromptWithError(createTestSessionState({
-            sessionId: "custom-error-session", account: {type: "apiKey"},
-        }), {message, codexErrorInfo: "badRequest", additionalDetails: null, misalignment: null}, false, typedFailureCapabilities);
-        expect(result).toMatchObject({_meta: {jetbrains: {air: {sessionFailure: {title: message}}}}});
+        "Plain error",
+        "",
+        "{invalid JSON}",
+        JSON.stringify({
+            type: "error",
+            status: 400,
+            error: { type: "custom_error", message: "custom text" },
+        }),
+        JSON.stringify({
+            type: "error",
+            status: 400,
+            error: { type: "invalid_request_error", message: "" },
+        }),
+    ])("keeps custom or malformed typed failure text: %s", async (message) => {
+        const { result } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "custom-error-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message,
+                codexErrorInfo: "badRequest",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+        );
+        expect(result).toMatchObject({
+            _meta: {
+                jetbrains: { air: { sessionFailure: { title: message } } },
+            },
+        });
     });
 
     it("publishes a typed terminal failure instead of assistant text when AIR negotiated it", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "typed-failure-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "Codex is temporarily overloaded.",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: "secret raw details",
-            misalignment: null,
-        }, false, typedFailureCapabilities);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "typed-failure-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Codex is temporarily overloaded.",
+                codexErrorInfo: "serverOverloaded",
+                additionalDetails: "secret raw details",
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+        );
 
         expect(result).toMatchObject({
             stopReason: "end_turn",
@@ -182,71 +288,122 @@ describe("CodexEventHandler - auth error events", () => {
         expect(JSON.stringify(result)).not.toContain("secret raw details");
         expect(updates).toEqual([]);
 
-        const wire = JSON.parse(JSON.stringify({jsonrpc: "2.0", id: 1, result}));
+        const serialized = JSON.stringify({ jsonrpc: "2.0", id: 1, result });
+        const wire = JSON.parse(serialized);
         expect(wire.result._meta.jetbrains.air.sessionFailure).toEqual(
-            expect.objectContaining({id: "turn-id:error", category: "service"}),
+            expect.objectContaining({
+                id: "turn-id:error",
+                category: "service",
+            }),
         );
     });
 
     it("does not attach a foreign turn failure to the active prompt", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "foreign-turn-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "Codex could not complete the previous turn.",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: "secret foreign-turn details",
-            misalignment: null,
-        }, false, typedFailureCapabilities, "foreign-turn");
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "foreign-turn-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Codex could not complete the previous turn.",
+                codexErrorInfo: "serverOverloaded",
+                additionalDetails: "secret foreign-turn details",
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "foreign-turn",
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
-        expect(JSON.stringify(updates)).not.toContain("secret foreign-turn details");
-        expect(updates).toEqual([expect.objectContaining({
-            sessionUpdate: "session_info_update",
-            _meta: {jetbrains: {air: expect.objectContaining({sessionFailure: expect.objectContaining({
-                id: "foreign-turn:error",
-                category: "service",
-                severity: "error",
-            })})}},
-        })]);
+        expect(result).toMatchObject({ stopReason: "end_turn" });
+        expect(JSON.stringify(updates)).not.toContain(
+            "secret foreign-turn details",
+        );
+        expect(updates).toEqual([
+            expect.objectContaining({
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: expect.objectContaining({
+                            sessionFailure: expect.objectContaining({
+                                id: "foreign-turn:error",
+                                category: "service",
+                                severity: "error",
+                            }),
+                        }),
+                    },
+                },
+            }),
+        ]);
     });
 
     it("does not attach a foreign error that arrives before the active turn id", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "early-foreign-turn-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "a delayed previous turn failure",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities, "foreign-turn", true);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "early-foreign-turn-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "a delayed previous turn failure",
+                codexErrorInfo: "serverOverloaded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "foreign-turn",
+            true,
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
-        expect(updates).toEqual([expect.objectContaining({
-            sessionUpdate: "session_info_update",
-            _meta: {jetbrains: {air: expect.objectContaining({sessionFailure: expect.objectContaining({
-                id: "foreign-turn:error",
-                category: "service",
-            })})}},
-        })]);
+        expect(result).toMatchObject({ stopReason: "end_turn" });
+        expect(updates).toEqual([
+            expect.objectContaining({
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: expect.objectContaining({
+                            sessionFailure: expect.objectContaining({
+                                id: "foreign-turn:error",
+                                category: "service",
+                            }),
+                        }),
+                    },
+                },
+            }),
+        ]);
     });
 
     it("buffers a current-turn error until the active turn id is known", async () => {
         const log = vi.spyOn(logger, "log");
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "early-current-turn-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "current turn failed early",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities, "turn-id", true);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "early-current-turn-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "current turn failed early",
+                codexErrorInfo: "serverOverloaded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "turn-id",
+            true,
+        );
 
         expect(result).toMatchObject({
             stopReason: "end_turn",
-            _meta: {jetbrains: {air: {sessionFailure: {id: "turn-id:error", category: "service"}}}},
+            _meta: {
+                jetbrains: {
+                    air: {
+                        sessionFailure: {
+                            id: "turn-id:error",
+                            category: "service",
+                        },
+                    },
+                },
+            },
         });
         expect(updates).toEqual([]);
         const logText = JSON.stringify(log.mock.calls);
@@ -256,122 +413,171 @@ describe("CodexEventHandler - auth error events", () => {
     });
 
     it("publishes an inline warning while Codex will retry", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "typed-retrying-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "Reconnecting... 1/5",
-            codexErrorInfo: {responseStreamDisconnected: {httpStatusCode: null}},
-            additionalDetails: "secret retry details",
-            misalignment: null,
-        }, true, typedFailureCapabilities);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "typed-retrying-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Reconnecting... 1/5",
+                codexErrorInfo: {
+                    responseStreamDisconnected: { httpStatusCode: null },
+                },
+                additionalDetails: "secret retry details",
+                misalignment: null,
+            },
+            true,
+            typedFailureCapabilities,
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
+        expect(result).toMatchObject({ stopReason: "end_turn" });
         expect(JSON.stringify(updates)).not.toContain("secret retry details");
-        expect(updates).toEqual([{
-            sessionUpdate: "session_info_update",
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        sessionFailure: {
-                            id: "turn-id:error",
-                            revision: 1,
-                            category: "connection",
-                            severity: "warning",
-                            title: "Reconnecting... 1/5",
-                            actions: [],
+        expect(updates).toEqual([
+            {
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            version: 1,
+                            sessionFailure: {
+                                id: "turn-id:error",
+                                revision: 1,
+                                category: "connection",
+                                severity: "warning",
+                                title: "Reconnecting... 1/5",
+                                actions: [],
+                            },
                         },
                     },
                 },
             },
-        }]);
+        ]);
     });
 
     it("publishes a safe rate-limit diagnostic while Codex retries HTTP 429", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "typed-rate-limit-retry-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "Rate limit reached. Please try again later.",
-            codexErrorInfo: {responseStreamDisconnected: {httpStatusCode: 429}},
-            additionalDetails: "secret rate-limit details",
-            misalignment: null,
-        }, true, typedFailureCapabilities);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "typed-rate-limit-retry-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Rate limit reached. Please try again later.",
+                codexErrorInfo: {
+                    responseStreamDisconnected: { httpStatusCode: 429 },
+                },
+                additionalDetails: "secret rate-limit details",
+                misalignment: null,
+            },
+            true,
+            typedFailureCapabilities,
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
-        expect(JSON.stringify(updates)).not.toContain("secret rate-limit details");
-        expect(updates).toEqual([{
-            sessionUpdate: "session_info_update",
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        sessionFailure: {
-                            id: "turn-id:error",
-                            revision: 1,
-                            category: "limit",
-                            severity: "warning",
-                            title: "Rate limit reached. Please try again later.",
-                            actions: [],
+        expect(result).toMatchObject({ stopReason: "end_turn" });
+        expect(JSON.stringify(updates)).not.toContain(
+            "secret rate-limit details",
+        );
+        expect(updates).toEqual([
+            {
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            version: 1,
+                            sessionFailure: {
+                                id: "turn-id:error",
+                                revision: 1,
+                                category: "limit",
+                                severity: "warning",
+                                title: "Rate limit reached. Please try again later.",
+                                actions: [],
+                            },
                         },
                     },
                 },
             },
-        }]);
+        ]);
     });
 
     it("uses the ACP login error without forwarding provider details", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "typed-auth-session",
-            account: null,
-            authConfigured: false,
-        }), {
-            message: "Authentication required",
-            codexErrorInfo: "unauthorized",
-            additionalDetails: "secret authentication details",
-            misalignment: null,
-        }, false, typedFailureCapabilities);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "typed-auth-session",
+                account: null,
+                authConfigured: false,
+            }),
+            {
+                message: "Authentication required",
+                codexErrorInfo: "unauthorized",
+                additionalDetails: "secret authentication details",
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+        );
 
-        expect(result).toMatchObject({code: -32000, message: "Authentication required"});
-        expect(JSON.stringify(result)).not.toContain("secret authentication details");
+        expect(result).toMatchObject({
+            code: -32000,
+            message: "Authentication required",
+        });
+        expect(JSON.stringify(result)).not.toContain(
+            "secret authentication details",
+        );
         expect(JSON.stringify(result)).not.toContain("sessionFailure");
         expect(updates).toEqual([]);
     });
 
     it("does not forward an auth error from another turn", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "foreign-auth-session",
-            account: {type: "apiKey"},
-        }), {
-            message: "Sign in to continue",
-            codexErrorInfo: "unauthorized",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities, "foreign-turn");
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "foreign-auth-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Sign in to continue",
+                codexErrorInfo: "unauthorized",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "foreign-turn",
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
+        expect(result).toMatchObject({ stopReason: "end_turn" });
         expect(updates).toEqual([]);
     });
 
     it("uses the ACP login error when auth arrives before the turn id", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "early-auth-session",
-            account: {type: "apiKey"},
-        }), {
-            message: "Sign in to continue",
-            codexErrorInfo: "unauthorized",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities, "turn-id", true);
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "early-auth-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Sign in to continue",
+                codexErrorInfo: "unauthorized",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "turn-id",
+            true,
+        );
 
-        expect(result).toMatchObject({code: -32000, message: "Authentication required"});
+        expect(result).toMatchObject({
+            code: -32000,
+            message: "Authentication required",
+        });
         expect(updates).toEqual([]);
     });
 
     it("uses the ACP login error when only the failed turn reports auth", async () => {
-        const {result, updates} = await runPromptWithCompletedTurn(
-            createTestSessionState({sessionId: "completion-auth-session", account: {type: "apiKey"}}),
+        const { result, updates } = await runPromptWithCompletedTurn(
+            createTestSessionState({
+                sessionId: "completion-auth-session",
+                account: { type: "apiKey" },
+            }),
             typedFailureCapabilities,
             createTurn("failed", "turn-id", {
                 message: "Sign in to continue",
@@ -381,47 +587,86 @@ describe("CodexEventHandler - auth error events", () => {
             }),
         );
 
-        expect(result).toMatchObject({code: -32000, message: "Authentication required"});
-        expect(updates).toEqual([]);
-    });
-
-    it("accepts a newer additive typed-failure capability version", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "newer-capability-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "Codex is temporarily overloaded.",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, {_meta: {jetbrains: {air: {version: 2, capabilities: ["sessionFailure"]}}}});
-
         expect(result).toMatchObject({
-            stopReason: "end_turn",
-            _meta: {jetbrains: {air: {version: 1, sessionFailure: {category: "service"}}}},
+            code: -32000,
+            message: "Authentication required",
         });
         expect(updates).toEqual([]);
     });
 
-    it.each([null, "1", 1.1, 0, -1])("ignores malformed AIR capability version %s", async (version) => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: `malformed-version-${String(version)}`,
-            account: {type: "apiKey"},
-        }), {
-            message: "legacy fallback",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, {_meta: {jetbrains: {air: {version, capabilities: ["sessionFailure"]}}}} as acp.ClientCapabilities);
+    it("accepts a newer additive typed-failure capability version", async () => {
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "newer-capability-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Codex is temporarily overloaded.",
+                codexErrorInfo: "serverOverloaded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            {
+                _meta: {
+                    jetbrains: {
+                        air: { version: 2, capabilities: ["sessionFailure"] },
+                    },
+                },
+            },
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
-        expect(JSON.stringify(result)).not.toContain("sessionFailure");
-        expect(updates).toEqual([expect.objectContaining({sessionUpdate: "agent_message_chunk"})]);
+        expect(result).toMatchObject({
+            stopReason: "end_turn",
+            _meta: {
+                jetbrains: {
+                    air: {
+                        version: 1,
+                        sessionFailure: { category: "service" },
+                    },
+                },
+            },
+        });
+        expect(updates).toEqual([]);
     });
 
+    it.each([null, "1", 1.1, 0, -1])(
+        "ignores malformed AIR capability version %s",
+        async (version) => {
+            const { result, updates } = await runPromptWithError(
+                createTestSessionState({
+                    sessionId: `malformed-version-${String(version)}`,
+                    account: { type: "apiKey" },
+                }),
+                {
+                    message: "legacy fallback",
+                    codexErrorInfo: "serverOverloaded",
+                    additionalDetails: null,
+                    misalignment: null,
+                },
+                false,
+                {
+                    _meta: {
+                        jetbrains: {
+                            air: { version, capabilities: ["sessionFailure"] },
+                        },
+                    },
+                } as acp.ClientCapabilities,
+            );
+
+            expect(result).toMatchObject({ stopReason: "end_turn" });
+            expect(JSON.stringify(result)).not.toContain("sessionFailure");
+            expect(updates).toEqual([
+                expect.objectContaining({
+                    sessionUpdate: "agent_message_chunk",
+                }),
+            ]);
+        },
+    );
+
     it.each([
-        ["connection", {responseStreamDisconnected: {httpStatusCode: 503}}],
-        ["limit", {responseStreamDisconnected: {httpStatusCode: 429}}],
+        ["connection", { responseStreamDisconnected: { httpStatusCode: 503 } }],
+        ["limit", { responseStreamDisconnected: { httpStatusCode: 429 } }],
         ["limit", "usageLimitExceeded"],
         ["service", "serverOverloaded"],
         ["service", "flexUnavailable"],
@@ -434,26 +679,40 @@ describe("CodexEventHandler - auth error events", () => {
         ["service", "sandboxError"],
         ["service", "tooManyDenials"],
         ["service", "other"],
-        ["connection", {httpConnectionFailed: {httpStatusCode: null}}],
-        ["connection", {responseStreamConnectionFailed: {httpStatusCode: 503}}],
-        ["connection", {responseTooManyFailedAttempts: {httpStatusCode: 503}}],
-        ["service", {activeTurnNotSteerable: {turnKind: "review"}}],
-    ] as const)("maps a terminal Codex error to %s", async (category, codexErrorInfo) => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: `category-${category}`,
-            account: { type: "apiKey" },
-        }), {
-            message: "raw error",
-            codexErrorInfo,
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities);
+        ["connection", { httpConnectionFailed: { httpStatusCode: null } }],
+        [
+            "connection",
+            { responseStreamConnectionFailed: { httpStatusCode: 503 } },
+        ],
+        [
+            "connection",
+            { responseTooManyFailedAttempts: { httpStatusCode: 503 } },
+        ],
+        ["service", { activeTurnNotSteerable: { turnKind: "review" } }],
+    ] as const)(
+        "maps a terminal Codex error to %s",
+        async (category, codexErrorInfo) => {
+            const { result, updates } = await runPromptWithError(
+                createTestSessionState({
+                    sessionId: `category-${category}`,
+                    account: { type: "apiKey" },
+                }),
+                {
+                    message: "raw error",
+                    codexErrorInfo,
+                    additionalDetails: null,
+                    misalignment: null,
+                },
+                false,
+                typedFailureCapabilities,
+            );
 
-        expect(result).toMatchObject({
-            _meta: {jetbrains: {air: {sessionFailure: {category}}}},
-        });
-        expect(updates).toEqual([]);
-    });
+            expect(result).toMatchObject({
+                _meta: { jetbrains: { air: { sessionFailure: { category } } } },
+            });
+            expect(updates).toEqual([]);
+        },
+    );
 
     it("keeps a historical failure and clears only producer runtime state after recovery", async () => {
         const sessionState = createTestSessionState({
@@ -469,9 +728,12 @@ describe("CodexEventHandler - auth error events", () => {
             },
         });
 
-        const {result, updates} = await runSuccessfulPrompt(sessionState, typedFailureCapabilities);
+        const { result, updates } = await runSuccessfulPrompt(
+            sessionState,
+            typedFailureCapabilities,
+        );
 
-        expect(result).toMatchObject({stopReason: "end_turn"});
+        expect(result).toMatchObject({ stopReason: "end_turn" });
         expect(updates).toEqual([]);
         expect(sessionState.sessionFailure).toBeUndefined();
     });
@@ -479,31 +741,63 @@ describe("CodexEventHandler - auth error events", () => {
     it("uses a new failure id for each failed turn", async () => {
         const sessionState = createTestSessionState({
             sessionId: "retry-chain-session",
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
         });
 
-        const first = await runPromptWithError(sessionState, {
-            message: "first failure",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities, "turn-1", false, "turn-1");
-        const second = await runPromptWithError(sessionState, {
-            message: "second failure",
-            codexErrorInfo: "internalServerError",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities, "turn-2", false, "turn-2");
-        const recovered = await runSuccessfulPrompt(sessionState, typedFailureCapabilities, "turn-3");
+        const first = await runPromptWithError(
+            sessionState,
+            {
+                message: "first failure",
+                codexErrorInfo: "serverOverloaded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "turn-1",
+            false,
+            "turn-1",
+        );
+        const second = await runPromptWithError(
+            sessionState,
+            {
+                message: "second failure",
+                codexErrorInfo: "internalServerError",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+            "turn-2",
+            false,
+            "turn-2",
+        );
+        const recovered = await runSuccessfulPrompt(
+            sessionState,
+            typedFailureCapabilities,
+            "turn-3",
+        );
 
         expect(first.result).toMatchObject({
-            _meta: {jetbrains: {air: {sessionFailure: {id: "turn-1:error", revision: 1}}}},
+            _meta: {
+                jetbrains: {
+                    air: {
+                        sessionFailure: { id: "turn-1:error", revision: 1 },
+                    },
+                },
+            },
         });
         expect(second.result).toMatchObject({
-            _meta: {jetbrains: {air: {sessionFailure: {
-                id: "turn-2:error",
-                revision: 1,
-            }}}},
+            _meta: {
+                jetbrains: {
+                    air: {
+                        sessionFailure: {
+                            id: "turn-2:error",
+                            revision: 1,
+                        },
+                    },
+                },
+            },
         });
         expect(first.updates).toEqual([]);
         expect(second.updates).toEqual([]);
@@ -513,9 +807,9 @@ describe("CodexEventHandler - auth error events", () => {
     it("publishes a typed failure when a failed completion has no error notification", async () => {
         const sessionState = createTestSessionState({
             sessionId: "failed-completion-session",
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
         });
-        const {result, updates} = await runPromptWithCompletedTurn(
+        const { result, updates } = await runPromptWithCompletedTurn(
             sessionState,
             typedFailureCapabilities,
             createTurn("failed", "failed-turn", {
@@ -528,13 +822,21 @@ describe("CodexEventHandler - auth error events", () => {
 
         expect(result).toMatchObject({
             stopReason: "end_turn",
-            _meta: {jetbrains: {air: {sessionFailure: {
-                id: "failed-turn:error",
-                category: "service",
-            }}}},
+            _meta: {
+                jetbrains: {
+                    air: {
+                        sessionFailure: {
+                            id: "failed-turn:error",
+                            category: "service",
+                        },
+                    },
+                },
+            },
         });
         expect(updates).toEqual([]);
-        expect(JSON.stringify(result)).not.toContain("secret completion details");
+        expect(JSON.stringify(result)).not.toContain(
+            "secret completion details",
+        );
     });
 
     it("publishes a late idle error through the session-scoped subscription", async () => {
@@ -543,13 +845,15 @@ describe("CodexEventHandler - auth error events", () => {
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
         const sessionState = createTestSessionState({
             sessionId: "idle-error-session",
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
         });
         await codexAcpAgent.initialize({
             protocolVersion: acp.PROTOCOL_VERSION,
             clientCapabilities: typedFailureCapabilities,
         });
-        vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(sessionState);
+        vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(
+            sessionState,
+        );
         vi.spyOn(codexAppServerClient, "turnStart").mockResolvedValue({
             turn: createTurn("inProgress", "completed-turn"),
         });
@@ -560,7 +864,7 @@ describe("CodexEventHandler - auth error events", () => {
 
         await codexAcpAgent.prompt({
             sessionId: sessionState.sessionId,
-            prompt: [{type: "text", text: "finish before the late error"}],
+            prompt: [{ type: "text", text: "finish before the late error" }],
         });
         mockFixture.clearAcpConnectionDump();
 
@@ -578,27 +882,34 @@ describe("CodexEventHandler - auth error events", () => {
                 },
             },
         });
-        await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
+        await mockFixture
+            .getCodexAcpClient()
+            .waitForSessionNotifications(sessionState.sessionId);
 
-        const updates = mockFixture.getAcpConnectionEvents([]).filter(event => event.args[0]?.update !== undefined).map(event => event.args[0].update);
-        expect(updates).toEqual([{
-            sessionUpdate: "session_info_update",
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        sessionFailure: {
-                            id: "completed-turn:error",
-                            revision: 1,
-                            category: "service",
-                            severity: "error",
-                            title: "Codex is temporarily overloaded.",
-                            actions: ["retry"],
+        const updates = mockFixture
+            .getAcpConnectionEvents([])
+            .filter((event) => event.args[0]?.update !== undefined)
+            .map((event) => event.args[0].update);
+        expect(updates).toEqual([
+            {
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            version: 1,
+                            sessionFailure: {
+                                id: "completed-turn:error",
+                                revision: 1,
+                                category: "service",
+                                severity: "error",
+                                title: "Codex is temporarily overloaded.",
+                                actions: ["retry"],
+                            },
                         },
                     },
                 },
             },
-        }]);
+        ]);
         expect(JSON.stringify(updates)).not.toContain("secret late details");
     });
 
@@ -608,13 +919,15 @@ describe("CodexEventHandler - auth error events", () => {
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
         const sessionState = createTestSessionState({
             sessionId: "idle-retry-session",
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
         });
         await codexAcpAgent.initialize({
             protocolVersion: acp.PROTOCOL_VERSION,
             clientCapabilities: typedFailureCapabilities,
         });
-        vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(sessionState);
+        vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(
+            sessionState,
+        );
         vi.spyOn(codexAppServerClient, "turnStart").mockResolvedValue({
             turn: createTurn("inProgress", "completed-turn"),
         });
@@ -624,7 +937,7 @@ describe("CodexEventHandler - auth error events", () => {
         });
         await codexAcpAgent.prompt({
             sessionId: sessionState.sessionId,
-            prompt: [{type: "text", text: "finish before retry diagnostic"}],
+            prompt: [{ type: "text", text: "finish before retry diagnostic" }],
         });
         mockFixture.clearAcpConnectionDump();
 
@@ -636,57 +949,72 @@ describe("CodexEventHandler - auth error events", () => {
                 willRetry: true,
                 error: {
                     message: "Reconnecting... 1/5",
-                    codexErrorInfo: {responseStreamDisconnected: {httpStatusCode: null}},
+                    codexErrorInfo: {
+                        responseStreamDisconnected: { httpStatusCode: null },
+                    },
                     additionalDetails: "secret retry detail",
                     misalignment: null,
                 },
             },
         });
-        await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
+        await mockFixture
+            .getCodexAcpClient()
+            .waitForSessionNotifications(sessionState.sessionId);
 
-        const updates = mockFixture.getAcpConnectionEvents([]).filter(event => event.args[0]?.update !== undefined).map(event => event.args[0].update);
-        expect(updates).toEqual([{
-            sessionUpdate: "session_info_update",
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        sessionFailure: {
-                            id: "completed-turn:error",
-                            revision: 1,
-                            category: "connection",
-                            severity: "warning",
-                            title: "Reconnecting... 1/5",
-                            actions: [],
+        const updates = mockFixture
+            .getAcpConnectionEvents([])
+            .filter((event) => event.args[0]?.update !== undefined)
+            .map((event) => event.args[0].update);
+        expect(updates).toEqual([
+            {
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            version: 1,
+                            sessionFailure: {
+                                id: "completed-turn:error",
+                                revision: 1,
+                                category: "connection",
+                                severity: "warning",
+                                title: "Reconnecting... 1/5",
+                                actions: [],
+                            },
                         },
                     },
                 },
             },
-        }]);
-        expect(sessionState.sessionFailure).toMatchObject({id: "completed-turn:error", severity: "warning"});
+        ]);
+        expect(sessionState.sessionFailure).toMatchObject({
+            id: "completed-turn:error",
+            severity: "warning",
+        });
         expect(JSON.stringify(updates)).not.toContain("secret retry detail");
     });
 
     it("drains a terminal error that arrives during a local slash command", async () => {
         const commandResult = deferred<CommandHandleResult>();
-        const commandSpy = vi.spyOn(CodexCommands.prototype, "tryHandleCommand")
+        const commandSpy = vi
+            .spyOn(CodexCommands.prototype, "tryHandleCommand")
             .mockReturnValue(commandResult.promise);
         try {
             const mockFixture = createCodexMockTestFixture();
             const codexAcpAgent = mockFixture.getCodexAcpAgent();
             const sessionState = createTestSessionState({
                 sessionId: "local-command-error-session",
-                account: {type: "apiKey"},
+                account: { type: "apiKey" },
             });
             await codexAcpAgent.initialize({
                 protocolVersion: acp.PROTOCOL_VERSION,
                 clientCapabilities: typedFailureCapabilities,
             });
-            vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(sessionState);
+            vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(
+                sessionState,
+            );
 
             const promptPromise = codexAcpAgent.prompt({
                 sessionId: sessionState.sessionId,
-                prompt: [{type: "text", text: "/status"}],
+                prompt: [{ type: "text", text: "/status" }],
             });
             await vi.waitFor(() => expect(commandSpy).toHaveBeenCalled());
             mockFixture.sendServerNotification({
@@ -703,33 +1031,47 @@ describe("CodexEventHandler - auth error events", () => {
                     },
                 },
             });
-            await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
+            await mockFixture
+                .getCodexAcpClient()
+                .waitForSessionNotifications(sessionState.sessionId);
             expect(sessionState.sessionFailure).toBeUndefined();
 
-            commandResult.resolve({handled: true});
-            await expect(promptPromise).resolves.toMatchObject({stopReason: "end_turn"});
+            commandResult.resolve({ handled: true });
+            await expect(promptPromise).resolves.toMatchObject({
+                stopReason: "end_turn",
+            });
 
-            const updates = mockFixture.getAcpConnectionEvents([]).filter(event => event.args[0]?.update !== undefined).map(event => event.args[0].update);
-            expect(updates).toEqual([{
-                sessionUpdate: "session_info_update",
-                _meta: {
-                    jetbrains: {
-                        air: {
-                            version: 1,
-                            sessionFailure: {
-                                id: "late-provider-turn:error",
-                                revision: 1,
-                                category: "service",
-                                severity: "error",
-                                title: "Codex is temporarily overloaded.",
-                                actions: ["retry"],
+            const updates = mockFixture
+                .getAcpConnectionEvents([])
+                .filter((event) => event.args[0]?.update !== undefined)
+                .map((event) => event.args[0].update);
+            expect(updates).toEqual([
+                {
+                    sessionUpdate: "session_info_update",
+                    _meta: {
+                        jetbrains: {
+                            air: {
+                                version: 1,
+                                sessionFailure: {
+                                    id: "late-provider-turn:error",
+                                    revision: 1,
+                                    category: "service",
+                                    severity: "error",
+                                    title: "Codex is temporarily overloaded.",
+                                    actions: ["retry"],
+                                },
                             },
                         },
                     },
                 },
-            }]);
-            expect(sessionState.sessionFailure).toMatchObject({severity: "error", revision: 1});
-            expect(JSON.stringify(updates)).not.toContain("secret slash command detail");
+            ]);
+            expect(sessionState.sessionFailure).toMatchObject({
+                severity: "error",
+                revision: 1,
+            });
+            expect(JSON.stringify(updates)).not.toContain(
+                "secret slash command detail",
+            );
         } finally {
             commandSpy.mockRestore();
         }
@@ -739,15 +1081,22 @@ describe("CodexEventHandler - auth error events", () => {
         const createFailureId = async (): Promise<string> => {
             const state = createTestSessionState({
                 sessionId: "restored-session",
-                account: {type: "apiKey"},
+                account: { type: "apiKey" },
             });
-            const updates: Array<{_meta?: Record<string, unknown>}> = [];
+            const updates: Array<{ _meta?: Record<string, unknown> }> = [];
             const connection = {
-                notify: vi.fn(async (_method: unknown, params: {update: {_meta?: Record<string, unknown>}}) => {
-                    updates.push(params.update);
-                }),
+                notify: vi.fn(
+                    async (
+                        _method: unknown,
+                        params: { update: { _meta?: Record<string, unknown> } },
+                    ) => {
+                        updates.push(params.update);
+                    },
+                ),
             } as unknown as AcpClientConnection;
-            const handler = createTestEventHandler(connection, state, {typedSessionFailures: true});
+            const handler = createTestEventHandler(connection, state, {
+                typedSessionFailures: true,
+            });
             await handler.handleSessionScopedNotification({
                 method: "error",
                 params: {
@@ -762,9 +1111,11 @@ describe("CodexEventHandler - auth error events", () => {
                     },
                 },
             });
-            return (updates[0]!._meta as {
-                jetbrains: {air: {sessionFailure: {id: string}}};
-            }).jetbrains.air.sessionFailure.id;
+            return (
+                updates[0]!._meta as {
+                    jetbrains: { air: { sessionFailure: { id: string } } };
+                }
+            ).jetbrains.air.sessionFailure.id;
         };
 
         const firstId = await createFailureId();
@@ -775,18 +1126,27 @@ describe("CodexEventHandler - auth error events", () => {
     });
 
     it("does not recommend a new session for an exhausted account usage quota", async () => {
-        const {result} = await runPromptWithError(createTestSessionState({
-            sessionId: "usage-quota-actions-session",
-            account: {type: "apiKey"},
-        }), {
-            message: "You have no usage left.",
-            codexErrorInfo: "usageLimitExceeded",
-            additionalDetails: null,
-            misalignment: null,
-        }, false, typedFailureCapabilities);
+        const { result } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "usage-quota-actions-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "You have no usage left.",
+                codexErrorInfo: "usageLimitExceeded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+            false,
+            typedFailureCapabilities,
+        );
 
         expect(result).toMatchObject({
-            _meta: {jetbrains: {air: {sessionFailure: {category: "limit", actions: []}}}},
+            _meta: {
+                jetbrains: {
+                    air: { sessionFailure: { category: "limit", actions: [] } },
+                },
+            },
         });
     });
 
@@ -794,15 +1154,22 @@ describe("CodexEventHandler - auth error events", () => {
         const state = createTestSessionState({
             sessionId: "two-reconnect-incidents",
             currentTurnId: "turn-id",
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
         });
-        const updates: Array<{_meta?: Record<string, unknown>}> = [];
+        const updates: Array<{ _meta?: Record<string, unknown> }> = [];
         const connection = {
-            notify: vi.fn(async (_method: unknown, params: {update: {_meta?: Record<string, unknown>}}) => {
-                updates.push(params.update);
-            }),
+            notify: vi.fn(
+                async (
+                    _method: unknown,
+                    params: { update: { _meta?: Record<string, unknown> } },
+                ) => {
+                    updates.push(params.update);
+                },
+            ),
         } as unknown as AcpClientConnection;
-        const handler = createTestEventHandler(connection, state, {typedSessionFailures: true});
+        const handler = createTestEventHandler(connection, state, {
+            typedSessionFailures: true,
+        });
         const retryError = (message: string) => ({
             method: "error" as const,
             params: {
@@ -811,28 +1178,55 @@ describe("CodexEventHandler - auth error events", () => {
                 willRetry: true,
                 error: {
                     message,
-                    codexErrorInfo: {responseStreamDisconnected: {httpStatusCode: null}},
+                    codexErrorInfo: {
+                        responseStreamDisconnected: { httpStatusCode: null },
+                    },
                     additionalDetails: null,
                     misalignment: null,
                 },
             },
         });
 
-        await handler.handleNotification(retryError("First reconnect incident"));
+        await handler.handleNotification(
+            retryError("First reconnect incident"),
+        );
         await handler.handleNotification({
             method: "item/agentMessage/delta",
-            params: {threadId: state.sessionId, turnId: "turn-id", itemId: "message", delta: "Recovered."},
+            params: {
+                threadId: state.sessionId,
+                turnId: "turn-id",
+                itemId: "message",
+                delta: "Recovered.",
+            },
         });
-        await handler.handleNotification(retryError("Second reconnect incident"));
+        await handler.handleNotification(
+            retryError("Second reconnect incident"),
+        );
 
-        const failures = updates.flatMap(update => {
-            const air = (update._meta as {jetbrains?: {air?: {sessionFailure?: {id: string; revision: number}}}} | undefined)
-                ?.jetbrains?.air;
-            return air?.sessionFailure === undefined ? [] : [air.sessionFailure];
+        const failures = updates.flatMap((update) => {
+            const air = (
+                update._meta as
+                    | {
+                          jetbrains?: {
+                              air?: {
+                                  sessionFailure?: {
+                                      id: string;
+                                      revision: number;
+                                  };
+                              };
+                          };
+                      }
+                    | undefined
+            )?.jetbrains?.air;
+            return air?.sessionFailure === undefined
+                ? []
+                : [air.sessionFailure];
         });
         expect(failures).toHaveLength(2);
-        expect(failures[0]).toEqual(expect.objectContaining({id: "turn-id:error", revision: 1}));
-        expect(failures[1]).toEqual(expect.objectContaining({revision: 1}));
+        expect(failures[0]).toEqual(
+            expect.objectContaining({ id: "turn-id:error", revision: 1 }),
+        );
+        expect(failures[1]).toEqual(expect.objectContaining({ revision: 1 }));
         expect(failures[1]!.id).not.toBe(failures[0]!.id);
     });
 
@@ -841,38 +1235,48 @@ describe("CodexEventHandler - auth error events", () => {
         const codexAcpAgent = mockFixture.getCodexAcpAgent();
         const sessionState = createTestSessionState({
             sessionId: "typed-validation-session",
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
             supportedInputModalities: ["text"],
         });
         await codexAcpAgent.initialize({
             protocolVersion: acp.PROTOCOL_VERSION,
             clientCapabilities: typedFailureCapabilities,
         });
-        vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(sessionState);
+        vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(
+            sessionState,
+        );
 
-        await expect(codexAcpAgent.prompt({
-            sessionId: sessionState.sessionId,
-            prompt: [{type: "image", mimeType: "image/png", data: "AA=="}],
-        })).rejects.toMatchObject({
+        await expect(
+            codexAcpAgent.prompt({
+                sessionId: sessionState.sessionId,
+                prompt: [
+                    { type: "image", mimeType: "image/png", data: "AA==" },
+                ],
+            }),
+        ).rejects.toMatchObject({
             code: -32600,
         });
         expect(sessionState.sessionFailure).toBeUndefined();
     });
 
     it("keeps the prompt alive for a retryable HTTP 401", async () => {
-        const {result: response, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "retrying-session",
-            account: { type: "apiKey" },
-        }), {
-            message: "Reconnecting after provider returned 401",
-            codexErrorInfo: {
-                responseStreamDisconnected: {
-                    httpStatusCode: 401,
+        const { result: response, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "retrying-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Reconnecting after provider returned 401",
+                codexErrorInfo: {
+                    responseStreamDisconnected: {
+                        httpStatusCode: 401,
+                    },
                 },
+                additionalDetails: "HTTP status 401",
+                misalignment: null,
             },
-            additionalDetails: "HTTP status 401",
-            misalignment: null,
-        }, true);
+            true,
+        );
 
         expect(response).toMatchObject({
             stopReason: "end_turn",
@@ -881,34 +1285,52 @@ describe("CodexEventHandler - auth error events", () => {
     });
 
     it("returns AuthRequired for auth errors when no auth is configured", async () => {
-        const {result: error} = await runPromptWithError(createTestSessionState({
-            sessionId: "unauthenticated-session",
-            account: null,
-            authConfigured: false,
-        }), {
-            message: "Authentication is required",
-            codexErrorInfo: "unauthorized",
-            additionalDetails: null,
-            misalignment: null,
-        });
+        const { result: error } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "unauthenticated-session",
+                account: null,
+                authConfigured: false,
+            }),
+            {
+                message: "Authentication is required",
+                codexErrorInfo: "unauthorized",
+                additionalDetails: null,
+                misalignment: null,
+            },
+        );
 
-        expect(error).toMatchObject({code: -32000, message: "Authentication required"});
-        expect(JSON.stringify(error)).not.toContain("Authentication is required");
+        expect(error).toMatchObject({
+            code: -32000,
+            message: "Authentication required",
+        });
+        expect(JSON.stringify(error)).not.toContain(
+            "Authentication is required",
+        );
     });
 
     it.each(configuredAuthFailureCases)(
         "returns InternalError with details for $name when auth is configured",
-        async ({turnError, sessionOverrides, expectedData}) => {
-            const {result: error} = await runPromptWithError(createTestSessionState({
-                sessionId: "authenticated-session",
-                account: { type: "apiKey" },
-                ...sessionOverrides,
-            }), turnError);
+        async ({ turnError, sessionOverrides, expectedData }) => {
+            const { result: error } = await runPromptWithError(
+                createTestSessionState({
+                    sessionId: "authenticated-session",
+                    account: { type: "apiKey" },
+                    ...sessionOverrides,
+                }),
+                turnError,
+            );
 
             if (turnError.codexErrorInfo === "usageLimitExceeded") {
-                expect(error).toMatchObject({code: -32603, message: "Internal error", data: expectedData});
+                expect(error).toMatchObject({
+                    code: -32603,
+                    message: "Internal error",
+                    data: expectedData,
+                });
             } else {
-                expect(error).toMatchObject({code: -32000, message: "Authentication required"});
+                expect(error).toMatchObject({
+                    code: -32000,
+                    message: "Authentication required",
+                });
                 expect(JSON.stringify(error)).not.toContain(turnError.message);
             }
         },
@@ -917,17 +1339,22 @@ describe("CodexEventHandler - auth error events", () => {
 
 describe("CodexEventHandler - usage limit text", () => {
     it("sends the message as agent text and fails the prompt, as origin/main does", async () => {
-        const {result, updates} = await runPromptWithError(createTestSessionState({
-            sessionId: "limited-session",
-            account: {type: "apiKey"},
-        }), {
-            message: "Usage limits were exceeded",
-            codexErrorInfo: "usageLimitExceeded",
-            additionalDetails: null,
-            misalignment: null,
-        });
+        const { result, updates } = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "limited-session",
+                account: { type: "apiKey" },
+            }),
+            {
+                message: "Usage limits were exceeded",
+                codexErrorInfo: "usageLimitExceeded",
+                additionalDetails: null,
+                misalignment: null,
+            },
+        );
 
-        expect(result).toMatchObject({data: {message: "Usage limits were exceeded"}});
+        expect(result).toMatchObject({
+            data: { message: "Usage limits were exceeded" },
+        });
         expect(JSON.stringify(updates)).toContain("Usage limits were exceeded");
     });
 });
@@ -940,7 +1367,7 @@ async function runPromptWithError(
     errorTurnId = "turn-id",
     errorBeforeTurnStarts = false,
     activeTurnId = "turn-id",
-): Promise<{result: unknown; updates: unknown[]}> {
+): Promise<{ result: unknown; updates: unknown[] }> {
     const mockFixture = createCodexMockTestFixture();
     const codexAcpAgent = mockFixture.getCodexAcpAgent();
     const codexAppServerClient = mockFixture.getCodexAppServerClient();
@@ -950,13 +1377,17 @@ async function runPromptWithError(
             clientCapabilities,
         });
     }
-    const turnStarted = deferred<{turn: ReturnType<typeof createTurn>}>();
+    const turnStarted = deferred<{ turn: ReturnType<typeof createTurn> }>();
     if (!errorBeforeTurnStarts) {
-        turnStarted.resolve({turn: createTurn("inProgress", activeTurnId)});
+        turnStarted.resolve({ turn: createTurn("inProgress", activeTurnId) });
     }
     const turnCompleted = deferred<TurnCompletedNotification>();
-    const turnStartSpy = vi.spyOn(codexAppServerClient, "turnStart").mockReturnValue(turnStarted.promise);
-    vi.spyOn(codexAppServerClient, "awaitTurnCompleted").mockReturnValue(turnCompleted.promise);
+    const turnStartSpy = vi
+        .spyOn(codexAppServerClient, "turnStart")
+        .mockReturnValue(turnStarted.promise);
+    vi.spyOn(codexAppServerClient, "awaitTurnCompleted").mockReturnValue(
+        turnCompleted.promise,
+    );
     vi.spyOn(codexAcpAgent, "getSessionState").mockReturnValue(sessionState);
 
     const promptPromise = codexAcpAgent.prompt({
@@ -979,8 +1410,8 @@ async function runPromptWithError(
     } as const;
     if (errorBeforeTurnStarts) {
         mockFixture.sendServerNotification(errorNotification);
-        await new Promise(resolve => setImmediate(resolve));
-        turnStarted.resolve({turn: createTurn("inProgress", activeTurnId)});
+        await new Promise((resolve) => setImmediate(resolve));
+        turnStarted.resolve({ turn: createTurn("inProgress", activeTurnId) });
         await vi.waitFor(() => {
             expect(sessionState.currentTurnId).toBe(activeTurnId);
         });
@@ -990,11 +1421,15 @@ async function runPromptWithError(
 
     const completedNotification: TurnCompletedNotification = {
         threadId: sessionState.sessionId,
-        turn: !willRetry && errorTurnId === activeTurnId
-            ? createTurn("failed", activeTurnId, turnError)
-            : createTurn("completed", activeTurnId),
+        turn:
+            !willRetry && errorTurnId === activeTurnId
+                ? createTurn("failed", activeTurnId, turnError)
+                : createTurn("completed", activeTurnId),
     };
-    mockFixture.sendServerNotification({method: "turn/completed", params: completedNotification});
+    mockFixture.sendServerNotification({
+        method: "turn/completed",
+        params: completedNotification,
+    });
     turnCompleted.resolve(completedNotification);
 
     let result: unknown;
@@ -1005,7 +1440,10 @@ async function runPromptWithError(
     }
     return {
         result,
-        updates: mockFixture.getAcpConnectionEvents([]).filter(event => event.args[0]?.update !== undefined).map(event => event.args[0].update),
+        updates: mockFixture
+            .getAcpConnectionEvents([])
+            .filter((event) => event.args[0]?.update !== undefined)
+            .map((event) => event.args[0].update),
     };
 }
 
@@ -1013,15 +1451,19 @@ async function runSuccessfulPrompt(
     sessionState: SessionState,
     clientCapabilities: acp.ClientCapabilities,
     turnId = "turn-id",
-): Promise<{result: unknown; updates: unknown[]}> {
-    return runPromptWithCompletedTurn(sessionState, clientCapabilities, createTurn("completed", turnId));
+): Promise<{ result: unknown; updates: unknown[] }> {
+    return runPromptWithCompletedTurn(
+        sessionState,
+        clientCapabilities,
+        createTurn("completed", turnId),
+    );
 }
 
 async function runPromptWithCompletedTurn(
     sessionState: SessionState,
     clientCapabilities: acp.ClientCapabilities,
     completedTurn: ReturnType<typeof createTurn>,
-): Promise<{result: unknown; updates: unknown[]}> {
+): Promise<{ result: unknown; updates: unknown[] }> {
     const mockFixture = createCodexMockTestFixture();
     const codexAcpAgent = mockFixture.getCodexAcpAgent();
     const codexAppServerClient = mockFixture.getCodexAppServerClient();
@@ -1042,14 +1484,17 @@ async function runPromptWithCompletedTurn(
     try {
         result = await codexAcpAgent.prompt({
             sessionId: sessionState.sessionId,
-            prompt: [{type: "text", text: "retry"}],
+            prompt: [{ type: "text", text: "retry" }],
         });
     } catch (error) {
         result = error;
     }
     return {
         result,
-        updates: mockFixture.getAcpConnectionEvents([]).filter(event => event.args[0]?.update !== undefined).map(event => event.args[0].update),
+        updates: mockFixture
+            .getAcpConnectionEvents([])
+            .filter((event) => event.args[0]?.update !== undefined)
+            .map((event) => event.args[0].update),
     };
 }
 
@@ -1058,7 +1503,8 @@ function createTurn(
     id = "turn-id",
     error: ErrorNotification["error"] | null = null,
 ) {
-    return {rootTurnId: null,
+    return {
+        rootTurnId: null,
         id,
         items: [],
         itemsView: "notLoaded" as const,

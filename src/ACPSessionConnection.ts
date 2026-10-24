@@ -1,4 +1,7 @@
-import {questionReplyContent, withQuestionReplyParts} from "./alwith/codex/questionReplies";
+import {
+    questionReplyContent,
+    withQuestionReplyParts,
+} from "./alwith/codex/questionReplies";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {
@@ -6,14 +9,24 @@ import {
     type AcpSessionUpdate,
     asSdkSessionNotification,
 } from "./AcpSessionExtensions";
-import {toV2SessionUpdates} from "./AcpV2SessionUpdate";
-import {toV1RequestPermissionResponse, toV2RequestPermissionRequest} from "./AcpV2Permissions";
-import {elicitationSessionId, toV1CreateElicitationResponse, toV2CreateElicitationRequest} from "./AcpV2Elicitation";
-import {AcpV2ForegroundState} from "./AcpV2ForegroundState";
+import { toV2SessionUpdates } from "./AcpV2SessionUpdate";
+import {
+    toV1RequestPermissionResponse,
+    toV2RequestPermissionRequest,
+} from "./AcpV2Permissions";
+import {
+    elicitationSessionId,
+    toV1CreateElicitationResponse,
+    toV2CreateElicitationRequest,
+} from "./AcpV2Elicitation";
+import { AcpV2ForegroundState } from "./AcpV2ForegroundState";
 
 export type AcpClientConnection = Pick<acp.AgentContext, "notify" | "request">;
 
-export type AcpV2ClientConnection = Pick<acpV2.AgentContext, "notify" | "request">;
+export type AcpV2ClientConnection = Pick<
+    acpV2.AgentContext,
+    "notify" | "request"
+>;
 
 /**
  * The client handle of a connection the protocol router routed to the ACP v2 chain.
@@ -21,7 +34,9 @@ export type AcpV2ClientConnection = Pick<acpV2.AgentContext, "notify" | "request
 export class AcpV2Connection {
     readonly client: AcpV2ClientConnection;
     private configRevision: ((sessionId: string) => number) | undefined;
-    setConfigRevisionSource(source: (sessionId: string) => number): void {this.configRevision = source;}
+    setConfigRevisionSource(source: (sessionId: string) => number): void {
+        this.configRevision = source;
+    }
     private isTurnRunning: (sessionId: string) => boolean = () => true;
     private readonly foreground = new Map<string, AcpV2ForegroundState>();
 
@@ -43,41 +58,79 @@ export class AcpV2Connection {
         if (!this.isTurnRunning(sessionId)) {
             return sendRequest();
         }
-        return this.foregroundFor(sessionId).withUserAction(itemId, sendRequest, signal);
+        return this.foregroundFor(sessionId).withUserAction(
+            itemId,
+            sendRequest,
+            signal,
+        );
     }
 
     /**
      * Sends a session update, rendered in the v2 wire shape, through the v2 `session/update`
      * binding. One update can render to several v2 updates (or none), sent in order.
      */
-    async updateSession(sessionId: string, update: AcpSessionUpdate): Promise<void> {
+    async updateSession(
+        sessionId: string,
+        update: AcpSessionUpdate,
+    ): Promise<void> {
         for (let v2Update of toV2SessionUpdates(update)) {
-            if (acpV2.SessionUpdate.isUserMessageChunk(v2Update) && acpV2.ContentBlock.isText(v2Update.content)) {
+            if (
+                acpV2.SessionUpdate.isUserMessageChunk(v2Update) &&
+                acpV2.ContentBlock.isText(v2Update.content)
+            ) {
                 const content = questionReplyContent(v2Update.content.text);
                 if (content) {
-                    const meta = withQuestionReplyParts(content, v2Update._meta as Record<string, unknown> | undefined);
+                    const meta = withQuestionReplyParts(
+                        content,
+                        v2Update._meta as Record<string, unknown> | undefined,
+                    );
                     const reply: acpV2.SessionUpdate = {
-                        sessionUpdate: "user_message", messageId: v2Update.messageId, content,
-                        ...(meta ? {_meta: meta} : {}),
+                        sessionUpdate: "user_message",
+                        messageId: v2Update.messageId,
+                        content,
+                        ...(meta ? { _meta: meta } : {}),
                     };
-                    await this.client.notify(acpV2.methods.client.session.update, {sessionId, update: reply});
+                    await this.client.notify(
+                        acpV2.methods.client.session.update,
+                        { sessionId, update: reply },
+                    );
                     continue;
                 }
             }
-            if (v2Update.sessionUpdate === "config_option_update" && this.configRevision) {
-                const meta = v2Update._meta && typeof v2Update._meta === "object" ? v2Update._meta as Record<string, unknown> : {};
+            if (
+                v2Update.sessionUpdate === "config_option_update" &&
+                this.configRevision
+            ) {
+                const meta =
+                    v2Update._meta && typeof v2Update._meta === "object"
+                        ? (v2Update._meta as Record<string, unknown>)
+                        : {};
                 const alwith = meta["alwith"];
-                v2Update = {...v2Update, _meta: {...meta, alwith: {
-                    ...(alwith && typeof alwith === "object" ? alwith : {}),
-                    configRevision: this.configRevision(sessionId),
-                }}};
+                v2Update = {
+                    ...v2Update,
+                    _meta: {
+                        ...meta,
+                        alwith: {
+                            ...(alwith && typeof alwith === "object"
+                                ? alwith
+                                : {}),
+                            configRevision: this.configRevision(sessionId),
+                        },
+                    },
+                };
             }
-            await this.client.notify(acpV2.methods.client.session.update, {sessionId, update: v2Update});
+            await this.client.notify(acpV2.methods.client.session.update, {
+                sessionId,
+                update: v2Update,
+            });
         }
     }
 
     /** Sends a `state_update`, which only exists on v2 and so needs no rendering. */
-    async updateState(sessionId: string, state: acpV2.StateUpdate): Promise<void> {
+    async updateState(
+        sessionId: string,
+        state: acpV2.StateUpdate,
+    ): Promise<void> {
         await this.foregroundFor(sessionId).update(state);
     }
 
@@ -106,14 +159,18 @@ export class AcpV2Connection {
         this.foreground.delete(sessionId);
     }
 
-    private foregroundFor(sessionId: string, running = false): AcpV2ForegroundState {
+    private foregroundFor(
+        sessionId: string,
+        running = false,
+    ): AcpV2ForegroundState {
         let foreground = this.foreground.get(sessionId);
         if (!foreground) {
             foreground = new AcpV2ForegroundState(
-                state => this.client.notify(acpV2.methods.client.session.update, {
-                    sessionId,
-                    update: {sessionUpdate: "state_update", ...state},
-                }),
+                (state) =>
+                    this.client.notify(acpV2.methods.client.session.update, {
+                        sessionId,
+                        update: { sessionUpdate: "state_update", ...state },
+                    }),
                 running,
             );
             this.foreground.set(sessionId, foreground);
@@ -127,17 +184,37 @@ export class AcpV2Connection {
      * `user_message`, `agent_message` and `agent_thought` exist as whole-message updates; there
      * is no v1 shape for them, so this bypasses `toV2SessionUpdates` entirely.
      */
-    async startReplayMessage(sessionId: string, kind: ReplayMessageKind, messageId: string, meta?: Record<string, unknown> | null): Promise<void> {
+    async startReplayMessage(
+        sessionId: string,
+        kind: ReplayMessageKind,
+        messageId: string,
+        meta?: Record<string, unknown> | null,
+    ): Promise<void> {
         let update: acpV2.SessionUpdate;
         switch (kind) {
             case "user_message":
-                update = {sessionUpdate: "user_message", messageId, content: [], ...(meta ? {_meta: meta} : {})};
+                update = {
+                    sessionUpdate: "user_message",
+                    messageId,
+                    content: [],
+                    ...(meta ? { _meta: meta } : {}),
+                };
                 break;
             case "agent_message":
-                update = {sessionUpdate: "agent_message", messageId, content: [], ...(meta ? {_meta: meta} : {})};
+                update = {
+                    sessionUpdate: "agent_message",
+                    messageId,
+                    content: [],
+                    ...(meta ? { _meta: meta } : {}),
+                };
                 break;
             case "agent_thought":
-                update = {sessionUpdate: "agent_thought", messageId, content: [], ...(meta ? {_meta: meta} : {})};
+                update = {
+                    sessionUpdate: "agent_thought",
+                    messageId,
+                    content: [],
+                    ...(meta ? { _meta: meta } : {}),
+                };
                 break;
         }
         await this.client.notify(acpV2.methods.client.session.update, {
@@ -151,14 +228,19 @@ export class AcpV2Connection {
         request: acp.RequestPermissionRequest,
         options?: acp.SendRequestOptions,
     ): Promise<acp.RequestPermissionResponse> {
-        return this.withUserAction(request.sessionId, request.toolCall.toolCallId, async () => {
-            const response = await this.client.request(
-                acpV2.methods.client.session.requestPermission,
-                toV2RequestPermissionRequest(request),
-                options,
-            );
-            return toV1RequestPermissionResponse(response);
-        }, options?.cancellationSignal);
+        return this.withUserAction(
+            request.sessionId,
+            request.toolCall.toolCallId,
+            async () => {
+                const response = await this.client.request(
+                    acpV2.methods.client.session.requestPermission,
+                    toV2RequestPermissionRequest(request),
+                    options,
+                );
+                return toV1RequestPermissionResponse(response);
+            },
+            options?.cancellationSignal,
+        );
     }
 
     /** Request-scoped login elicitations and idle background elicitations never change state. */
@@ -178,13 +260,26 @@ export class AcpV2Connection {
         if (sessionId === undefined) {
             return sendRequest();
         }
-        const toolCallId = "toolCallId" in request && typeof request.toolCallId === "string" ? request.toolCallId : undefined;
-        return this.withUserAction(sessionId, toolCallId, sendRequest, options?.cancellationSignal);
+        const toolCallId =
+            "toolCallId" in request && typeof request.toolCallId === "string"
+                ? request.toolCallId
+                : undefined;
+        return this.withUserAction(
+            sessionId,
+            toolCallId,
+            sendRequest,
+            options?.cancellationSignal,
+        );
     }
 
     /** Sends `elicitation/complete`, wire-identical between versions. */
-    async completeElicitation(notification: acp.CompleteElicitationNotification): Promise<void> {
-        await this.client.notify(acpV2.methods.client.elicitation.complete, notification);
+    async completeElicitation(
+        notification: acp.CompleteElicitationNotification,
+    ): Promise<void> {
+        await this.client.notify(
+            acpV2.methods.client.elicitation.complete,
+            notification,
+        );
     }
 
     /**
@@ -201,22 +296,41 @@ export class AcpV2Connection {
                 }
                 if (method === acp.methods.client.session.update) {
                     const notification = params as AcpSessionNotification;
-                    return this.updateSession(notification.sessionId, notification.update);
+                    return this.updateSession(
+                        notification.sessionId,
+                        notification.update,
+                    );
                 }
                 if (method === acp.methods.client.elicitation.complete) {
-                    return this.completeElicitation(params as acp.CompleteElicitationNotification);
+                    return this.completeElicitation(
+                        params as acp.CompleteElicitationNotification,
+                    );
                 }
                 return rejectStandardMethod(method);
             },
-            request: (method: string, params?: unknown, options?: acp.SendRequestOptions) => {
+            request: (
+                method: string,
+                params?: unknown,
+                options?: acp.SendRequestOptions,
+            ) => {
                 if (method.startsWith("_")) {
-                    return this.client.request(method as `_${string}`, params, options);
+                    return this.client.request(
+                        method as `_${string}`,
+                        params,
+                        options,
+                    );
                 }
                 if (method === acp.methods.client.session.requestPermission) {
-                    return this.requestPermission(params as acp.RequestPermissionRequest, options);
+                    return this.requestPermission(
+                        params as acp.RequestPermissionRequest,
+                        options,
+                    );
                 }
                 if (method === acp.methods.client.elicitation.create) {
-                    return this.createElicitation(params as acp.CreateElicitationRequest, options);
+                    return this.createElicitation(
+                        params as acp.CreateElicitationRequest,
+                        options,
+                    );
                 }
                 return rejectStandardMethod(method);
             },
@@ -240,7 +354,10 @@ const v2ConnectionsByView = new WeakMap<AcpClientConnection, AcpV2Connection>();
 
 function rejectStandardMethod(method: string): Promise<never> {
     return Promise.reject(
-        acp.RequestError.internalError(undefined, `'${method}' is not supported on an ACP v2 connection yet`),
+        acp.RequestError.internalError(
+            undefined,
+            `'${method}' is not supported on an ACP v2 connection yet`,
+        ),
     );
 }
 
@@ -266,34 +383,66 @@ export class ACPSessionConnection {
     /** Reports the session's foreground-work state. v1 has no such update, so this is v2 only. */
     async updateState(state: acpV2.StateUpdate): Promise<void> {
         if (!this.v2Connection) {
-            throw acp.RequestError.internalError(undefined, "'state_update' does not exist in ACP v1");
+            throw acp.RequestError.internalError(
+                undefined,
+                "'state_update' does not exist in ACP v1",
+            );
         }
         await this.v2Connection.updateState(this.sessionId, state);
     }
 
     /** `startReplayMessage`, which only exists on v2 and so needs no v1 shape. */
-    async startReplayMessage(kind: ReplayMessageKind, messageId: string, meta?: Record<string, unknown> | null): Promise<void> {
+    async startReplayMessage(
+        kind: ReplayMessageKind,
+        messageId: string,
+        meta?: Record<string, unknown> | null,
+    ): Promise<void> {
         if (!this.v2Connection) {
-            throw acp.RequestError.internalError(undefined, `'${kind}' does not exist in ACP v1`);
+            throw acp.RequestError.internalError(
+                undefined,
+                `'${kind}' does not exist in ACP v1`,
+            );
         }
-        await this.v2Connection.startReplayMessage(this.sessionId, kind, messageId, meta);
+        await this.v2Connection.startReplayMessage(
+            this.sessionId,
+            kind,
+            messageId,
+            meta,
+        );
     }
 
-    async updateV2(update: acpV2.SessionUpdate, sessionId = this.sessionId): Promise<void> {
-        if (!this.v2Connection) throw acp.RequestError.internalError(undefined, "This update requires ACP v2");
-        await this.v2Connection.client.notify(acpV2.methods.client.session.update, {sessionId, update});
+    async updateV2(
+        update: acpV2.SessionUpdate,
+        sessionId = this.sessionId,
+    ): Promise<void> {
+        if (!this.v2Connection)
+            throw acp.RequestError.internalError(
+                undefined,
+                "This update requires ACP v2",
+            );
+        await this.v2Connection.client.notify(
+            acpV2.methods.client.session.update,
+            { sessionId, update },
+        );
     }
 
     /** On v2, the view renders the update in the v2 shape (`extensionOnlyV1View`). */
-    async update(update: UpdateSessionEvent, sessionId: string = this.sessionId) {
-        await this.connection.notify(acp.methods.client.session.update, asSdkSessionNotification({
-            sessionId,
-            update: update
-        }));
+    async update(
+        update: UpdateSessionEvent,
+        sessionId: string = this.sessionId,
+    ) {
+        await this.connection.notify(
+            acp.methods.client.session.update,
+            asSdkSessionNotification({
+                sessionId,
+                update,
+            }),
+        );
     }
 }
 
 export type UpdateSessionEvent = AcpSessionUpdate;
 
 /** The v2 whole-message update kinds that a replayed chunk stream can restart. */
-export type ReplayMessageKind = "user_message" | "agent_message" | "agent_thought";
+export type ReplayMessageKind =
+    "user_message" | "agent_message" | "agent_thought";

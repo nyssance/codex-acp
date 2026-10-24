@@ -1,7 +1,10 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {toV2ToolCallContent} from "./AcpV2SessionUpdate";
-import {PERMISSION_PROMPT_META_KEY, readPermissionMeta} from "./permissions/metadata";
+import { toV2ToolCallContent } from "./AcpV2SessionUpdate";
+import {
+    PERMISSION_PROMPT_META_KEY,
+    readPermissionMeta,
+} from "./permissions/metadata";
 
 /**
  * Renders a v1-shaped `session/request_permission` request in the ACP v2 wire shape: v1's bare
@@ -14,9 +17,11 @@ import {PERMISSION_PROMPT_META_KEY, readPermissionMeta} from "./permissions/meta
  * top-level `title` and dropped from the subject's tool call, since it was the only title
  * available and isn't genuine tool-call state.
  */
-export function toV2RequestPermissionRequest(request: acp.RequestPermissionRequest): acpV2.RequestPermissionRequest {
+export function toV2RequestPermissionRequest(
+    request: acp.RequestPermissionRequest,
+): acpV2.RequestPermissionRequest {
     const meta = readPermissionMeta(request._meta);
-    const {title: toolCallTitle, ...toolCallWithoutTitle} = request.toolCall;
+    const { title: toolCallTitle, ...toolCallWithoutTitle } = request.toolCall;
     const title = meta?.title ?? toolCallTitle;
     if (!title) {
         throw acp.RequestError.internalError(
@@ -24,19 +29,29 @@ export function toV2RequestPermissionRequest(request: acp.RequestPermissionReque
             "'session/request_permission' request has no title to send on ACP v2",
         );
     }
-    const {content, ...toolCallFields} = meta ? request.toolCall : toolCallWithoutTitle;
+    const { content, ...toolCallFields } = meta
+        ? request.toolCall
+        : toolCallWithoutTitle;
     const toolCall: acpV2.ToolCallUpdate = {
         ...toolCallFields,
-        ...(content !== undefined ? {content: content && content.map(toV2ToolCallContent)} : {}),
+        ...(content !== undefined
+            ? {
+                  content:
+                      content === null
+                          ? null
+                          : content.map(toV2ToolCallContent),
+              }
+            : {}),
     };
-    const {[PERMISSION_PROMPT_META_KEY]: _prompt, ...otherMeta} = request._meta ?? {};
+    const { [PERMISSION_PROMPT_META_KEY]: _prompt, ...otherMeta } =
+        request._meta ?? {};
     return {
         sessionId: request.sessionId,
         title,
-        ...(meta?.description ? {description: meta.description} : {}),
-        subject: {type: "tool_call", toolCall},
+        ...(meta?.description ? { description: meta.description } : {}),
+        subject: { type: "tool_call", toolCall },
         options: request.options,
-        ...(Object.keys(otherMeta).length > 0 ? {_meta: otherMeta} : {}),
+        ...(Object.keys(otherMeta).length > 0 ? { _meta: otherMeta } : {}),
     };
 }
 
@@ -46,6 +61,8 @@ export function toV2RequestPermissionRequest(request: acp.RequestPermissionReque
  * of `"cancelled"`/`"selected"`. Readers must check for `"selected"` explicitly rather than treat
  * anything other than `"cancelled"` as selected (ACP-ENUM-203).
  */
-export function toV1RequestPermissionResponse(response: acpV2.RequestPermissionResponse): acp.RequestPermissionResponse {
+export function toV1RequestPermissionResponse(
+    response: acpV2.RequestPermissionResponse,
+): acp.RequestPermissionResponse {
     return response as unknown as acp.RequestPermissionResponse;
 }

@@ -1,7 +1,7 @@
-import type {ThreadItem} from "../../app-server/v2";
-import type {ToolFacts} from "../ToolFacts";
+import type { ThreadItem } from "../../app-server/v2";
+import type { ToolFacts } from "../ToolFacts";
 
-type SubAgentActivityItem = ThreadItem & {type: "subAgentActivity"};
+type SubAgentActivityItem = ThreadItem & { type: "subAgentActivity" };
 
 /** Reports a Codex subagent activity, for a client without native subagent sessions. */
 export class SubagentActivityReporter {
@@ -10,11 +10,16 @@ export class SubagentActivityReporter {
         status: "in_progress" | "completed",
         report: ToolFacts["report"],
     ): ToolFacts {
-        const name = item.agentPath.split("/").filter(Boolean).at(-1) ?? "subagent";
+        const name = item.agentPath.split("/").findLast(Boolean) ?? "subagent";
         return {
             toolCallId: item.id,
             report,
-            ...(report === "start" ? {kind: "other" as const, title: activityTitle(item.kind, name)} : {}),
+            ...(report === "start"
+                ? {
+                      kind: "other" as const,
+                      title: activityTitle(item.kind, name),
+                  }
+                : {}),
             status,
             input: {
                 agentThreadId: item.agentThreadId,
@@ -26,7 +31,10 @@ export class SubagentActivityReporter {
     }
 }
 
-function activityTitle(kind: SubAgentActivityItem["kind"], name: string): string {
+function activityTitle(
+    kind: SubAgentActivityItem["kind"],
+    name: string,
+): string {
     switch (kind) {
         case "started":
             return `Start subagent ${name}`;

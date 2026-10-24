@@ -8,7 +8,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import {logger} from "./Logger";
+import { logger } from "./Logger";
 
 export const SESSION_NAME_LOG_FILE = "session_index.jsonl";
 
@@ -36,7 +36,9 @@ export class SessionNameLog {
         }
         if (size === this.offset) return [];
         if (size - this.offset > MAX_READ_BYTES) {
-            logger.log("Skipping a long append to the session name log", {bytes: size - this.offset});
+            logger.log("Skipping a long append to the session name log", {
+                bytes: size - this.offset,
+            });
             this.offset = size;
             return [];
         }
@@ -56,12 +58,12 @@ export class SessionNameLog {
         }
         // A line that Codex is still writing is read again next time.
         const end = text.lastIndexOf("\n");
-        if (end < 0) return [];
+        if (end === -1) return [];
         this.offset += Buffer.byteLength(text.slice(0, end + 1), "utf8");
         const ids = new Set<string>();
         for (const line of text.slice(0, end).split("\n")) {
             try {
-                const id = (JSON.parse(line) as {id?: unknown}).id;
+                const id = (JSON.parse(line) as { id?: unknown }).id;
                 if (typeof id === "string") ids.add(id);
             } catch {
                 // Not a line of Codex: skipped.

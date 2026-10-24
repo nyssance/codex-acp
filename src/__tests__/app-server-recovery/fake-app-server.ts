@@ -1,9 +1,14 @@
-import {EventEmitter} from "node:events";
-import {PassThrough} from "node:stream";
-import {vi} from "vitest";
-import type {MessageConnection} from "vscode-jsonrpc/node";
-import {ResponseError, ErrorCodes, ConnectionError, ConnectionErrors} from "vscode-jsonrpc/node";
-import type {CodexConnection} from "../../CodexJsonRpcConnection";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { vi } from "vitest";
+import type { MessageConnection } from "vscode-jsonrpc/node";
+import {
+    ResponseError,
+    ErrorCodes,
+    ConnectionError,
+    ConnectionErrors,
+} from "vscode-jsonrpc/node";
+import type { CodexConnection } from "../../CodexJsonRpcConnection";
 
 let nextPid = 1000;
 
@@ -51,21 +56,31 @@ interface PendingRequest {
  */
 export class FakeConnection {
     readonly pending: PendingRequest[] = [];
-    readonly requests: Array<{method: string, params: unknown}> = [];
+    readonly requests: Array<{ method: string; params: unknown }> = [];
     disposed = false;
     private readonly disposeListeners = new Set<() => void>();
-    private readonly notificationListeners = new Map<string, Set<(params: unknown) => void>>();
-    private unhandledNotification: ((notification: unknown) => void) | null = null;
-    readonly requestHandlers = new Map<string, (params: unknown) => Promise<unknown>>();
+    private readonly notificationListeners = new Map<
+        string,
+        Set<(params: unknown) => void>
+    >();
+    private unhandledNotification: ((notification: unknown) => void) | null =
+        null;
+    readonly requestHandlers = new Map<
+        string,
+        (params: unknown) => Promise<unknown>
+    >();
     /** Answers a request at once; `undefined` leaves it pending. */
     answer: (method: string, params: unknown) => unknown = () => ({});
 
     readonly connection = {
         sendRequest: (method: string, params?: unknown) => {
             if (this.disposed) {
-                throw new ConnectionError(ConnectionErrors.Disposed, "Connection is disposed.");
+                throw new ConnectionError(
+                    ConnectionErrors.Disposed,
+                    "Connection is disposed.",
+                );
             }
-            this.requests.push({method, params});
+            this.requests.push({ method, params });
             return new Promise((resolve, reject) => {
                 const answer = this.answer(method, params);
                 if (answer !== undefined) {
@@ -73,50 +88,65 @@ export class FakeConnection {
                     else resolve(answer);
                     return;
                 }
-                this.pending.push({method, params, resolve, reject});
+                this.pending.push({ method, params, resolve, reject });
             });
         },
         onUnhandledNotification: (handler: (notification: unknown) => void) => {
             this.unhandledNotification = handler;
         },
-        onNotification: (method: string, handler: (params: unknown) => void) => {
-            const listeners = this.notificationListeners.get(method) ?? new Set();
+        onNotification: (
+            method: string,
+            handler: (params: unknown) => void,
+        ) => {
+            const listeners =
+                this.notificationListeners.get(method) ?? new Set();
             listeners.add(handler);
             this.notificationListeners.set(method, listeners);
-            return {dispose: () => listeners.delete(handler)};
+            return { dispose: () => listeners.delete(handler) };
         },
-        onRequest: (type: {method: string}, handler: (params: unknown) => Promise<unknown>) => {
+        onRequest: (
+            type: { method: string },
+            handler: (params: unknown) => Promise<unknown>,
+        ) => {
             this.requestHandlers.set(type.method, handler);
         },
         onDispose: (listener: () => void) => {
             this.disposeListeners.add(listener);
-            return {dispose: () => this.disposeListeners.delete(listener)};
+            return { dispose: () => this.disposeListeners.delete(listener) };
         },
         dispose: () => {
             if (this.disposed) return;
             this.disposed = true;
-            [...this.disposeListeners].forEach(listener => listener());
-            const error = new ResponseError(ErrorCodes.PendingResponseRejected, "Pending response rejected since connection got disposed");
+            [...this.disposeListeners].forEach((listener) => listener());
+            const error = new ResponseError(
+                ErrorCodes.PendingResponseRejected,
+                "Pending response rejected since connection got disposed",
+            );
             for (const request of this.pending.splice(0)) request.reject(error);
         },
         end: () => {},
         listen: () => {},
     } as unknown as MessageConnection;
 
-    notify(notification: {method: string, params: unknown}): void {
+    notify(notification: { method: string; params: unknown }): void {
         this.unhandledNotification?.(notification);
-        for (const listener of this.notificationListeners.get(notification.method) ?? []) listener(notification.params);
+        for (const listener of this.notificationListeners.get(
+            notification.method,
+        ) ?? [])
+            listener(notification.params);
     }
 
     /** Resolves the first pending request of `method`. */
     resolve(method: string, value: unknown): void {
-        const index = this.pending.findIndex(request => request.method === method);
-        if (index < 0) throw new Error(`No pending ${method}`);
+        const index = this.pending.findIndex(
+            (request) => request.method === method,
+        );
+        if (index === -1) throw new Error(`No pending ${method}`);
         this.pending.splice(index, 1)[0]!.resolve(value);
     }
 
     hasPending(method: string): boolean {
-        return this.pending.some(request => request.method === method);
+        return this.pending.some((request) => request.method === method);
     }
 }
 
@@ -126,13 +156,18 @@ export interface FakeAppServer {
     connection: CodexConnection;
 }
 
-export function fakeAppServer(configure?: (server: FakeAppServer) => void): FakeAppServer {
+export function fakeAppServer(
+    configure?: (server: FakeAppServer) => void,
+): FakeAppServer {
     const child = new FakeChild();
     const rpc = new FakeConnection();
     const server = {
         child,
         rpc,
-        connection: {connection: rpc.connection, process: child as unknown as CodexConnection["process"]},
+        connection: {
+            connection: rpc.connection,
+            process: child as unknown as CodexConnection["process"],
+        },
     };
     configure?.(server);
     return server;
@@ -146,5 +181,5 @@ export function fakeSpawner(configure?: (server: FakeAppServer) => void) {
         spawned.push(server);
         return server.connection;
     });
-    return {spawned, spawn};
+    return { spawned, spawn };
 }

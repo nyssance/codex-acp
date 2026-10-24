@@ -3,15 +3,15 @@ import type {
     CommandExecutionApprovalDecision,
     FileChangeApprovalDecision,
 } from "../app-server/v2";
-import {ApprovalOptionId} from "./option-ids";
+import { ApprovalOptionId } from "./option-ids";
 import {
     type CommandParamsWithAvailableDecisions,
     parseAvailableCommandDecisions,
 } from "./command-decision-contract";
 
-export type {CommandParamsWithAvailableDecisions} from "./command-decision-contract";
+export type { CommandParamsWithAvailableDecisions } from "./command-decision-contract";
 
-export type DecisionOption<T> = {option: acp.PermissionOption; decision: T};
+export type DecisionOption<T> = { option: acp.PermissionOption; decision: T };
 
 export function commandDecisionOptions(
     params: CommandParamsWithAvailableDecisions,
@@ -23,67 +23,96 @@ export function commandDecisionOptions(
     let networkIndex = 0;
     for (const decision of decisions) {
         if (decision === "accept") {
-            options.push(decisionOption(
-                ApprovalOptionId.AllowOnce,
-                params.networkApprovalContext ? "Yes, just this once" : "Yes, proceed",
-                "allow_once",
-                decision,
-            ));
+            options.push(
+                decisionOption(
+                    ApprovalOptionId.AllowOnce,
+                    params.networkApprovalContext
+                        ? "Yes, just this once"
+                        : "Yes, proceed",
+                    "allow_once",
+                    decision,
+                ),
+            );
         } else if (decision === "acceptForSession") {
-            options.push(decisionOption(
-                ApprovalOptionId.AllowForSession,
-                params.networkApprovalContext
-                    ? "Yes, and allow this host for this conversation"
-                    : params.additionalPermissions
-                        ? "Yes, and allow these permissions for this session"
-                        : "Yes, and don't ask again for this command in this session",
-                "allow_always",
-                decision,
-            ));
+            options.push(
+                decisionOption(
+                    ApprovalOptionId.AllowForSession,
+                    params.networkApprovalContext
+                        ? "Yes, and allow this host for this conversation"
+                        : params.additionalPermissions
+                          ? "Yes, and allow these permissions for this session"
+                          : "Yes, and don't ask again for this command in this session",
+                    "allow_always",
+                    decision,
+                ),
+            );
         } else if (decision === "decline") {
-            options.push(decisionOption(
-                ApprovalOptionId.Decline,
-                "No, continue without running it",
-                "reject_once",
-                decision,
-            ));
+            options.push(
+                decisionOption(
+                    ApprovalOptionId.Decline,
+                    "No, continue without running it",
+                    "reject_once",
+                    decision,
+                ),
+            );
         } else if (decision === "cancel") {
-            options.push(decisionOption(
-                ApprovalOptionId.Cancel,
-                "No, and tell Codex what to do differently",
-                "reject_once",
-                decision,
-            ));
+            options.push(
+                decisionOption(
+                    ApprovalOptionId.Cancel,
+                    "No, and tell Codex what to do differently",
+                    "reject_once",
+                    decision,
+                ),
+            );
         } else if ("acceptWithExecpolicyAmendment" in decision) {
-            const prefix = renderExecPolicyPrefix(decision.acceptWithExecpolicyAmendment.execpolicy_amendment);
+            const prefix = renderExecPolicyPrefix(
+                decision.acceptWithExecpolicyAmendment.execpolicy_amendment,
+            );
             if (prefix.includes("\n") || prefix.includes("\r")) continue;
-            options.push(decisionOption(
-                ApprovalOptionId.AcceptWithExecpolicyAmendment,
-                `Yes, and don't ask again for commands that start with \`${prefix}\``,
-                "allow_always",
-                decision,
-            ));
+            options.push(
+                decisionOption(
+                    ApprovalOptionId.AcceptWithExecpolicyAmendment,
+                    `Yes, and don't ask again for commands that start with \`${prefix}\``,
+                    "allow_always",
+                    decision,
+                ),
+            );
         } else {
-            const amendment = decision.applyNetworkPolicyAmendment.network_policy_amendment;
-            options.push(decisionOption(
-                `${ApprovalOptionId.ApplyNetworkPolicyAmendment}:${networkIndex++}`,
-                amendment.action === "allow"
-                    ? "Yes, and allow this host in the future"
-                    : "No, and block this host in the future",
-                amendment.action === "allow" ? "allow_always" : "reject_always",
-                decision,
-            ));
+            const amendment =
+                decision.applyNetworkPolicyAmendment.network_policy_amendment;
+            options.push(
+                decisionOption(
+                    `${ApprovalOptionId.ApplyNetworkPolicyAmendment}:${networkIndex++}`,
+                    amendment.action === "allow"
+                        ? "Yes, and allow this host in the future"
+                        : "No, and block this host in the future",
+                    amendment.action === "allow"
+                        ? "allow_always"
+                        : "reject_always",
+                    decision,
+                ),
+            );
         }
     }
 
-    const orderedOptions = [...options].sort(
-        (left, right) => permissionOptionOrder(left.option) - permissionOptionOrder(right.option),
+    const orderedOptions = [...options].toSorted(
+        (left, right) =>
+            permissionOptionOrder(left.option) -
+            permissionOptionOrder(right.option),
     );
-    const hasAllow = orderedOptions.some(({option}) => option.kind === "allow_once" || option.kind === "allow_always");
-    const hasReject = orderedOptions.some(({option}) => option.kind === "reject_once" || option.kind === "reject_always");
-    const optionIds = orderedOptions.map(({option}) => option.optionId);
+    const hasAllow = orderedOptions.some(
+        ({ option }) =>
+            option.kind === "allow_once" || option.kind === "allow_always",
+    );
+    const hasReject = orderedOptions.some(
+        ({ option }) =>
+            option.kind === "reject_once" || option.kind === "reject_always",
+    );
+    const optionIds = orderedOptions.map(({ option }) => option.optionId);
     const hasUniqueOptionIds = new Set(optionIds).size === optionIds.length;
-    return hasAllow && hasReject && hasUniqueOptionIds ? orderedOptions : undefined;
+    return hasAllow && hasReject && hasUniqueOptionIds
+        ? orderedOptions
+        : undefined;
 }
 
 function permissionOptionOrder(option: acp.PermissionOption): number {
@@ -94,7 +123,12 @@ function permissionOptionOrder(option: acp.PermissionOption): number {
 
 export function fileChangeDecisionOptions(): DecisionOption<FileChangeApprovalDecision>[] {
     return [
-        decisionOption(ApprovalOptionId.AllowOnce, "Yes, proceed", "allow_once", "accept"),
+        decisionOption(
+            ApprovalOptionId.AllowOnce,
+            "Yes, proceed",
+            "allow_once",
+            "accept",
+        ),
         decisionOption(
             ApprovalOptionId.AllowForSession,
             "Yes, and don't ask again for these files",
@@ -141,7 +175,7 @@ function decisionOption<T>(
     kind: acp.PermissionOptionKind,
     decision: T,
 ): DecisionOption<T> {
-    return {option: permissionOption(optionId, name, kind), decision};
+    return { option: permissionOption(optionId, name, kind), decision };
 }
 
 function permissionOption(
@@ -149,21 +183,25 @@ function permissionOption(
     name: string,
     kind: acp.PermissionOptionKind,
 ): acp.PermissionOption {
-    return {optionId, name, kind};
+    return { optionId, name, kind };
 }
 
 function renderExecPolicyPrefix(command: readonly string[]): string {
     const script = extractWrappedScript(command);
     if (script !== undefined) return script;
-    if (command.some(value => value.includes("\0"))) return command.join(" ");
+    if (command.some((value) => value.includes("\0"))) return command.join(" ");
     return command.map(shlexQuote).join(" ");
 }
 
 function extractWrappedScript(command: readonly string[]): string | undefined {
     const executable = executableName(command[0]);
-    if ((executable === "bash" || executable === "zsh" || executable === "sh")
-        && command.length === 3
-        && (command[1] === "-lc" || command[1] === "-c")) {
+    if (
+        (executable === "bash" ||
+            executable === "zsh" ||
+            executable === "sh") &&
+        command.length === 3 &&
+        (command[1] === "-lc" || command[1] === "-c")
+    ) {
         return command[2];
     }
     if (executable !== "pwsh" && executable !== "powershell") return undefined;
@@ -179,7 +217,8 @@ function extractWrappedScript(command: readonly string[]): string | undefined {
 function executableName(command: string | undefined): string | undefined {
     let filename = command?.replaceAll("\\", "/").split("/").at(-1);
     while (filename !== undefined) {
-        if (["bash", "zsh", "sh", "pwsh", "powershell"].includes(filename)) return filename;
+        if (["bash", "zsh", "sh", "pwsh", "powershell"].includes(filename))
+            return filename;
         const dot = filename.lastIndexOf(".");
         if (dot <= 0) return undefined;
         filename = filename.slice(0, dot);
@@ -205,8 +244,14 @@ function shlexQuote(value: string): string {
             const character = value[offset]!;
             let nextAllowed = allowed;
             if (!isShlexUnquoted(character)) nextAllowed &= ~UNQUOTED;
-            if (character === "'" || character === "^" || character === "\\") nextAllowed &= ~SINGLE_QUOTED;
-            if (character === "`" || character === "$" || character === "!" || character === "^") {
+            if (character === "'" || character === "^" || character === "\\")
+                nextAllowed &= ~SINGLE_QUOTED;
+            if (
+                character === "`" ||
+                character === "$" ||
+                character === "!" ||
+                character === "^"
+            ) {
                 nextAllowed &= ~DOUBLE_QUOTED;
             }
             if (nextAllowed === 0) break;
@@ -216,7 +261,7 @@ function shlexQuote(value: string): string {
         const chunk = value.slice(start, offset);
         if ((allowed & UNQUOTED) !== 0) result += chunk;
         else if ((allowed & SINGLE_QUOTED) !== 0) result += `'${chunk}'`;
-        else result += `"${chunk.replace(/["\\]/g, "\\$&")}"`;
+        else result += `"${chunk.replaceAll(/["\\]/g, String.raw`\$&`)}"`;
     }
     return result;
 }

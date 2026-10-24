@@ -334,7 +334,9 @@ export function writeCodexHomeConfig(
 }
 
 function escapeTOML(value: string): string {
-    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return value
+        .replaceAll("\\", String.raw`\\`)
+        .replaceAll('"', String.raw`\"`);
 }
 
 export function removeDirectoryWithRetry(directory: string): void {

@@ -1,10 +1,10 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {randomUUID} from "node:crypto";
+import { randomUUID } from "node:crypto";
 import * as path from "node:path";
-import type {AcpSessionUpdate} from "./AcpSessionExtensions";
-import {toV2ConfigOptions} from "./AcpV2ConfigOptions";
-import {stripShellPrefix} from "./CommandUtils";
+import type { AcpSessionUpdate } from "./AcpSessionExtensions";
+import { toV2ConfigOptions } from "./AcpV2ConfigOptions";
+import { stripShellPrefix } from "./CommandUtils";
 
 /**
  * `planId` of the structured (tool-driven) plan on v2. A session has at most one such plan and
@@ -12,12 +12,17 @@ import {stripShellPrefix} from "./CommandUtils";
  */
 export const STRUCTURED_PLAN_ID = "codex-structured-plan";
 
-export function toV2AvailableCommands(commands: acp.AvailableCommand[]): acpV2.AvailableCommand[] {
+export function toV2AvailableCommands(
+    commands: acp.AvailableCommand[],
+): acpV2.AvailableCommand[] {
     return commands.map((command) => {
-        const {input, ...withoutInput} = command;
+        const { input, ...withoutInput } = command;
         return input === undefined
             ? withoutInput
-            : {...command, input: input && {...input, type: "text" as const}};
+            : {
+                  ...command,
+                  input: input && { ...input, type: "text" as const },
+              };
     });
 }
 
@@ -29,26 +34,51 @@ export function toV2AvailableCommands(commands: acp.AvailableCommand[]): acpV2.A
  * call update, and never reach the client as `_meta`. An update that only carried terminal
  * output renders to no tool call update at all.
  */
-export function toV2SessionUpdates(update: AcpSessionUpdate): acpV2.SessionUpdate[] {
-    if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
+export function toV2SessionUpdates(
+    update: AcpSessionUpdate,
+): acpV2.SessionUpdate[] {
+    if (
+        update.sessionUpdate !== "tool_call" &&
+        update.sessionUpdate !== "tool_call_update"
+    ) {
         return [toV2SessionUpdate(update)];
     }
-    const {_meta, ...toolCall} = update;
-    if (_meta == null || !TERMINAL_META_KEYS.some(key => key in _meta)) {
+    const { _meta, ...toolCall } = update;
+    if (_meta == null || !TERMINAL_META_KEYS.some((key) => key in _meta)) {
         return [toV2SessionUpdate(update)];
     }
-    const {terminal_info, terminal_output, terminal_output_delta, terminal_exit, ...otherMeta} = _meta;
+    const {
+        terminal_info,
+        terminal_output,
+        terminal_output_delta,
+        terminal_exit,
+        ...otherMeta
+    } = _meta;
     const terminalUpdates = toV2TerminalUpdates(
-        {info: terminal_info, output: terminal_output ?? terminal_output_delta, exit: terminal_exit},
+        {
+            info: terminal_info,
+            output: terminal_output ?? terminal_output_delta,
+            exit: terminal_exit,
+        },
         toolCall.rawInput,
     );
-    const {sessionUpdate: _tag, toolCallId: _id, ...toolCallFields} = toolCall;
-    if (Object.keys(toolCallFields).length === 0 && Object.keys(otherMeta).length === 0) {
+    const {
+        sessionUpdate: _tag,
+        toolCallId: _id,
+        ...toolCallFields
+    } = toolCall;
+    if (
+        Object.keys(toolCallFields).length === 0 &&
+        Object.keys(otherMeta).length === 0
+    ) {
         return terminalUpdates;
     }
     return [
         ...terminalUpdates,
-        toV2SessionUpdate({...toolCall, ...(Object.keys(otherMeta).length > 0 ? {_meta: otherMeta} : {})}),
+        toV2SessionUpdate({
+            ...toolCall,
+            ...(Object.keys(otherMeta).length > 0 ? { _meta: otherMeta } : {}),
+        }),
     ];
 }
 
@@ -58,7 +88,9 @@ export function toV2SessionUpdates(update: AcpSessionUpdate): acpV2.SessionUpdat
  * The v2 SDK sends `session/update` params as-is, without validation, so a variant with no v2
  * rendering yet throws here instead of reaching a v2 client in the v1 shape.
  */
-export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate {
+export function toV2SessionUpdate(
+    update: AcpSessionUpdate,
+): acpV2.SessionUpdate {
     switch (update.sessionUpdate) {
         // Same wire shape on v1 and v2.
         case "plan_update":
@@ -70,20 +102,25 @@ export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate
         case "compaction_summary_chunk":
             return update;
         case "config_option_update":
-            return {...update, configOptions: toV2ConfigOptions(update.configOptions)};
+            return {
+                ...update,
+                configOptions: toV2ConfigOptions(update.configOptions),
+            };
         case "plan": {
-            const {entries, _meta} = update;
+            const { entries, _meta } = update;
             return {
                 sessionUpdate: "plan_update",
-                plan: {type: "items", planId: STRUCTURED_PLAN_ID, entries},
-                ...(_meta != null ? {_meta} : {}),
+                plan: { type: "items", planId: STRUCTURED_PLAN_ID, entries },
+                ...(_meta != null ? { _meta } : {}),
             };
         }
         // v2 command input is a tagged union; v1 input is the untagged text form.
         case "available_commands_update":
             return {
                 ...update,
-                availableCommands: toV2AvailableCommands(update.availableCommands),
+                availableCommands: toV2AvailableCommands(
+                    update.availableCommands,
+                ),
             };
         // v2 removed the modes API. codex-acp never emits this (mode changes go out as
         // `config_option_update`), so there is no v2 rendering to give it.
@@ -95,59 +132,66 @@ export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate
         // v2 message chunks require `messageId`. A user message without one would not match the
         // `messageId` of its prompt response, so it is rejected rather than given a fresh id.
         case "user_message_chunk": {
-            const {messageId} = update;
+            const { messageId } = update;
             if (messageId == null) {
                 throw acp.RequestError.internalError(
                     undefined,
                     "'user_message_chunk' session update without a messageId is not supported on an ACP v2 connection",
                 );
             }
-            return {...update, messageId};
+            return { ...update, messageId };
         }
         // Agent chunks without an id are one-off notices sent as a single chunk (warnings, errors,
         // slash-command replies), so each gets a fresh id and starts its own message. Replayed
         // history must carry its own ids instead, since they have to be the same on every replay.
         case "agent_message_chunk":
         case "agent_thought_chunk":
-            return {...update, messageId: update.messageId || randomUUID()};
+            return { ...update, messageId: update.messageId || randomUUID() };
         // v2 has no separate create: the first `tool_call_update` for an id creates the tool call.
         case "tool_call":
         case "tool_call_update": {
-            const {content, ...rest} = update;
+            const { content, ...rest } = update;
             return {
                 ...rest,
                 sessionUpdate: "tool_call_update",
-                ...(content !== undefined ? {content: content && content.map(toV2ToolCallContent)} : {}),
+                ...(content !== undefined
+                    ? {
+                          content:
+                              content === null
+                                  ? null
+                                  : content.map(toV2ToolCallContent),
+                      }
+                    : {}),
             };
         }
         // Preserve AIR's existing subagent contract. The standard schema uses different fields
         // and work states; that migration is separate. The AIR capability gate already ran upstream.
         case "subagent_spawned": {
-            const {subagentSessionId, name, task, _meta} = update;
+            const { subagentSessionId, name, task, _meta } = update;
             return {
                 sessionUpdate: "_subagent_update",
                 subagentSessionId,
                 name,
                 task,
                 capabilities: {},
-                ...(_meta != null ? {_meta} : {}),
+                ...(_meta != null ? { _meta } : {}),
             };
         }
         case "subagent_state_update": {
-            const {subagentSessionId, state, _meta} = update;
+            const { subagentSessionId, state, _meta } = update;
             return {
                 sessionUpdate: "_subagent_update",
                 subagentSessionId,
                 state,
-                ...(_meta != null ? {_meta} : {}),
+                ...(_meta != null ? { _meta } : {}),
             };
         }
         // No upstream v2 design exists for async tasks (AIR-private extension); same payload as v1
         // under a `_`-prefixed tag. Gated on AIR `asyncTasks` upstream, same as above.
         case "async_task_spawned":
-            return {...update, sessionUpdate: "_async_task_spawned"};
+            return { ...update, sessionUpdate: "_async_task_spawned" };
         case "async_task_state_update":
-            return {...update, sessionUpdate: "_async_task_state_update"};
+            return { ...update, sessionUpdate: "_async_task_state_update" };
         // Declared as a type but never emitted; no v2 rendering to give it yet.
         case "async_task_progress":
             throw acp.RequestError.internalError(
@@ -158,7 +202,9 @@ export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate
 }
 
 /** Renders a v1 tool call content item in the ACP v2 shape. Shared with permission requests. */
-export function toV2ToolCallContent(content: acp.ToolCallContent): acpV2.ToolCallContent {
+export function toV2ToolCallContent(
+    content: acp.ToolCallContent,
+): acpV2.ToolCallContent {
     switch (content.type) {
         case "content":
             return content;
@@ -166,7 +212,7 @@ export function toV2ToolCallContent(content: acp.ToolCallContent): acpV2.ToolCal
         case "terminal":
             return content;
         case "diff":
-            return {type: "diff", ...toV2Diff(content)};
+            return { type: "diff", ...toV2Diff(content) };
     }
 }
 
@@ -178,43 +224,59 @@ export const DIFF_GIT_PATCH_META_KEY = "diff_git_patch";
 
 /** v2 diffs describe the change in `changes[]` and carry a Git patch instead of `oldText`/`newText`. */
 function toV2Diff(content: acp.Diff): acpV2.Diff {
-    const {[DIFF_GIT_PATCH_META_KEY]: patchMeta, ...meta} = content._meta ?? {};
-    const {oldPath, text} = diffGitPatch(patchMeta);
+    const { [DIFF_GIT_PATCH_META_KEY]: patchMeta, ...meta } =
+        content._meta ?? {};
+    const { oldPath, text } = diffGitPatch(patchMeta);
     const kind = meta["kind"];
     const path = content.path;
     let change: acpV2.DiffChange;
     switch (kind) {
         case "add":
-            change = {operation: "add", path};
+            change = { operation: "add", path };
             break;
         case "delete":
-            change = {operation: "delete", path};
+            change = { operation: "delete", path };
             break;
         case "update":
-            change = oldPath === path ? {operation: "modify", path} : {operation: "move", oldPath, path};
+            change =
+                oldPath === path
+                    ? { operation: "modify", path }
+                    : { operation: "move", oldPath, path };
             break;
         default:
-            throw acp.RequestError.internalError(undefined, `Diff content without a known 'kind': ${String(kind)}`);
+            throw acp.RequestError.internalError(
+                undefined,
+                `Diff content without a known 'kind': ${String(kind)}`,
+            );
     }
     return {
         changes: [change],
-        patch: {format: "git_patch", text},
-        ...(Object.keys(meta).length > 0 ? {_meta: meta} : {}),
+        patch: { format: "git_patch", text },
+        ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
     };
 }
 
-function diffGitPatch(value: unknown): {oldPath: string; text: string} {
-    const patch = value as {oldPath?: unknown; text?: unknown} | null | undefined;
+function diffGitPatch(value: unknown): { oldPath: string; text: string } {
+    const patch = value as
+        { oldPath?: unknown; text?: unknown } | null | undefined;
     if (typeof patch?.oldPath !== "string" || typeof patch.text !== "string") {
-        throw acp.RequestError.internalError(undefined, `Malformed '${DIFF_GIT_PATCH_META_KEY}' diff metadata`);
+        throw acp.RequestError.internalError(
+            undefined,
+            `Malformed '${DIFF_GIT_PATCH_META_KEY}' diff metadata`,
+        );
     }
-    return {oldPath: patch.oldPath, text: patch.text};
+    return { oldPath: patch.oldPath, text: patch.text };
 }
 
 /** Private v1 `_meta` keys that carry agent-owned command output on a tool call update. */
-const TERMINAL_META_KEYS = ["terminal_info", "terminal_output", "terminal_output_delta", "terminal_exit"];
+const TERMINAL_META_KEYS = [
+    "terminal_info",
+    "terminal_output",
+    "terminal_output_delta",
+    "terminal_exit",
+];
 
-type TerminalMeta = {info: unknown; output: unknown; exit: unknown};
+type TerminalMeta = { info: unknown; output: unknown; exit: unknown };
 
 type TerminalMetaRecord = {
     terminal_id: string;
@@ -230,15 +292,28 @@ type TerminalMetaRecord = {
  * `terminal_exit` marks completion. Output sent together with the exit is the command's whole
  * output (it is only sent when none was streamed), so it becomes the final snapshot.
  */
-function toV2TerminalUpdates(meta: TerminalMeta, rawInput: unknown): acpV2.SessionUpdate[] {
-    const info = meta.info == null ? null : terminalMetaRecord(meta.info, "terminal_info");
-    const output = meta.output == null ? null : terminalMetaRecord(meta.output, "terminal_output");
-    const exit = meta.exit == null ? null : terminalMetaRecord(meta.exit, "terminal_exit");
+function toV2TerminalUpdates(
+    meta: TerminalMeta,
+    rawInput: unknown,
+): acpV2.SessionUpdate[] {
+    const info =
+        meta.info == null
+            ? null
+            : terminalMetaRecord(meta.info, "terminal_info");
+    const output =
+        meta.output == null
+            ? null
+            : terminalMetaRecord(meta.output, "terminal_output");
+    const exit =
+        meta.exit == null
+            ? null
+            : terminalMetaRecord(meta.exit, "terminal_exit");
     const terminalId = (info ?? output ?? exit)!.terminal_id;
 
-    const terminalUpdate: acpV2.TerminalUpdate = {terminalId};
+    const terminalUpdate: acpV2.TerminalUpdate = { terminalId };
     if (info) {
-        const command = (rawInput as {command?: unknown} | null | undefined)?.command;
+        const command = (rawInput as { command?: unknown } | null | undefined)
+            ?.command;
         if (typeof command === "string") {
             terminalUpdate.command = stripShellPrefix(command);
         }
@@ -250,27 +325,39 @@ function toV2TerminalUpdates(meta: TerminalMeta, rawInput: unknown): acpV2.Sessi
     const data = output ? base64(output.data, "terminal_output") : null;
     if (exit) {
         if (data !== null) {
-            terminalUpdate.output = {data};
+            terminalUpdate.output = { data };
         }
         terminalUpdate.exitStatus = {
-            exitCode: typeof exit.exit_code === "number" ? exit.exit_code : null,
+            exitCode:
+                typeof exit.exit_code === "number" ? exit.exit_code : null,
             signal: typeof exit.signal === "string" ? exit.signal : null,
         };
     }
 
     const updates: acpV2.SessionUpdate[] = [];
     if (info || exit) {
-        updates.push({sessionUpdate: "terminal_update", ...terminalUpdate});
+        updates.push({ sessionUpdate: "terminal_update", ...terminalUpdate });
     }
     if (data !== null && !exit) {
-        updates.push({sessionUpdate: "terminal_output_chunk", terminalId, data});
+        updates.push({
+            sessionUpdate: "terminal_output_chunk",
+            terminalId,
+            data,
+        });
     }
     return updates;
 }
 
 function terminalMetaRecord(value: unknown, key: string): TerminalMetaRecord {
-    if (typeof value !== "object" || value === null || typeof (value as {terminal_id?: unknown}).terminal_id !== "string") {
-        throw acp.RequestError.internalError(undefined, `Malformed '${key}' tool call metadata`);
+    if (
+        typeof value !== "object" ||
+        value === null ||
+        typeof (value as { terminal_id?: unknown }).terminal_id !== "string"
+    ) {
+        throw acp.RequestError.internalError(
+            undefined,
+            `Malformed '${key}' tool call metadata`,
+        );
     }
     return value as TerminalMetaRecord;
 }
@@ -278,7 +365,10 @@ function terminalMetaRecord(value: unknown, key: string): TerminalMetaRecord {
 /** v2 terminal bytes are base64; Codex reports output as already-decoded text. */
 function base64(data: unknown, key: string): string {
     if (typeof data !== "string") {
-        throw acp.RequestError.internalError(undefined, `Malformed '${key}' tool call metadata`);
+        throw acp.RequestError.internalError(
+            undefined,
+            `Malformed '${key}' tool call metadata`,
+        );
     }
     return Buffer.from(data, "utf8").toString("base64");
 }

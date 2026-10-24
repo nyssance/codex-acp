@@ -10,7 +10,7 @@ import type { ReplayEntry } from "./ReplayHistory";
 import { classifyTurnError } from "./alwith/agent/turnErrors";
 import { ConfigRevisions } from "./alwith/ConfigRevisions";
 import { readSessionList } from "./alwith/agent/sessionCatalog";
-import { ProviderRouting } from "./alwith/agent/providers";
+import type { ProviderRouting } from "./alwith/agent/providers";
 import {
     clientToolsOf,
     toolResponse,
@@ -58,8 +58,8 @@ import {
     McpSessionStartup,
     parseMcpStartupAwaitTimeoutMs,
 } from "./mcp/McpSessionStartup";
+import type { CodexAcpClient } from "./CodexAcpClient";
 import {
-    CodexAcpClient,
     type JsonObject,
     OPENAI_PROVIDER_ID,
     type SessionMetadata,
@@ -1478,7 +1478,7 @@ export class CodexAcpServer {
         method: string,
         params: Record<string, unknown>,
     ): Promise<Record<string, unknown>> {
-        const methodRequest = { method: method, params: params };
+        const methodRequest = { method, params };
         if (!isExtMethodRequest(methodRequest)) {
             return {};
         }
@@ -2085,12 +2085,12 @@ export class CodexAcpServer {
         const currentModel = this.findCurrentModel(models, currentModelId);
         const currentModelSupportsFast = modelSupportsFast(currentModel);
         const sessionState: SessionState = {
-            sessionId: sessionId,
+            sessionId,
             readOnly: sessionMetadata.readOnly ?? false,
             ...(sessionMetadata.lineage
                 ? { lineage: sessionMetadata.lineage }
                 : {}),
-            currentModelId: currentModelId,
+            currentModelId,
             availableModels: models,
             supportedReasoningEfforts:
                 currentModel?.supportedReasoningEfforts ?? [],
@@ -2118,15 +2118,15 @@ export class CodexAcpServer {
             rateLimits: null,
             account: authState.account,
             authConfigured: authState.authConfigured,
-            authProvider: authProvider,
+            authProvider,
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
             fastModeEnabled:
                 sessionMetadata.currentServiceTier === "priority" ||
                 sessionMetadata.currentServiceTier === "fast",
-            currentModelSupportsFast: currentModelSupportsFast,
-            sessionMcpServers: sessionMcpServers,
+            currentModelSupportsFast,
+            sessionMcpServers,
             clientCapabilities: this.capabilities,
             goalRevision: 0,
             sessionTitle: null,
@@ -2446,22 +2446,18 @@ export class CodexAcpServer {
             async (event) => {
                 const sessionState = await ready;
                 if (!sessionState) return;
-                if (!baselineEventHandler) {
-                    baselineEventHandler = new CodexEventHandler(
-                        this.connection,
-                        sessionState,
-                        clientSupportsTypedSessionFailures(
-                            this.clientCapabilities,
-                        ),
-                        this.sessionFailureEpoch,
-                        sessionState.subagents,
-                        (accountUpdated) =>
-                            this.handleAccountUpdated(accountUpdated),
-                        false,
-                        clientSupportsCompaction(this.clientCapabilities),
-                        clientSupportsNotices(this.clientCapabilities),
-                    );
-                }
+                baselineEventHandler ??= new CodexEventHandler(
+                    this.connection,
+                    sessionState,
+                    clientSupportsTypedSessionFailures(this.clientCapabilities),
+                    this.sessionFailureEpoch,
+                    sessionState.subagents,
+                    (accountUpdated) =>
+                        this.handleAccountUpdated(accountUpdated),
+                    false,
+                    clientSupportsCompaction(this.clientCapabilities),
+                    clientSupportsNotices(this.clientCapabilities),
+                );
                 await this.trackCodexForegroundWork(sessionState, event);
                 await this.trackSteerLanding(sessionState, event);
                 this.handleSkillsChanged(sessionState, event);
@@ -2763,7 +2759,7 @@ export class CodexAcpServer {
             await this.loadSessionAndReplayHistory(params);
 
         logger.log("Session loaded", {
-            sessionId: sessionId,
+            sessionId,
             modelId: modelState.currentModelId,
             availableModelCount: modelState.availableModels.length,
         });
@@ -2871,7 +2867,7 @@ export class CodexAcpServer {
             await this.getOrCreateSession(params);
 
         logger.log("Session resumed", {
-            sessionId: sessionId,
+            sessionId,
             modelId: modelState.currentModelId,
             availableModelCount: modelState.availableModels.length,
         });
@@ -3188,13 +3184,13 @@ export class CodexAcpServer {
             await this.getOrCreateSession(params);
 
         logger.log("New session created", {
-            sessionId: sessionId,
+            sessionId,
             modelId: modelState.currentModelId,
             availableModelCount: modelState.availableModels.length,
         });
 
         return {
-            sessionId: sessionId,
+            sessionId,
             models: modelState,
             modes: modeState,
             ...this.createSessionConfigOptionsResponse(
@@ -3438,7 +3434,7 @@ export class CodexAcpServer {
                         session,
                         model,
                         provider,
-                    } of changed.reverse()) {
+                    } of changed.toReversed()) {
                         try {
                             await this.rebindSessionProvider(
                                 session,
@@ -4582,8 +4578,8 @@ export class CodexAcpServer {
             throw RequestError.invalidParams();
         }
         return {
-            sessionId: sessionId,
-            modelId: modelId,
+            sessionId,
+            modelId,
         };
     }
 
@@ -4931,7 +4927,7 @@ export class CodexAcpServer {
             throw RequestError.invalidParams();
         }
         return {
-            sessionId: sessionId,
+            sessionId,
             prompt: prompt as acp.ContentBlock[],
         };
     }
@@ -4943,9 +4939,7 @@ export class CodexAcpServer {
         switch (metadata.permissionProfile) {
             case undefined:
             case null:
-                return metadata.agentMode === undefined
-                    ? initialMode
-                    : metadata.agentMode;
+                return metadata.agentMode ?? initialMode;
             case ":read-only":
                 return AgentMode.ReadOnly;
             case ":workspace":
@@ -5381,12 +5375,12 @@ export class CodexAcpServer {
         const currentModel = this.findCurrentModel(models, currentModelId);
         const currentModelSupportsFast = modelSupportsFast(currentModel);
         const sessionState: SessionState = {
-            sessionId: sessionId,
+            sessionId,
             readOnly: sessionMetadata.readOnly ?? false,
             ...(sessionMetadata.lineage
                 ? { lineage: sessionMetadata.lineage }
                 : {}),
-            currentModelId: currentModelId,
+            currentModelId,
             availableModels: models,
             supportedReasoningEfforts:
                 currentModel?.supportedReasoningEfforts ?? [],
@@ -5413,15 +5407,15 @@ export class CodexAcpServer {
             rateLimits: null,
             account: authState.account,
             authConfigured: authState.authConfigured,
-            authProvider: authProvider,
+            authProvider,
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
             fastModeEnabled:
                 sessionMetadata.currentServiceTier === "priority" ||
                 sessionMetadata.currentServiceTier === "fast",
-            currentModelSupportsFast: currentModelSupportsFast,
-            sessionMcpServers: sessionMcpServers,
+            currentModelSupportsFast,
+            sessionMcpServers,
             clientCapabilities: this.capabilities,
             goalRevision: 0,
             sessionTitle: null,
@@ -5501,13 +5495,13 @@ export class CodexAcpServer {
             );
 
         return {
-            sessionId: sessionId,
+            sessionId,
             modelState: sessionModelState,
             modeState: sessionModeState,
-            thread: thread,
+            thread,
             history: sessionMetadata.history,
-            sessionState: sessionState,
-            settleTrackerReady: settleTrackerReady,
+            sessionState,
+            settleTrackerReady,
         };
     }
 
@@ -7108,8 +7102,7 @@ export class CodexAcpServer {
             const current = sessionState.sessionFailure;
             if (
                 recoverableSessionFailure !== undefined &&
-                current !== undefined &&
-                current.id === recoverableSessionFailure.id &&
+                current?.id === recoverableSessionFailure.id &&
                 current.revision === recoverableSessionFailure.revision
             ) {
                 await handler.clearSessionFailure();

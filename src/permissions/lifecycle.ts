@@ -1,9 +1,9 @@
-import type {SessionState} from "../CodexAcpServer";
-import type {ServerNotification} from "../app-server";
-import type {ThreadItem} from "../app-server/v2";
-import {commandToolName} from "../ToolCallName";
+import type { SessionState } from "../CodexAcpServer";
+import type { ServerNotification } from "../app-server";
+import type { ThreadItem } from "../app-server/v2";
+import { commandToolName } from "../ToolCallName";
 
-type FileChangeItem = ThreadItem & {type: "fileChange"};
+type FileChangeItem = ThreadItem & { type: "fileChange" };
 
 /** Session-scoped permission state shared across prompt generations. */
 export class PermissionLifecycleContext {
@@ -12,12 +12,19 @@ export class PermissionLifecycleContext {
     constructor(private readonly session: Pick<SessionState, "sessionId">) {}
 
     beginPrompt(): PermissionPromptContext {
-        return new PermissionPromptContext(serverName => this.nextStandaloneMcpToolCallId(serverName));
+        return new PermissionPromptContext((serverName) =>
+            this.nextStandaloneMcpToolCallId(serverName),
+        );
     }
 
     private nextStandaloneMcpToolCallId(serverName: string): string {
         this.permissionRequestSequence += 1;
-        return ["elicitation", this.session.sessionId, serverName, this.permissionRequestSequence].join(":");
+        return [
+            "elicitation",
+            this.session.sessionId,
+            serverName,
+            this.permissionRequestSequence,
+        ].join(":");
     }
 }
 
@@ -25,18 +32,32 @@ export class PermissionLifecycleContext {
 export class PermissionPromptContext {
     private readonly commandNames = new Map<string, Map<string, string>>();
     private readonly startedCommands = new Map<string, Set<string>>();
-    private readonly fileChanges = new Map<string, Map<string, FileChangeItem>>();
-    private readonly pendingMcpApprovals = new Map<string, Map<string, string[]>>();
+    private readonly fileChanges = new Map<
+        string,
+        Map<string, FileChangeItem>
+    >();
+    private readonly pendingMcpApprovals = new Map<
+        string,
+        Map<string, string[]>
+    >();
 
-    constructor(private readonly nextStandaloneId: (serverName: string) => string) {}
+    constructor(
+        private readonly nextStandaloneId: (serverName: string) => string,
+    ) {}
 
     handleNotification(notification: ServerNotification): void {
         switch (notification.method) {
             case "item/started":
-                this.handleItemStarted(notification.params.threadId, notification.params.item);
+                this.handleItemStarted(
+                    notification.params.threadId,
+                    notification.params.item,
+                );
                 return;
             case "item/completed":
-                this.handleItemCompleted(notification.params.threadId, notification.params.item);
+                this.handleItemCompleted(
+                    notification.params.threadId,
+                    notification.params.item,
+                );
                 return;
             case "turn/completed":
                 this.clearTransientState(notification.params.threadId);
@@ -62,7 +83,10 @@ export class PermissionPromptContext {
         return this.startedCommands.get(threadId)?.has(itemId) ?? false;
     }
 
-    popPendingMcpApproval(threadId: string, serverName: string): string | undefined {
+    popPendingMcpApproval(
+        threadId: string,
+        serverName: string,
+    ): string | undefined {
         const byServer = this.pendingMcpApprovals.get(threadId);
         if (!byServer) return undefined;
         const pending = byServer.get(serverName);
@@ -79,25 +103,32 @@ export class PermissionPromptContext {
 
     private handleItemStarted(threadId: string, item: ThreadItem): void {
         if (item.type === "commandExecution") {
-            const started = this.startedCommands.get(threadId) ?? new Set<string>();
+            const started =
+                this.startedCommands.get(threadId) ?? new Set<string>();
             started.add(item.id);
             this.startedCommands.set(threadId, started);
             const name = commandToolName(item.source);
             if (name !== undefined) {
-                const byItem = this.commandNames.get(threadId) ?? new Map<string, string>();
+                const byItem =
+                    this.commandNames.get(threadId) ??
+                    new Map<string, string>();
                 byItem.set(item.id, name);
                 this.commandNames.set(threadId, byItem);
             }
             return;
         }
         if (item.type === "fileChange") {
-            const byItem = this.fileChanges.get(threadId) ?? new Map<string, FileChangeItem>();
+            const byItem =
+                this.fileChanges.get(threadId) ??
+                new Map<string, FileChangeItem>();
             byItem.set(item.id, item);
             this.fileChanges.set(threadId, byItem);
             return;
         }
         if (item.type !== "mcpToolCall") return;
-        const byServer = this.pendingMcpApprovals.get(threadId) ?? new Map<string, string[]>();
+        const byServer =
+            this.pendingMcpApprovals.get(threadId) ??
+            new Map<string, string[]>();
         const pending = byServer.get(item.server);
         if (pending) pending.push(item.id);
         else byServer.set(item.server, [item.id]);
@@ -126,7 +157,7 @@ export class PermissionPromptContext {
         const pending = byServer.get(item.server);
         if (!pending) return;
         const index = pending.indexOf(item.id);
-        if (index >= 0) pending.splice(index, 1);
+        if (index !== -1) pending.splice(index, 1);
         if (pending.length === 0) byServer.delete(item.server);
         if (byServer.size === 0) this.pendingMcpApprovals.delete(threadId);
     }

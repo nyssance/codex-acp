@@ -1,13 +1,16 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import {type ChildProcessWithoutNullStreams, spawn} from "node:child_process";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import {Readable, Writable} from "node:stream";
-import {expect, vi} from "vitest";
-import {ModelId} from "../../../ModelId";
-import {removeDirectoryWithRetry, writeCodexHomeConfig} from "../../acp-test-utils";
-import type {PermissionResponder} from "./permission-responders";
-import type {LegacyNewSessionResponse} from "../../../AcpExtensions";
+import { Readable, Writable } from "node:stream";
+import { expect, vi } from "vitest";
+import { ModelId } from "../../../ModelId";
+import {
+    removeDirectoryWithRetry,
+    writeCodexHomeConfig,
+} from "../../acp-test-utils";
+import type { PermissionResponder } from "./permission-responders";
+import type { LegacyNewSessionResponse } from "../../../AcpExtensions";
 
 export const DEFAULT_TEST_MODEL_ID = ModelId.create("gpt-6-luna", "low");
 export const OTHER_TEST_MODEL_ID = ModelId.create("gpt-5.5", "low");
@@ -21,25 +24,37 @@ export interface TestSkill {
 export interface SpawnedAgentFixture {
     readonly connection: acp.ClientContext;
     readonly workspaceDir: string;
-    createSession(mcpServers?: acp.McpServer[]): Promise<LegacyNewSessionResponse>;
+    createSession(
+        mcpServers?: acp.McpServer[],
+    ): Promise<LegacyNewSessionResponse>;
     restart(): Promise<SpawnedAgentFixture>;
     writeSkill(skill: TestSkill, rootDir?: string): void;
     setPermissionResponder(responder: PermissionResponder): void;
-    expectAvailableCommand(sessionId: string, commandName: string, timeoutMs?: number): Promise<void>;
+    expectAvailableCommand(
+        sessionId: string,
+        commandName: string,
+        timeoutMs?: number,
+    ): Promise<void>;
     expectPromptText(
         sessionId: string,
         promptText: string,
         assertText: (text: string) => void,
         timeoutMs?: number,
     ): Promise<void>;
-    expectStatus(sessionId: string, fields: Record<string, unknown>): Promise<void>;
+    expectStatus(
+        sessionId: string,
+        fields: Record<string, unknown>,
+    ): Promise<void>;
     readText(sessionId: string): string;
     readPermissionRequests(
         sessionId: string,
         toolCallKind: acp.ToolKind,
     ): acp.RequestPermissionRequest[];
     readSessionUpdates(sessionId: string): acp.SessionUpdate[];
-    readToolCalls(sessionId: string, toolCallKind: acp.ToolKind): acp.ToolCall[];
+    readToolCalls(
+        sessionId: string,
+        toolCallKind: acp.ToolKind,
+    ): acp.ToolCall[];
     dispose(): Promise<void>;
 }
 
@@ -54,11 +69,15 @@ export async function createSpawnedAgentFixture(
 ): Promise<SpawnedAgentFixture> {
     const resolvedPaths = paths ?? RuntimePaths.createTemporary();
     const configuredMcpServers = mcpServers ?? [];
-    writeCodexHomeConfig(resolvedPaths.codexHome, {
-        model: DEFAULT_TEST_MODEL_ID.model,
-        model_reasoning_effort: DEFAULT_TEST_MODEL_ID.effort,
-        web_search: "disabled",
-    }, configuredMcpServers);
+    writeCodexHomeConfig(
+        resolvedPaths.codexHome,
+        {
+            model: DEFAULT_TEST_MODEL_ID.model,
+            model_reasoning_effort: DEFAULT_TEST_MODEL_ID.effort,
+            web_search: "disabled",
+        },
+        configuredMcpServers,
+    );
 
     const resolvedClient = client ?? new RecordingClient();
     const agentProcess = spawn("npm", ["run", "--silent", "start"], {
@@ -98,8 +117,13 @@ class RuntimePaths {
     static createTemporary(): RuntimePaths {
         const rootDir = path.join(process.cwd(), "tmp", crypto.randomUUID());
         const paths = new RuntimePaths(rootDir);
-        for (const dir of [paths.rootDir, paths.codexHome, paths.workspaceDir, paths.appServerLogsDir]) {
-            fs.mkdirSync(dir, {recursive: true});
+        for (const dir of [
+            paths.rootDir,
+            paths.codexHome,
+            paths.workspaceDir,
+            paths.appServerLogsDir,
+        ]) {
+            fs.mkdirSync(dir, { recursive: true });
         }
         return paths;
     }
@@ -107,19 +131,30 @@ class RuntimePaths {
 
 class RecordingClient {
     private readonly textBySessionId = new Map<string, string>();
-    private readonly availableCommandsBySessionId = new Map<string, acp.AvailableCommand[]>();
-    private readonly permissionRequestsBySessionId = new Map<string, acp.RequestPermissionRequest[]>();
-    private readonly updatesBySessionId = new Map<string, acp.SessionUpdate[]>();
+    private readonly availableCommandsBySessionId = new Map<
+        string,
+        acp.AvailableCommand[]
+    >();
+    private readonly permissionRequestsBySessionId = new Map<
+        string,
+        acp.RequestPermissionRequest[]
+    >();
+    private readonly updatesBySessionId = new Map<
+        string,
+        acp.SessionUpdate[]
+    >();
     private readonly toolCallsBySessionId = new Map<string, acp.ToolCall[]>();
     private permissionResponder: PermissionResponder = () => ({
-        outcome: {outcome: "cancelled"},
+        outcome: { outcome: "cancelled" },
     });
 
     setPermissionResponder(responder: PermissionResponder): void {
         this.permissionResponder = responder;
     }
 
-    async requestPermission(params: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse> {
+    async requestPermission(
+        params: acp.RequestPermissionRequest,
+    ): Promise<acp.RequestPermissionResponse> {
         let requests = this.permissionRequestsBySessionId.get(params.sessionId);
         if (!requests) {
             requests = [];
@@ -138,18 +173,25 @@ class RecordingClient {
         updates.push(params.update);
 
         if (params.update.sessionUpdate === "available_commands_update") {
-            this.availableCommandsBySessionId.set(params.sessionId, params.update.availableCommands);
+            this.availableCommandsBySessionId.set(
+                params.sessionId,
+                params.update.availableCommands,
+            );
             return;
         }
 
         if (params.update.sessionUpdate === "tool_call") {
-            const toolCalls = this.toolCallsBySessionId.get(params.sessionId) ?? [];
+            const toolCalls =
+                this.toolCallsBySessionId.get(params.sessionId) ?? [];
             toolCalls.push(params.update);
             this.toolCallsBySessionId.set(params.sessionId, toolCalls);
             return;
         }
 
-        if (params.update.sessionUpdate !== "agent_message_chunk" || params.update.content.type !== "text") {
+        if (
+            params.update.sessionUpdate !== "agent_message_chunk" ||
+            params.update.content.type !== "text"
+        ) {
             return;
         }
 
@@ -173,11 +215,17 @@ class RecordingClient {
         sessionId: string,
         toolCallKind: acp.ToolKind,
     ): acp.RequestPermissionRequest[] {
-        const requests = this.permissionRequestsBySessionId.get(sessionId) ?? [];
-        return requests.filter((request) => request.toolCall.kind === toolCallKind);
+        const requests =
+            this.permissionRequestsBySessionId.get(sessionId) ?? [];
+        return requests.filter(
+            (request) => request.toolCall.kind === toolCallKind,
+        );
     }
 
-    readToolCalls(sessionId: string, toolCallKind: acp.ToolKind): acp.ToolCall[] {
+    readToolCalls(
+        sessionId: string,
+        toolCallKind: acp.ToolKind,
+    ): acp.ToolCall[] {
         const toolCalls = this.toolCallsBySessionId.get(sessionId) ?? [];
         return toolCalls.filter((toolCall) => toolCall.kind === toolCallKind);
     }
@@ -195,34 +243,50 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         private readonly extraEnv: NodeJS.ProcessEnv,
         private readonly mcpServers: acp.McpServerStdio[],
     ) {
-        const output = Readable.toWeb(agentProcess.stdout) as ReadableStream<Uint8Array>;
-        this.connection = acp.client()
-            .onRequest(acp.methods.client.session.requestPermission, ctx => client.requestPermission(ctx.params))
-            .onNotification(acp.methods.client.session.update, ctx => client.sessionUpdate(ctx.params))
-            .connect(acp.ndJsonStream(Writable.toWeb(agentProcess.stdin), output))
-            .agent;
+        const output = Readable.toWeb(
+            agentProcess.stdout,
+        ) as ReadableStream<Uint8Array>;
+        this.connection = acp
+            .client()
+            .onRequest(acp.methods.client.session.requestPermission, (ctx) =>
+                client.requestPermission(ctx.params),
+            )
+            .onNotification(acp.methods.client.session.update, (ctx) =>
+                client.sessionUpdate(ctx.params),
+            )
+            .connect(
+                acp.ndJsonStream(Writable.toWeb(agentProcess.stdin), output),
+            ).agent;
     }
 
     get workspaceDir(): string {
         return this.paths.workspaceDir;
     }
 
-    async createSession(mcpServers: acp.McpServer[] = []): Promise<LegacyNewSessionResponse> {
-        return await this.connection.request(acp.methods.agent.session.new, {
+    async createSession(
+        mcpServers: acp.McpServer[] = [],
+    ): Promise<LegacyNewSessionResponse> {
+        return (await this.connection.request(acp.methods.agent.session.new, {
             cwd: this.workspaceDir,
             mcpServers,
-        }) as LegacyNewSessionResponse;
+        })) as LegacyNewSessionResponse;
     }
 
     async restart(): Promise<SpawnedAgentFixture> {
         await this.stopProcess(false);
-        return await createSpawnedAgentFixture(this.initializeConnection, this.extraEnv, this.mcpServers, this.paths, this.client);
+        return await createSpawnedAgentFixture(
+            this.initializeConnection,
+            this.extraEnv,
+            this.mcpServers,
+            this.paths,
+            this.client,
+        );
     }
 
     writeSkill(skill: TestSkill, rootDir?: string): void {
         const skillsRoot = rootDir ?? path.join(this.paths.codexHome, "skills");
         const skillDirectory = path.join(skillsRoot, skill.name);
-        fs.mkdirSync(skillDirectory, {recursive: true});
+        fs.mkdirSync(skillDirectory, { recursive: true });
         fs.writeFileSync(
             path.join(skillDirectory, "SKILL.md"),
             [
@@ -244,11 +308,20 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         this.client.setPermissionResponder(responder);
     }
 
-    async expectAvailableCommand(sessionId: string, commandName: string, timeoutMs = 30_000): Promise<void> {
-        await vi.waitFor(() => {
-            const commandNames = this.client.readAvailableCommands(sessionId).map(command => command.name);
-            expect(commandNames).toContain(commandName);
-        }, {timeout: timeoutMs});
+    async expectAvailableCommand(
+        sessionId: string,
+        commandName: string,
+        timeoutMs = 30_000,
+    ): Promise<void> {
+        await vi.waitFor(
+            () => {
+                const commandNames = this.client
+                    .readAvailableCommands(sessionId)
+                    .map((command) => command.name);
+                expect(commandNames).toContain(commandName);
+            },
+            { timeout: timeoutMs },
+        );
     }
 
     async expectPromptText(
@@ -258,19 +331,28 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         timeoutMs = 30_000,
     ): Promise<void> {
         const previousText = this.client.readText(sessionId);
-        const promptResponse = await this.connection.request(acp.methods.agent.session.prompt, {
-            sessionId,
-            prompt: [{type: "text", text: promptText}],
-        });
+        const promptResponse = await this.connection.request(
+            acp.methods.agent.session.prompt,
+            {
+                sessionId,
+                prompt: [{ type: "text", text: promptText }],
+            },
+        );
         expect(promptResponse.stopReason).toBe("end_turn");
 
-        await vi.waitFor(() => {
-            const sessionText = this.client.readText(sessionId);
-            assertText(sessionText.slice(previousText.length));
-        }, {timeout: timeoutMs});
+        await vi.waitFor(
+            () => {
+                const sessionText = this.client.readText(sessionId);
+                assertText(sessionText.slice(previousText.length));
+            },
+            { timeout: timeoutMs },
+        );
     }
 
-    async expectStatus(sessionId: string, fields: Record<string, unknown>): Promise<void> {
+    async expectStatus(
+        sessionId: string,
+        fields: Record<string, unknown>,
+    ): Promise<void> {
         await this.expectPromptText(sessionId, "/status", (text) => {
             for (const [field, value] of Object.entries(fields)) {
                 expect(text).toContain(`**${field}:** ${String(value)}`);
@@ -293,7 +375,10 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         return this.client.readSessionUpdates(sessionId);
     }
 
-    readToolCalls(sessionId: string, toolCallKind: acp.ToolKind): acp.ToolCall[] {
+    readToolCalls(
+        sessionId: string,
+        toolCallKind: acp.ToolKind,
+    ): acp.ToolCall[] {
         return this.client.readToolCalls(sessionId, toolCallKind);
     }
 
@@ -307,11 +392,17 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
     }
 
     private async stopProcess(printLogs: boolean): Promise<void> {
-        if (!this.agentProcess.stdin.destroyed && !this.agentProcess.stdin.writableEnded) {
+        if (
+            !this.agentProcess.stdin.destroyed &&
+            !this.agentProcess.stdin.writableEnded
+        ) {
             this.agentProcess.stdin.end();
         }
 
-        const exitedAfterStdinClose = await waitForProcessExit(this.agentProcess, 4_000);
+        const exitedAfterStdinClose = await waitForProcessExit(
+            this.agentProcess,
+            4_000,
+        );
         if (!exitedAfterStdinClose && !this.agentProcess.killed) {
             this.agentProcess.kill();
             await waitForProcessExit(this.agentProcess, 4_000);
@@ -327,25 +418,37 @@ function printLogDirectory(logDirectory: string): void {
     if (!fs.existsSync(logDirectory)) {
         return;
     }
-    fs.readdirSync(logDirectory, {withFileTypes: true})
+    fs.readdirSync(logDirectory, { withFileTypes: true })
         .filter((entry) => entry.isFile())
         .forEach((entry) => {
             const logFilePath = path.join(logDirectory, entry.name);
-            const content = redactLogSecrets(fs.readFileSync(logFilePath, "utf8").trim());
+            const content = redactLogSecrets(
+                fs.readFileSync(logFilePath, "utf8").trim(),
+            );
             console.log(`[APP_SERVER_LOGS] Logs from ${logFilePath}:`);
-            console.log(content.length > 0 ? content : "[APP_SERVER_LOGS] Log file is empty");
+            console.log(
+                content.length > 0
+                    ? content
+                    : "[APP_SERVER_LOGS] Log file is empty",
+            );
             console.log("------");
         });
 }
 
 function redactLogSecrets(content: string): string {
     return content
-        .replace(/("apiKey"\s*:\s*")[^"]+(")/g, "$1[REDACTED]$2")
-        .replace(/("Authorization"\s*:\s*")Bearer [^"]+(")/gi, "$1Bearer [REDACTED]$2")
-        .replace(/(Incorrect API key provided: )[^.,\s]+/g, "$1[REDACTED]");
+        .replaceAll(/("apiKey"\s*:\s*")[^"]+(")/g, "$1[REDACTED]$2")
+        .replaceAll(
+            /("Authorization"\s*:\s*")Bearer [^"]+(")/gi,
+            "$1Bearer [REDACTED]$2",
+        )
+        .replaceAll(/(Incorrect API key provided: )[^.,\s]+/g, "$1[REDACTED]");
 }
 
-async function waitForProcessExit(proc: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<boolean> {
+async function waitForProcessExit(
+    proc: ChildProcessWithoutNullStreams,
+    timeoutMs: number,
+): Promise<boolean> {
     if (proc.exitCode !== null || proc.signalCode !== null) {
         return true;
     }

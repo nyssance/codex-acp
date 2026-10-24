@@ -12,6 +12,6 @@ export function nameFromAgentPath(path: string, fallback: string): string {
     const normalized = normalizeAgentPath(path);
     const name = normalized.slice(normalized.lastIndexOf("/") + 1).trim();
     if (!name) return fallback;
-    const words = name.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    const words = name.replaceAll(/[_-]+/g, " ").replaceAll(/\s+/g, " ").trim();
     return words ? words.charAt(0).toUpperCase() + words.slice(1) : fallback;
 }

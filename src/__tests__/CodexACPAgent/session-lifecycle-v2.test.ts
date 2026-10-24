@@ -224,16 +224,16 @@ async function waitForSessionUpdates(
 ) {
     await vi.waitFor(() =>
         expect(
-            updates.map(({ update }) => update.sessionUpdate).sort(),
+            updates.map(({ update }) => update.sessionUpdate).toSorted(),
         ).toEqual(expected),
     );
-    return [...updates].sort((a, b) =>
+    return [...updates].toSorted((a, b) =>
         a.update.sessionUpdate.localeCompare(b.update.sessionUpdate),
     );
 }
 
 function dump(value: unknown): string {
-    return `${JSON.stringify(value, null, 2)}\n`.replace(
+    return `${JSON.stringify(value, null, 2)}\n`.replaceAll(
         /http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g,
         "<responses-route>",
     );
@@ -939,12 +939,10 @@ describe("ALwith read-only ownership", () => {
                     "_codex/session_rename",
                 ]) {
                     await expect(
-                        client
-                            .agent()
-                            .alwithRequest(method, {
-                                sessionId,
-                                name: "forbidden rename",
-                            }),
+                        client.agent().alwithRequest(method, {
+                            sessionId,
+                            name: "forbidden rename",
+                        }),
                     ).rejects.toThrow("another Codex client");
                 }
                 expect(

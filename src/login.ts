@@ -1,9 +1,9 @@
-import {startCodexConnection} from "./CodexJsonRpcConnection";
-import {CodexAppServerClient} from "./CodexAppServerClient";
-import type {ClientInfo} from "./app-server";
+import { startCodexConnection } from "./CodexJsonRpcConnection";
+import { CodexAppServerClient } from "./CodexAppServerClient";
+import type { ClientInfo } from "./app-server";
 import open from "open";
 import packageJson from "../package.json";
-import {logger} from "./Logger";
+import { logger } from "./Logger";
 
 interface LoginOptions {
     clientName?: string;
@@ -68,7 +68,9 @@ async function login(options: LoginOptions): Promise<boolean> {
     logger.log("Starting Codex connection...");
     const codexConnection = startCodexConnection(codexPath);
 
-    const appServerClient = new CodexAppServerClient(codexConnection.connection);
+    const appServerClient = new CodexAppServerClient(
+        codexConnection.connection,
+    );
 
     try {
         const clientInfo: ClientInfo = {
@@ -77,26 +79,41 @@ async function login(options: LoginOptions): Promise<boolean> {
             version: options.clientVersion ?? packageJson.version,
         };
 
-        logger.log("Initializing with client", {name: clientInfo.name, version: clientInfo.version});
-        await appServerClient.initialize({clientInfo: clientInfo, capabilities: null});
+        logger.log("Initializing with client", {
+            name: clientInfo.name,
+            version: clientInfo.version,
+        });
+        await appServerClient.initialize({ clientInfo, capabilities: null });
 
-        const accountStatus = await appServerClient.accountRead({refreshToken: false});
+        const accountStatus = await appServerClient.accountRead({
+            refreshToken: false,
+        });
         if (accountStatus.account) {
-            logger.log("Already logged in", {accountType: accountStatus.account.type});
+            logger.log("Already logged in", {
+                accountType: accountStatus.account.type,
+            });
             if (accountStatus.account.type === "chatgpt") {
                 return true;
             }
         }
 
         logger.log("Starting ChatGPT login...");
-        const loginCompletedPromise = waitForNextLoginCompleted(appServerClient);
-        const loginResponse = await appServerClient.accountLogin({type: "chatgpt"});
+        const loginCompletedPromise =
+            waitForNextLoginCompleted(appServerClient);
+        const loginResponse = await appServerClient.accountLogin({
+            type: "chatgpt",
+        });
 
         if (loginResponse.type === "chatgpt") {
-            logger.log("Opening browser for authentication...", {authUrl: loginResponse.authUrl});
+            logger.log("Opening browser for authentication...", {
+                authUrl: loginResponse.authUrl,
+            });
             await open(loginResponse.authUrl);
         } else {
-            logger.error("Unexpected login response type", new Error(`Expected 'chatgpt', got '${loginResponse.type}'`));
+            logger.error(
+                "Unexpected login response type",
+                new Error(`Expected 'chatgpt', got '${loginResponse.type}'`),
+            );
             return false;
         }
 
@@ -116,11 +133,16 @@ async function login(options: LoginOptions): Promise<boolean> {
     }
 }
 
-function waitForNextLoginCompleted(appServerClient: CodexAppServerClient): Promise<{ success: boolean }> {
+function waitForNextLoginCompleted(
+    appServerClient: CodexAppServerClient,
+): Promise<{ success: boolean }> {
     return new Promise((resolve) => {
-        appServerClient.connection.onNotification("account/login/completed", (event: { success: boolean }) => {
-            resolve(event);
-        });
+        appServerClient.connection.onNotification(
+            "account/login/completed",
+            (event: { success: boolean }) => {
+                resolve(event);
+            },
+        );
     });
 }
 

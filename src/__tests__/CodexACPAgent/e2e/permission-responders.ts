@@ -1,5 +1,5 @@
-import * as acp from "@agentclientprotocol/sdk/unstable";
-import {ApprovalOptionId} from "../../../permissions/option-ids";
+import type * as acp from "@agentclientprotocol/sdk/unstable";
+import type { ApprovalOptionId } from "../../../permissions/option-ids";
 
 export type PermissionResponder = (
     params: acp.RequestPermissionRequest,
@@ -9,14 +9,17 @@ export function createPermissionResponder(
     expectedToolCallKind: acp.ToolKind,
     optionId: ApprovalOptionId,
 ): PermissionResponder {
-    return (request) => createPermissionResponse(
-        request.toolCall.kind === expectedToolCallKind ? optionId : null
-    );
+    return (request) =>
+        createPermissionResponse(
+            request.toolCall.kind === expectedToolCallKind ? optionId : null,
+        );
 }
 
-export function createPermissionResponse(optionId: ApprovalOptionId | null): acp.RequestPermissionResponse {
+export function createPermissionResponse(
+    optionId: ApprovalOptionId | null,
+): acp.RequestPermissionResponse {
     if (optionId === null) {
-        return {outcome: {outcome: "cancelled"}};
+        return { outcome: { outcome: "cancelled" } };
     }
-    return {outcome: {outcome: "selected", optionId}};
+    return { outcome: { outcome: "selected", optionId } };
 }

@@ -10,15 +10,23 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import {CodexAcpClient} from "../../../../src/CodexAcpClient";
-import {type CodexConnectionEvent, CodexAppServerClient} from "../../../../src/CodexAppServerClient";
-import {startCodexConnection} from "../../../../src/CodexJsonRpcConnection";
-import {CodexAcpServer} from "../../../../src/CodexAcpServer";
-import type {AcpClientConnection} from "../../../../src/ACPSessionConnection";
-import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import { CodexAcpClient } from "../../../../src/CodexAcpClient";
+import {
+    type CodexConnectionEvent,
+    CodexAppServerClient,
+} from "../../../../src/CodexAppServerClient";
+import { startCodexConnection } from "../../../../src/CodexJsonRpcConnection";
+import { CodexAcpServer } from "../../../../src/CodexAcpServer";
+import type { AcpClientConnection } from "../../../../src/ACPSessionConnection";
+import { RequestError } from "@agentclientprotocol/sdk/unstable";
 
 // Parse command line arguments
-function parseArgs(): { prompt: string; cwd: string; output: string; json: boolean } {
+function parseArgs(): {
+    prompt: string;
+    cwd: string;
+    output: string;
+    json: boolean;
+} {
     const args = process.argv.slice(2);
     let prompt = "";
     let cwd = process.cwd();
@@ -71,7 +79,7 @@ function createMockAcpConnection(
 ): AcpClientConnection {
     return {
         notify: async (method: string, params?: unknown) => {
-            events.push({method, args: [params]});
+            events.push({ method, args: [params] });
             onNotification(method, params);
         },
         request: async (method: string) => {
@@ -84,9 +92,16 @@ async function main() {
     const { prompt, cwd, output, json } = parseArgs();
 
     // Find Codex binary
-    const pathToCodex = path.resolve(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "codex.cmd" : "codex");
+    const pathToCodex = path.resolve(
+        process.cwd(),
+        "node_modules",
+        ".bin",
+        process.platform === "win32" ? "codex.cmd" : "codex",
+    );
     if (!fs.existsSync(pathToCodex)) {
-        console.error(`Error: Codex binary not found at ${pathToCodex}. Did you run 'npm install'?`);
+        console.error(
+            `Error: Codex binary not found at ${pathToCodex}. Did you run 'npm install'?`,
+        );
         process.exit(1);
     }
 
@@ -101,7 +116,9 @@ async function main() {
 
     // Start Codex connection
     const codexConnection = startCodexConnection(pathToCodex);
-    const codexAppServerClient = new CodexAppServerClient(codexConnection.connection);
+    const codexAppServerClient = new CodexAppServerClient(
+        codexConnection.connection,
+    );
 
     // Collect events
     const codexEvents: CodexConnectionEvent[] = [];
@@ -113,22 +130,36 @@ async function main() {
             if (json) {
                 console.log(JSON.stringify(event));
             } else {
-                console.log(`[CODEX] ${event.eventType}:`, JSON.stringify(event, null, 2));
+                console.log(
+                    `[CODEX] ${event.eventType}:`,
+                    JSON.stringify(event, null, 2),
+                );
             }
         }
     });
 
-    const acpConnection = createMockAcpConnection(acpEvents, (method, params) => {
-        if (output === "all" || output === "acp") {
-            if (json) {
-                console.log(JSON.stringify({method, params}));
-            } else {
-                console.log(`[ACP] ${method}:`, JSON.stringify(params, null, 2));
+    const acpConnection = createMockAcpConnection(
+        acpEvents,
+        (method, params) => {
+            if (output === "all" || output === "acp") {
+                if (json) {
+                    console.log(JSON.stringify({ method, params }));
+                } else {
+                    console.log(
+                        `[ACP] ${method}:`,
+                        JSON.stringify(params, null, 2),
+                    );
+                }
             }
-        }
-    });
+        },
+    );
     const codexAcpClient = new CodexAcpClient(codexAppServerClient);
-    const codexAcpAgent = new CodexAcpServer(acpConnection, codexAcpClient, undefined, () => codexConnection.process.exitCode);
+    const codexAcpAgent = new CodexAcpServer(
+        acpConnection,
+        codexAcpClient,
+        undefined,
+        () => codexConnection.process.exitCode,
+    );
 
     try {
         // Initialize
@@ -138,14 +169,19 @@ async function main() {
         // Check auth
         const authRequirement = await codexAcpClient.readAuthRequirement();
         if (authRequirement.required) {
-            console.error("Error: Authentication required. Please login to Codex first.");
+            console.error(
+                "Error: Authentication required. Please login to Codex first.",
+            );
             process.exitCode = 1;
             return;
         }
 
         // Create session
         console.log("\n--- Creating Session ---\n");
-        const sessionResponse = await codexAcpAgent.newSession({ cwd, mcpServers: [] });
+        const sessionResponse = await codexAcpAgent.newSession({
+            cwd,
+            mcpServers: [],
+        });
         console.log(`Session ID: ${sessionResponse.sessionId}`);
         console.log(`Model: ${sessionResponse.models?.currentModelId}`);
 
@@ -154,13 +190,13 @@ async function main() {
         const startTime = Date.now();
         const promptResponse = await codexAcpAgent.prompt({
             sessionId: sessionResponse.sessionId,
-            prompt: [{ type: "text", text: prompt }]
+            prompt: [{ type: "text", text: prompt }],
         });
         const duration = Date.now() - startTime;
 
         // Summary
         if (output === "all" || output === "summary") {
-            console.log("\n" + "=".repeat(60));
+            console.log(`\n${"=".repeat(60)}`);
             console.log("Summary");
             console.log("=".repeat(60));
             console.log(`Stop Reason: ${promptResponse.stopReason}`);
@@ -196,7 +232,9 @@ async function main() {
             console.log(JSON.stringify(promptResponse, null, 2));
         }
 
-        await codexAcpAgent.closeSession({sessionId: sessionResponse.sessionId});
+        await codexAcpAgent.closeSession({
+            sessionId: sessionResponse.sessionId,
+        });
     } catch (err) {
         console.error("Error:", err);
         process.exitCode = 1;

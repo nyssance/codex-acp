@@ -1,16 +1,22 @@
-import {turnErrorUpdate} from "./alwith/agent/turnErrors";
-import type {
-    ServerNotification
-} from "./app-server";
+import { turnErrorUpdate } from "./alwith/agent/turnErrors";
+import type { ServerNotification } from "./app-server";
 import type {
     SessionFailure,
     SessionFailureAction,
     SessionFailureCategory,
     SessionState,
 } from "./CodexAcpServer";
-import {type Error as AcpError, type PlanEntry, RequestError} from "@agentclientprotocol/sdk/unstable";
-import {ACPSessionConnection, type AcpClientConnection, type UpdateSessionEvent} from "./ACPSessionConnection";
-import {normalizeSessionTitle} from "./SessionTitle";
+import {
+    type Error as AcpError,
+    type PlanEntry,
+    RequestError,
+} from "@agentclientprotocol/sdk/unstable";
+import {
+    ACPSessionConnection,
+    type AcpClientConnection,
+    type UpdateSessionEvent,
+} from "./ACPSessionConnection";
+import { normalizeSessionTitle } from "./SessionTitle";
 import type {
     AccountRateLimitsUpdatedNotification,
     AccountUpdatedNotification,
@@ -32,29 +38,36 @@ import type {
     Turn,
     TurnDiffUpdatedNotification,
     TurnPlanUpdatedNotification,
-    WarningNotification
+    WarningNotification,
 } from "./app-server/v2";
-import {toTokenCount} from "./TokenCount";
+import { toTokenCount } from "./TokenCount";
 import { stripShellPrefix } from "./CommandUtils";
-import {AcpToolCallRenderer} from "./tool-calls/AcpToolCallRenderer";
-import {CommandReporter, commandUsesTerminal} from "./tool-calls/reporters/CommandReporter";
-import {CompactionReporter} from "./tool-calls/reporters/CompactionReporter";
-import {DynamicToolReporter} from "./tool-calls/reporters/DynamicToolReporter";
-import {FileChangeReporter} from "./tool-calls/reporters/FileChangeReporter";
-import {FuzzySearchReporter} from "./tool-calls/reporters/FuzzySearchReporter";
-import {GuardianReporter} from "./tool-calls/reporters/GuardianReporter";
-import {ImageGenerationReporter} from "./tool-calls/reporters/ImageGenerationReporter";
-import {ImageViewReporter} from "./tool-calls/reporters/ImageViewReporter";
-import {McpToolReporter} from "./tool-calls/reporters/McpToolReporter";
-import {WebSearchReporter} from "./tool-calls/reporters/WebSearchReporter";
-import {CodexPlanStream} from "./CodexPlanStream";
+import { AcpToolCallRenderer } from "./tool-calls/AcpToolCallRenderer";
+import {
+    CommandReporter,
+    commandUsesTerminal,
+} from "./tool-calls/reporters/CommandReporter";
+import { CompactionReporter } from "./tool-calls/reporters/CompactionReporter";
+import { DynamicToolReporter } from "./tool-calls/reporters/DynamicToolReporter";
+import { FileChangeReporter } from "./tool-calls/reporters/FileChangeReporter";
+import { FuzzySearchReporter } from "./tool-calls/reporters/FuzzySearchReporter";
+import { GuardianReporter } from "./tool-calls/reporters/GuardianReporter";
+import { ImageGenerationReporter } from "./tool-calls/reporters/ImageGenerationReporter";
+import { ImageViewReporter } from "./tool-calls/reporters/ImageViewReporter";
+import { McpToolReporter } from "./tool-calls/reporters/McpToolReporter";
+import { WebSearchReporter } from "./tool-calls/reporters/WebSearchReporter";
+import { CodexPlanStream } from "./CodexPlanStream";
 import {
     createMessagePhaseMeta,
     createAgentTextMessageChunk,
     createAgentTextThoughtChunk,
 } from "./ContentChunks";
-import {goalSessionInfoUpdate, sameThreadGoalSnapshot, toThreadGoalSnapshot} from "./ThreadGoalSnapshot";
-import {logger} from "./Logger";
+import {
+    goalSessionInfoUpdate,
+    sameThreadGoalSnapshot,
+    toThreadGoalSnapshot,
+} from "./ThreadGoalSnapshot";
+import { logger } from "./Logger";
 import {
     AIR_EXTENSION_VERSION,
     AIR_EXTENSION_VERSION_KEY,
@@ -62,13 +75,13 @@ import {
     AIR_SESSION_FAILURE_KEY,
     JETBRAINS_META_KEY,
 } from "./AirExtension";
-import {CodexSubagentEventRouter} from "./subagents/CodexSubagentEventRouter";
-import type {SubagentState} from "./subagents/AcpSubagents";
-import {mergeRateLimitSnapshot} from "./RateLimitsMap";
-import {AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES} from "./AgentFileChangeReport";
-import {createSessionNotice} from "./SessionNotice";
-import {isStaleAutomaticTitleEcho} from "./SessionIndexTitles";
-import {readableServiceErrorMessage} from "./ServiceErrorMessage";
+import type { CodexSubagentEventRouter } from "./subagents/CodexSubagentEventRouter";
+import type { SubagentState } from "./subagents/AcpSubagents";
+import { mergeRateLimitSnapshot } from "./RateLimitsMap";
+import { AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES } from "./AgentFileChangeReport";
+import { createSessionNotice } from "./SessionNotice";
+import { isStaleAutomaticTitleEcho } from "./SessionIndexTitles";
+import { readableServiceErrorMessage } from "./ServiceErrorMessage";
 
 export { stripShellPrefix };
 
@@ -78,9 +91,17 @@ export type CompletedPlan = {
 };
 
 type CodexFailureKind =
-    | "transport_lost" | "auth_required" | "rate_limited" | "quota_exhausted" | "overloaded"
-    | "context_exhausted" | "budget_exhausted" | "policy_denied" | "bad_request"
-    | "provider_error" | "internal_error";
+    | "transport_lost"
+    | "auth_required"
+    | "rate_limited"
+    | "quota_exhausted"
+    | "overloaded"
+    | "context_exhausted"
+    | "budget_exhausted"
+    | "policy_denied"
+    | "bad_request"
+    | "provider_error"
+    | "internal_error";
 
 type SessionFailurePolicy = {
     category: SessionFailureCategory;
@@ -123,7 +144,8 @@ const SESSION_FAILURE_POLICY: Record<CodexFailureKind, SessionFailurePolicy> = {
         actions: [],
     },
     bad_request: {
-        category: "request", actions: [],
+        category: "request",
+        actions: [],
     },
     provider_error: {
         category: "service",
@@ -135,7 +157,10 @@ const SESSION_FAILURE_POLICY: Record<CodexFailureKind, SessionFailurePolicy> = {
     },
 };
 
-const SYNTHETIC_FAILURE_TITLE: Record<"transport_lost" | "internal_error", string> = {
+const SYNTHETIC_FAILURE_TITLE: Record<
+    "transport_lost" | "internal_error",
+    string
+> = {
     transport_lost: "Connection to Codex was lost.",
     internal_error: "Codex encountered an internal error.",
 };
@@ -143,7 +168,10 @@ const SYNTHETIC_FAILURE_TITLE: Record<"transport_lost" | "internal_error", strin
 /**
  * Records sharing an id form one logical banner whose revisions must increase; a new id restarts at 1.
  */
-function nextSessionFailureRevision(previous: SessionFailure | undefined, id: string): number {
+function nextSessionFailureRevision(
+    previous: SessionFailure | undefined,
+    id: string,
+): number {
     return previous?.id === id ? previous.revision + 1 : 1;
 }
 
@@ -157,25 +185,28 @@ type StructuredCodexErrorKind = KeysOfUnion<StructuredCodexErrorInfo>;
  * to provider_error. The runtime lookup still has a fallback for a newer app-server talking to an
  * older codex-acp build.
  */
-const STRING_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> = {
-    contextWindowExceeded: "context_exhausted",
-    sessionBudgetExceeded: "budget_exhausted",
-    usageLimitExceeded: "quota_exhausted",
-    rateLimitExceeded: "rate_limited",
-    flexUnavailable: "provider_error",
-    serverOverloaded: "overloaded",
-    cyberPolicy: "policy_denied",
-    misalignmentPolicyViolation: "policy_denied",
-    tooManyDenials: "provider_error",
-    internalServerError: "internal_error",
-    unauthorized: "auth_required",
-    badRequest: "bad_request",
-    threadRollbackFailed: "provider_error",
-    sandboxError: "provider_error",
-    other: "provider_error",
-} satisfies Record<StringCodexErrorInfo, CodexFailureKind>;
+const STRING_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> =
+    {
+        contextWindowExceeded: "context_exhausted",
+        sessionBudgetExceeded: "budget_exhausted",
+        usageLimitExceeded: "quota_exhausted",
+        rateLimitExceeded: "rate_limited",
+        flexUnavailable: "provider_error",
+        serverOverloaded: "overloaded",
+        cyberPolicy: "policy_denied",
+        misalignmentPolicyViolation: "policy_denied",
+        tooManyDenials: "provider_error",
+        internalServerError: "internal_error",
+        unauthorized: "auth_required",
+        badRequest: "bad_request",
+        threadRollbackFailed: "provider_error",
+        sandboxError: "provider_error",
+        other: "provider_error",
+    } satisfies Record<StringCodexErrorInfo, CodexFailureKind>;
 
-const STRUCTURED_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> = {
+const STRUCTURED_CODEX_ERROR_CATEGORIES: Partial<
+    Record<string, CodexFailureKind>
+> = {
     httpConnectionFailed: "transport_lost",
     responseStreamConnectionFailed: "transport_lost",
     responseStreamDisconnected: "transport_lost",
@@ -208,7 +239,6 @@ export function failureWasShownAsMessage(error: unknown): boolean {
 }
 
 export class CodexEventHandler {
-
     private readonly sessionState: SessionState;
     private readonly supportsTypedSessionFailures: boolean;
     private readonly sessionFailureEpoch: string;
@@ -217,10 +247,14 @@ export class CodexEventHandler {
     private readonly activeFailureIdByScope = new Map<string, string>();
     private readonly failureTurnIdById = new Map<string, string | undefined>();
     private readonly allocatedFailureScopes = new Set<string>();
-    private lastSessionNotice: {key: string; failure: SessionFailure} | undefined;
+    private lastSessionNotice:
+        { key: string; failure: SessionFailure } | undefined;
     private nextNoticeId = 1;
     private failure: RequestError | null = null;
-    private terminalTurnError: {turnId: string; error: ErrorNotification["error"]} | null = null;
+    private terminalTurnError: {
+        turnId: string;
+        error: ErrorNotification["error"];
+    } | null = null;
     private completedPlan: CompletedPlan | null = null;
     private readonly activeImageGenerationItems = new Set<string>();
     private readonly emittedImageViewItems = new Set<string>();
@@ -236,13 +270,17 @@ export class CodexEventHandler {
     private readonly turnDiffs = new Map<string, string>();
     private readonly oversizedTurnDiffs = new Set<string>();
     /** Latest diff of each subagent turn, keyed by child thread and turn; `null` marks an oversized diff. */
-    private readonly childTurnDiffs = new Map<string, {rootTurnId: string; diff: string | null}>();
+    private readonly childTurnDiffs = new Map<
+        string,
+        { rootTurnId: string; diff: string | null }
+    >();
     /** The last root turn that ended, for subagent turns that outlive it. */
     private latestRootTurnId: string | null = null;
     private readonly collectTurnDiffs: boolean;
     private readonly subagents: CodexSubagentEventRouter;
     /** Connection-level `authStatus` sink; the app-server account push feeds it. */
-    private readonly onAccountUpdated: ((notification: AccountUpdatedNotification) => void) | undefined;
+    private readonly onAccountUpdated:
+        ((notification: AccountUpdatedNotification) => void) | undefined;
 
     constructor(
         connection: AcpClientConnection,
@@ -250,7 +288,8 @@ export class CodexEventHandler {
         supportsTypedSessionFailures: boolean,
         sessionFailureEpoch: string,
         subagents: CodexSubagentEventRouter,
-        onAccountUpdated: ((notification: AccountUpdatedNotification) => void) | undefined,
+        onAccountUpdated:
+            ((notification: AccountUpdatedNotification) => void) | undefined,
         collectTurnDiffs: boolean,
         private readonly supportsCompaction: boolean,
         private readonly supportsNotices: boolean,
@@ -259,13 +298,24 @@ export class CodexEventHandler {
         this.sessionState = sessionState;
         this.supportsTypedSessionFailures = supportsTypedSessionFailures;
         this.sessionFailureEpoch = sessionFailureEpoch;
-        this.session = new ACPSessionConnection(connection, sessionState.sessionId);
-        this.renderer = new AcpToolCallRenderer(sessionState.clientCapabilities);
-        this.plans = new CodexPlanStream(this.session, sessionState.clientCapabilities);
+        this.session = new ACPSessionConnection(
+            connection,
+            sessionState.sessionId,
+        );
+        this.renderer = new AcpToolCallRenderer(
+            sessionState.clientCapabilities,
+        );
+        this.plans = new CodexPlanStream(
+            this.session,
+            sessionState.clientCapabilities,
+        );
         this.subagents = subagents;
         this.collectTurnDiffs = collectTurnDiffs;
         if (sessionState.sessionFailure !== undefined) {
-            this.failuresById.set(sessionState.sessionFailure.id, sessionState.sessionFailure);
+            this.failuresById.set(
+                sessionState.sessionFailure.id,
+                sessionState.sessionFailure,
+            );
         }
     }
 
@@ -276,17 +326,32 @@ export class CodexEventHandler {
     /** Runtime outcomes, not AIR capability negotiation, determine standard v2 failures. */
     getTurnFailure(turn: Turn): AcpError | null {
         if (turn.status !== "failed") return null;
-        const error = turn.error ?? (this.terminalTurnError?.turnId === turn.id ? this.terminalTurnError.error : null);
+        const error =
+            turn.error ??
+            (this.terminalTurnError?.turnId === turn.id
+                ? this.terminalTurnError.error
+                : null);
         if (this.isAuthenticationRequiredError(error?.codexErrorInfo ?? null)) {
-            return {code: -32000, message: "Authentication required"};
+            return { code: -32000, message: "Authentication required" };
         }
-        return {code: -32603, message: readableServiceErrorMessage(error?.message ?? "Codex turn failed.")};
+        return {
+            code: -32603,
+            message: readableServiceErrorMessage(
+                error?.message ?? "Codex turn failed.",
+            ),
+        };
     }
 
     private recordTerminalTurnError(notification: ServerNotification): void {
-        if (notification.method === "error" && notification.params.threadId === this.sessionState.sessionId
-            && !notification.params.willRetry) {
-            this.terminalTurnError = {turnId: notification.params.turnId, error: notification.params.error};
+        if (
+            notification.method === "error" &&
+            notification.params.threadId === this.sessionState.sessionId &&
+            !notification.params.willRetry
+        ) {
+            this.terminalTurnError = {
+                turnId: notification.params.turnId,
+                error: notification.params.error,
+            };
         }
     }
 
@@ -294,16 +359,27 @@ export class CodexEventHandler {
     getTurnDiff(turnId: string): string {
         const diffs = [this.turnDiffs.get(turnId) ?? ""];
         for (const child of this.childTurnDiffs.values()) {
-            if (child.rootTurnId === turnId && child.diff !== null) diffs.push(child.diff);
+            if (child.rootTurnId === turnId && child.diff !== null)
+                diffs.push(child.diff);
         }
         return diffs
-            .filter(diff => diff.trim() !== "")
-            .reduce((all, diff) => all === "" || all.endsWith("\n") ? all + diff : `${all}\n${diff}`, "");
+            .filter((diff) => diff.trim() !== "")
+            .reduce(
+                (all, diff) =>
+                    all === "" || all.endsWith("\n")
+                        ? all + diff
+                        : `${all}\n${diff}`,
+                "",
+            );
     }
 
     isTurnDiffOversized(turnId: string): boolean {
-        return this.oversizedTurnDiffs.has(turnId)
-            || [...this.childTurnDiffs.values()].some(child => child.rootTurnId === turnId && child.diff === null);
+        return (
+            this.oversizedTurnDiffs.has(turnId) ||
+            [...this.childTurnDiffs.values()].some(
+                (child) => child.rootTurnId === turnId && child.diff === null,
+            )
+        );
     }
 
     getTerminalSessionFailureMeta(
@@ -311,18 +387,29 @@ export class CodexEventHandler {
         allowUnattributed = false,
     ): Record<string, unknown> | null {
         const failure = this.sessionState.sessionFailure;
-        if (!this.supportsTypedSessionFailures
-            || failure === undefined
-            || (this.failureTurnIdById.get(failure.id) === undefined
+        if (
+            !this.supportsTypedSessionFailures ||
+            failure === undefined ||
+            (this.failureTurnIdById.get(failure.id) === undefined
                 ? !allowUnattributed
-                : turnId === null || this.failureTurnIdById.get(failure.id) !== turnId)) {
+                : turnId === null ||
+                  this.failureTurnIdById.get(failure.id) !== turnId)
+        ) {
             return null;
         }
         return this.createSessionFailureMeta(failure);
     }
 
-    recordSyntheticTerminalFailure(kind: "transport_lost" | "internal_error", turnId: string | null): void {
-        this.recordSessionFailure(kind, turnId ?? undefined, "error", SYNTHETIC_FAILURE_TITLE[kind]);
+    recordSyntheticTerminalFailure(
+        kind: "transport_lost" | "internal_error",
+        turnId: string | null,
+    ): void {
+        this.recordSessionFailure(
+            kind,
+            turnId ?? undefined,
+            "error",
+            SYNTHETIC_FAILURE_TITLE[kind],
+        );
     }
 
     /**
@@ -330,7 +417,9 @@ export class CodexEventHandler {
      * remains installed until the ACP session closes, so terminal errors need a durable session-level path
      * instead of entering a turn buffer that will never be flushed.
      */
-    async handleSessionScopedNotification(notification: ServerNotification): Promise<void> {
+    async handleSessionScopedNotification(
+        notification: ServerNotification,
+    ): Promise<void> {
         this.recordTerminalTurnError(notification);
         if (notification.method !== "error") {
             await this.handleNotification(notification);
@@ -342,9 +431,18 @@ export class CodexEventHandler {
             return;
         }
         await this.finishCompactionsForNotification(notification);
-        if (this.isAuthenticationRequiredError(notification.params.error.codexErrorInfo)) return;
+        if (
+            this.isAuthenticationRequiredError(
+                notification.params.error.codexErrorInfo,
+            )
+        )
+            return;
         if (notification.params.willRetry) {
-            await this.session.update(this.createSessionFailureUpdate(this.recordRetryWarning(notification.params, false)));
+            await this.session.update(
+                this.createSessionFailureUpdate(
+                    this.recordRetryWarning(notification.params, false),
+                ),
+            );
             return;
         }
         const failure = this.recordSessionFailure(
@@ -359,7 +457,10 @@ export class CodexEventHandler {
     }
 
     async flushPendingErrors(): Promise<void> {
-        if (this.sessionState.currentTurnId === null || this.pendingErrors.length === 0) {
+        if (
+            this.sessionState.currentTurnId === null ||
+            this.pendingErrors.length === 0
+        ) {
             return;
         }
         const errors = this.pendingErrors.splice(0);
@@ -372,12 +473,18 @@ export class CodexEventHandler {
     }
 
     async flushPendingErrorsAsSessionScoped(): Promise<void> {
-        if (!this.supportsTypedSessionFailures || this.pendingErrors.length === 0) {
+        if (
+            !this.supportsTypedSessionFailures ||
+            this.pendingErrors.length === 0
+        ) {
             return;
         }
         const errors = this.pendingErrors.splice(0);
         for (const error of errors) {
-            await this.handleSessionScopedNotification({method: "error", params: error});
+            await this.handleSessionScopedNotification({
+                method: "error",
+                params: error,
+            });
         }
     }
 
@@ -389,21 +496,33 @@ export class CodexEventHandler {
         this.lastSessionNotice = undefined;
         if (!this.supportsTypedSessionFailures || turnId === null) return;
         const active = this.sessionState.sessionFailure;
-        if (active?.id !== this.activeFailureIdByScope.get(turnId) || active?.severity !== "warning") return;
+        if (
+            active?.id !== this.activeFailureIdByScope.get(turnId) ||
+            active?.severity !== "warning"
+        )
+            return;
         this.activeFailureIdByScope.delete(turnId);
         delete this.sessionState.sessionFailure;
     }
 
     async handleFailedTurn(turn: Turn): Promise<void> {
-        if (turn.status === "failed" && this.isAuthenticationRequiredError(turn.error?.codexErrorInfo ?? null)) {
+        if (
+            turn.status === "failed" &&
+            this.isAuthenticationRequiredError(
+                turn.error?.codexErrorInfo ?? null,
+            )
+        ) {
             this.failure = RequestError.authRequired();
             return;
         }
         const activeFailure = this.sessionState.sessionFailure;
-        if (!this.supportsTypedSessionFailures
-            || turn.status !== "failed"
-            || this.failure !== null
-            || this.failureTurnIdById.get(activeFailure?.id ?? "") === turn.id && activeFailure?.severity === "error") {
+        if (
+            !this.supportsTypedSessionFailures ||
+            turn.status !== "failed" ||
+            this.failure !== null ||
+            (this.failureTurnIdById.get(activeFailure?.id ?? "") === turn.id &&
+                activeFailure?.severity === "error")
+        ) {
             return;
         }
         const error = turn.error ?? {
@@ -428,35 +547,47 @@ export class CodexEventHandler {
 
     async handleNotification(notification: ServerNotification) {
         this.recordTerminalTurnError(notification);
-        if (notification.method === "item/started"
-            && notification.params.threadId === this.sessionState.sessionId
-            && isModelOutputItem(notification.params.item)) {
+        if (
+            notification.method === "item/started" &&
+            notification.params.threadId === this.sessionState.sessionId &&
+            isModelOutputItem(notification.params.item)
+        ) {
             this.sessionState.promptTokenUsage?.observeModelOutput();
         }
         // Before subagent routing, which drops updates of ended children and of spawns that never materialized.
-        if (notification.method === "turn/diff/updated" && notification.params.threadId !== this.sessionState.sessionId) {
+        if (
+            notification.method === "turn/diff/updated" &&
+            notification.params.threadId !== this.sessionState.sessionId
+        ) {
             this.recordChildTurnDiff(notification.params);
         }
         await this.flushPendingErrors();
         await this.finishCompactionsForNotification(notification);
-        const closingChildren = this.subagents.closingChildSessions(notification);
+        const closingChildren =
+            this.subagents.closingChildSessions(notification);
         for (const child of closingChildren) {
             await this.finishOutstandingCompactions(
                 child.state === "cancelled" ? "cancelled" : "failed",
                 child.sessionId,
             );
-            await this.sessionState.asyncTasks.reconcile(child.threadId, child.sessionId);
+            await this.sessionState.asyncTasks.reconcile(
+                child.threadId,
+                child.sessionId,
+            );
         }
         const handledBySubagents = await this.subagents.handle(notification);
         for (const buffered of this.subagents.takeBufferedNotifications()) {
             await this.handleNotification(buffered);
         }
-        const ignoredBySubagents = !handledBySubagents && this.subagents.shouldIgnore(notification);
+        const ignoredBySubagents =
+            !handledBySubagents && this.subagents.shouldIgnore(notification);
         let updateEvent: UpdateSessionEvent | null | undefined;
-        if (!handledBySubagents
-            && !ignoredBySubagents
-            && notification.method === "item/started"
-            && notification.params.item.type === "commandExecution") {
+        if (
+            !handledBySubagents &&
+            !ignoredBySubagents &&
+            notification.method === "item/started" &&
+            notification.params.item.type === "commandExecution"
+        ) {
             updateEvent = await this.createUpdateEvent(notification);
         }
         if (!handledBySubagents) {
@@ -468,44 +599,83 @@ export class CodexEventHandler {
         }
         if (handledBySubagents) return;
         if (ignoredBySubagents) return;
-        if (updateEvent === undefined) updateEvent = await this.createUpdateEvent(notification);
+        if (updateEvent === undefined)
+            updateEvent = await this.createUpdateEvent(notification);
         if (updateEvent) {
-            const hasContent = Object.keys(updateEvent).some(key => key !== "sessionUpdate" && key !== "toolCallId" && key !== "_meta");
-            if (hasContent && this.session.protocolVersion === 2 && "turnId" in notification.params
-                && typeof notification.params.turnId === "string") {
+            const hasContent = Object.keys(updateEvent).some(
+                (key) =>
+                    key !== "sessionUpdate" &&
+                    key !== "toolCallId" &&
+                    key !== "_meta",
+            );
+            if (
+                hasContent &&
+                this.session.protocolVersion === 2 &&
+                "turnId" in notification.params &&
+                typeof notification.params.turnId === "string"
+            ) {
                 const meta = updateEvent._meta;
                 const codex = meta?.["codex"];
-                updateEvent = {...updateEvent, _meta: {...meta, codex: {
-                    ...(codex && typeof codex === "object" ? codex : {}), turnId: notification.params.turnId,
-                }}};
+                updateEvent = {
+                    ...updateEvent,
+                    _meta: {
+                        ...meta,
+                        codex: {
+                            ...(codex && typeof codex === "object"
+                                ? codex
+                                : {}),
+                            turnId: notification.params.turnId,
+                        },
+                    },
+                };
             }
-            await this.session.update(updateEvent, this.subagents.notificationSessionId(notification));
+            await this.session.update(
+                updateEvent,
+                this.subagents.notificationSessionId(notification),
+            );
         }
     }
 
-    async waitForNativeSubagentSession(childThreadId: string): Promise<string | null> {
+    async waitForNativeSubagentSession(
+        childThreadId: string,
+    ): Promise<string | null> {
         return await this.subagents.waitForMaterializedSession(childThreadId);
     }
 
     async waitForNativeSubagents(signal: AbortSignal): Promise<void> {
-        if (await this.subagents.wait(signal) === "timed_out") {
+        if ((await this.subagents.wait(signal)) === "timed_out") {
             await this.finishOutstandingNativeSubagents("failed");
         }
     }
 
-    async finishOutstandingNativeSubagents(state: SubagentState): Promise<void> {
-        await this.finishOutstandingCompactions(state === "cancelled" ? "cancelled" : "failed");
+    async finishOutstandingNativeSubagents(
+        state: SubagentState,
+    ): Promise<void> {
+        await this.finishOutstandingCompactions(
+            state === "cancelled" ? "cancelled" : "failed",
+        );
         await this.subagents.finishOutstanding(state);
     }
 
-    async finishOutstandingCompactions(status: "failed" | "cancelled", sessionId?: string): Promise<void> {
+    async finishOutstandingCompactions(
+        status: "failed" | "cancelled",
+        sessionId?: string,
+    ): Promise<void> {
         if (!this.supportsCompaction) return;
-        for (const {sessionId: targetSessionId, update} of this.sessionState.compactions.finishOutstanding(status, sessionId)) {
+        for (const {
+            sessionId: targetSessionId,
+            update,
+        } of this.sessionState.compactions.finishOutstanding(
+            status,
+            sessionId,
+        )) {
             await this.session.update(update, targetSessionId);
         }
     }
 
-    private async finishCompactionsForNotification(notification: ServerNotification): Promise<void> {
+    private async finishCompactionsForNotification(
+        notification: ServerNotification,
+    ): Promise<void> {
         if (!this.supportsCompaction) return;
         let updates: UpdateSessionEvent[];
         const sessionId = this.subagents.notificationSessionId(notification);
@@ -516,9 +686,13 @@ export class CodexEventHandler {
                 sessionId,
                 turn.id,
                 turn.status === "interrupted" ? "cancelled" : "failed",
-                turn.error?.message ?? "Codex ended the turn before compaction completed.",
+                turn.error?.message ??
+                    "Codex ended the turn before compaction completed.",
             );
-        } else if (notification.method === "error" && !notification.params.willRetry) {
+        } else if (
+            notification.method === "error" &&
+            !notification.params.willRetry
+        ) {
             updates = this.sessionState.compactions.finishTurn(
                 sessionId,
                 notification.params.turnId,
@@ -528,7 +702,8 @@ export class CodexEventHandler {
         } else {
             return;
         }
-        for (const update of updates) await this.session.update(update, sessionId);
+        for (const update of updates)
+            await this.session.update(update, sessionId);
     }
 
     async flushPendingPlanUpdates(): Promise<void> {
@@ -539,11 +714,14 @@ export class CodexEventHandler {
         if (this.disposed) return;
         await this.plans.dispose();
         if (this.pendingErrors.length > 0) {
-            logger.log("Discarding app-server errors that arrived before a turn started", {
-                sessionId: this.sessionState.sessionId,
-                count: this.pendingErrors.length,
-                turnIds: this.pendingErrors.map(error => error.turnId),
-            });
+            logger.log(
+                "Discarding app-server errors that arrived before a turn started",
+                {
+                    sessionId: this.sessionState.sessionId,
+                    count: this.pendingErrors.length,
+                    turnIds: this.pendingErrors.map((error) => error.turnId),
+                },
+            );
             this.pendingErrors.splice(0);
         }
         this.disposed = true;
@@ -557,15 +735,23 @@ export class CodexEventHandler {
         if (this.disposed || !this.collectTurnDiffs) return;
         const key = `${params.threadId}\n${params.turnId}`;
         // A child turn stays with the root turn it started under, even if its diff updates arrive later.
-        const rootTurnId = this.childTurnDiffs.get(key)?.rootTurnId
-            ?? this.sessionState.currentTurnId
-            ?? this.latestRootTurnId;
+        const rootTurnId =
+            this.childTurnDiffs.get(key)?.rootTurnId ??
+            this.sessionState.currentTurnId ??
+            this.latestRootTurnId;
         if (rootTurnId === null) return;
-        const oversized = Buffer.byteLength(params.diff, "utf8") > AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES;
-        this.childTurnDiffs.set(key, {rootTurnId, diff: oversized ? null : params.diff});
+        const oversized =
+            Buffer.byteLength(params.diff, "utf8") >
+            AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES;
+        this.childTurnDiffs.set(key, {
+            rootTurnId,
+            diff: oversized ? null : params.diff,
+        });
     }
 
-    private async createUpdateEvent(notification: ServerNotification): Promise<UpdateSessionEvent | null> {
+    private async createUpdateEvent(
+        notification: ServerNotification,
+    ): Promise<UpdateSessionEvent | null> {
         /*
         TODO split UpdateSessionEvent to improve completion
         createUpdateEvent({
@@ -579,7 +765,10 @@ export class CodexEventHandler {
                 return await this.createTextEvent(notification.params);
             case "item/plan/delta":
                 this.completeRetryIncidentOnTurnProgress();
-                return this.plans.delta(notification.params.itemId, notification.params.delta);
+                return this.plans.delta(
+                    notification.params.itemId,
+                    notification.params.delta,
+                );
             case "item/started": {
                 this.completeRetryIncidentOnTurnProgress();
                 const update = await this.createItemEvent(notification.params);
@@ -588,23 +777,39 @@ export class CodexEventHandler {
             }
             case "item/completed":
                 this.completeRetryIncidentOnTurnProgress();
-                this.sessionState.openToolCalls.complete(notification.params.item.id);
+                this.sessionState.openToolCalls.complete(
+                    notification.params.item.id,
+                );
                 return await this.completeItemEvent(notification.params);
             case "turn/plan/updated":
                 this.completeRetryIncidentOnTurnProgress();
                 return await this.updatePlan(notification.params);
             case "turn/diff/updated":
-                if (notification.params.threadId === this.sessionState.sessionId) {
+                if (
+                    notification.params.threadId === this.sessionState.sessionId
+                ) {
                     this.completeRetryIncidentOnTurnProgress();
                     if (!this.disposed && this.collectTurnDiffs) {
-                        if (Buffer.byteLength(notification.params.diff, "utf8") > AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES) {
+                        if (
+                            Buffer.byteLength(
+                                notification.params.diff,
+                                "utf8",
+                            ) > AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES
+                        ) {
                             this.turnDiffs.delete(notification.params.turnId);
-                            this.oversizedTurnDiffs.add(notification.params.turnId);
+                            this.oversizedTurnDiffs.add(
+                                notification.params.turnId,
+                            );
                         } else {
                             // Codex 0.154 emits an empty snapshot when its tracker transitions
                             // from a non-empty aggregate to no diff, which clears stale state here.
-                            this.oversizedTurnDiffs.delete(notification.params.turnId);
-                            this.turnDiffs.set(notification.params.turnId, notification.params.diff);
+                            this.oversizedTurnDiffs.delete(
+                                notification.params.turnId,
+                            );
+                            this.turnDiffs.set(
+                                notification.params.turnId,
+                                notification.params.diff,
+                            );
                         }
                     }
                 }
@@ -622,20 +827,44 @@ export class CodexEventHandler {
                 await this.plans.flush();
                 this.plans.clearTurn();
                 // Subagents can keep running after the root turn ends; their turns still belong to it.
-                this.latestRootTurnId = this.sessionState.currentTurnId ?? this.latestRootTurnId;
+                this.latestRootTurnId =
+                    this.sessionState.currentTurnId ?? this.latestRootTurnId;
                 this.sessionState.currentTurnId = null;
                 this.sessionState.interruptTurnId = null;
-                if (this.session.protocolVersion === 2 && notification.params.turn.status === "failed") {
+                if (
+                    this.session.protocolVersion === 2 &&
+                    notification.params.turn.status === "failed"
+                ) {
                     if (!this.supportsTypedSessionFailures) {
                         const turn = notification.params.turn;
-                        const error = turn.error ?? (this.terminalTurnError?.turnId === turn.id ? this.terminalTurnError.error : null);
-                        if (error && !this.isAuthenticationRequiredError(error.codexErrorInfo)) await this.session.updateV2(turnErrorUpdate(turn.id, error), this.subagents.notificationSessionId(notification));
+                        const error =
+                            turn.error ??
+                            (this.terminalTurnError?.turnId === turn.id
+                                ? this.terminalTurnError.error
+                                : null);
+                        if (
+                            error &&
+                            !this.isAuthenticationRequiredError(
+                                error.codexErrorInfo,
+                            )
+                        )
+                            await this.session.updateV2(
+                                turnErrorUpdate(turn.id, error),
+                                this.subagents.notificationSessionId(
+                                    notification,
+                                ),
+                            );
                     }
                     for (const update of this.sessionState.openToolCalls.finishOutstanding()) {
-                        await this.session.update(update, this.subagents.notificationSessionId(notification));
+                        await this.session.update(
+                            update,
+                            this.subagents.notificationSessionId(notification),
+                        );
                     }
                 }
-                this.sessionState.toolCallReports.releaseOpen(this.subagents.notificationSessionId(notification));
+                this.sessionState.toolCallReports.releaseOpen(
+                    this.subagents.notificationSessionId(notification),
+                );
                 // An item that missed its item/completed (e.g. dropped by a provider restart
                 // mid-turn) must not linger past its own turn and get failed by a later restart.
                 this.sessionState.openToolCalls.clear();
@@ -643,14 +872,22 @@ export class CodexEventHandler {
             case "thread/tokenUsage/updated":
                 return this.createUsageUpdate(notification.params);
             case "thread/name/updated":
-                if (isStaleAutomaticTitleEcho(this.sessionState, normalizeSessionTitle(notification.params.threadName))) {
+                if (
+                    isStaleAutomaticTitleEcho(
+                        this.sessionState,
+                        normalizeSessionTitle(notification.params.threadName),
+                    )
+                ) {
                     this.sessionState.titleGen?.observeRename();
                     return null;
                 }
-                this.sessionState.sessionTitle = normalizeSessionTitle(notification.params.threadName);
-                this.sessionState.sessionTitleSource = notification.params.threadName == null
-                    ? "unset"
-                    : "explicit";
+                this.sessionState.sessionTitle = normalizeSessionTitle(
+                    notification.params.threadName,
+                );
+                this.sessionState.sessionTitleSource =
+                    notification.params.threadName == null
+                        ? "unset"
+                        : "explicit";
                 this.sessionState.titleGen?.observeRename();
                 return {
                     sessionUpdate: "session_info_update",
@@ -674,15 +911,22 @@ export class CodexEventHandler {
                 });
             case "item/commandExecution/outputDelta":
                 this.completeRetryIncidentOnTurnProgress();
-                return this.renderer.render(this.commands.outputDelta(notification.params.itemId, notification.params.delta));
+                return this.renderer.render(
+                    this.commands.outputDelta(
+                        notification.params.itemId,
+                        notification.params.delta,
+                    ),
+                );
             case "item/mcpToolCall/progress":
                 this.completeRetryIncidentOnTurnProgress();
                 // AIR does not show MCP progress.
                 if (this.renderer.capabilities.airToolCallContract) return null;
-                return this.renderer.render(McpToolReporter.progress(
-                    notification.params.itemId,
-                    notification.params.message,
-                ));
+                return this.renderer.render(
+                    McpToolReporter.progress(
+                        notification.params.itemId,
+                        notification.params.message,
+                    ),
+                );
             case "account/rateLimits/updated":
                 this.handleRateLimitsUpdated(notification.params);
                 return null;
@@ -698,14 +942,19 @@ export class CodexEventHandler {
             case "deprecationNotice":
                 return this.createDeprecationNoticeEvent(notification.params);
             case "item/autoApprovalReview/started":
-                return this.renderer.render(this.guardianReviews.started(notification.params));
+                return this.renderer.render(
+                    this.guardianReviews.started(notification.params),
+                );
             case "item/autoApprovalReview/completed":
-                return this.renderer.render(this.guardianReviews.completed(notification.params));
+                return this.renderer.render(
+                    this.guardianReviews.completed(notification.params),
+                );
             case "thread/compacted":
                 return this.supportsCompaction
                     ? this.sessionState.compactions.completeLegacy(
-                        this.subagents.notificationSessionId(notification), notification.params.turnId,
-                    )
+                          this.subagents.notificationSessionId(notification),
+                          notification.params.turnId,
+                      )
                     : this.createContextCompactedEvent();
             case "item/reasoning/summaryTextDelta":
                 this.completeRetryIncidentOnTurnProgress();
@@ -715,22 +964,30 @@ export class CodexEventHandler {
                 return this.createReasoningDeltaEvent(notification.params);
             case "item/reasoning/summaryPartAdded":
                 this.completeRetryIncidentOnTurnProgress();
-                return this.createReasoningSectionBreakEvent(notification.params);
+                return this.createReasoningSectionBreakEvent(
+                    notification.params,
+                );
             case "model/rerouted":
                 return this.createModelReroutedEvent(notification.params);
             case "fuzzyFileSearch/sessionUpdated":
-                return this.renderer.render(this.fuzzySearches.updated(notification.params));
+                return this.renderer.render(
+                    this.fuzzySearches.updated(notification.params),
+                );
             case "fuzzyFileSearch/sessionCompleted":
-                return this.renderer.render(this.fuzzySearches.completed(notification.params));
+                return this.renderer.render(
+                    this.fuzzySearches.completed(notification.params),
+                );
             case "thread/goal/updated":
                 return this.createThreadGoalUpdatedEvent(notification.params);
             case "thread/goal/cleared":
                 return this.createThreadGoalClearedEvent(notification.params);
             case "item/commandExecution/terminalInteraction":
-                return this.renderer.render(this.commands.terminalInput(
-                    notification.params.itemId,
-                    notification.params.stdin,
-                ));
+                return this.renderer.render(
+                    this.commands.terminalInput(
+                        notification.params.itemId,
+                        notification.params.stdin,
+                    ),
+                );
             case "thread/attachment/updated":
                 // Persisted attachment metadata has no ACP session update counterpart.
                 return null;
@@ -791,11 +1048,15 @@ export class CodexEventHandler {
             case "autoApprovalReview/strictReviewRequired":
                 return null;
             case "thread/readState/changed":
-                return this.createCodexSessionInfoUpdate({readState: notification.params.readState});
+                return this.createCodexSessionInfoUpdate({
+                    readState: notification.params.readState,
+                });
         }
     }
 
-    private createCodexSessionInfoUpdate(codexMetadata: Record<string, unknown>): UpdateSessionEvent {
+    private createCodexSessionInfoUpdate(
+        codexMetadata: Record<string, unknown>,
+    ): UpdateSessionEvent {
         return {
             sessionUpdate: "session_info_update",
             _meta: {
@@ -804,47 +1065,81 @@ export class CodexEventHandler {
         };
     }
 
-    private async createTextEvent(event: AgentMessageDeltaNotification): Promise<UpdateSessionEvent> {
+    private async createTextEvent(
+        event: AgentMessageDeltaNotification,
+    ): Promise<UpdateSessionEvent> {
         const phase = this.agentMessagePhases.get(event.itemId) ?? null;
-        const meta = createMessagePhaseMeta(phase, this.sessionState.clientCapabilities.airClient);
+        const meta = createMessagePhaseMeta(
+            phase,
+            this.sessionState.clientCapabilities.airClient,
+        );
         return createAgentTextMessageChunk(event.delta, event.itemId, meta);
     }
 
-    private async createConfigWarningEvent(event: ConfigWarningNotification): Promise<UpdateSessionEvent> {
+    private async createConfigWarningEvent(
+        event: ConfigWarningNotification,
+    ): Promise<UpdateSessionEvent> {
         if (this.supportsNotices) {
-            return createSessionNotice("warning", event.summary.trim() || "Configuration warning", event.details);
+            return createSessionNotice(
+                "warning",
+                event.summary.trim() || "Configuration warning",
+                event.details,
+            );
         }
         if (this.supportsTypedSessionFailures) {
-            return this.createSessionFailureUpdate(this.recordSessionNotice(...this.sessionNoticeContent(event.summary, event.details)));
+            return this.createSessionFailureUpdate(
+                this.recordSessionNotice(
+                    ...this.sessionNoticeContent(event.summary, event.details),
+                ),
+            );
         }
-        const text = event.details ? `${event.summary}\n\n${event.details}` : event.summary;
+        const text = event.details
+            ? `${event.summary}\n\n${event.details}`
+            : event.summary;
         return createAgentTextMessageChunk(`Config warning: ${text}\n\n`);
     }
 
-    private createDeprecationNoticeEvent(event: DeprecationNoticeNotification): UpdateSessionEvent | null {
+    private createDeprecationNoticeEvent(
+        event: DeprecationNoticeNotification,
+    ): UpdateSessionEvent | null {
         if (this.supportsNotices) {
-            return createSessionNotice("warning", event.summary.trim() || "Deprecated configuration", event.details);
+            return createSessionNotice(
+                "warning",
+                event.summary.trim() || "Deprecated configuration",
+                event.details,
+            );
         }
         // Legacy clients without typed failures have never received deprecation notices.
         if (!this.supportsTypedSessionFailures) return null;
         return this.createSessionFailureUpdate(
-            this.recordSessionNotice(...this.sessionNoticeContent(event.summary, event.details)),
+            this.recordSessionNotice(
+                ...this.sessionNoticeContent(event.summary, event.details),
+            ),
         );
     }
 
     private createWarningEvent(event: WarningNotification): UpdateSessionEvent {
         if (this.supportsNotices) {
-            return createSessionNotice("warning", event.message.trim() || "Codex warning");
+            return createSessionNotice(
+                "warning",
+                event.message.trim() || "Codex warning",
+            );
         }
         if (this.supportsTypedSessionFailures) {
-            return this.createSessionFailureUpdate(this.recordSessionNotice(event.message));
+            return this.createSessionFailureUpdate(
+                this.recordSessionNotice(event.message),
+            );
         }
         return createAgentTextMessageChunk(`Warning: ${event.message}\n\n`);
     }
 
-    private createModelReroutedEvent(event: ModelReroutedNotification): UpdateSessionEvent {
+    private createModelReroutedEvent(
+        event: ModelReroutedNotification,
+    ): UpdateSessionEvent {
         if (!this.supportsNotices) {
-            return createAgentTextThoughtChunk(`Model rerouted from ${event.fromModel} to ${event.toModel} (${event.reason}).\n\n`);
+            return createAgentTextThoughtChunk(
+                `Model rerouted from ${event.fromModel} to ${event.toModel} (${event.reason}).\n\n`,
+            );
         }
         return createSessionNotice(
             "info",
@@ -853,78 +1148,123 @@ export class CodexEventHandler {
         );
     }
 
-    private createThreadGoalUpdatedEvent(event: ThreadGoalUpdatedNotification): UpdateSessionEvent | null {
+    private createThreadGoalUpdatedEvent(
+        event: ThreadGoalUpdatedNotification,
+    ): UpdateSessionEvent | null {
         this.sessionState.goalRevision += 1;
         const goalSnapshot = toThreadGoalSnapshot(event.goal);
-        if (sameThreadGoalSnapshot(this.sessionState.currentGoal, goalSnapshot)) {
+        if (
+            sameThreadGoalSnapshot(this.sessionState.currentGoal, goalSnapshot)
+        ) {
             return null;
         }
         this.sessionState.currentGoal = goalSnapshot;
 
-        return goalSessionInfoUpdate(goalSnapshot, this.sessionState.clientCapabilities.airClient, this.session.protocolVersion === 2);
+        return goalSessionInfoUpdate(
+            goalSnapshot,
+            this.sessionState.clientCapabilities.airClient,
+            this.session.protocolVersion === 2,
+        );
     }
 
-    private createThreadGoalClearedEvent(_event: ThreadGoalClearedNotification): UpdateSessionEvent | null {
+    private createThreadGoalClearedEvent(
+        _event: ThreadGoalClearedNotification,
+    ): UpdateSessionEvent | null {
         this.sessionState.goalRevision += 1;
         if (this.sessionState.currentGoal === null) {
             return null;
         }
         this.sessionState.currentGoal = null;
 
-        return goalSessionInfoUpdate(null, this.sessionState.clientCapabilities.airClient, this.session.protocolVersion === 2);
+        return goalSessionInfoUpdate(
+            null,
+            this.sessionState.clientCapabilities.airClient,
+            this.session.protocolVersion === 2,
+        );
     }
 
     private createReasoningDeltaEvent(
-        event: ReasoningSummaryTextDeltaNotification | ReasoningTextDeltaNotification
+        event:
+            | ReasoningSummaryTextDeltaNotification
+            | ReasoningTextDeltaNotification,
     ): UpdateSessionEvent {
         this.seenReasoningDeltaItemIds.add(event.itemId);
         return this.createAgentThoughtEvent(event.delta, event.itemId);
     }
 
-    private createReasoningSectionBreakEvent(event: ReasoningSummaryPartAddedNotification): UpdateSessionEvent {
+    private createReasoningSectionBreakEvent(
+        event: ReasoningSummaryPartAddedNotification,
+    ): UpdateSessionEvent {
         this.seenReasoningDeltaItemIds.add(event.itemId);
         return this.createAgentThoughtEvent("\n\n", event.itemId);
     }
 
-    private createAgentThoughtEvent(text: string, messageId: string): UpdateSessionEvent {
+    private createAgentThoughtEvent(
+        text: string,
+        messageId: string,
+    ): UpdateSessionEvent {
         return createAgentTextThoughtChunk(text, messageId);
     }
 
-    private async createItemEvent(event: ItemStartedNotification): Promise<UpdateSessionEvent | null> {
+    private async createItemEvent(
+        event: ItemStartedNotification,
+    ): Promise<UpdateSessionEvent | null> {
         switch (event.item.type) {
             case "fileChange":
-                return this.renderer.render(FileChangeReporter.started(
-                    event.item,
-                    this.sessionState.clientCapabilities.diffPatchFormat,
-                ));
+                return this.renderer.render(
+                    FileChangeReporter.started(
+                        event.item,
+                        this.sessionState.clientCapabilities.diffPatchFormat,
+                    ),
+                );
             case "commandExecution":
                 return this.renderer.render(this.commands.started(event.item));
             case "mcpToolCall":
-                return this.renderer.render(McpToolReporter.started(event.item));
+                return this.renderer.render(
+                    McpToolReporter.started(event.item),
+                );
             case "dynamicToolCall":
-                return this.renderer.render(DynamicToolReporter.started(event.item));
+                return this.renderer.render(
+                    DynamicToolReporter.started(event.item),
+                );
             case "webSearch":
-                return this.renderer.render(WebSearchReporter.started(event.item));
+                return this.renderer.render(
+                    WebSearchReporter.started(event.item),
+                );
             case "imageView":
                 this.emittedImageViewItems.add(event.item.id);
-                return this.renderer.render(ImageViewReporter.viewed(event.item));
+                return this.renderer.render(
+                    ImageViewReporter.viewed(event.item),
+                );
             case "imageGeneration":
                 this.activeImageGenerationItems.add(event.item.id);
-                return this.renderer.render(ImageGenerationReporter.started(event.item));
+                return this.renderer.render(
+                    ImageGenerationReporter.started(event.item),
+                );
             case "collabAgentToolCall":
-                return this.renderer.render(this.subagents.legacyCollaborationStarted(event.item));
+                return this.renderer.render(
+                    this.subagents.legacyCollaborationStarted(event.item),
+                );
             case "agentMessage":
                 this.rememberAgentMessagePhase(event.item);
                 return null;
             case "contextCompaction":
                 return this.supportsCompaction
                     ? this.sessionState.compactions.start(
-                        this.subagents.notificationSessionId({method: "item/started", params: event}),
-                        event.turnId, event.item.id,
-                    )
-                    : this.renderer.render(CompactionReporter.started(event.item));
+                          this.subagents.notificationSessionId({
+                              method: "item/started",
+                              params: event,
+                          }),
+                          event.turnId,
+                          event.item.id,
+                      )
+                    : this.renderer.render(
+                          CompactionReporter.started(event.item),
+                      );
             case "subAgentActivity":
-                return this.renderer.render(this.subagents.legacyActivityStarted(event.item));
+                return this.renderer.render(
+                    this.subagents.legacyActivityStarted(event.item),
+                );
             case "sleep":
             case "functionCallOutput":
             case "userMessage":
@@ -937,41 +1277,78 @@ export class CodexEventHandler {
         }
     }
 
-    private async completeItemEvent(event: ItemCompletedNotification): Promise<UpdateSessionEvent | null> {
+    private async completeItemEvent(
+        event: ItemCompletedNotification,
+    ): Promise<UpdateSessionEvent | null> {
         switch (event.item.type) {
             case "fileChange":
-                return this.renderer.render(FileChangeReporter.completed(event.item));
+                return this.renderer.render(
+                    FileChangeReporter.completed(event.item),
+                );
             case "dynamicToolCall":
-                return this.renderer.render(DynamicToolReporter.completed(event.item));
+                return this.renderer.render(
+                    DynamicToolReporter.completed(event.item),
+                );
             case "mcpToolCall":
-                return this.renderer.render(McpToolReporter.completed(event.item));
+                return this.renderer.render(
+                    McpToolReporter.completed(event.item),
+                );
             case "commandExecution":
-                return this.renderer.render(this.commands.completed(event.item, true));
+                return this.renderer.render(
+                    this.commands.completed(event.item, true),
+                );
             case "imageView":
                 if (this.emittedImageViewItems.delete(event.item.id)) {
                     return null;
                 }
-                return this.renderer.render(ImageViewReporter.viewed(event.item));
+                return this.renderer.render(
+                    ImageViewReporter.viewed(event.item),
+                );
             case "imageGeneration":
-                return this.renderer.render(this.activeImageGenerationItems.delete(event.item.id)
-                    ? ImageGenerationReporter.completed(event.item)
-                    : ImageGenerationReporter.whole(event.item));
+                return this.renderer.render(
+                    this.activeImageGenerationItems.delete(event.item.id)
+                        ? ImageGenerationReporter.completed(event.item)
+                        : ImageGenerationReporter.whole(event.item),
+                );
             case "reasoning":
                 if (this.seenReasoningDeltaItemIds.delete(event.item.id)) {
                     return null;
                 }
                 return this.createCompletedReasoningEvent(event.item);
             case "webSearch":
-                return this.renderer.render(WebSearchReporter.completed(event.item));
+                return this.renderer.render(
+                    WebSearchReporter.completed(event.item),
+                );
             case "collabAgentToolCall":
-                return this.renderer.render(this.subagents.legacyCollaborationCompleted(event.item));
+                return this.renderer.render(
+                    this.subagents.legacyCollaborationCompleted(event.item),
+                );
             case "agentMessage":
                 this.rememberAgentMessagePhase(event.item);
-                if (this.session.protocolVersion === 2 && (event.item.delivery === "async" || (event.item.questions?.length ?? 0) > 0)) {
-                    await this.session.updateV2({sessionUpdate: "agent_message", messageId: event.item.id,
-                        content: [{type: "text", text: event.item.text}],
-                        _meta: {codex: {turnId: event.turnId, phase: event.item.phase, delivery: event.item.delivery, questions: event.item.questions}},
-                    }, this.subagents.notificationSessionId({method: "item/completed", params: event}));
+                if (
+                    this.session.protocolVersion === 2 &&
+                    (event.item.delivery === "async" ||
+                        (event.item.questions?.length ?? 0) > 0)
+                ) {
+                    await this.session.updateV2(
+                        {
+                            sessionUpdate: "agent_message",
+                            messageId: event.item.id,
+                            content: [{ type: "text", text: event.item.text }],
+                            _meta: {
+                                codex: {
+                                    turnId: event.turnId,
+                                    phase: event.item.phase,
+                                    delivery: event.item.delivery,
+                                    questions: event.item.questions,
+                                },
+                            },
+                        },
+                        this.subagents.notificationSessionId({
+                            method: "item/completed",
+                            params: event,
+                        }),
+                    );
                 }
                 return null;
             case "plan":
@@ -981,12 +1358,20 @@ export class CodexEventHandler {
             case "contextCompaction":
                 return this.supportsCompaction
                     ? this.sessionState.compactions.complete(
-                        this.subagents.notificationSessionId({method: "item/completed", params: event}),
-                        event.turnId, event.item.id,
-                    )
-                    : this.renderer.render(CompactionReporter.completed(event.item));
+                          this.subagents.notificationSessionId({
+                              method: "item/completed",
+                              params: event,
+                          }),
+                          event.turnId,
+                          event.item.id,
+                      )
+                    : this.renderer.render(
+                          CompactionReporter.completed(event.item),
+                      );
             case "subAgentActivity":
-                return this.renderer.render(this.subagents.legacyActivityCompleted(event.item));
+                return this.renderer.render(
+                    this.subagents.legacyActivityCompleted(event.item),
+                );
             //ignored types
             case "sleep":
             case "functionCallOutput":
@@ -997,27 +1382,35 @@ export class CodexEventHandler {
         }
     }
 
-    private rememberAgentMessagePhase(item: ThreadItem & { type: "agentMessage" }): void {
+    private rememberAgentMessagePhase(
+        item: ThreadItem & { type: "agentMessage" },
+    ): void {
         this.agentMessagePhases.set(item.id, item.phase);
     }
 
-    private createCompletedReasoningEvent(item: ThreadItem & { type: "reasoning" }): UpdateSessionEvent | null {
+    private createCompletedReasoningEvent(
+        item: ThreadItem & { type: "reasoning" },
+    ): UpdateSessionEvent | null {
         const parts = item.summary.length > 0 ? item.summary : item.content;
-        const text = parts.filter(part => part.length > 0).join("\n\n");
+        const text = parts.filter((part) => part.length > 0).join("\n\n");
         if (text.length === 0) {
             return null;
         }
         return this.createAgentThoughtEvent(text, item.id);
     }
 
-    private async createCompletedPlanEvent(item: ThreadItem & { type: "plan" }): Promise<UpdateSessionEvent | null> {
+    private async createCompletedPlanEvent(
+        item: ThreadItem & { type: "plan" },
+    ): Promise<UpdateSessionEvent | null> {
         const completed = await this.plans.completed(item.id, item.text);
         if (completed === null) return null;
-        this.completedPlan = {itemId: item.id, text: completed.text};
+        this.completedPlan = { itemId: item.id, text: completed.text };
         return completed.update;
     }
 
-    private createExitedReviewModeEvent(item: ThreadItem & { type: "exitedReviewMode" }): UpdateSessionEvent | null {
+    private createExitedReviewModeEvent(
+        item: ThreadItem & { type: "exitedReviewMode" },
+    ): UpdateSessionEvent | null {
         const text = item.review.trim();
         if (text.length === 0) {
             return null;
@@ -1027,7 +1420,9 @@ export class CodexEventHandler {
 
     private createContextCompactedEvent(): UpdateSessionEvent {
         if (!this.supportsNotices) {
-            return createAgentTextMessageChunk("*Context compacted to fit the model's context window.*\n\n");
+            return createAgentTextMessageChunk(
+                "*Context compacted to fit the model's context window.*\n\n",
+            );
         }
         return createSessionNotice(
             "info",
@@ -1038,38 +1433,48 @@ export class CodexEventHandler {
 
     private trackOpenToolCall(item: ThreadItem): void {
         if (!PLAIN_TOOL_CALL_ITEM_TYPES.has(item.type)) return;
-        const hasTerminal = item.type === "commandExecution" && commandUsesTerminal(item);
+        const hasTerminal =
+            item.type === "commandExecution" && commandUsesTerminal(item);
         this.sessionState.openToolCalls.start(item.id, hasTerminal);
     }
 
-    private async updatePlan(event: TurnPlanUpdatedNotification): Promise<UpdateSessionEvent> {
-        const plan: PlanEntry[] = event.plan.map(value => ({
-                status: value.status == "inProgress" ? "in_progress" : value.status,
-                content: value.step,
-                priority: "medium"
-            })
-        );
+    private async updatePlan(
+        event: TurnPlanUpdatedNotification,
+    ): Promise<UpdateSessionEvent> {
+        const plan: PlanEntry[] = event.plan.map((value) => ({
+            status: value.status == "inProgress" ? "in_progress" : value.status,
+            content: value.step,
+            priority: "medium",
+        }));
         return {
             sessionUpdate: "plan",
             entries: plan,
-        }
+        };
     }
 
-    private async createErrorEvent(params: ErrorNotification): Promise<UpdateSessionEvent | null> {
+    private async createErrorEvent(
+        params: ErrorNotification,
+    ): Promise<UpdateSessionEvent | null> {
         const error = params.error.codexErrorInfo;
         if (this.sessionState.currentTurnId === null) {
             this.pendingErrors.push(params);
-            logger.log("Buffered app-server error until the active turn is known", {
-                sessionId: this.sessionState.sessionId,
-                turnId: params.turnId,
-                willRetry: params.willRetry,
-            });
+            logger.log(
+                "Buffered app-server error until the active turn is known",
+                {
+                    sessionId: this.sessionState.sessionId,
+                    turnId: params.turnId,
+                    willRetry: params.willRetry,
+                },
+            );
             return null;
         }
         // ACP authRequired starts the client login flow. A second access update
         // or chat message would show the same refusal as a false session error.
         if (this.isAuthenticationRequiredError(error)) {
-            if (!params.willRetry && params.turnId === this.sessionState.currentTurnId) {
+            if (
+                !params.willRetry &&
+                params.turnId === this.sessionState.currentTurnId
+            ) {
                 this.failure = RequestError.authRequired();
             }
             return null;
@@ -1079,20 +1484,26 @@ export class CodexEventHandler {
                 const failure = params.willRetry
                     ? this.recordRetryWarning(params)
                     : this.recordSessionFailure(
-                        this.sessionFailureKind(params.error.codexErrorInfo),
-                        params.turnId,
-                        "error",
-                        params.error.message,
-                    );
+                          this.sessionFailureKind(params.error.codexErrorInfo),
+                          params.turnId,
+                          "error",
+                          params.error.message,
+                      );
                 return this.createSessionFailureUpdate(failure);
             }
             return this.createCodexSessionInfoUpdate({
-                error: {...params.error, turnId: params.turnId, willRetry: params.willRetry},
+                error: {
+                    ...params.error,
+                    turnId: params.turnId,
+                    willRetry: params.willRetry,
+                },
             });
         }
         if (params.willRetry) {
             if (this.supportsTypedSessionFailures) {
-                return this.createSessionFailureUpdate(this.recordRetryWarning(params));
+                return this.createSessionFailureUpdate(
+                    this.recordRetryWarning(params),
+                );
             }
             return this.createCodexSessionInfoUpdate({
                 error: {
@@ -1117,15 +1528,24 @@ export class CodexEventHandler {
             failuresShownAsMessages.add(this.failure);
         }
         if (this.session.protocolVersion === 2) {
-            await this.session.updateV2(turnErrorUpdate(params.turnId, params.error));
+            await this.session.updateV2(
+                turnErrorUpdate(params.turnId, params.error),
+            );
             return null;
         }
-        return createAgentTextMessageChunk(`${readableServiceErrorMessage(params.error.message)}\n\n`);
+        return createAgentTextMessageChunk(
+            `${readableServiceErrorMessage(params.error.message)}\n\n`,
+        );
     }
 
     private recordTypedSessionFailure(params: ErrorNotification): void {
         const kind = this.sessionFailureKind(params.error.codexErrorInfo);
-        this.recordSessionFailure(kind, params.turnId, "error", params.error.message);
+        this.recordSessionFailure(
+            kind,
+            params.turnId,
+            "error",
+            params.error.message,
+        );
     }
 
     private recordSessionFailure(
@@ -1138,8 +1558,9 @@ export class CodexEventHandler {
     ): NonNullable<SessionState["sessionFailure"]> {
         const policy = SESSION_FAILURE_POLICY[kind];
         const scope = turnId ?? this.sessionState.sessionId;
-        const id = this.activeFailureIdByScope.get(scope)
-            ?? this.allocateFailureId(scope, turnId);
+        const id =
+            this.activeFailureIdByScope.get(scope) ??
+            this.allocateFailureId(scope, turnId);
         const previous = this.failuresById.get(id);
         const failure: NonNullable<SessionState["sessionFailure"]> = {
             id,
@@ -1157,7 +1578,10 @@ export class CodexEventHandler {
         return failure;
     }
 
-    private allocateFailureId(scope: string, turnId: string | undefined): string {
+    private allocateFailureId(
+        scope: string,
+        turnId: string | undefined,
+    ): string {
         if (turnId !== undefined && !this.allocatedFailureScopes.has(scope)) {
             this.allocatedFailureScopes.add(scope);
             return `${turnId}:error`;
@@ -1176,14 +1600,21 @@ export class CodexEventHandler {
         const turnId = this.sessionState.currentTurnId;
         if (turnId === null) return;
         const activeId = this.activeFailureIdByScope.get(turnId);
-        if (activeId === undefined || this.failuresById.get(activeId)?.severity !== "warning") return;
+        if (
+            activeId === undefined ||
+            this.failuresById.get(activeId)?.severity !== "warning"
+        )
+            return;
         this.activeFailureIdByScope.delete(turnId);
         if (this.sessionState.sessionFailure?.id === activeId) {
             delete this.sessionState.sessionFailure;
         }
     }
 
-    private recordRetryWarning(params: ErrorNotification, attributeToTurn = true): SessionFailure {
+    private recordRetryWarning(
+        params: ErrorNotification,
+        attributeToTurn = true,
+    ): SessionFailure {
         const kind = this.sessionFailureKind(params.error.codexErrorInfo);
         return this.recordSessionFailure(
             kind,
@@ -1195,27 +1626,35 @@ export class CodexEventHandler {
         );
     }
 
-    private recordSessionNotice(title: string, details?: string): SessionFailure {
+    private recordSessionNotice(
+        title: string,
+        details?: string,
+    ): SessionFailure {
         const key = `${title}\u0000${details ?? ""}`;
-        const previous = this.lastSessionNotice?.key === key
-            ? this.lastSessionNotice.failure
-            : undefined;
-        const id = previous?.id
-            ?? `${this.sessionState.sessionId}:notice:${this.sessionFailureEpoch}:${this.nextNoticeId++}`;
+        const previous =
+            this.lastSessionNotice?.key === key
+                ? this.lastSessionNotice.failure
+                : undefined;
+        const id =
+            previous?.id ??
+            `${this.sessionState.sessionId}:notice:${this.sessionFailureEpoch}:${this.nextNoticeId++}`;
         const notice: SessionFailure = {
             id,
             revision: nextSessionFailureRevision(previous, id),
             category: "unknown",
             severity: "warning",
             title,
-            ...(details === undefined ? {} : {details}),
+            ...(details === undefined ? {} : { details }),
             actions: [],
         };
-        this.lastSessionNotice = {key, failure: notice};
+        this.lastSessionNotice = { key, failure: notice };
         return notice;
     }
 
-    private sessionNoticeContent(summary: string, details: string | null): [title: string, details?: string] {
+    private sessionNoticeContent(
+        summary: string,
+        details: string | null,
+    ): [title: string, details?: string] {
         if (details === null) return [summary];
         const combinedTitle = `${summary} — ${details}`;
         return combinedTitle.length <= MAX_SESSION_FAILURE_TITLE_LENGTH
@@ -1252,24 +1691,40 @@ export class CodexEventHandler {
             return STRING_CODEX_ERROR_CATEGORIES[error] ?? "provider_error";
         }
         if (error !== null) {
-            for (const kind of Object.keys(STRUCTURED_CODEX_ERROR_CATEGORIES) as StructuredCodexErrorKind[]) {
+            for (const kind of Object.keys(
+                STRUCTURED_CODEX_ERROR_CATEGORIES,
+            ) as StructuredCodexErrorKind[]) {
                 if (kind in error) {
-                    return STRUCTURED_CODEX_ERROR_CATEGORIES[kind] ?? "provider_error";
+                    return (
+                        STRUCTURED_CODEX_ERROR_CATEGORIES[kind] ??
+                        "provider_error"
+                    );
                 }
             }
         }
         return "provider_error";
     }
 
-    private isAuthenticationRequiredError(error: CodexErrorInfo | null): boolean {
-        return error === "unauthorized" || this.getHttpStatusCode(error) === 401;
+    private isAuthenticationRequiredError(
+        error: CodexErrorInfo | null,
+    ): boolean {
+        return (
+            error === "unauthorized" || this.getHttpStatusCode(error) === 401
+        );
     }
 
     private getHttpStatusCode(error: CodexErrorInfo | null): number | null {
         if (error === null || typeof error !== "object") return null;
         const details: unknown = Object.values(error)[0];
-        if (details === null || typeof details !== "object" || !("httpStatusCode" in details)) return null;
-        return typeof details.httpStatusCode === "number" ? details.httpStatusCode : null;
+        if (
+            details === null ||
+            typeof details !== "object" ||
+            !("httpStatusCode" in details)
+        )
+            return null;
+        return typeof details.httpStatusCode === "number"
+            ? details.httpStatusCode
+            : null;
     }
 
     private createTurnErrorData(error: ErrorNotification["error"]): {
@@ -1293,14 +1748,24 @@ export class CodexEventHandler {
         return data;
     }
 
-    private handleTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): void {
+    private handleTokenUsageUpdated(
+        params: ThreadTokenUsageUpdatedNotification,
+    ): void {
         this.sessionState.lastTokenUsage = toTokenCount(params.tokenUsage.last);
-        this.sessionState.totalTokenUsage = toTokenCount(params.tokenUsage.total);
-        this.sessionState.promptTokenUsage?.observe(this.sessionState.totalTokenUsage, this.sessionState.lastTokenUsage);
-        this.sessionState.modelContextWindow = params.tokenUsage.modelContextWindow;
+        this.sessionState.totalTokenUsage = toTokenCount(
+            params.tokenUsage.total,
+        );
+        this.sessionState.promptTokenUsage?.observe(
+            this.sessionState.totalTokenUsage,
+            this.sessionState.lastTokenUsage,
+        );
+        this.sessionState.modelContextWindow =
+            params.tokenUsage.modelContextWindow;
     }
 
-    private createUsageUpdate(params: ThreadTokenUsageUpdatedNotification): UpdateSessionEvent | null {
+    private createUsageUpdate(
+        params: ThreadTokenUsageUpdatedNotification,
+    ): UpdateSessionEvent | null {
         let used: number | undefined;
         let size: number | null;
         if (params.threadId === this.sessionState.sessionId) {
@@ -1326,22 +1791,22 @@ export class CodexEventHandler {
         };
     }
 
-    private handleRateLimitsUpdated(params: AccountRateLimitsUpdatedNotification): void {
-        if (!this.sessionState.rateLimits) {
-            this.sessionState.rateLimits = new Map();
-        }
+    private handleRateLimitsUpdated(
+        params: AccountRateLimitsUpdatedNotification,
+    ): void {
+        this.sessionState.rateLimits ??= new Map();
         const limitId = params.rateLimits.limitId ?? "codex";
         const existingEntry = this.sessionState.rateLimits.get(limitId);
         const snapshot = existingEntry
             ? mergeRateLimitSnapshot(existingEntry.snapshot, params.rateLimits)
-            : {...params.rateLimits, limitId};
+            : { ...params.rateLimits, limitId };
         this.sessionState.rateLimits.set(limitId, {
-            limitId: limitId,
-            limitName: snapshot.limitName ?? existingEntry?.limitName ?? limitId,
+            limitId,
+            limitName:
+                snapshot.limitName ?? existingEntry?.limitName ?? limitId,
             snapshot,
         });
     }
-
 }
 
 /**
@@ -1363,7 +1828,9 @@ function isModelOutputItem(item: ThreadItem): boolean {
     return !NON_MODEL_OUTPUT_ITEM_TYPES.has(item.type);
 }
 
-function toolCallTitle(update: UpdateSessionEvent | null | undefined): string | undefined {
+function toolCallTitle(
+    update: UpdateSessionEvent | null | undefined,
+): string | undefined {
     if (update?.sessionUpdate !== "tool_call") return undefined;
     return update.title;
 }

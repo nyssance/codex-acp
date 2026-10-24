@@ -275,9 +275,9 @@ export class CodexAcpClient {
     }
 
     private readonly defaultClientInfo: ClientInfo = {
-        name: `${packageJson.name}`,
+        name: packageJson.name,
         title: "Codex ACP",
-        version: `${packageJson.version}`,
+        version: packageJson.version,
     };
 
     async initialize(
@@ -315,7 +315,7 @@ export class CodexAcpClient {
     async authenticate(
         authRequest: acp.AuthenticateRequest,
         urlElicitationRequester?: UrlElicitationRequester,
-    ): Promise<Boolean> {
+    ): Promise<boolean> {
         if (!isCodexAuthRequest(authRequest)) {
             throw RequestError.invalidRequest();
         }
@@ -337,7 +337,7 @@ export class CodexAcpClient {
 
     private async authenticateWithApiKey(
         authRequest: ApiKeyAuthRequest,
-    ): Promise<Boolean> {
+    ): Promise<boolean> {
         const apiKey =
             authRequest._meta?.["api-key"]?.apiKey ?? this.readApiKeyFromEnv();
         const loginCompletedPromise = this.awaitNextLoginCompleted();
@@ -350,7 +350,7 @@ export class CodexAcpClient {
         return result.success;
     }
 
-    private async authenticateWithChatGpt(): Promise<Boolean> {
+    private async authenticateWithChatGpt(): Promise<boolean> {
         if (await this.hasWorkingChatGptLogin()) {
             return true;
         }
@@ -401,7 +401,7 @@ export class CodexAcpClient {
 
     private async authenticateWithChatGptDeviceCode(
         urlElicitationRequester?: UrlElicitationRequester,
-    ): Promise<Boolean> {
+    ): Promise<boolean> {
         if (await this.hasWorkingChatGptLogin()) {
             return true;
         }
@@ -947,7 +947,7 @@ export class CodexAcpClient {
             sessionId: request.sessionId,
             readOnly: response.readOnly ?? false,
             agentMode: response.agentMode,
-            currentModelId: currentModelId,
+            currentModelId,
             models: codexModels,
             lineage: await readSessionLineage(
                 this.codexClient,
@@ -1133,7 +1133,7 @@ export class CodexAcpClient {
             sessionId: request.sessionId,
             readOnly: response.readOnly ?? false,
             agentMode: response.agentMode,
-            currentModelId: currentModelId,
+            currentModelId,
             models: codexModels,
             lineage: await readSessionLineage(
                 this.codexClient,
@@ -1301,7 +1301,7 @@ export class CodexAcpClient {
         ).toString();
         return {
             sessionId: response.thread.id,
-            currentModelId: currentModelId,
+            currentModelId,
             models: codexModels,
             lineage: await readSessionLineage(
                 this.codexClient,
@@ -1961,7 +1961,7 @@ export class CodexAcpClient {
                     ? { turnTrigger: retryTrigger }
                     : {}),
                 threadId: request.sessionId,
-                input: input,
+                input,
                 ...(agentMode.permissionProfile === null
                     ? {
                           approvalPolicy: agentMode.approvalPolicy,
@@ -1974,9 +1974,9 @@ export class CodexAcpClient {
                       }
                     : { permissions: agentMode.permissionProfile }),
                 summary: disableSummary ? "none" : "auto",
-                effort: effort,
+                effort,
                 model: this.providerCatalog.upstreamModel(modelId.model),
-                serviceTier: serviceTier,
+                serviceTier,
                 ...(clientUserMessageId !== undefined
                     ? { clientUserMessageId }
                     : {}),
@@ -2194,8 +2194,8 @@ export class CodexAcpClient {
         // each call, which took about 4 s per page.
         const listResponse = await this.codexClient.threadList({
             cursor: request.cursor ?? null,
-            modelProviders: modelProviders,
-            sourceKinds: sourceKinds,
+            modelProviders,
+            sourceKinds,
             useStateDbOnly: true,
         });
 
@@ -2587,7 +2587,7 @@ function addAdditionalDirectoriesToSandboxPolicy(
 }
 
 function uniqueStrings(values: string[]): string[] {
-    return Array.from(new Set(values));
+    return [...new Set(values)];
 }
 
 function arraysEqual(left: string[], right: string[]): boolean {

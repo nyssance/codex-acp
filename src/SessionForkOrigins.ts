@@ -8,8 +8,8 @@
  */
 
 import fs from "node:fs/promises";
-import type {Thread} from "./app-server/v2";
-import {logger} from "./Logger";
+import type { Thread } from "./app-server/v2";
+import { logger } from "./Logger";
 
 export interface SessionForkOriginsDeps {
     /** These threads turned out to be forks: their rows get `forkedFrom` now. */
@@ -50,7 +50,8 @@ export class SessionForkOrigins {
         const known = this.origins.get(thread.id);
         if (typeof known === "string" || known === null) return known;
         if (thread.path === null) return null;
-        if (known === undefined || known.path !== thread.path || known.updatedAt !== thread.updatedAt) this.schedule(thread);
+        if (known?.path !== thread.path || known.updatedAt !== thread.updatedAt)
+            this.schedule(thread);
         return null;
     }
 
@@ -91,12 +92,22 @@ export class SessionForkOrigins {
                 const batch = [...this.pending.values()];
                 this.pending.clear();
                 const found: string[] = [];
-                for (let start = 0; start < batch.length && !this.disposed; start += READ_CONCURRENCY) {
-                    await Promise.all(batch.slice(start, start + READ_CONCURRENCY).map(async (thread) => {
-                        if (await this.read(thread)) found.push(thread.id);
-                    }));
+                for (
+                    let start = 0;
+                    start < batch.length && !this.disposed;
+                    start += READ_CONCURRENCY
+                ) {
+                    await Promise.all(
+                        batch
+                            .slice(start, start + READ_CONCURRENCY)
+                            .map(async (thread) => {
+                                if (await this.read(thread))
+                                    found.push(thread.id);
+                            }),
+                    );
                 }
-                if (found.length > 0 && !this.disposed) this.deps.onFound(found);
+                if (found.length > 0 && !this.disposed)
+                    this.deps.onFound(found);
             }
         } finally {
             this.running = false;
@@ -106,18 +117,28 @@ export class SessionForkOrigins {
     /** Reads the fork parent of a thread from its rollout; true when it is a fork. */
     private async read(thread: Thread): Promise<boolean> {
         // A thread listed again while it was read waits for that read, which may have answered meanwhile.
-        if (thread.path === null || isAnswer(this.origins.get(thread.id))) return false;
+        if (thread.path === null || isAnswer(this.origins.get(thread.id)))
+            return false;
         let origin: string | null | undefined;
         try {
             origin = await readForkOrigin(thread.path);
         } catch (error) {
             // Not cached: the thread is read again when it is listed next.
-            logger.log("Cannot read the fork parent of a thread", {threadId: thread.id, error: String(error)});
+            logger.log("Cannot read the fork parent of a thread", {
+                threadId: thread.id,
+                error: String(error),
+            });
             return false;
         }
         // An answer is final: a later read of a moved or cut rollout does not take it back.
         if (isAnswer(this.origins.get(thread.id))) return false;
-        remember(this.origins, thread.id, origin === undefined ? {path: thread.path, updatedAt: thread.updatedAt} : origin);
+        remember(
+            this.origins,
+            thread.id,
+            origin === undefined
+                ? { path: thread.path, updatedAt: thread.updatedAt }
+                : origin,
+        );
         return typeof origin === "string";
     }
 }
@@ -127,13 +148,16 @@ export class SessionForkOrigins {
  * for a rollout that is no fork. `undefined` while the first line is not complete, or longer than
  * {@link FIRST_LINE_LIMIT}.
  */
-export async function readForkOrigin(file: string): Promise<string | null | undefined> {
+export async function readForkOrigin(
+    file: string,
+): Promise<string | null | undefined> {
     let handle: fs.FileHandle;
     try {
         handle = await fs.open(file, "r");
     } catch (error) {
         // Codex writes the rollout of a new thread later.
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+        if ((error as NodeJS.ErrnoException).code === "ENOENT")
+            return undefined;
         throw error;
     }
     let firstLine: string | null = null;
@@ -141,11 +165,16 @@ export async function readForkOrigin(file: string): Promise<string | null | unde
         const chunks: Buffer[] = [];
         for (let position = 0; position < FIRST_LINE_LIMIT;) {
             const chunk = Buffer.alloc(FIRST_LINE_STEP);
-            const {bytesRead} = await handle.read(chunk, 0, FIRST_LINE_STEP, position);
+            const { bytesRead } = await handle.read(
+                chunk,
+                0,
+                FIRST_LINE_STEP,
+                position,
+            );
             if (bytesRead === 0) break;
             const end = chunk.subarray(0, bytesRead).indexOf(NEWLINE);
-            chunks.push(chunk.subarray(0, end < 0 ? bytesRead : end));
-            if (end >= 0) {
+            chunks.push(chunk.subarray(0, end === -1 ? bytesRead : end));
+            if (end !== -1) {
                 firstLine = Buffer.concat(chunks).toString("utf8");
                 break;
             }
@@ -162,16 +191,24 @@ export async function readForkOrigin(file: string): Promise<string | null | unde
         return null;
     }
     const forkedFrom = field(field(meta, "payload"), "forked_from_id");
-    return field(meta, "type") === "session_meta" && typeof forkedFrom === "string" && forkedFrom !== "" ? forkedFrom : null;
+    return field(meta, "type") === "session_meta" &&
+        typeof forkedFrom === "string" &&
+        forkedFrom !== ""
+        ? forkedFrom
+        : null;
 }
 
 /** A fork parent or `null` for no fork, as opposed to a rollout that could not tell yet. */
-function isAnswer(value: string | null | Unknown | undefined): value is string | null {
+function isAnswer(
+    value: string | null | Unknown | undefined,
+): value is string | null {
     return typeof value === "string" || value === null;
 }
 
 function field(value: unknown, key: string): unknown {
-    return value !== null && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
+    return value !== null && typeof value === "object"
+        ? (value as Record<string, unknown>)[key]
+        : undefined;
 }
 
 /** Keeps a value, most recent last, and drops the oldest beyond {@link MAX_CACHED}. */

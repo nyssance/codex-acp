@@ -1,0 +1,7 @@
+[fmt]
+tabWidth = 4
+semi = true
+ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/**", "**/coverage/**", "Vendor/**", "vendor/**", "**/src-tauri/gen/**", "src/app-server/**", "**/bun.lock", "**/package-lock.json"]
+
+[lint]
+ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/**", "**/coverage/**", "Vendor/**", "vendor/**", "**/src-tauri/gen/**", "src/app-server/**"]

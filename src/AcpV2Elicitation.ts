@@ -1,4 +1,4 @@
-import * as acp from "@agentclientprotocol/sdk/unstable";
+import type * as acp from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 /**
@@ -8,16 +8,22 @@ import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
  * version. These are identity casts kept as named conversion points so the rest of the codebase
  * never has to reach into the v2 namespace directly.
  */
-export function toV2CreateElicitationRequest(request: acp.CreateElicitationRequest): acpV2.CreateElicitationRequest {
+export function toV2CreateElicitationRequest(
+    request: acp.CreateElicitationRequest,
+): acpV2.CreateElicitationRequest {
     return request as unknown as acpV2.CreateElicitationRequest;
 }
 
-export function toV1CreateElicitationResponse(response: acpV2.CreateElicitationResponse): acp.CreateElicitationResponse {
+export function toV1CreateElicitationResponse(
+    response: acpV2.CreateElicitationResponse,
+): acp.CreateElicitationResponse {
     return response as unknown as acp.CreateElicitationResponse;
 }
 
 /** A session-scoped elicitation carries `sessionId`; a request-scoped one carries `requestId` instead. */
-export function elicitationSessionId(request: acp.CreateElicitationRequest): string | undefined {
-    const sessionId = (request as {sessionId?: unknown}).sessionId;
+export function elicitationSessionId(
+    request: acp.CreateElicitationRequest,
+): string | undefined {
+    const sessionId = (request as { sessionId?: unknown }).sessionId;
     return typeof sessionId === "string" ? sessionId : undefined;
 }

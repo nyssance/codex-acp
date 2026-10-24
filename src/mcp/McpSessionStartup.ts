@@ -1,15 +1,15 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import type {AcpClientConnection} from "../ACPSessionConnection";
-import type {CodexAcpClient} from "../CodexAcpClient";
-import {logger} from "../Logger";
-import {sanitizeMcpServerName} from "../McpServerName";
-import {type AcpMcpServer, getMcpServerName} from "../McpServerConfig";
-import {settledWithin} from "../StdUtils";
-import {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
-import type {ClientCapabilities} from "../tool-calls/ClientCapabilities";
-import {McpStartupReporter} from "../tool-calls/reporters/McpStartupReporter";
-import type {McpServerSignIn} from "./McpServerSignIn";
-import type {McpStartupResult} from "./McpStartupTracker";
+import type { AcpClientConnection } from "../ACPSessionConnection";
+import type { CodexAcpClient } from "../CodexAcpClient";
+import { logger } from "../Logger";
+import { sanitizeMcpServerName } from "../McpServerName";
+import { type AcpMcpServer, getMcpServerName } from "../McpServerConfig";
+import { settledWithin } from "../StdUtils";
+import { AcpToolCallRenderer } from "../tool-calls/AcpToolCallRenderer";
+import type { ClientCapabilities } from "../tool-calls/ClientCapabilities";
+import { McpStartupReporter } from "../tool-calls/reporters/McpStartupReporter";
+import type { McpServerSignIn } from "./McpServerSignIn";
+import type { McpStartupResult } from "./McpStartupTracker";
 
 interface PendingMcpStartupSession {
     requestedServers: Set<string>;
@@ -37,12 +37,17 @@ export interface McpSessionStartupOptions {
 export class McpSessionStartup {
     private readonly connection: AcpClientConnection;
     private readonly codexAcpClient: () => CodexAcpClient;
-    private readonly runWithProcessCheck: <T>(operation: () => Promise<T>) => Promise<T>;
+    private readonly runWithProcessCheck: <T>(
+        operation: () => Promise<T>,
+    ) => Promise<T>;
     private readonly signIn: McpServerSignIn;
     private readonly capabilities: () => ClientCapabilities;
     /** True when the session is open and does not close. */
     private readonly isSessionOpen: (sessionId: string) => boolean;
-    private readonly pendingSessions = new Map<string, PendingMcpStartupSession>();
+    private readonly pendingSessions = new Map<
+        string,
+        PendingMcpStartupSession
+    >();
 
     constructor(
         connection: AcpClientConnection,
@@ -71,16 +76,29 @@ export class McpSessionStartup {
         afterVersion: number,
         options: McpSessionStartupOptions,
     ): Promise<void> | null {
-        const pendingStartup = this.createPendingSession(sessionId, mcpServers, afterVersion, options.skippedServers ?? []);
+        const pendingStartup = this.createPendingSession(
+            sessionId,
+            mcpServers,
+            afterVersion,
+            options.skippedServers ?? [],
+        );
         if (options.publish) {
             this.pendingSessions.set(sessionId, pendingStartup);
         }
         const awaitTimeoutMs = options.awaitTimeoutMs;
         if (awaitTimeoutMs !== undefined && awaitTimeoutMs > 0) {
-            const startupWait = settledWithin(pendingStartup.startup, awaitTimeoutMs).then(() => undefined);
+            const startupWait = settledWithin(
+                pendingStartup.startup,
+                awaitTimeoutMs,
+            ).then(() => undefined);
             // These handlers run before the caller resumes, because the caller awaits the same promise after them.
             void startupWait.then(
-                () => this.publishOrAbort(sessionId, pendingStartup, options.publish),
+                () =>
+                    this.publishOrAbort(
+                        sessionId,
+                        pendingStartup,
+                        options.publish,
+                    ),
                 () => this.forget(sessionId, pendingStartup),
             );
             return startupWait;
@@ -99,7 +117,11 @@ export class McpSessionStartup {
         return this.pendingSessions.has(sessionId);
     }
 
-    private publishOrAbort(sessionId: string, pendingStartup: PendingMcpStartupSession, publish: boolean): void {
+    private publishOrAbort(
+        sessionId: string,
+        pendingStartup: PendingMcpStartupSession,
+        publish: boolean,
+    ): void {
         if (publish) {
             this.publishAsync(sessionId);
         } else {
@@ -107,7 +129,10 @@ export class McpSessionStartup {
         }
     }
 
-    private forget(sessionId: string, pendingStartup: PendingMcpStartupSession): void {
+    private forget(
+        sessionId: string,
+        pendingStartup: PendingMcpStartupSession,
+    ): void {
         if (this.pendingSessions.get(sessionId) === pendingStartup) {
             this.pendingSessions.delete(sessionId);
         }
@@ -123,17 +148,22 @@ export class McpSessionStartup {
         afterVersion: number,
         skippedServers: Array<string>,
     ): PendingMcpStartupSession {
-        const requestedServers = new Set(getRequestedMcpServerNames(mcpServers)
-            .filter(server => !skippedServers.includes(server)));
+        const requestedServers = new Set(
+            getRequestedMcpServerNames(mcpServers).filter(
+                (server) => !skippedServers.includes(server),
+            ),
+        );
         const abort = new AbortController();
-        const startup = this.runWithProcessCheck(() => this.codexAcpClient().awaitMcpServerStartup(
-            Array.from(requestedServers),
-            afterVersion,
-            {threadId: sessionId, signal: abort.signal},
-        ));
+        const startup = this.runWithProcessCheck(() =>
+            this.codexAcpClient().awaitMcpServerStartup(
+                [...requestedServers],
+                afterVersion,
+                { threadId: sessionId, signal: abort.signal },
+            ),
+        );
         // An abort can reject the startup before a caller awaits it.
         void startup.catch(() => {});
-        return {requestedServers, skippedServers, startup, abort};
+        return { requestedServers, skippedServers, startup, abort };
     }
 
     private async doPublish(sessionId: string): Promise<void> {
@@ -144,14 +174,19 @@ export class McpSessionStartup {
 
         try {
             const mcpStartup = await pendingStartup.startup;
-            if (!this.isSessionOpen(sessionId)
-                || this.pendingSessions.get(sessionId) !== pendingStartup) {
+            if (
+                !this.isSessionOpen(sessionId) ||
+                this.pendingSessions.get(sessionId) !== pendingStartup
+            ) {
                 return;
             }
             await this.publish(sessionId, mcpStartup, pendingStartup);
         } catch (err) {
             if (!pendingStartup.abort.signal.aborted) {
-                logger.error(`Failed to publish MCP startup status for session ${sessionId}`, err);
+                logger.error(
+                    `Failed to publish MCP startup status for session ${sessionId}`,
+                    err,
+                );
             }
         } finally {
             this.forget(sessionId, pendingStartup);
@@ -163,19 +198,30 @@ export class McpSessionStartup {
         mcpStartup: McpStartupResult,
         pendingStartup: PendingMcpStartupSession,
     ): Promise<void> {
-        const {requestedServers, skippedServers, abort: {signal}} = pendingStartup;
+        const {
+            requestedServers,
+            skippedServers,
+            abort: { signal },
+        } = pendingStartup;
         const filteredStartup = {
-            ready: mcpStartup.ready.filter(server => requestedServers.has(server)),
-            failed: mcpStartup.failed.filter(server => requestedServers.has(server.server)),
-            cancelled: mcpStartup.cancelled.filter(server => requestedServers.has(server)),
+            ready: mcpStartup.ready.filter((server) =>
+                requestedServers.has(server),
+            ),
+            failed: mcpStartup.failed.filter((server) =>
+                requestedServers.has(server.server),
+            ),
+            cancelled: mcpStartup.cancelled.filter((server) =>
+                requestedServers.has(server),
+            ),
         };
 
         const failuresAfterOauth: typeof filteredStartup.failed = [];
         const readyAfterOauth = [...filteredStartup.ready];
         for (const failure of filteredStartup.failed) {
-            const signIn = failure.failureReason === "reauthenticationRequired"
-                ? await this.signIn(sessionId, failure.server, signal)
-                : "unsupported";
+            const signIn =
+                failure.failureReason === "reauthenticationRequired"
+                    ? await this.signIn(sessionId, failure.server, signal)
+                    : "unsupported";
             if (signIn === "signedIn") {
                 readyAfterOauth.push(failure.server);
             } else {
@@ -203,13 +249,25 @@ export class McpSessionStartup {
     }
 }
 
-export function getRequestedMcpServerNames(mcpServers: Array<AcpMcpServer>): Array<string> {
-    return Array.from(new Set(mcpServers.map(server => sanitizeMcpServerName(getMcpServerName(server)))));
+export function getRequestedMcpServerNames(
+    mcpServers: Array<AcpMcpServer>,
+): Array<string> {
+    return [
+        ...new Set(
+            mcpServers.map((server) =>
+                sanitizeMcpServerName(getMcpServerName(server)),
+            ),
+        ),
+    ];
 }
 
 const MCP_STARTUP_AWAIT_TIMEOUT_META_KEY = "mcpStartupAwaitTimeoutMs";
 
-export function parseMcpStartupAwaitTimeoutMs(meta: Record<string, unknown> | null | undefined): number | undefined {
+export function parseMcpStartupAwaitTimeoutMs(
+    meta: Record<string, unknown> | null | undefined,
+): number | undefined {
     const value = meta?.[MCP_STARTUP_AWAIT_TIMEOUT_META_KEY];
-    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    return typeof value === "number" && Number.isFinite(value)
+        ? value
+        : undefined;
 }

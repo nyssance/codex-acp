@@ -74,7 +74,9 @@ type SteeringResponse = {
 const ARGV = process.argv.slice(2);
 
 function flag(name: string): string | undefined {
-    const index = ARGV.findIndex((arg) => arg === `--${name}` || arg.startsWith(`--${name}=`));
+    const index = ARGV.findIndex(
+        (arg) => arg === `--${name}` || arg.startsWith(`--${name}=`),
+    );
     if (index === -1) return undefined;
     const [, ...rest] = ARGV[index]!.split("=");
     return rest.length > 0 ? rest.join("=") : (ARGV[index + 1] ?? "");
@@ -96,18 +98,22 @@ if (ARGV.includes("--help") || ARGV.includes("-h")) {
     process.exit(0);
 }
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const AGENT_ENTRY = process.env["AGENT_ENTRY"] ?? path.join(repoRoot, "dist", "index.js");
+const repoRoot = path.resolve(import.meta.dirname, "..");
+const AGENT_ENTRY =
+    process.env["AGENT_ENTRY"] ?? path.join(repoRoot, "dist", "index.js");
 const CWD = process.env["CWD"] ?? process.cwd();
 const BUILD = !ARGV.includes("--no-build");
 
 const debugPortArg = flag("debug-port");
-const DEBUG_PORT = debugPortArg === undefined ? undefined : Number(debugPortArg);
+const DEBUG_PORT =
+    debugPortArg === undefined ? undefined : Number(debugPortArg);
 if (
     DEBUG_PORT !== undefined &&
     (!Number.isInteger(DEBUG_PORT) || DEBUG_PORT < 1 || DEBUG_PORT > 65535)
 ) {
-    process.stderr.write(`--debug-port expects a port between 1 and 65535, got "${debugPortArg}"\n`);
+    process.stderr.write(
+        `--debug-port expects a port between 1 and 65535, got "${debugPortArg}"\n`,
+    );
     process.exit(1);
 }
 
@@ -124,11 +130,12 @@ const EXIT_TIMEOUT_MS = 5_000;
 
 // ---------------------------------------------------------------- output
 
-const COLOR = process.stderr.isTTY === true && !process.env["NO_COLOR"];
-const paint = (code: string, text: string) => (COLOR ? `\x1b[${code}m${text}\x1b[0m` : text);
+const COLOR = process.stderr.isTTY && !process.env["NO_COLOR"];
+const paint = (code: string, text: string) =>
+    COLOR ? `\x1b[${code}m${text}\x1b[0m` : text;
 const dim = (text: string) => paint("2", text);
 
-const TTY = process.stdin.isTTY === true && process.stderr.isTTY === true;
+const TTY = process.stdin.isTTY && process.stderr.isTTY;
 const startedAt = Date.now();
 
 let rl: readline.Interface | null = null;
@@ -217,7 +224,10 @@ function tapStream(inner: Stream): Stream {
     outbound.readable.pipeTo(inner.writable).catch((err) => {
         if (!shuttingDown) log(`transport write failed: ${err}`);
     });
-    return { readable: inner.readable.pipeThrough(inbound), writable: outbound.writable };
+    return {
+        readable: inner.readable.pipeThrough(inbound),
+        writable: outbound.writable,
+    };
 }
 
 // ---------------------------------------------------------------- build
@@ -234,7 +244,9 @@ async function build(sourceMaps: boolean) {
     });
     const [code] = (await once(child, "exit")) as [number | null];
     if (code !== 0) {
-        log(`build failed (exit ${code}) — fix the errors above, or pass --no-build`);
+        log(
+            `build failed (exit ${code}) — fix the errors above, or pass --no-build`,
+        );
         process.exit(1);
     }
 }
@@ -245,12 +257,16 @@ async function main() {
     if (BUILD) {
         await build(DEBUG_PORT !== undefined);
     } else if (!existsSync(AGENT_ENTRY)) {
-        log(`${AGENT_ENTRY} not found — run \`npm run build\` first, or unset --no-build`);
+        log(
+            `${AGENT_ENTRY} not found — run \`npm run build\` first, or unset --no-build`,
+        );
         process.exit(1);
     }
 
     const nodeArgs =
-        DEBUG_PORT === undefined ? [AGENT_ENTRY] : [`--inspect-brk=${DEBUG_PORT}`, AGENT_ENTRY];
+        DEBUG_PORT === undefined
+            ? [AGENT_ENTRY]
+            : [`--inspect-brk=${DEBUG_PORT}`, AGENT_ENTRY];
     const child = spawn(process.execPath, nodeArgs, {
         cwd: repoRoot,
         stdio: ["pipe", "pipe", "pipe"],
@@ -275,7 +291,9 @@ async function main() {
     const stream = tapStream(
         ndJsonStream(
             Writable.toWeb(child.stdin!) as WritableStream<Uint8Array>,
-            Readable.toWeb(child.stdout!) as unknown as ReadableStream<Uint8Array>,
+            Readable.toWeb(
+                child.stdout!,
+            ) as unknown as ReadableStream<Uint8Array>,
         ),
     );
 
@@ -285,10 +303,15 @@ async function main() {
         })
         .onRequest(methods.client.session.requestPermission, (ctx) => {
             const options = ctx.params.options;
-            const option = options.find((o) => o.kind === "allow_once") ?? options[0];
+            const option =
+                options.find((o) => o.kind === "allow_once") ?? options[0];
             if (!option) return { outcome: { outcome: "cancelled" } };
-            log(`auto-approving permission: ${option.name} (${option.kind}/${option.optionId})`);
-            return { outcome: { outcome: "selected", optionId: option.optionId } };
+            log(
+                `auto-approving permission: ${option.name} (${option.kind}/${option.optionId})`,
+            );
+            return {
+                outcome: { outcome: "selected", optionId: option.optionId },
+            };
         })
         .onRequest(methods.client.fs.readTextFile, () => ({ content: "" }))
         .onRequest(methods.client.fs.writeTextFile, () => ({}))
@@ -304,7 +327,9 @@ async function main() {
             const dropped = queue.length;
             queue = [];
             void agent.notify(methods.agent.session.cancel, { sessionId });
-            log(`sent session/cancel${dropped > 0 ? `, dropped ${dropped} queued line(s)` : ""}`);
+            log(
+                `sent session/cancel${dropped > 0 ? `, dropped ${dropped} queued line(s)` : ""}`,
+            );
             refreshPrompt();
             return;
         }
@@ -316,10 +341,17 @@ async function main() {
     // 1. Initialize.
     let nudge: NodeJS.Timeout | undefined;
     if (DEBUG_PORT !== undefined) {
-        log(`agent is PAUSED before its first line (--inspect-brk=${DEBUG_PORT})`);
-        log(`attach a debugger to port ${DEBUG_PORT} and resume — breakpoints go in src/*.ts`);
+        log(
+            `agent is PAUSED before its first line (--inspect-brk=${DEBUG_PORT})`,
+        );
+        log(
+            `attach a debugger to port ${DEBUG_PORT} and resume — breakpoints go in src/*.ts`,
+        );
         nudge = setInterval(
-            () => log(`still waiting for a debugger on port ${DEBUG_PORT} … (Ctrl-C to give up)`),
+            () =>
+                log(
+                    `still waiting for a debugger on port ${DEBUG_PORT} … (Ctrl-C to give up)`,
+                ),
             10_000,
         );
     }
@@ -336,19 +368,27 @@ async function main() {
         if (nudge) clearInterval(nudge);
     }
     agentReady = true;
-    log(`connected to ${init.agentInfo?.name ?? "agent"} ${init.agentInfo?.version ?? ""}`.trim());
+    log(
+        `connected to ${init.agentInfo?.name ?? "agent"} ${init.agentInfo?.version ?? ""}`.trim(),
+    );
 
-    const initMeta = init._meta as { steering?: { supported?: boolean } } | null | undefined;
+    const initMeta = init._meta as
+        { steering?: { supported?: boolean } } | null | undefined;
     const steeringSupported = initMeta?.steering?.supported === true;
     log(`agent supports: steering=${steeringSupported}`);
 
     // 2. Open a session.
     try {
-        const session = await agent.request(methods.agent.session.new, { cwd: CWD, mcpServers: [] });
+        const session = await agent.request(methods.agent.session.new, {
+            cwd: CWD,
+            mcpServers: [],
+        });
         sessionId = session.sessionId;
     } catch (err) {
         log(`session/new failed: ${err}`);
-        log("if this is an auth error, log in first: npx @openai/codex auth login");
+        log(
+            "if this is an auth error, log in first: npx @openai/codex auth login",
+        );
         await shutdown("session/new failed", 1);
         return;
     }
@@ -404,15 +444,20 @@ async function main() {
         switch (word) {
             case "!steer":
                 if (text.length === 0) {
-                    log("usage: !steer <message> — injects into the turn that is running");
+                    log(
+                        "usage: !steer <message> — injects into the turn that is running",
+                    );
                     break;
                 }
-                if (!steeringSupported) log("agent did not advertise steering; trying anyway");
+                if (!steeringSupported)
+                    log("agent did not advertise steering; trying anyway");
                 void steer(text);
                 break;
             case "!queue":
                 if (text.length === 0) {
-                    log("usage: !queue <message> — sends session/prompt now, agent queues it");
+                    log(
+                        "usage: !queue <message> — sends session/prompt now, agent queues it",
+                    );
                     break;
                 }
                 void sendPrompt(text);
@@ -435,9 +480,15 @@ async function main() {
     }
 
     async function steer(text: string) {
-        const params: SteeringRequest = { sessionId, prompt: [{ type: "text", text }] };
+        const params: SteeringRequest = {
+            sessionId,
+            prompt: [{ type: "text", text }],
+        };
         try {
-            const result = await agent.request<SteeringResponse>(STEERING_METHOD, params);
+            const result = await agent.request<SteeringResponse>(
+                STEERING_METHOD,
+                params,
+            );
             log(
                 result.outcome === "injected"
                     ? "steer outcome: injected into the running turn"
@@ -471,10 +522,14 @@ async function main() {
         }
         queue.push(line.startsWith("!!") ? line.slice(1) : line);
         if (turnRunning()) {
-            log(`buffered — will send when this turn ends (${queue.length} queued)`);
+            log(
+                `buffered — will send when this turn ends (${queue.length} queued)`,
+            );
             if (!steerHinted) {
                 steerHinted = true;
-                log("…or use !steer <text> to inject into the running turn instead");
+                log(
+                    "…or use !steer <text> to inject into the running turn instead",
+                );
             }
         }
         refreshPrompt();
@@ -507,7 +562,9 @@ async function main() {
         if (turnRunning()) {
             if (!cancelRequested) {
                 try {
-                    await agent.notify(methods.agent.session.cancel, { sessionId });
+                    await agent.notify(methods.agent.session.cancel, {
+                        sessionId,
+                    });
                 } catch {
                     // connection may already be gone
                 }
@@ -549,7 +606,9 @@ function pumpAgentStderr(child: ReturnType<typeof spawn>) {
                 writeBlock(paint("1;33", `[agent] ${line.trim()}`));
             } else if (line.includes("address already in use")) {
                 writeBlock(paint("1;31", `[agent] ${line.trim()}`));
-                log("that inspector port is taken — pass a different --debug-port");
+                log(
+                    "that inspector port is taken — pass a different --debug-port",
+                );
             } else {
                 writeBlock(dim(`[agent:stderr] ${line}`));
             }

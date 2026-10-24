@@ -14,7 +14,7 @@ import {
     type RecoveryFixture,
     requestsOf,
 } from "./recovery-fixture";
-import { AppServerRecovery } from "../../app-server-recovery/AppServerRecovery";
+import type { AppServerRecovery } from "../../app-server-recovery/AppServerRecovery";
 import type { CodexAcpClient } from "../../CodexAcpClient";
 import { stubGatewayModelListing } from "../acp-test-utils";
 
@@ -217,12 +217,10 @@ describe("app-server recovery", () => {
         const before = listeners();
         fixture.agent.sessionIndex.observe(running);
         expect(listeners()).toBe(before);
-        fixture
-            .current()
-            .rpc.notify({
-                method: "thread/name/updated",
-                params: { threadId: "thread-a" },
-            });
+        fixture.current().rpc.notify({
+            method: "thread/name/updated",
+            params: { threadId: "thread-a" },
+        });
 
         await vi.waitFor(() =>
             expect(changes()).toEqual([
@@ -1664,28 +1662,24 @@ describe("app-server recovery", () => {
         );
         const { prompt } = await startTurn(fixture, sessionId);
         const second = { ...command("inProgress"), id: "cmd-2" };
-        fixture
-            .current()
-            .rpc.notify({
-                method: "item/started",
-                params: {
-                    threadId: sessionId,
-                    turnId: "turn-1",
-                    startedAtMs: 0,
-                    item: command("inProgress"),
-                },
-            });
-        fixture
-            .current()
-            .rpc.notify({
-                method: "item/started",
-                params: {
-                    threadId: sessionId,
-                    turnId: "turn-1",
-                    startedAtMs: 0,
-                    item: second,
-                },
-            });
+        fixture.current().rpc.notify({
+            method: "item/started",
+            params: {
+                threadId: sessionId,
+                turnId: "turn-1",
+                startedAtMs: 0,
+                item: command("inProgress"),
+            },
+        });
+        fixture.current().rpc.notify({
+            method: "item/started",
+            params: {
+                threadId: sessionId,
+                turnId: "turn-1",
+                startedAtMs: 0,
+                item: second,
+            },
+        });
         await vi.waitFor(() => expect(blocked).toBe(true));
 
         await fixture.kill();
@@ -1799,17 +1793,15 @@ describe("app-server recovery", () => {
         const fixture = createRecoveryFixture();
         const sessionId = await openSession(fixture);
         const { prompt } = await startTurn(fixture, sessionId);
-        fixture
-            .current()
-            .rpc.notify({
-                method: "item/started",
-                params: {
-                    threadId: sessionId,
-                    turnId: "turn-1",
-                    startedAtMs: 0,
-                    item: command("inProgress"),
-                },
-            });
+        fixture.current().rpc.notify({
+            method: "item/started",
+            params: {
+                threadId: sessionId,
+                turnId: "turn-1",
+                startedAtMs: 0,
+                item: command("inProgress"),
+            },
+        });
         await vi.waitFor(() =>
             expect(
                 fixture

@@ -2724,9 +2724,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
         fixture.clearCodexConnectionDump();
 
         await expect(
-            fixture
-                .getCodexAcpAgent()
-                .resumeSession({ cwd: "", sessionId: sessionId }),
+            fixture.getCodexAcpAgent().resumeSession({ cwd: "", sessionId }),
         ).rejects.toThrow("invalid session id");
     });
 
@@ -2867,13 +2865,12 @@ describe("ACP server test", { timeout: 40_000 }, () => {
 
         const airUpdate = mockFixture
             .getAcpConnectionEvents([])
-            .filter(
+            .findLast(
                 (event) =>
                     event.method === "sessionUpdate" &&
                     event.args[0].update.sessionUpdate ===
                         "available_commands_update",
-            )
-            .at(-1);
+            );
         const airSkill = airUpdate?.args[0].update.availableCommands.find(
             (command: acp.AvailableCommand) => command.name === "$build",
         );
@@ -5198,7 +5195,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
         const prompt: acp.ContentBlock[] = [{ type: "text", text: "/logout " }];
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
-            prompt: prompt,
+            prompt,
         });
         const logoutEvent = fixture
             .getAcpConnectionEvents(["sessionId"])
@@ -5497,7 +5494,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
         const prompt: acp.ContentBlock[] = [{ type: "text", text: "/skills " }];
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
-            prompt: prompt,
+            prompt,
         });
 
         await expect(
@@ -5565,7 +5562,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
         const prompt: acp.ContentBlock[] = [{ type: "text", text: "/mcp " }];
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
-            prompt: prompt,
+            prompt,
         });
         await expect(
             fixture.getAcpConnectionDump(["sessionId"]),
@@ -5598,7 +5595,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
         fixture.clearAcpConnectionDump();
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
-            prompt: prompt,
+            prompt,
         });
         const transportDump = fixture.getAcpConnectionDump([]);
         expect(transportDump).contain(

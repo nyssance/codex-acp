@@ -4,7 +4,7 @@
  */
 
 import path from "node:path";
-import type {CodexAppServerClient} from "./CodexAppServerClient";
+import type { CodexAppServerClient } from "./CodexAppServerClient";
 import {
     isInvalidThreadIdError,
     isMissingArchivedRolloutError,
@@ -16,7 +16,7 @@ import {
     sessionNotFoundRequestError,
     threadActiveWriterRequestError,
 } from "./CodexThreadErrors";
-import {logger} from "./Logger";
+import { logger } from "./Logger";
 
 /** `done`: Codex changed the thread. `unchanged`: it already was in that state. `missing`: Codex has no such thread. */
 export type ThreadChangeOutcome = "done" | "unchanged" | "missing";
@@ -33,9 +33,14 @@ export function isMissingThreadError(err: unknown): boolean {
  * The ACP error of a failed `sessionIndex` request: `thread_active_writer` when another Codex process holds
  * the thread, `-32002` when Codex has no such thread, and the error itself otherwise.
  */
-export function sessionIndexRequestError(sessionId: string, err: unknown): unknown {
-    if (isThreadActiveWriterError(err)) return threadActiveWriterRequestError(sessionId, err);
-    if (isMissingThreadError(err)) return sessionNotFoundRequestError(sessionId);
+export function sessionIndexRequestError(
+    sessionId: string,
+    err: unknown,
+): unknown {
+    if (isThreadActiveWriterError(err))
+        return threadActiveWriterRequestError(sessionId, err);
+    if (isMissingThreadError(err))
+        return sessionNotFoundRequestError(sessionId);
     return err;
 }
 
@@ -55,7 +60,10 @@ export async function renameRequestError(
         try {
             archived = await readThreadArchived(client, threadId, codexHome);
         } catch (readError) {
-            logger.log("Cannot tell why the rename found no rollout", {threadId, error: String(readError)});
+            logger.log("Cannot tell why the rename found no rollout", {
+                threadId,
+                error: String(readError),
+            });
             return sessionIndexRequestError(threadId, err);
         }
         if (archived === true) return sessionArchivedRequestError(threadId);
@@ -79,19 +87,28 @@ export async function setThreadArchived(
 ): Promise<ThreadChangeOutcome> {
     try {
         if (archived) {
-            await client.threadArchive({threadId});
+            await client.threadArchive({ threadId });
         } else {
-            await client.threadUnarchive({threadId});
+            await client.threadUnarchive({ threadId });
         }
         return "done";
     } catch (err) {
         if (isInvalidThreadIdError(err)) return "missing";
-        const missingRollout = archived ? isMissingRolloutError(err) : isMissingArchivedRolloutError(err);
+        const missingRollout = archived
+            ? isMissingRolloutError(err)
+            : isMissingArchivedRolloutError(err);
         if (!missingRollout) throw err;
-        const currentlyArchived = await readThreadArchived(client, threadId, codexHome);
+        const currentlyArchived = await readThreadArchived(
+            client,
+            threadId,
+            codexHome,
+        );
         if (currentlyArchived === "missing") return "missing";
         if (currentlyArchived === archived) {
-            logger.log("Thread already in the requested archive state", {threadId, archived});
+            logger.log("Thread already in the requested archive state", {
+                threadId,
+                archived,
+            });
             return "unchanged";
         }
         throw err;
@@ -99,9 +116,12 @@ export async function setThreadArchived(
 }
 
 /** Deletes a thread with `thread/delete`. */
-export async function deleteThread(client: CodexAppServerClient, threadId: string): Promise<ThreadChangeOutcome> {
+export async function deleteThread(
+    client: CodexAppServerClient,
+    threadId: string,
+): Promise<ThreadChangeOutcome> {
     try {
-        await client.threadDelete({threadId});
+        await client.threadDelete({ threadId });
         return "done";
     } catch (err) {
         if (isMissingThreadError(err)) return "missing";
@@ -120,7 +140,7 @@ async function readThreadArchived(
 ): Promise<boolean | "missing"> {
     let threadPath: string | null;
     try {
-        threadPath = (await client.threadRead({threadId})).thread.path;
+        threadPath = (await client.threadRead({ threadId })).thread.path;
     } catch (err) {
         if (isMissingThreadError(err)) return "missing";
         throw err;
@@ -129,10 +149,24 @@ async function readThreadArchived(
     return isArchivedRolloutPath(threadPath, codexHome);
 }
 
-export function isArchivedRolloutPath(threadPath: string, codexHome: string | null): boolean {
+export function isArchivedRolloutPath(
+    threadPath: string,
+    codexHome: string | null,
+): boolean {
     if (codexHome !== null) {
-        const relative = path.relative(path.join(codexHome, ARCHIVED_SESSIONS_DIR), threadPath);
-        if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) return true;
+        const relative = path.relative(
+            path.join(codexHome, ARCHIVED_SESSIONS_DIR),
+            threadPath,
+        );
+        if (
+            relative !== "" &&
+            !relative.startsWith("..") &&
+            !path.isAbsolute(relative)
+        )
+            return true;
     }
-    return threadPath.replace(/\\/g, "/").split("/").includes(ARCHIVED_SESSIONS_DIR);
+    return threadPath
+        .replaceAll("\\", "/")
+        .split("/")
+        .includes(ARCHIVED_SESSIONS_DIR);
 }

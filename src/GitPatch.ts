@@ -11,7 +11,7 @@ export const DIFF_PATCH_MAX_BYTES = 1024 * 1024;
 
 /** Git reads a file as binary when its first 8000 bytes contain a NUL byte. */
 const BINARY_PROBE_LENGTH = 8000;
-const NO_NEWLINE_MARKER = "\\ No newline at end of file";
+const NO_NEWLINE_MARKER = String.raw`\ No newline at end of file`;
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 const REGULAR_FILE_MODE = "100644";
 
@@ -21,45 +21,71 @@ const REGULAR_FILE_MODE = "100644";
  * The builder drops the file headers that Codex supplied, so that all headers name the same paths.
  * It keeps the hunk bytes, including a carriage return.
  */
-export function createUpdateGitPatch(oldPath: string, newPath: string, diff: string): string | null {
+export function createUpdateGitPatch(
+    oldPath: string,
+    newPath: string,
+    diff: string,
+): string | null {
     const hunks = hunkText(diff);
     if (hunks === null || isBinary(hunks)) return null;
     const oldName = gitPath(oldPath);
     const newName = gitPath(newPath);
-    const headers = [`diff --git ${quotedGitName("a/", oldName)} ${quotedGitName("b/", newName)}`];
+    const headers = [
+        `diff --git ${quotedGitName("a/", oldName)} ${quotedGitName("b/", newName)}`,
+    ];
     if (oldName !== newName) {
-        headers.push(`rename from ${quotedGitName("", oldName)}`, `rename to ${quotedGitName("", newName)}`);
+        headers.push(
+            `rename from ${quotedGitName("", oldName)}`,
+            `rename to ${quotedGitName("", newName)}`,
+        );
     }
-    headers.push(fileHeader("---", "a/", oldName), fileHeader("+++", "b/", newName));
+    headers.push(
+        fileHeader("---", "a/", oldName),
+        fileHeader("+++", "b/", newName),
+    );
     return limited(`${headers.join("\n")}\n${hunks}`);
 }
 
 /** Builds a patch for a moved file whose text did not change. It has no hunks. */
-export function createRenameGitPatch(oldPath: string, newPath: string): string | null {
+export function createRenameGitPatch(
+    oldPath: string,
+    newPath: string,
+): string | null {
     const oldName = gitPath(oldPath);
     const newName = gitPath(newPath);
     if (oldName === newName) return null;
-    return limited([
-        `diff --git ${quotedGitName("a/", oldName)} ${quotedGitName("b/", newName)}`,
-        "similarity index 100%",
-        `rename from ${quotedGitName("", oldName)}`,
-        `rename to ${quotedGitName("", newName)}`,
-        "",
-    ].join("\n"));
+    return limited(
+        [
+            `diff --git ${quotedGitName("a/", oldName)} ${quotedGitName("b/", newName)}`,
+            "similarity index 100%",
+            `rename from ${quotedGitName("", oldName)}`,
+            `rename to ${quotedGitName("", newName)}`,
+            "",
+        ].join("\n"),
+    );
 }
 
 /** Builds a whole-file patch for an added file. */
-export function createAddedFileGitPatch(filePath: string, text: string): string | null {
+export function createAddedFileGitPatch(
+    filePath: string,
+    text: string,
+): string | null {
     return createWholeFilePatch(filePath, text, "added");
 }
 
 /** Builds a whole-file patch for a deleted file. */
-export function createDeletedFileGitPatch(filePath: string, text: string): string | null {
+export function createDeletedFileGitPatch(
+    filePath: string,
+    text: string,
+): string | null {
     return createWholeFilePatch(filePath, text, "deleted");
 }
 
 /** Builds a patch for an added or a deleted empty file. It has no hunks. */
-export function createEmptyFileGitPatch(filePath: string, change: "added" | "deleted"): string {
+export function createEmptyFileGitPatch(
+    filePath: string,
+    change: "added" | "deleted",
+): string {
     const name = gitPath(filePath);
     return [
         `diff --git ${quotedGitName("a/", name)} ${quotedGitName("b/", name)}`,
@@ -68,7 +94,11 @@ export function createEmptyFileGitPatch(filePath: string, change: "added" | "del
     ].join("\n");
 }
 
-function createWholeFilePatch(filePath: string, text: string, change: "added" | "deleted"): string | null {
+function createWholeFilePatch(
+    filePath: string,
+    text: string,
+    change: "added" | "deleted",
+): string | null {
     // A hunk cannot express an empty file, and a binary file has no text lines.
     if (text.length === 0 || isBinary(text)) return null;
     const name = gitPath(filePath);
@@ -83,7 +113,7 @@ function createWholeFilePatch(filePath: string, text: string, change: "added" | 
         change === "added" ? "--- /dev/null" : fileHeader("---", "a/", name),
         change === "added" ? fileHeader("+++", "b/", name) : "+++ /dev/null",
         change === "added" ? `@@ -0,0 +${range} @@` : `@@ -${range} +0,0 @@`,
-        ...lines.map(line => `${sign}${line}`),
+        ...lines.map((line) => `${sign}${line}`),
         ...(endsWithNewline ? [] : [NO_NEWLINE_MARKER]),
         "",
     ].join("\n");
@@ -100,8 +130,8 @@ function createWholeFilePatch(filePath: string, text: string, change: "added" | 
 function hunkText(diff: string): string | null {
     const lines = diff.split("\n");
     if (lines.at(-1) === "") lines.pop();
-    const first = lines.findIndex(line => line.startsWith("@@"));
-    if (first < 0) return null;
+    const first = lines.findIndex((line) => line.startsWith("@@"));
+    if (first === -1) return null;
     const leading = lines.slice(0, first);
     if (!leading.every(isFileHeaderLine)) return null;
     const hunks = lines.slice(first);
@@ -116,7 +146,13 @@ function hunkText(diff: string): string | null {
         if (header === null) return null;
         const old = hunkRange(header[1]!, header[2]);
         const current = hunkRange(header[3]!, header[4]);
-        if (old === null || current === null || old.first < oldEnd || current.first - old.first !== offset) return null;
+        if (
+            old === null ||
+            current === null ||
+            old.first < oldEnd ||
+            current.first - old.first !== offset
+        )
+            return null;
         oldEnd = old.first + old.count;
         offset += current.count - old.count;
         let oldLines = old.count;
@@ -156,20 +192,26 @@ function hunkText(diff: string): string | null {
  * An empty range starts after the line that the header names, so its first line is one more.
  * Returns `null` for a number that is not a safe integer, or for start 0 with lines.
  */
-function hunkRange(start: string, count: string | undefined): {first: number; count: number} | null {
+function hunkRange(
+    start: string,
+    count: string | undefined,
+): { first: number; count: number } | null {
     const startLine = Number(start);
     const lineCount = count === undefined ? 1 : Number(count);
-    if (!Number.isSafeInteger(startLine) || !Number.isSafeInteger(lineCount)) return null;
-    if (lineCount === 0) return {first: startLine + 1, count: 0};
-    return startLine === 0 ? null : {first: startLine, count: lineCount};
+    if (!Number.isSafeInteger(startLine) || !Number.isSafeInteger(lineCount))
+        return null;
+    if (lineCount === 0) return { first: startLine + 1, count: 0 };
+    return startLine === 0 ? null : { first: startLine, count: lineCount };
 }
 
 function isFileHeaderLine(line: string): boolean {
-    return line.length === 0
-        || line.startsWith("diff --git ")
-        || line.startsWith("index ")
-        || line.startsWith("--- ")
-        || line.startsWith("+++ ");
+    return (
+        line.length === 0 ||
+        line.startsWith("diff --git ") ||
+        line.startsWith("index ") ||
+        line.startsWith("--- ") ||
+        line.startsWith("+++ ")
+    );
 }
 
 function isBinary(text: string): boolean {
@@ -177,7 +219,9 @@ function isBinary(text: string): boolean {
 }
 
 function limited(patch: string): string | null {
-    return Buffer.byteLength(patch, "utf8") <= DIFF_PATCH_MAX_BYTES ? patch : null;
+    return Buffer.byteLength(patch, "utf8") <= DIFF_PATCH_MAX_BYTES
+        ? patch
+        : null;
 }
 
 /**
@@ -186,14 +230,20 @@ function limited(patch: string): string | null {
  * A Windows path such as `C:\work\App.ts` becomes `C:/work/App.ts`.
  */
 function gitPath(filePath: string): string {
-    const slashed = /^[A-Za-z]:\\/.test(filePath) ? filePath.replace(/\\/g, "/") : filePath;
+    const slashed = /^[A-Za-z]:\\/.test(filePath)
+        ? filePath.replaceAll("\\", "/")
+        : filePath;
     return slashed.replace(/^\/+/, "");
 }
 
 /** A `---` or `+++` line ends with a tab when an unquoted name contains a space, as Git does. */
-function fileHeader(marker: "---" | "+++", prefix: string, name: string): string {
+function fileHeader(
+    marker: "---" | "+++",
+    prefix: string,
+    name: string,
+): string {
     const quoted = quotedGitName(prefix, name);
-    return `${marker} ${quoted}${!quoted.startsWith("\"") && quoted.includes(" ") ? "\t" : ""}`;
+    return `${marker} ${quoted}${!quoted.startsWith('"') && quoted.includes(" ") ? "\t" : ""}`;
 }
 
 /**
@@ -206,21 +256,41 @@ function quotedGitName(prefix: string, name: string): string {
     let quoted = "";
     for (const char of full) {
         switch (char) {
-            case "\"": quoted += "\\\""; break;
-            case "\\": quoted += "\\\\"; break;
-            case "\x07": quoted += "\\a"; break;
-            case "\b": quoted += "\\b"; break;
-            case "\t": quoted += "\\t"; break;
-            case "\n": quoted += "\\n"; break;
-            case "\v": quoted += "\\v"; break;
-            case "\f": quoted += "\\f"; break;
-            case "\r": quoted += "\\r"; break;
+            case '"':
+                quoted += String.raw`\"`;
+                break;
+            case "\\":
+                quoted += String.raw`\\`;
+                break;
+            case "\x07":
+                quoted += String.raw`\a`;
+                break;
+            case "\b":
+                quoted += String.raw`\b`;
+                break;
+            case "\t":
+                quoted += String.raw`\t`;
+                break;
+            case "\n":
+                quoted += String.raw`\n`;
+                break;
+            case "\v":
+                quoted += String.raw`\v`;
+                break;
+            case "\f":
+                quoted += String.raw`\f`;
+                break;
+            case "\r":
+                quoted += String.raw`\r`;
+                break;
             default: {
                 const code = char.codePointAt(0)!;
-                quoted += code < 0x20 || code === 0x7f ? `\\${code.toString(8).padStart(3, "0")}` : char;
+                quoted +=
+                    code < 0x20 || code === 0x7f
+                        ? `\\${code.toString(8).padStart(3, "0")}`
+                        : char;
             }
         }
     }
     return `"${quoted}"`;
 }
-

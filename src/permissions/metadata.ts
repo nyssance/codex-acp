@@ -1,6 +1,6 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import {AIR_PERMISSION_KEY, airOnlyMeta} from "../AirExtension";
-import type {ClientCapabilities} from "../tool-calls/ClientCapabilities";
+import { AIR_PERMISSION_KEY, airOnlyMeta } from "../AirExtension";
+import type { ClientCapabilities } from "../tool-calls/ClientCapabilities";
 
 export const CODEX_COMMAND_PERMISSION_TITLE = "Run command?";
 export const CODEX_NETWORK_PERMISSION_TITLE = "Allow network access?";
@@ -37,13 +37,15 @@ export function requestPermissionMeta(
     const permission: RequestPermissionMetadata = {
         version: 1,
         title,
-        ...(description ? {description} : {}),
+        ...(description ? { description } : {}),
     };
     const meta = {
         ...airOnlyMeta(capabilities.airClient, AIR_PERMISSION_KEY, permission),
-        ...(capabilities.permissionPromptFields ? {[PERMISSION_PROMPT_META_KEY]: permission} : {}),
+        ...(capabilities.permissionPromptFields
+            ? { [PERMISSION_PROMPT_META_KEY]: permission }
+            : {}),
     };
-    return Object.keys(meta).length > 0 ? {_meta: meta} : {};
+    return Object.keys(meta).length > 0 ? { _meta: meta } : {};
 }
 
 /** Reads the presentation that `requestPermissionMeta` sets for ACP v2, if present. */
@@ -52,9 +54,14 @@ export function readPermissionMeta(
 ): RequestPermissionMetadata | undefined {
     const permission = meta?.[PERMISSION_PROMPT_META_KEY];
     if (typeof permission !== "object" || permission === null) return undefined;
-    const {title, description} = permission as Partial<RequestPermissionMetadata>;
+    const { title, description } =
+        permission as Partial<RequestPermissionMetadata>;
     if (typeof title !== "string") return undefined;
-    return {version: 1, title, ...(typeof description === "string" ? {description} : {})};
+    return {
+        version: 1,
+        title,
+        ...(typeof description === "string" ? { description } : {}),
+    };
 }
 
 export function optionPermissionMeta(
@@ -63,11 +70,14 @@ export function optionPermissionMeta(
 ): acp.PermissionOption["_meta"] | undefined {
     const normalized = nonBlank(description);
     if (!normalized) return undefined;
-    const permission: OptionPermissionMetadata = {version: 1, description: normalized};
+    const permission: OptionPermissionMetadata = {
+        version: 1,
+        description: normalized,
+    };
     return airOnlyMeta(airClient, AIR_PERMISSION_KEY, permission);
 }
 
 function nonBlank(value?: string | null): string | undefined {
     const normalized = value?.trim();
-    return normalized ? normalized : undefined;
+    return normalized || undefined;
 }

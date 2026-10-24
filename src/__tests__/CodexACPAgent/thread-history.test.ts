@@ -61,7 +61,7 @@ function turnStore(stored: Turn[], pageSize = 2) {
                               Math.max(0, index + 1 - (limit ?? 1)),
                               index + 1,
                           )
-                          .reverse();
+                          .toReversed();
             return {
                 readStates: null,
                 data: data.map((turn) => ({
@@ -302,9 +302,8 @@ describe("paginated thread history", () => {
                 new Promise(() => {}),
             );
 
-            const pages = appServer
-                .threadItemPages("history")
-                [Symbol.asyncIterator]();
+            const historyPages = appServer.threadItemPages("history");
+            const pages = historyPages[Symbol.asyncIterator]();
             const next = expect(pages.next()).rejects.toThrow(
                 "Codex did not answer thread/items/list for thread history within 60 s",
             );
@@ -368,9 +367,10 @@ describe("paginated thread history", () => {
                     `${params.sortDirection}:${params.cursor ?? "start"}`,
             );
 
-        const reader = appServer
-            .threadItemPages("history", { lastItemCursor: "item:message-4" })
-            [Symbol.asyncIterator]();
+        const historyPages = appServer.threadItemPages("history", {
+            lastItemCursor: "item:message-4",
+        });
+        const reader = historyPages[Symbol.asyncIterator]();
         const first = await reader.next();
         // The caller holds the first page. The second page is already requested.
         expect(requestedPages()).toEqual([
@@ -512,13 +512,11 @@ describe("paginated thread history", () => {
             readState: null,
             thread: { id: "empty", turns: [] } as any,
         });
-        const pages = vi
-            .spyOn(appServer, "threadTurnsList")
-            .mockResolvedValue({
-                data: [],
-                nextCursor: null,
-                backwardsCursor: null,
-            });
+        const pages = vi.spyOn(appServer, "threadTurnsList").mockResolvedValue({
+            data: [],
+            nextCursor: null,
+            backwardsCursor: null,
+        });
 
         expect(
             (

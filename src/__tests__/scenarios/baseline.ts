@@ -1,4 +1,4 @@
-import {canonical, type RecordedMessage} from "./scenario-harness";
+import { canonical, type RecordedMessage } from "./scenario-harness";
 
 /**
  * The comparison of the messages for a client that is not AIR with the messages of the adapter before the AIR extensions.
@@ -16,7 +16,7 @@ export const BASELINE_COMMIT = "59d0fb0b6fd9dc85bf7c45f841f39a5225bea232";
 
 type Json = Record<string, unknown>;
 
-export type MetaObject = {meta: Json; owner: Json};
+export type MetaObject = { meta: Json; owner: Json };
 
 /** Every `_meta` object of the messages with the object that holds it, except inside `rawInput` and `rawOutput`. */
 export function metaObjects(value: unknown): MetaObject[] {
@@ -26,27 +26,43 @@ export function metaObjects(value: unknown): MetaObject[] {
     return Object.entries(owner).flatMap(([key, child]) => {
         if (key === "rawInput" || key === "rawOutput") return [];
         if (key === "_meta" && child !== null && typeof child === "object") {
-            return [{meta: child as Json, owner}, ...metaObjects(child)];
+            return [{ meta: child as Json, owner }, ...metaObjects(child)];
         }
         return metaObjects(child);
     });
 }
 
-const AIR_ONLY_CODEX_KEYS = ["phase", "subagent", "collaboration", "kind", "planItemId"];
+const AIR_ONLY_CODEX_KEYS = [
+    "phase",
+    "subagent",
+    "collaboration",
+    "kind",
+    "planItemId",
+];
 
 /**
  * The metadata keys that exist only for AIR, including the keys that AIR used before `_meta.jetbrains.air`.
  * The `kind` of a diff is the ACP diff kind, not the AIR mode kind.
  */
-export function airOnlyKeys({meta, owner}: MetaObject): string[] {
+export function airOnlyKeys({ meta, owner }: MetaObject): string[] {
     const codex = meta["codex"] as Json | undefined;
-    const keys = ["jetbrains", "goal", "commandAction", "permission", "contextCompaction",
-        ...(owner["type"] === "diff" ? [] : ["kind"])];
+    const keys = [
+        "jetbrains",
+        "goal",
+        "commandAction",
+        "permission",
+        "contextCompaction",
+        ...(owner["type"] === "diff" ? [] : ["kind"]),
+    ];
     return [
-        ...keys.filter(key => key in meta),
-        ...AIR_ONLY_CODEX_KEYS
-            .filter(key => codex !== undefined && codex !== null && typeof codex === "object" && key in codex)
-            .map(key => `codex.${key}`),
+        ...keys.filter((key) => key in meta),
+        ...AIR_ONLY_CODEX_KEYS.filter(
+            (key) =>
+                codex !== undefined &&
+                codex !== null &&
+                typeof codex === "object" &&
+                key in codex,
+        ).map((key) => `codex.${key}`),
     ];
 }
 
@@ -61,12 +77,17 @@ function withoutAirOnlyKeys(value: unknown): unknown {
             result[key] = child;
             continue;
         }
-        if (key !== "_meta" || child === null || typeof child !== "object" || Array.isArray(child)) {
+        if (
+            key !== "_meta" ||
+            child === null ||
+            typeof child !== "object" ||
+            Array.isArray(child)
+        ) {
             result[key] = withoutAirOnlyKeys(child);
             continue;
         }
         const meta = structuredClone(child) as Json;
-        for (const airKey of airOnlyKeys({meta, owner})) {
+        for (const airKey of airOnlyKeys({ meta, owner })) {
             if (!airKey.startsWith("codex.")) {
                 delete meta[airKey];
                 continue;
@@ -82,23 +103,32 @@ function withoutAirOnlyKeys(value: unknown): unknown {
 }
 
 function sessionUpdate(message: RecordedMessage): Json | undefined {
-    return message.method === "session/update" ? (message.params as {update: Json}).update : undefined;
+    return message.method === "session/update"
+        ? (message.params as { update: Json }).update
+        : undefined;
 }
 
 /**
  * The client gets no AIR-only key. A `session_info_update` that had only AIR-only keys, such as a goal, is not sent.
  */
-function withoutAirOnlyMessages(messages: RecordedMessage[]): RecordedMessage[] {
-    return (withoutAirOnlyKeys(messages) as RecordedMessage[]).filter(message => {
-        const update = sessionUpdate(message);
-        return update === undefined || update["sessionUpdate"] !== "session_info_update" || Object.keys(update).length > 1;
-    });
+function withoutAirOnlyMessages(
+    messages: RecordedMessage[],
+): RecordedMessage[] {
+    return (withoutAirOnlyKeys(messages) as RecordedMessage[]).filter(
+        (message) => {
+            const update = sessionUpdate(message);
+            return (
+                update?.["sessionUpdate"] !== "session_info_update" ||
+                Object.keys(update).length > 1
+            );
+        },
+    );
 }
 
 /** The result of a dynamic tool that the baseline did not send, by scenario and tool call id. */
 const DYNAMIC_TOOL_RESULTS: Record<string, Record<string, string>> = {
-    "dynamic-tool": {"dyn-1": "Found 2 apps"},
-    "history-replay": {"h-dyn": "No apps"},
+    "dynamic-tool": { "dyn-1": "Found 2 apps" },
+    "history-replay": { "h-dyn": "No apps" },
 };
 
 /**
@@ -106,31 +136,45 @@ const DYNAMIC_TOOL_RESULTS: Record<string, Record<string, string>> = {
  * - the MCP startup tool call id is unique, so it ends with a random id;
  * - the report that completes a dynamic tool call has the result of the tool in `content`.
  */
-function withBugFixes(scenario: string, messages: RecordedMessage[]): RecordedMessage[] {
-    const results = {...DYNAMIC_TOOL_RESULTS[scenario]};
-    return messages.map(message => {
+function withBugFixes(
+    scenario: string,
+    messages: RecordedMessage[],
+): RecordedMessage[] {
+    const results = { ...DYNAMIC_TOOL_RESULTS[scenario] };
+    return messages.map((message) => {
         const update = sessionUpdate(message);
-        if (update === undefined || typeof update["toolCallId"] !== "string") return message;
+        if (update === undefined || typeof update["toolCallId"] !== "string")
+            return message;
         const toolCallId = update["toolCallId"];
-        const fixed: Json = {...update};
-        if (/^mcp_startup\.[^.]+$/.test(toolCallId)) fixed["toolCallId"] = `${toolCallId}.<uuid>`;
+        const fixed: Json = { ...update };
+        if (/^mcp_startup\.[^.]+$/.test(toolCallId))
+            fixed["toolCallId"] = `${toolCallId}.<uuid>`;
         const result = results[toolCallId];
         if (result !== undefined && update["status"] === "completed") {
-            fixed["content"] = [{type: "content", content: {type: "text", text: result}}];
+            fixed["content"] = [
+                { type: "content", content: { type: "text", text: result } },
+            ];
             delete results[toolCallId];
         }
-        return {...message, params: {...(message.params as Json), update: fixed}};
+        return {
+            ...message,
+            params: { ...(message.params as Json), update: fixed },
+        };
     });
 }
 
 /** The `/mcp` command that the baseline sends in `available_commands_update`. */
-const BASELINE_MCP_COMMAND = {name: "mcp", description: "List configured Model Context Protocol (MCP) tools.", input: null};
+const BASELINE_MCP_COMMAND = {
+    name: "mcp",
+    description: "List configured Model Context Protocol (MCP) tools.",
+    input: null,
+};
 
 /** The `/mcp` command that shows the live status of the MCP servers and reconnects them. */
 const MCP_COMMAND = {
     name: "mcp",
     description: "Show the status of the MCP servers, or reconnect them.",
-    input: {hint: "[reconnect]"},
+    input: { hint: "[reconnect]" },
 };
 
 /**
@@ -139,24 +183,52 @@ const MCP_COMMAND = {
  * Initialize also advertises text-only append system prompts.
  * Only a command that equals the baseline `/mcp` command changes.
  */
-export function withFeatureChanges(messages: RecordedMessage[]): RecordedMessage[] {
+export function withFeatureChanges(
+    messages: RecordedMessage[],
+): RecordedMessage[] {
     const baselineMcp = JSON.stringify(canonical(BASELINE_MCP_COMMAND));
-    return messages.map(message => {
-        if (message.direction === "response" && message.method === "initialize") {
+    return messages.map((message) => {
+        if (
+            message.direction === "response" &&
+            message.method === "initialize"
+        ) {
             const params = message.params as Json;
-            const capabilities = params["agentCapabilities"] as Json | undefined;
-            const session = capabilities?.["sessionCapabilities"] as Json | undefined;
+            const capabilities = params["agentCapabilities"] as
+                Json | undefined;
+            const session = capabilities?.["sessionCapabilities"] as
+                Json | undefined;
             if (session) {
-                return {...message, params: {...params, agentCapabilities: {
-                    ...capabilities, sessionCapabilities: {...session, systemPrompt: {}},
-                }}};
+                return {
+                    ...message,
+                    params: {
+                        ...params,
+                        agentCapabilities: {
+                            ...capabilities,
+                            sessionCapabilities: {
+                                ...session,
+                                systemPrompt: {},
+                            },
+                        },
+                    },
+                };
             }
         }
         const update = sessionUpdate(message);
-        if (update === undefined || update["sessionUpdate"] !== "available_commands_update") return message;
-        const commands = (update["availableCommands"] as unknown[]).map(command =>
-            JSON.stringify(canonical(command)) === baselineMcp ? MCP_COMMAND : command);
-        return {...message, params: {...(message.params as Json), update: {...update, availableCommands: commands}}};
+        if (update?.["sessionUpdate"] !== "available_commands_update")
+            return message;
+        const commands = (update["availableCommands"] as unknown[]).map(
+            (command) =>
+                JSON.stringify(canonical(command)) === baselineMcp
+                    ? MCP_COMMAND
+                    : command,
+        );
+        return {
+            ...message,
+            params: {
+                ...(message.params as Json),
+                update: { ...update, availableCommands: commands },
+            },
+        };
     });
 }
 
@@ -177,14 +249,15 @@ export function withOutputOnce(messages: RecordedMessage[]): RecordedMessage[] {
     const last = new Map<string, number>();
     const result = messages.map((message, index) => {
         const update = sessionUpdate(message);
-        if (update === undefined || typeof update["toolCallId"] !== "string") return message;
+        if (update === undefined || typeof update["toolCallId"] !== "string")
+            return message;
         const key = `${String((message.params as Json)["sessionId"])} ${update["toolCallId"]}`;
-        const fixed: Json = {...update};
+        const fixed: Json = { ...update };
         const meta = update["_meta"] as Json | undefined;
         if (meta !== undefined) {
-            const kept: Json = {...meta};
+            const kept: Json = { ...meta };
             for (const chunkKey of OUTPUT_CHUNK_KEYS) {
-                const chunk = kept[chunkKey] as {data?: string} | undefined;
+                const chunk = kept[chunkKey] as { data?: string } | undefined;
                 if (chunk === undefined) continue;
                 chunks.set(key, (chunks.get(key) ?? "") + (chunk.data ?? ""));
                 delete kept[chunkKey];
@@ -195,36 +268,63 @@ export function withOutputOnce(messages: RecordedMessage[]): RecordedMessage[] {
         const rawOutput = update["rawOutput"] as Json | undefined;
         // The end of a command carries its exit code. A client without a chunk channel gets the output as content text.
         const content = update["content"] as Json[] | undefined;
-        const text = content?.length === 1 && content[0]!["type"] === "content"
-            ? (content[0]!["content"] as Json)["text"] : undefined;
-        if (rawOutput !== null && typeof rawOutput === "object" && "exit_code" in rawOutput && typeof text === "string") {
+        const text =
+            content?.length === 1 && content[0]!["type"] === "content"
+                ? (content[0]!["content"] as Json)["text"]
+                : undefined;
+        if (
+            rawOutput !== null &&
+            typeof rawOutput === "object" &&
+            "exit_code" in rawOutput &&
+            typeof text === "string"
+        ) {
             formatted.set(key, text);
             delete fixed["content"];
         }
-        if (rawOutput !== undefined && rawOutput !== null && typeof rawOutput === "object" && "formatted_output" in rawOutput) {
+        if (
+            rawOutput !== undefined &&
+            rawOutput !== null &&
+            typeof rawOutput === "object" &&
+            "formatted_output" in rawOutput
+        ) {
             formatted.set(key, String(rawOutput["formatted_output"]));
-            const kept: Json = {...rawOutput};
+            const kept: Json = { ...rawOutput };
             delete kept["formatted_output"];
-            if (meta !== undefined && "terminal_exit" in meta) delete kept["exit_code"];
+            if (meta !== undefined && "terminal_exit" in meta)
+                delete kept["exit_code"];
             if (Object.keys(kept).length > 0) fixed["rawOutput"] = kept;
             else delete fixed["rawOutput"];
         }
         last.set(key, index);
-        return {...message, params: {...(message.params as Json), update: fixed}};
+        return {
+            ...message,
+            params: { ...(message.params as Json), update: fixed },
+        };
     });
     for (const [key, index] of last) {
         const text = chunks.get(key) ?? formatted.get(key);
         if (text === undefined || text.length === 0) continue;
         const message = result[index]!;
         const update = sessionUpdate(message)!;
-        result[index] = {...message, params: {...(message.params as Json), update: {...update, output: text}}};
+        result[index] = {
+            ...message,
+            params: {
+                ...(message.params as Json),
+                update: { ...update, output: text },
+            },
+        };
     }
     return result;
 }
 
 /** The baseline messages with the allowed differences applied, except the merge of the tool call reports. */
-export function expectedFromBaseline(scenario: string, baseline: RecordedMessage[]): RecordedMessage[] {
-    return withFeatureChanges(withBugFixes(scenario, withoutAirOnlyMessages(baseline)));
+export function expectedFromBaseline(
+    scenario: string,
+    baseline: RecordedMessage[],
+): RecordedMessage[] {
+    return withFeatureChanges(
+        withBugFixes(scenario, withoutAirOnlyMessages(baseline)),
+    );
 }
 
 /**
@@ -239,24 +339,45 @@ export function expectedFromBaseline(scenario: string, baseline: RecordedMessage
  */
 export function mergedReports(messages: RecordedMessage[]): RecordedMessage[] {
     const stored = new Map<string, Json>();
-    const same = (left: unknown, right: unknown) => JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
+    const same = (left: unknown, right: unknown) =>
+        JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
     return messages.flatMap((message): RecordedMessage[] => {
         const params = message.params as Json;
         const update = sessionUpdate(message);
-        if (update !== undefined && (update["sessionUpdate"] === "tool_call" || update["sessionUpdate"] === "tool_call_update")) {
-            const {sessionUpdate: kind, toolCallId, _meta, ...fields} = update;
+        if (
+            update !== undefined &&
+            (update["sessionUpdate"] === "tool_call" ||
+                update["sessionUpdate"] === "tool_call_update")
+        ) {
+            const {
+                sessionUpdate: kind,
+                toolCallId,
+                _meta,
+                ...fields
+            } = update;
             const key = `${String(params["sessionId"])} ${String(toolCallId)}`;
-            const previous = kind === "tool_call" ? {} : stored.get(key) ?? {};
-            const next = {...previous, ...fields};
+            const previous =
+                kind === "tool_call" ? {} : (stored.get(key) ?? {});
+            const next = { ...previous, ...fields };
             stored.set(key, next);
-            if (kind === "tool_call_update" && _meta === undefined && same(previous, next)) return [];
-            const report = {sessionUpdate: kind, toolCallId, fields: next, ...(_meta === undefined ? {} : {_meta})};
-            return [{...message, params: {...params, update: report}}];
+            if (
+                kind === "tool_call_update" &&
+                _meta === undefined &&
+                same(previous, next)
+            )
+                return [];
+            const report = {
+                sessionUpdate: kind,
+                toolCallId,
+                fields: next,
+                ...(_meta === undefined ? {} : { _meta }),
+            };
+            return [{ ...message, params: { ...params, update: report } }];
         }
         if (message.method === "session/request_permission") {
-            const {toolCallId, _meta, ...fields} = params["toolCall"] as Json;
+            const { toolCallId, _meta, ...fields } = params["toolCall"] as Json;
             const key = `${String(params["sessionId"])} ${String(toolCallId)}`;
-            stored.set(key, {...stored.get(key) ?? {}, ...fields});
+            stored.set(key, { ...(stored.get(key) ?? {}), ...fields });
             return [message];
         }
         return [message];
@@ -265,5 +386,5 @@ export function mergedReports(messages: RecordedMessage[]): RecordedMessage[] {
 
 /** One canonical JSON line per message, for a readable failure diff. */
 export function lines(messages: RecordedMessage[]): string[] {
-    return messages.map(message => JSON.stringify(canonical(message)));
+    return messages.map((message) => JSON.stringify(canonical(message)));
 }

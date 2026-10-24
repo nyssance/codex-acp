@@ -17,14 +17,15 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import {logger} from "./Logger";
-import {SESSION_NAME_LOG_FILE} from "./SessionNameLog";
+import { logger } from "./Logger";
+import { SESSION_NAME_LOG_FILE } from "./SessionNameLog";
 
 export const ARCHIVED_SESSIONS_DIR = "archived_sessions";
 
 const STATE_DB_WAL_PATTERN = /^state_\d+\.sqlite-wal$/;
 /** The thread id at the end of a rollout file name: `rollout-<time>-<uuid>.jsonl`. */
-const ROLLOUT_THREAD_ID_PATTERN = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
+const ROLLOUT_THREAD_ID_PATTERN =
+    /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 
 export interface CodexHomeWatcherListener {
     /** A state DB WAL was written, appeared or went. */
@@ -64,7 +65,10 @@ export class CodexHomeWatcher {
         this.watchHome();
         this.watchArchive();
         this.watchNameLog();
-        this.fallbackTimer = setInterval(() => this.pollWal(), fallbackIntervalMs);
+        this.fallbackTimer = setInterval(
+            () => this.pollWal(),
+            fallbackIntervalMs,
+        );
         this.fallbackTimer.unref?.();
     }
 
@@ -89,29 +93,41 @@ export class CodexHomeWatcher {
 
     private watchHome(): void {
         try {
-            this.homeWatcher = fs.watch(this.home, {persistent: false}, (event, filename) => {
-                const name = filename === null ? null : filename.toString();
-                if (name === null || STATE_DB_WAL_PATTERN.test(name)) {
-                    // Linux reports every write here too; only a WAL that appears or goes needs new watches.
-                    if (event === "rename") this.refreshWalWatchers();
-                    this.stateChanged();
-                }
-                if (name === null || name === SESSION_NAME_LOG_FILE) {
-                    if (event === "rename") this.watchNameLog();
-                    this.stateChanged();
-                }
-                // Codex creates `archived_sessions` on the first archive.
-                if ((name === null || name === ARCHIVED_SESSIONS_DIR) && this.archiveWatcher === null) {
-                    this.watchArchive();
-                }
-            });
+            this.homeWatcher = fs.watch(
+                this.home,
+                { persistent: false },
+                (event, filename) => {
+                    const name = filename === null ? null : filename.toString();
+                    if (name === null || STATE_DB_WAL_PATTERN.test(name)) {
+                        // Linux reports every write here too; only a WAL that appears or goes needs new watches.
+                        if (event === "rename") this.refreshWalWatchers();
+                        this.stateChanged();
+                    }
+                    if (name === null || name === SESSION_NAME_LOG_FILE) {
+                        if (event === "rename") this.watchNameLog();
+                        this.stateChanged();
+                    }
+                    // Codex creates `archived_sessions` on the first archive.
+                    if (
+                        (name === null || name === ARCHIVED_SESSIONS_DIR) &&
+                        this.archiveWatcher === null
+                    ) {
+                        this.watchArchive();
+                    }
+                },
+            );
             this.homeWatcher.on("error", (error) => {
-                logger.log("CODEX_HOME watch failed; the 30 s check remains", {error: String(error)});
+                logger.log("CODEX_HOME watch failed; the 30 s check remains", {
+                    error: String(error),
+                });
                 this.homeWatcher?.close();
                 this.homeWatcher = null;
             });
         } catch (error) {
-            logger.log("Cannot watch CODEX_HOME; the 30 s check remains", {home: this.home, error: String(error)});
+            logger.log("Cannot watch CODEX_HOME; the 30 s check remains", {
+                home: this.home,
+                error: String(error),
+            });
             this.homeWatcher = null;
         }
     }
@@ -121,17 +137,30 @@ export class CodexHomeWatcher {
         const dir = path.join(this.home, ARCHIVED_SESSIONS_DIR);
         if (!fs.existsSync(dir)) return;
         try {
-            const watcher = fs.watch(dir, {persistent: false}, (_event, filename) => {
-                const threadId = filename === null ? null : ROLLOUT_THREAD_ID_PATTERN.exec(filename.toString())?.[1];
-                if (threadId && !this.stopped) this.listener.archiveMoved(threadId.toLowerCase());
-            });
+            const watcher = fs.watch(
+                dir,
+                { persistent: false },
+                (_event, filename) => {
+                    const threadId =
+                        filename === null
+                            ? null
+                            : ROLLOUT_THREAD_ID_PATTERN.exec(
+                                  filename.toString(),
+                              )?.[1];
+                    if (threadId && !this.stopped)
+                        this.listener.archiveMoved(threadId.toLowerCase());
+                },
+            );
             watcher.on("error", () => {
                 watcher.close();
                 if (this.archiveWatcher === watcher) this.archiveWatcher = null;
             });
             this.archiveWatcher = watcher;
         } catch (error) {
-            logger.log("Cannot watch archived_sessions", {dir, error: String(error)});
+            logger.log("Cannot watch archived_sessions", {
+                dir,
+                error: String(error),
+            });
         }
     }
 
@@ -143,7 +172,7 @@ export class CodexHomeWatcher {
         const file = path.join(this.home, SESSION_NAME_LOG_FILE);
         if (!fs.existsSync(file)) return;
         try {
-            const watcher = fs.watch(file, {persistent: false}, (event) => {
+            const watcher = fs.watch(file, { persistent: false }, (event) => {
                 // A log that Codex writes anew is another file, which this watch does not follow.
                 if (event === "rename") this.watchNameLog();
                 this.stateChanged();
@@ -154,7 +183,10 @@ export class CodexHomeWatcher {
             });
             this.nameLogWatcher = watcher;
         } catch (error) {
-            logger.log("Cannot watch the session name log", {file, error: String(error)});
+            logger.log("Cannot watch the session name log", {
+                file,
+                error: String(error),
+            });
         }
     }
 
@@ -184,27 +216,39 @@ export class CodexHomeWatcher {
             if (identity !== null) identities.set(name, identity);
         }
         for (const [name, watch] of this.walWatchers) {
-            if (identities.get(name) !== watch.identity) this.dropWalWatcher(name, watch);
+            if (identities.get(name) !== watch.identity)
+                this.dropWalWatcher(name, watch);
         }
         for (const [name, identity] of identities) {
             if (this.walWatchers.has(name)) continue;
             try {
-                const watcher = fs.watch(path.join(home, name), {persistent: false}, (event) => {
-                    // A file that is gone or replaced needs a new watch: this one sees no more of its writes.
-                    // Elsewhere "rename" means just that, even when Linux gives the new file the same inode.
-                    // macOS also reports a write in place as "rename", so there only another file counts.
-                    if (event === "rename" && (process.platform !== "darwin"
-                        || fileIdentityOf(path.join(home, name)) !== watch.identity)) {
-                        this.dropWalWatcher(name, watch);
-                        this.refreshWalWatchers();
-                    }
-                    this.stateChanged();
-                });
-                const watch: WalWatch = {watcher, identity};
+                const watcher = fs.watch(
+                    path.join(home, name),
+                    { persistent: false },
+                    (event) => {
+                        // A file that is gone or replaced needs a new watch: this one sees no more of its writes.
+                        // Elsewhere "rename" means just that, even when Linux gives the new file the same inode.
+                        // macOS also reports a write in place as "rename", so there only another file counts.
+                        if (
+                            event === "rename" &&
+                            (process.platform !== "darwin" ||
+                                fileIdentityOf(path.join(home, name)) !==
+                                    watch.identity)
+                        ) {
+                            this.dropWalWatcher(name, watch);
+                            this.refreshWalWatchers();
+                        }
+                        this.stateChanged();
+                    },
+                );
+                const watch: WalWatch = { watcher, identity };
                 watcher.on("error", () => this.dropWalWatcher(name, watch));
                 this.walWatchers.set(name, watch);
             } catch (error) {
-                logger.log("Cannot watch the state DB WAL; the 30 s check remains", {name, error: String(error)});
+                logger.log(
+                    "Cannot watch the state DB WAL; the 30 s check remains",
+                    { name, error: String(error) },
+                );
             }
         }
     }
@@ -217,14 +261,16 @@ export class CodexHomeWatcher {
 
 /** The size and modification time of every state DB WAL in CODEX_HOME and of the session name log. */
 function readWalSnapshot(home: string): string {
-    return [...listWalFiles(home), SESSION_NAME_LOG_FILE].map(name => {
-        try {
-            const stats = fs.statSync(path.join(home, name));
-            return `${name}:${stats.size}:${stats.mtimeMs}`;
-        } catch {
-            return `${name}:-`;
-        }
-    }).join("|");
+    return [...listWalFiles(home), SESSION_NAME_LOG_FILE]
+        .map((name) => {
+            try {
+                const stats = fs.statSync(path.join(home, name));
+                return `${name}:${stats.size}:${stats.mtimeMs}`;
+            } catch {
+                return `${name}:-`;
+            }
+        })
+        .join("|");
 }
 
 /**
@@ -246,7 +292,10 @@ function fileIdentityOf(file: string): string | null {
 
 function listWalFiles(home: string): string[] {
     try {
-        return fs.readdirSync(home).filter(name => STATE_DB_WAL_PATTERN.test(name)).sort();
+        return fs
+            .readdirSync(home)
+            .filter((name) => STATE_DB_WAL_PATTERN.test(name))
+            .toSorted();
     } catch {
         return [];
     }

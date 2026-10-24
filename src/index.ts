@@ -1,19 +1,22 @@
 #!/usr/bin/env node
 
-import {startCodexConnection} from "./CodexJsonRpcConnection";
-import {CodexAcpServer, type CodexProcessState} from "./CodexAcpServer";
-import {createJsonStream} from "./StdUtils";
-import {isCodexAuthRequest} from "./CodexAuthMethod";
-import {CodexAcpClient} from "./CodexAcpClient";
-import {CodexAppServerClient} from "./CodexAppServerClient";
+import { startCodexConnection } from "./CodexJsonRpcConnection";
+import { CodexAcpServer, type CodexProcessState } from "./CodexAcpServer";
+import { createJsonStream } from "./StdUtils";
+import { isCodexAuthRequest } from "./CodexAuthMethod";
+import { CodexAcpClient } from "./CodexAcpClient";
+import { CodexAppServerClient } from "./CodexAppServerClient";
 import packageJson from "../package.json";
-import {logger} from "./Logger";
-import {CodexAppServerSupervisor} from "./app-server-recovery/CodexAppServerSupervisor";
-import {runLoginCommand} from "./login";
-import {runCodexCli} from "./CodexCli";
-import {prepareCodexHookConfig} from "./CodexHookConfig";
-import {createAcpAgentRouter} from "./AcpAgentRouter";
-import type {AcpClientConnection, AcpV2Connection} from "./ACPSessionConnection";
+import { logger } from "./Logger";
+import { CodexAppServerSupervisor } from "./app-server-recovery/CodexAppServerSupervisor";
+import { runLoginCommand } from "./login";
+import { runCodexCli } from "./CodexCli";
+import { prepareCodexHookConfig } from "./CodexHookConfig";
+import { createAcpAgentRouter } from "./AcpAgentRouter";
+import type {
+    AcpClientConnection,
+    AcpV2Connection,
+} from "./ACPSessionConnection";
 
 if (process.argv.includes("--version")) {
     console.log(`${packageJson.name} ${packageJson.version}`);
@@ -47,13 +50,18 @@ function startAcpServer() {
     const modelProvider = process.env["MODEL_PROVIDER"];
     const config = configString ? JSON.parse(configString) : undefined;
     const hookConfig = prepareCodexHookConfig(config);
-    const parsedAuthRequest = authRequestString ? JSON.parse(authRequestString) : undefined;
-    const defaultAuthRequest = parsedAuthRequest && isCodexAuthRequest(parsedAuthRequest) ? parsedAuthRequest : undefined;
+    const parsedAuthRequest = authRequestString
+        ? JSON.parse(authRequestString)
+        : undefined;
+    const defaultAuthRequest =
+        parsedAuthRequest && isCodexAuthRequest(parsedAuthRequest)
+            ? parsedAuthRequest
+            : undefined;
 
     logger.log("Startup", {
         name: packageJson.name,
         version: packageJson.version,
-        codexPath: codexPath,
+        codexPath,
         modelProvider: modelProvider ?? null,
         codexConfig: config ?? null,
         authRequest: authRequestString ?? null,
@@ -62,7 +70,12 @@ function startAcpServer() {
 
     const codexProcessState: CodexProcessState = {
         // The supervisor disposes the connection itself, after the last output of the process was read.
-        connection: startCodexConnection(codexPath, undefined, hookConfig.appServerStartupArgs, {disposeOnExit: false}),
+        connection: startCodexConnection(
+            codexPath,
+            undefined,
+            hookConfig.appServerStartupArgs,
+            { disposeOnExit: false },
+        ),
         codexPath,
         config: hookConfig.sessionConfig,
         appServerStartupArgs: hookConfig.appServerStartupArgs,
@@ -79,9 +92,17 @@ function startAcpServer() {
 
     const acpJsonStream = createJsonStream(process.stdin, process.stdout);
 
-    function createAgent(connection: AcpClientConnection | AcpV2Connection): CodexAcpServer {
-        const appServerClient = new CodexAppServerClient(codexProcessState.connection.connection);
-        const codexClient = new CodexAcpClient(appServerClient, hookConfig.sessionConfig, modelProvider);
+    function createAgent(
+        connection: AcpClientConnection | AcpV2Connection,
+    ): CodexAcpServer {
+        const appServerClient = new CodexAppServerClient(
+            codexProcessState.connection.connection,
+        );
+        const codexClient = new CodexAcpClient(
+            appServerClient,
+            hookConfig.sessionConfig,
+            modelProvider,
+        );
         process.stdin.once("close", () => codexClient.closeTransports());
         return new CodexAcpServer(
             connection,
