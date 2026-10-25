@@ -2,7 +2,8 @@ import {execFileSync} from "node:child_process";
 import {once} from "node:events";
 import {copyFileSync, mkdtempSync, mkdirSync, rmSync} from "node:fs";
 import {homedir, tmpdir} from "node:os";
-import {join, resolve} from "node:path";
+import {join} from "node:path";
+import {createRequire} from "node:module";
 import {expect, it, vi} from "vitest";
 import {CodexAcpClient} from "../../../CodexAcpClient";
 import {CodexAcpServer} from "../../../CodexAcpServer";
@@ -13,8 +14,11 @@ import {AcpV2Connection, type AcpClientConnection} from "../../../ACPSessionConn
 const live = process.env["RUN_E2E_TESTS"] === "true" ? it : it.skip;
 
 live.each([1, 2])("Codex 0.164 fork boundary survives continuation and restart in ACP v%s", async version => {
-    const binary = process.env["CODEX_PATH"] ?? resolve("node_modules/.bin/codex");
-    expect(execFileSync(binary, ["--version"], {encoding: "utf8"}).trim()).toBe("codex-cli 0.164.0");
+    const binary = process.env["CODEX_PATH"];
+    const bundledCodex = createRequire(import.meta.url).resolve("@openai/codex/bin/codex.js");
+    const versionCommand = binary === undefined ? process.execPath : binary;
+    const versionArgs = binary === undefined ? [bundledCodex, "--version"] : ["--version"];
+    expect(execFileSync(versionCommand, versionArgs, {encoding: "utf8"}).trim()).toBe("codex-cli 0.164.0");
     const root = mkdtempSync(join(tmpdir(), "codex-acp-live-fork-"));
     const home = join(root, "home");
     const cwd = join(root, "workspace");
