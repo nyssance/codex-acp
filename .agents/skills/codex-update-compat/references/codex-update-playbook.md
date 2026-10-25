@@ -62,7 +62,7 @@ Approach:
 
 ## Test Strategy
 
-1. Fix types first (`npm run typecheck`).
+1. Fix types first (`bun run check`).
 2. Run focused tests for touched event/file.
 3. Update snapshots only after confirming expected behavior.
 4. Run full suite at end.

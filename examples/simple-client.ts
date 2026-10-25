@@ -25,15 +25,15 @@
  *
  * Run (build the agent first):
  *
- *   npm run build
- *   node --import tsx examples/simple-client.ts
+ *   bun run build
+ *   bun examples/simple-client.ts
  *
- * or equivalently: `npm run example:simple-client`.
+ * or equivalently: `bun run example:simple-client`.
  *
  * To debug the agent, pass a port. The agent is rebuilt with source maps
  * and started under --inspect-brk=<port>, paused until a debugger attaches:
  *
- *   node --import tsx examples/simple-client.ts --debug-port=9229
+ *   bun examples/simple-client.ts --debug-port=9229
  *
  * Auth: uses your existing Codex login in ~/.codex. Alternatively export
  * CODEX_API_KEY or OPENAI_API_KEY.
@@ -85,7 +85,7 @@ function flag(name: string): string | undefined {
 if (ARGV.includes("--help") || ARGV.includes("-h")) {
     process.stdout.write(
         [
-            "Usage: node --import tsx examples/simple-client.ts [--debug-port=<port>] [--no-build]",
+            "Usage: bun examples/simple-client.ts [--debug-port=<port>] [--no-build]",
             "",
             "  --debug-port=<port>  rebuild with source maps and start the agent under",
             "                       --inspect-brk=<port>, paused until a debugger attaches",
@@ -233,7 +233,7 @@ function tapStream(inner: Stream): Stream {
 // ---------------------------------------------------------------- build
 
 async function build(sourceMaps: boolean) {
-    log(`building agent (esbuild${sourceMaps ? " + source maps" : ""}) …`);
+    log(`building agent (Bun${sourceMaps ? " + source maps" : ""}) …`);
     const buildScript = path.join(repoRoot, "build.mjs");
     const env = { ...process.env };
     if (sourceMaps) env["SOURCE_MAPS"] = "1";
@@ -258,16 +258,16 @@ async function main() {
         await build(DEBUG_PORT !== undefined);
     } else if (!existsSync(AGENT_ENTRY)) {
         log(
-            `${AGENT_ENTRY} not found — run \`npm run build\` first, or unset --no-build`,
+            `${AGENT_ENTRY} not found — run \`bun run build\` first, or unset --no-build`,
         );
         process.exit(1);
     }
 
-    const nodeArgs =
+    const runtimeArgs =
         DEBUG_PORT === undefined
             ? [AGENT_ENTRY]
             : [`--inspect-brk=${DEBUG_PORT}`, AGENT_ENTRY];
-    const child = spawn(process.execPath, nodeArgs, {
+    const child = spawn(process.execPath, runtimeArgs, {
         cwd: repoRoot,
         stdio: ["pipe", "pipe", "pipe"],
         env: process.env,
@@ -387,7 +387,7 @@ async function main() {
     } catch (err) {
         log(`session/new failed: ${err}`);
         log(
-            "if this is an auth error, log in first: npx @openai/codex auth login",
+            "if this is an auth error, log in first: bunx @openai/codex auth login",
         );
         await shutdown("session/new failed", 1);
         return;

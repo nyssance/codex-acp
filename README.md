@@ -74,7 +74,7 @@ The adapter advertises ACP auth methods during initialization. Clients can authe
 ```bash
 npm install
 npm run start
-npm run typecheck
+bun run check
 npm test
 ```
 

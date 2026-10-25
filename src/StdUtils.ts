@@ -94,6 +94,25 @@ export function createJSONRPCReader(
     };
 }
 
+/** Adapt a byte stream through the Web Streams API available in Bun. */
+export function readableToWeb(readable: Readable): ReadableStream<Uint8Array> {
+    const iterator = readable[Symbol.asyncIterator]();
+    return new ReadableStream<Uint8Array>({
+        async pull(controller) {
+            const next = await iterator.next();
+            if (next.done) controller.close();
+            else {
+                if (!(next.value instanceof Uint8Array))
+                    throw new TypeError("Expected byte stream");
+                controller.enqueue(next.value);
+            }
+        },
+        cancel() {
+            readable.destroy();
+        },
+    });
+}
+
 export function createJsonStream(
     readable: Readable,
     writable: Writable,
@@ -103,7 +122,7 @@ export function createJsonStream(
     const errorReplies = new WritableStream<Uint8Array>({
         write: (chunk) => writeLine(chunk),
     });
-    const input = Readable.toWeb(readable) as ReadableStream<Uint8Array>;
+    const input = readableToWeb(readable);
     const stream = acp.ndJsonStream(errorReplies, input);
     // The SDK encodes each message with TextEncoder and writes it through a web stream adapter.
     // A string write to the Node stream encodes it in native code, and is faster for a large history.

@@ -5,3 +5,6 @@ ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/
 
 [lint]
 ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/**", "**/coverage/**", "Vendor/**", "vendor/**", "**/src-tauri/gen/**", "src/app-server/**"]
+
+[run]
+bun = true

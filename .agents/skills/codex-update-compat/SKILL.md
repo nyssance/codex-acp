@@ -20,7 +20,7 @@ Focus first on `package.json`, `package-lock.json`, and generated `src/app-serve
 2. Run typecheck and tests immediately.
 Run:
 ```bash
-npm run typecheck
+bun run check
 npm test
 ```
 Treat type errors as the migration guide for required protocol changes.
@@ -40,7 +40,7 @@ Then update snapshots only after behavior is intentionally verified.
 5. Re-run targeted suites, then full checks.
 Run focused tests for touched behavior, then:
 ```bash
-npm run typecheck
+bun run check
 npm test
 ```
 

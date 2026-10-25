@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env bun
 
 /**
  * Steering demo — mid-turn edition.
@@ -17,8 +17,8 @@
  * what the agent does next (it stops the hunt early).
  *
  * Run it with:
- *     node --import tsx examples/steering.ts
- *     # or: npm run example:steering:multistep
+ *     bun examples/steering.ts
+ *     # or: bun run example:steering:multistep
  *
  * Auth: uses your existing Codex login in ~/.codex. If you instead export
  * CODEX_API_KEY / OPENAI_API_KEY it will authenticate with that.
@@ -404,8 +404,7 @@ async function stopAgent(agentProcess: ChildProcess): Promise<void> {
 
 async function main(): Promise<void> {
     const { workspaceDir, clueCount } = await createTreasureHunt();
-    const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-    const agentProcess = spawn(npmCommand, ["run", "--silent", "start"], {
+    const agentProcess = spawn(process.execPath, ["run", "--silent", "start"], {
         cwd: repositoryRoot,
         env: createAgentEnvironment(),
         stdio: ["pipe", "pipe", "inherit"],

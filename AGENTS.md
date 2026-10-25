@@ -11,7 +11,7 @@
 
 ## Coding Style & Naming Conventions
 
-- Use `bun lint`, `bun run ts7-lint`, and `bun fmt`. Keep this fork’s formatting in its own `bunfig.toml`; do not copy Desktop’s formatter settings. Generated `src/app-server` files stay excluded.
+- Use `bun lint`, `bun ts7-lint`, and `bun fmt`. Keep this fork’s formatting in its own `bunfig.toml`; do not copy Desktop’s formatter settings. Generated `src/app-server` files stay excluded.
 - When adding env/config knobs, document them in `readme-dev.md`.
 - The adapter serves ACP v1 and v2. A change that is not meant for one protocol version only must work correctly in both.
 - When updating discriminated-union/event `switch` statements, do not add a trailing fallback like `return null` only to satisfy TypeScript.

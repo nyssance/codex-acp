@@ -3,9 +3,9 @@
  * Run real Codex with a prompt to test and verify code during development.
  *
  * Usage:
- *   npm run codex-test -- --prompt "Your prompt here"
- *   npm run codex-test -- -p "Hello" -c /path/to/project
- *   npm run codex-test -- -p "Hello" -o codex --json
+ *   bun run codex-test -- --prompt "Your prompt here"
+ *   bun run codex-test -- -p "Hello" -c /path/to/project
+ *   bun run codex-test -- -p "Hello" -o codex --json
  */
 
 import path from "node:path";
@@ -45,7 +45,7 @@ function parseArgs(): {
             json = true;
         } else if (arg === "--help" || arg === "-h") {
             console.log(`
-Usage: npm run codex-test -- [options]
+Usage: bun run codex-test -- [options]
 
 Options:
   -p, --prompt <text>   Prompt to send to Codex (required)
@@ -55,9 +55,9 @@ Options:
   -h, --help            Show this help message
 
 Examples:
-  npm run codex-test -- -p "What files are here?"
-  npm run codex-test -- -p "Read README" -c /path/to/project
-  npm run codex-test -- -p "Hello" -o codex --json
+  bun run codex-test -- -p "What files are here?"
+  bun run codex-test -- -p "Read README" -c /path/to/project
+  bun run codex-test -- -p "Hello" -o codex --json
 `);
             process.exit(0);
         }
@@ -100,7 +100,7 @@ async function main() {
     );
     if (!fs.existsSync(pathToCodex)) {
         console.error(
-            `Error: Codex binary not found at ${pathToCodex}. Did you run 'npm install'?`,
+            `Error: Codex binary not found at ${pathToCodex}. Did you run 'bun install'?`,
         );
         process.exit(1);
     }

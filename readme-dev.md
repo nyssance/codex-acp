@@ -85,7 +85,7 @@ npm run package:all
 
 1. Update the `@openai/codex` version in `package.json` (under `dependencies`).
 2. Regenerate Codex types in `src/app-server/`: `npm run generate-types`
-3. Ensure there are no type errors or failed tests: `npm run typecheck` and `npm run test`
+3. Ensure there are no type errors or failed tests: `bun run check` and `npm run test`
 
 ### Test suites
 
@@ -291,7 +291,7 @@ decompression disabled. Node uses its raw HTTP transport to preserve compressed
 response bytes. Both paths preserve cancellation, status codes, and streaming;
 transport failures expose a sanitized error code without credential-bearing URLs.
 
-Local checks can run entirely with Bun (`bun run typecheck`,
+Local checks can run entirely with Bun (`bun run check`,
 `bun --bun node_modules/vitest/vitest.mjs run`, `bun build.mjs`, and
 `bun x tsc -p tsconfig.client.json`). Native-process test fixtures locate the
 installed Codex platform binary directly; test JavaScript child processes use

@@ -16,18 +16,14 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          check-latest: true
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.4.4
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
       - name: Typecheck
-        run: npm run typecheck
+        run: bun run check
       - name: Run unit tests
-        run: npm test
+        run: bun run test
       - name: Bundle binaries
-        run: npm run bundle:all
+        run: bun run bundle:all

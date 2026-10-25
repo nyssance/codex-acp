@@ -45,17 +45,16 @@ jobs:
             git push origin "HEAD:refs/heads/$branch"
           fi
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         if: steps.merge.outputs.branch != ''
         with:
-          node-version: "24"
-          check-latest: true
+          bun-version: latest
       - name: Verify merged source
         if: steps.merge.outputs.branch != ''
         run: |
-          npm ci
-          npm run typecheck
-          npm test
+          bun install --frozen-lockfile
+          bun run check
+          bun run test
       - name: Open review PR
         if: always() && steps.merge.outputs.branch != ''
         env:

@@ -290,7 +290,9 @@ export class CodexAppServerClient {
 
         this.connection.onRequest(
             CommandExecutionApprovalRequest,
-            async (params) => {
+            async (
+                params,
+            ): Promise<CommandExecutionRequestApprovalResponse> => {
                 if (this.isStaleTurn(params.threadId, params.turnId)) {
                     return { decision: "cancel" };
                 }
@@ -302,20 +304,23 @@ export class CodexAppServerClient {
             },
         );
 
-        this.connection.onRequest(FileChangeApprovalRequest, async (params) => {
-            if (this.isStaleTurn(params.threadId, params.turnId)) {
-                return { decision: "cancel" };
-            }
-            const handler = this.approvalHandlers.get(params.threadId);
-            if (!handler) {
-                return { decision: "cancel" };
-            }
-            return await handler.handleFileChange(params);
-        });
+        this.connection.onRequest(
+            FileChangeApprovalRequest,
+            async (params): Promise<FileChangeRequestApprovalResponse> => {
+                if (this.isStaleTurn(params.threadId, params.turnId)) {
+                    return { decision: "cancel" };
+                }
+                const handler = this.approvalHandlers.get(params.threadId);
+                if (!handler) {
+                    return { decision: "cancel" };
+                }
+                return await handler.handleFileChange(params);
+            },
+        );
 
         this.connection.onRequest(
             PermissionsApprovalRequest,
-            async (params) => {
+            async (params): Promise<PermissionsRequestApprovalResponse> => {
                 if (this.isStaleTurn(params.threadId, params.turnId)) {
                     return {
                         permissions: {},
@@ -337,7 +342,7 @@ export class CodexAppServerClient {
 
         this.connection.onRequest(
             McpServerElicitationRequest,
-            async (params) => {
+            async (params): Promise<McpServerElicitationRequestResponse> => {
                 if (this.isStaleTurn(params.threadId, params.turnId)) {
                     return { action: "cancel", content: null, _meta: null };
                 }

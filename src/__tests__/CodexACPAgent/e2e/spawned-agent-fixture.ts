@@ -1,3 +1,4 @@
+import { readableToWeb } from "../../../StdUtils";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -243,9 +244,7 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         private readonly extraEnv: NodeJS.ProcessEnv,
         private readonly mcpServers: acp.McpServerStdio[],
     ) {
-        const output = Readable.toWeb(
-            agentProcess.stdout,
-        ) as ReadableStream<Uint8Array>;
+        const output = readableToWeb(agentProcess.stdout);
         this.connection = acp
             .client()
             .onRequest(acp.methods.client.session.requestPermission, (ctx) =>

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { startCodexConnection } from "./CodexJsonRpcConnection";
 import { CodexAcpServer, type CodexProcessState } from "./CodexAcpServer";

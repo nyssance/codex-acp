@@ -1,3 +1,4 @@
+import { readableToWeb } from "../../StdUtils";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -33,15 +34,11 @@ describeIntegration("integration: ACP v2 foreground state", () => {
             model_reasoning_effort: INTEGRATION_MODEL_ID.effort,
             web_search: "disabled",
         });
-        const processHandle = spawn(
-            process.execPath,
-            ["--import", "tsx", "src/index.ts"],
-            {
-                cwd: process.cwd(),
-                env: { ...process.env, CODEX_HOME: codexHome },
-                stdio: ["pipe", "pipe", "pipe"],
-            },
-        );
+        const processHandle = spawn(process.execPath, ["src/index.ts"], {
+            cwd: process.cwd(),
+            env: { ...process.env, CODEX_HOME: codexHome },
+            stdio: ["pipe", "pipe", "pipe"],
+        });
         let stderr = "";
         processHandle.stderr.on("data", (chunk) => {
             stderr += chunk.toString();
@@ -55,9 +52,7 @@ describeIntegration("integration: ACP v2 foreground state", () => {
             .connect(
                 acpV2.ndJsonStream(
                     Writable.toWeb(processHandle.stdin),
-                    Readable.toWeb(
-                        processHandle.stdout,
-                    ) as ReadableStream<Uint8Array>,
+                    readableToWeb(processHandle.stdout),
                 ),
             );
         try {

@@ -321,13 +321,12 @@ export class ResponsesProxy {
                         false,
                     ),
                 );
-                if (incoming.body === null) response.end();
+                const responseBody = incoming.body;
+                if (responseBody === null) response.end();
                 else
                     await new Promise<void>((resolve, reject) => {
                         pipeline(
-                            ResponsesReadable.fromWeb(
-                                incoming.body as import("node:stream/web").ReadableStream,
-                            ),
+                            ResponsesReadable.from(responseBody),
                             response,
                             (error) => (error ? reject(error) : resolve()),
                         );
