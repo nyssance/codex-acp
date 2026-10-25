@@ -387,7 +387,7 @@ async function main() {
     } catch (err) {
         log(`session/new failed: ${err}`);
         log(
-            "if this is an auth error, log in first: bunx @openai/codex auth login",
+            "if this is an auth error, log in first: bunx --bun @openai/codex auth login",
         );
         await shutdown("session/new failed", 1);
         return;
