@@ -44,7 +44,7 @@
     "test:e2e": "bun run build && RUN_E2E_TESTS=true vitest run --no-file-parallelism --retry=2 src/__tests__/CodexACPAgent/e2e",
     "test:watch": "vitest",
     "codex-test": "bun .agents/skills/run-codex/scripts/run-codex-test.ts",
-    "check": "bun check --no-script && bun check --no-script -p examples/tsconfig.json",
+    "check": "bun check --no-script && bun check --no-script -p tsconfig.client-check.json && bun check --no-script -p examples/tsconfig.json",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client-check.json && tsc --noEmit -p examples/tsconfig.json"
   },
   "homepage": "https://github.com/nyssance/codex-acp#readme",
