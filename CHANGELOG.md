@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.39 (2026-10-27)
+
+- `@alwith/api` is a plain peer dependency of the `./client` entry, no longer marked optional: a consumer of the client always has it, and one shared copy keeps the api's error classes identical across packages.
+
 ## 0.7.38 (2026-10-27)
 
 - Ship `CodexClient` on the `./client` entry: `@alwith/api/client`'s SessionClient plus every `_codex/*` extension (full session list, archive, history browsing and export, skills, plugin marketplaces, rate limits, file search, retries, predictions, fork lineage, realtime). ALwith U's `codex-extensions`, history readers and activity preview move here with their tests.

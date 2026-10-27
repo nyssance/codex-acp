@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.7.38",
+  "version": "0.7.39",
   "description": "ACP adapter for Codex with ALwith client extensions",
   "main": "dist/index.js",
   "bin": {
@@ -89,10 +89,5 @@
   },
   "peerDependencies": {
     "@alwith/api": ">=0.4.22"
-  },
-  "peerDependenciesMeta": {
-    "@alwith/api": {
-      "optional": true
-    }
   }
 }

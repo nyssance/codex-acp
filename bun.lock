@@ -28,9 +28,6 @@
       "peerDependencies": {
         "@alwith/api": ">=0.4.22",
       },
-      "optionalPeers": [
-        "@alwith/api",
-      ],
     },
   },
   "packages": {
