@@ -6,9 +6,10 @@ for (const options of [
         external: ["@openai/codex"],
     },
     {
-        entrypoints: ["src/CodexCapabilitiesClient.ts"],
+        entrypoints: ["src/client/index.ts"],
         target: "browser",
         naming: "client.js",
+        external: ["@alwith/api", "@alwith/api/*", "@agentclientprotocol/sdk", "@agentclientprotocol/sdk/*"],
     },
 ]) {
     const result = await Bun.build({

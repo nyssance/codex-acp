@@ -1,14 +1,19 @@
 {
+  // The `./client` entry: TypeScript ported from ALwith U under U's compiler rules (strict, without the
+  // index-signature and unchecked-index flags the adapter's server code uses). Declarations go to dist/types.
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2023",
+    "lib": ["ES2024", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "declaration": true,
     "emitDeclarationOnly": true,
     "rootDir": "src",
     "outDir": "dist/types"
   },
-  "include": ["src/CodexCapabilitiesClient.ts"]
+  "include": ["src/client/index.ts"]
 }

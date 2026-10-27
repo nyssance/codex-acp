@@ -28,5 +28,5 @@
     "noUncheckedSideEffectImports": true,
     "skipLibCheck": true,
   },
-  "exclude": [".claude", "examples"]
+  "exclude": [".claude", "examples", "src/client", "src/__tests__/client"]
 }

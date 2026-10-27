@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.38 (2026-10-27)
+
+- Ship `CodexClient` on the `./client` entry: `@alwith/api/client`'s SessionClient plus every `_codex/*` extension (full session list, archive, history browsing and export, skills, plugin marketplaces, rate limits, file search, retries, predictions, fork lineage, realtime). ALwith U's `codex-extensions`, history readers and activity preview move here with their tests.
+- The `./client` entry now depends on `@alwith/api` (peer, `>=0.4.22`) and keeps it external in the bundle.
+
 ## 0.7.31 (2026-10-23)
 
 - Restore fork boundary metadata in fork, load, and context-only resume responses for ACP v1 and v2.
