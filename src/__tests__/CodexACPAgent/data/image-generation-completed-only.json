@@ -6,6 +6,7 @@
       "update": {
         "sessionUpdate": "tool_call",
         "toolCallId": "image-generation-completed-only",
+        "name": "image_generation",
         "kind": "other",
         "title": "Image generation",
         "status": "completed",

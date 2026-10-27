@@ -58,6 +58,136 @@ function rawText(data: RawData): string {
 }
 
 describe("Responses compatibility transport", () => {
+    it.each(["/images/generations", "/alpha/search"])(
+        "forwards %s JSON unchanged with auth, query and upstream errors",
+        async (path) => {
+            let received: unknown;
+            const upstream = createServer(async (request, response) => {
+                const chunks: Buffer[] = [];
+                for await (const chunk of request)
+                    chunks.push(Buffer.from(chunk));
+                received = {
+                    path: request.url,
+                    method: request.method,
+                    auth: request.headers.authorization,
+                    account: request.headers["chatgpt-account-id"],
+                    body: Buffer.concat(chunks).toString(),
+                };
+                response
+                    .writeHead(429, { "retry-after": "7" })
+                    .end("tool limit");
+            });
+            const route = await proxy().route(
+                `${await listen(upstream)}/backend-api/codex`,
+            );
+            const payload = JSON.stringify({
+                model: "gpt-image-2",
+                prompt: "A lakeside walk",
+                input: [foreign, message],
+            });
+            const response = await fetch(`${route}${path}?test=1`, {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    authorization: "Bearer tool-test",
+                    "chatgpt-account-id": "account",
+                },
+                body: payload,
+            });
+            expect(response.status).toBe(429);
+            expect(response.headers.get("retry-after")).toBe("7");
+            expect(await response.text()).toBe("tool limit");
+            expect(received).toEqual({
+                path: `/backend-api/codex${path}?test=1`,
+                method: "POST",
+                auth: "Bearer tool-test",
+                account: "account",
+                body: payload,
+            });
+        },
+    );
+
+    it("preserves image edit multipart bytes and encoding", async () => {
+        let received: Buffer | undefined;
+        let contentType: string | undefined;
+        let encoding: string | undefined;
+        const upstream = createServer(async (request, response) => {
+            const chunks: Buffer[] = [];
+            for await (const chunk of request) chunks.push(Buffer.from(chunk));
+            received = Buffer.concat(chunks);
+            contentType = request.headers["content-type"];
+            encoding = request.headers["content-encoding"];
+            response
+                .writeHead(200, { "content-type": "application/json" })
+                .end('{"data":[{"b64_json":"image"}]}');
+        });
+        const route = await proxy().route(`${await listen(upstream)}/v1`);
+        const multipart = Buffer.concat([
+            Buffer.from(
+                '--image\r\nContent-Disposition: form-data; name="image"; filename="test.png"\r\nContent-Type: image/png\r\n\r\n',
+            ),
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]),
+            Buffer.from("\r\n--image--\r\n"),
+        ]);
+        const bytes = zstdCompressSync(multipart);
+        const response = await fetch(`${route}/images/edits`, {
+            method: "POST",
+            headers: {
+                "content-type": "multipart/form-data; boundary=image",
+                "content-encoding": "zstd",
+            },
+            body: new Uint8Array(bytes),
+        });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+            data: [{ b64_json: "image" }],
+        });
+        expect(received).toEqual(bytes);
+        expect(contentType).toBe("multipart/form-data; boundary=image");
+        expect(encoding).toBe("zstd");
+    });
+
+    it("forwards voice listing as GET without a request body", async () => {
+        let received: unknown;
+        const upstream = createServer(async (request, response) => {
+            const chunks: Buffer[] = [];
+            for await (const chunk of request) chunks.push(Buffer.from(chunk));
+            received = {
+                method: request.method,
+                path: request.url,
+                bytes: Buffer.concat(chunks).length,
+            };
+            response.writeHead(200).end("voices");
+        });
+        const route = await proxy().route(await listen(upstream));
+        const response = await fetch(`${route}/realtime/voices`);
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("voices");
+        expect(received).toEqual({
+            method: "GET",
+            path: "/realtime/voices",
+            bytes: 0,
+        });
+    });
+
+    it("rejects unsupported tool paths and methods without contacting upstream", async () => {
+        let calls = 0;
+        const upstream = createServer((_request, response) => {
+            calls++;
+            response.writeHead(200).end("unexpected");
+        });
+        const route = await proxy().route(await listen(upstream));
+        for (const [path, method] of [
+            ["/images/unknown", "POST"],
+            ["/images/generations", "GET"],
+            ["/alpha/search", "DELETE"],
+        ] as const) {
+            const response = await fetch(`${route}${path}`, { method });
+            expect(response.status).toBe(404);
+        }
+        expect(calls).toBe(0);
+    });
+
     it("decodes zstd, preserves auth and streams SSE through the original base path", async () => {
         const server = createServer(
             (req, res) =>
@@ -369,4 +499,29 @@ it("forwards realtime websocket messages unchanged", async () => {
     const reply = receive(socket);
     socket.send(body);
     expect(await reply).toBe(body);
+});
+
+it("preserves ChatGPT live websocket routing after backend path translation", async () => {
+    const server = createServer();
+    const ws = new WebSocketServer({ server });
+    cleanup.push(() => ws.close());
+    let path: string | undefined;
+    ws.on("connection", (socket, request) => {
+        path = request.url;
+        socket.on("message", (message) =>
+            socket.send(message, { binary: false }),
+        );
+    });
+    const route = await proxy().route(
+        `${await listen(server)}/backend-api/codex`,
+    );
+    const socket = new WebSocket(`${route.replace("http:", "ws:")}/live`);
+    cleanup.push(() => socket.terminate());
+    await once(socket, "open");
+    const reply = receive(socket);
+    socket.send(body);
+    expect(await reply).toBe(body);
+    expect(path).toBe(
+        "/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
+    );
 });

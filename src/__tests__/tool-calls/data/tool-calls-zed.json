@@ -204,6 +204,7 @@
     {
       "sessionUpdate": "tool_call",
       "toolCallId": "gen",
+      "name": "image_generation",
       "kind": "other",
       "title": "Image generation",
       "status": "completed",

@@ -214,6 +214,10 @@ export function withFeatureChanges(
             }
         }
         const update = sessionUpdate(message);
+        // Generated artifacts now carry the same identity in live and replayed events.
+        if (update?.["sessionUpdate"] === "tool_call" && update["title"] === "Image generation") {
+            return {...message, params: {...(message.params as Json), update: {...update, name: "image_generation"}}};
+        }
         if (update?.["sessionUpdate"] !== "available_commands_update")
             return message;
         const commands = (update["availableCommands"] as unknown[]).map(

@@ -15,6 +15,7 @@ export class ImageGenerationReporter {
     static started(item: ImageGenerationItem): ToolFacts {
         return {
             toolCallId: item.id,
+            name: "image_generation",
             report: "start",
             kind: "other",
             title: TITLE,
@@ -26,6 +27,7 @@ export class ImageGenerationReporter {
     static completed(item: ImageGenerationItem): ToolFacts {
         return {
             toolCallId: item.id,
+            name: "image_generation",
             report: "update",
             status: terminalStatus(item.status),
             result: imageResult(item),
@@ -40,6 +42,7 @@ export class ImageGenerationReporter {
     static whole(item: ImageGenerationItem): ToolFacts {
         return {
             toolCallId: item.id,
+            name: "image_generation",
             report: "start",
             kind: "other",
             title: TITLE,

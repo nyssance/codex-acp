@@ -204,6 +204,14 @@ describe("Codex 0.164 image attachments", () => {
         type: "imageGeneration", id: "image-file", status: "completed", revisedPrompt: null,
         fileId: "file-123", failure: null,
     };
+    it("identifies generated images in live starts, completions and history", () => {
+        for (const capabilities of [AIR, ZED]) {
+            const renderer = new AcpToolCallRenderer(capabilities);
+            for (const report of [ImageGenerationReporter.started(item), ImageGenerationReporter.completed(item), ImageGenerationReporter.whole(item)]) {
+                expect(renderer.render(report)).toMatchObject({name: "image_generation"});
+            }
+        }
+    });
     it("preserves attachment identity without inventing inline image bytes", () => {
         const v1 = ImageGenerationReporter.whole(item);
         const v2 = imageGenerationCompleted(item);

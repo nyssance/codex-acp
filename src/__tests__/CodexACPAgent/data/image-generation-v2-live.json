@@ -1,0 +1,44 @@
+[
+  {
+    "toolCallId": "generated-image",
+    "name": "image_generation",
+    "title": "Image generation",
+    "kind": "other",
+    "status": "in_progress",
+    "rawInput": {
+      "id": "generated-image"
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "tool_call_update"
+  },
+  {
+    "toolCallId": "generated-image",
+    "status": "completed",
+    "content": [
+      {
+        "content": {
+          "data": "iVBORw0KGgo=",
+          "mimeType": "image/png",
+          "type": "image"
+        },
+        "type": "content"
+      }
+    ],
+    "rawOutput": {
+      "status": "completed",
+      "revisedPrompt": null,
+      "result": "iVBORw0KGgo=",
+      "savedPath": "/workspace/generated/square.png"
+    },
+    "_meta": {
+      "codex": {
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "tool_call_update"
+  }
+]

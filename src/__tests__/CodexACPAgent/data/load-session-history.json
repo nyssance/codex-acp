@@ -357,6 +357,7 @@
       "update": {
         "sessionUpdate": "tool_call",
         "toolCallId": "item-image-generation-1",
+        "name": "image_generation",
         "kind": "other",
         "title": "Image generation",
         "status": "completed",

@@ -119,7 +119,13 @@ export class ResponsesProxy {
             void this.target(request)
                 .then((target) => {
                     if (socket.destroyed) return;
-                    if (!target || request.method !== "GET") {
+                    if (
+                        !target ||
+                        request.method !== "GET" ||
+                        !/\/(?:responses(?:\/compact)?|live|realtime(?:\/(?:calls|voices))?)$/.test(
+                            target.pathname,
+                        )
+                    ) {
                         socket.end(
                             "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n",
                         );
@@ -194,7 +200,7 @@ export class ResponsesProxy {
     private async target(request: IncomingMessage): Promise<URL | null> {
         // Only fixed provider endpoints are reachable; route tokens cannot select arbitrary hosts.
         const match =
-            /^\/([a-f0-9]{48})(\/(?:responses(?:\/compact)?|live|realtime(?:\/(?:calls|voices))?))(\?[^#]*)?$/.exec(
+            /^\/([a-f0-9]{48})(\/(?:responses(?:\/compact)?|images\/(?:generations|edits)|alpha\/search|live|realtime(?:\/(?:calls|voices))?))(\?[^#]*)?$/.exec(
                 request.url ?? "",
             );
         const base = match?.[1] ? this.routes.get(match[1]) : undefined;
@@ -232,13 +238,13 @@ export class ResponsesProxy {
             response.writeHead(404).end();
             return;
         }
-        const realtime = /\/(?:live|realtime(?:\/(?:calls|voices))?)$/.test(
+        const transformResponses = /\/responses(?:\/compact)?$/.test(
             target.pathname,
         );
         const bytes = await requestBody(request);
         const encoding = request.headers["content-encoding"];
         if (
-            !realtime &&
+            transformResponses &&
             encoding &&
             encoding !== "identity" &&
             encoding !== "zstd"
@@ -250,7 +256,7 @@ export class ResponsesProxy {
         }
         let body: Buffer;
         const headers = forwardingHeaders(request.headers, false);
-        if (realtime) {
+        if (!transformResponses) {
             body = bytes;
             // Codex selects API multipart from the local URL. ChatGPT's backend requires the
             // same SDP and session as JSON; preserve that native backend contract at this boundary.
@@ -294,7 +300,7 @@ export class ResponsesProxy {
                 response.writeHead(400).end("Invalid Responses request body");
                 return;
             }
-        if (!realtime) delete headers["content-encoding"];
+        if (transformResponses) delete headers["content-encoding"];
         headers["content-length"] = String(body.length);
         const abort = new AbortController();
         this.aborts.add(abort);
@@ -304,7 +310,7 @@ export class ResponsesProxy {
             // Node uses raw HTTP below because its fetch always decompresses upstream response bodies.
             if ("Bun" in globalThis) {
                 const options: RequestInit & { decompress: boolean } = {
-                    method: "POST",
+                    method: request.method,
                     headers: headers as Record<string, string>,
                     ...(request.method === "GET"
                         ? {}
