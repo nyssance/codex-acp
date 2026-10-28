@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.42 (2026-10-28)
+
+- Accept `openai/form` and `openaiForm` MCP elicitation aliases as structured forms instead of silently cancelling them.
+- Surface Guardian failure and interruption warnings while suppressing duplicate approval review summaries.
+
 ## 0.7.40 (2026-10-28)
 
 - Preserve live ACP v2 message positions, phases, native turn identity, completion markers, and turn/work timing.

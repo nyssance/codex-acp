@@ -82,6 +82,27 @@ describe('elicitation/create over ACP v2', () => {
         expectConformingV2SessionUpdates();
     });
 
+    it.each(["form", "openai/form", "openaiForm"] as const)("renders a structured MCP %s instead of silently cancelling", async (mode) => {
+        const answer = deferred<acpV2.CreateElicitationResponse>();
+        const onElicitation = vi.fn((_request: acpV2.CreateElicitationRequest) => answer.promise);
+        const client = await connectSession(2, {
+            clientCapabilities: {elicitation: {form: {}}},
+            onElicitation,
+        });
+        closeClient = () => client.connection.close();
+        const {finishTurn} = await startRunningPrompt(client);
+        const result = client.triggerApproval("mcpServer/elicitation/request", {
+            threadId: sessionId, turnId, serverName: "lark", mode, _meta: null,
+            message: "Authorize access",
+            requestedSchema: {type: "object", properties: {scope: {type: "string"}}, required: ["scope"]},
+        });
+        await vi.waitFor(() => expect(onElicitation).toHaveBeenCalledOnce());
+        expect(onElicitation.mock.calls[0]?.[0]).toMatchObject({sessionId, mode: "form", message: "Authorize access"});
+        answer.resolve({action: "accept", content: {scope: "documents"}});
+        expect(await result).toEqual({action: "accept", content: {scope: "documents"}, _meta: null});
+        await finishTurn();
+    });
+
     it('sends the MCP OAuth re-auth URL elicitation on the real v2 send path and accepts it', async () => {
         const client = await connectSession(2, {
             clientCapabilities: {elicitation: {url: {}}},
