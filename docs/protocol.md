@@ -9,3 +9,13 @@ These ACP v2 additions preserve the existing client exports and request methods.
 - Live native turn completion upserts its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and, when a final answer began, `workDurationMs`. Native timestamps win; notification arrival times cover older native versions without them. These transient measurements are discarded when the turn ends. Terminal exit sends the full aggregate output snapshot so streamed chunks cannot be lost.
 
 Running ACP v2 prompts use native turn steering and return an acceptance receipt without waiting for the foreground turn to finish. Native user-message insertion supplies the original turn identity; commands retain their separate turn lifecycle.
+
+### Import settings control plane
+
+The standalone `/import` API is also reachable through the existing initialized
+agent connection. `_codex/import/detect` and `_codex/import/history` forward
+Codex's detection and persisted history. `_codex/import/run` takes
+`{ operationId, request }` and returns the matching completion, not acceptance.
+`_codex/import/progress` includes the caller's `operationId` and Codex's progress.
+Disconnect rejects the wait; reconnecting clients must inspect history before
+retrying. These operations do not create or attach a conversation.

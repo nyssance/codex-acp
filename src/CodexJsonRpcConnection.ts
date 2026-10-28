@@ -38,23 +38,26 @@ export function startCodexConnection(
     options: StartCodexConnectionOptions = {},
 ): CodexConnection {
     const spawnEnv = env ?? process.env;
+    const startupArgs = [
+        ...appServerStartupArgs,
+        "--enable",
+        "external_agent_memory_import",
+    ];
 
     let codex: ChildProcessWithoutNullStreams;
     if (codexPath) {
         // cross-spawn runs `.cmd` shims through cmd.exe with correct escaping for the TOML hook override.
         codex =
             process.platform === "win32"
-                ? (crossSpawn(codexPath, appServerStartupArgs, {
+                ? (crossSpawn(codexPath, startupArgs, {
                       env: spawnEnv,
                   }) as ChildProcessWithoutNullStreams)
-                : spawn(codexPath, appServerStartupArgs, { env: spawnEnv });
+                : spawn(codexPath, startupArgs, { env: spawnEnv });
     } else {
         const bundledCodexPath = require.resolve("@openai/codex/bin/codex.js");
-        codex = spawn(
-            process.execPath,
-            [bundledCodexPath, ...appServerStartupArgs],
-            { env: spawnEnv },
-        );
+        codex = spawn(process.execPath, [bundledCodexPath, ...startupArgs], {
+            env: spawnEnv,
+        });
     }
 
     attachLogs(codex);

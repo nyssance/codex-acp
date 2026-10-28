@@ -313,8 +313,8 @@ The host owns the connection and process, including disconnect reporting.
 Call `detect({ migrationSource: "claude-code" | "cursor", includeHome, cwds })`,
 let the user select returned items, then call `import` with those items and the
 same `migrationSource`. Claude Code supports memory imports; Cursor does not.
-Memory detection requires Codex's `external_agent_memory_import` feature; configure
-that on the app-server launch when needed, without rewriting global configuration.
+The adapter enables `external_agent_memory_import` for its app-server process only;
+global configuration is never rewritten.
 
 Subscribe with `onProgress` and `onCompleted` **before** submitting the import.
 Notifications can precede the response; retain events by `importId` at the host

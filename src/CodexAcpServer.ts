@@ -1433,6 +1433,35 @@ export class CodexAcpServer {
         if (this.providerUpdate !== null) await this.waitForProviderUpdate();
         const ready = this.ensureAppServer();
         if (ready) await ready;
+        if (method === "_codex/import/run") {
+            const { operationId, request } = params;
+            if (
+                typeof operationId !== "string" ||
+                typeof request !== "object" ||
+                request === null
+            )
+                throw RequestError.invalidParams(
+                    undefined,
+                    "Expected operationId and import request",
+                );
+            const pending: Array<Promise<void>> = [];
+            const result =
+                await this.codexAcpClient.appServerClient.imports.run(
+                    request as Parameters<
+                        import("./import").CodexImportClient["run"]
+                    >[0],
+                    (event) => {
+                        pending.push(
+                            this.connection.notify("_codex/import/progress", {
+                                operationId,
+                                ...event,
+                            }),
+                        );
+                    },
+                );
+            await Promise.all(pending);
+            return result;
+        }
         return this.runWithProcessCheck(() =>
             requestCodexNative(
                 this.codexAcpClient.appServerClient,

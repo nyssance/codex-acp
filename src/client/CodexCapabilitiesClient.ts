@@ -1,3 +1,11 @@
+import type {
+    ExternalAgentConfigDetectParams,
+    ExternalAgentConfigDetectResponse,
+    ExternalAgentConfigImportParams,
+    ExternalAgentConfigImportCompletedNotification,
+    ExternalAgentConfigImportProgressNotification,
+    ExternalAgentConfigImportHistoriesReadResponse,
+} from "../app-server/v2";
 import type { ThreadRealtimeStartParams } from "../app-server/v2/ThreadRealtimeStartParams";
 import type { ThreadRealtimeAppendAudioParams } from "../app-server/v2/ThreadRealtimeAppendAudioParams";
 import type { ThreadRealtimeAppendTextParams } from "../app-server/v2/ThreadRealtimeAppendTextParams";
@@ -76,6 +84,39 @@ export class CodexCapabilitiesClient {
         if (this.closed)
             return Promise.reject(new Error("Codex connection is closed"));
         return this.connection.request<T>(method, params);
+    }
+
+    detectImports(
+        params: ExternalAgentConfigDetectParams,
+    ): Promise<ExternalAgentConfigDetectResponse> {
+        return this.request("_codex/import/detect", params);
+    }
+    importHistory(): Promise<ExternalAgentConfigImportHistoriesReadResponse> {
+        return this.request("_codex/import/history", {});
+    }
+    async runImport(
+        request: ExternalAgentConfigImportParams,
+        progress: (
+            event: ExternalAgentConfigImportProgressNotification,
+        ) => void,
+    ): Promise<ExternalAgentConfigImportCompletedNotification> {
+        const operationId = crypto.randomUUID();
+        const stop = this.connection.onNotification((method, params) => {
+            if (method !== "_codex/import/progress") return;
+            const event =
+                params as ExternalAgentConfigImportProgressNotification & {
+                    operationId: string;
+                };
+            if (event.operationId === operationId) progress(event);
+        });
+        try {
+            return await this.request("_codex/import/run", {
+                operationId,
+                request,
+            });
+        } finally {
+            stop();
+        }
     }
 
     goal(sessionId: string): GoalSnapshot | null | undefined {

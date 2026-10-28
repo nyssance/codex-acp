@@ -26,7 +26,11 @@ function setup() {
     disposables.push(client, server);
     client.listen();
     server.listen();
-    return { client: new CodexImportClient(client), server };
+    return {
+        client: new CodexImportClient(client),
+        server,
+        connection: client,
+    };
 }
 
 it.each(["claude-code", "cursor"] as const)(
@@ -131,4 +135,45 @@ it("propagates request failures", async () => {
     await expect(client.detect({ migrationSource: "cursor" })).rejects.toThrow(
         "Detection denied",
     );
+});
+
+it("run correlates early notifications and ignores another import", async () => {
+    const { client, server } = setup();
+    const progress: unknown[] = [];
+    server.onRequest("externalAgentConfig/import", async () => {
+        await server.sendNotification("externalAgentConfig/import/completed", {
+            importId: "other",
+            itemTypeResults: [],
+        });
+        await server.sendNotification("externalAgentConfig/import/progress", {
+            importId: "ours",
+            itemTypeResults: [],
+        });
+        await server.sendNotification("externalAgentConfig/import/completed", {
+            importId: "ours",
+            itemTypeResults: [],
+        });
+        return { importId: "ours" };
+    });
+    expect(
+        await client.run(
+            { migrationSource: "claude-code", migrationItems: [] },
+            (event) => progress.push(event),
+        ),
+    ).toEqual({ importId: "ours", itemTypeResults: [] });
+    expect(progress).toEqual([{ importId: "ours", itemTypeResults: [] }]);
+});
+
+it("run rejects when the transport disappears after acceptance", async () => {
+    const { client, server, connection } = setup();
+    server.onRequest("externalAgentConfig/import", () => ({
+        importId: "pending",
+    }));
+    const result = client.run(
+        { migrationSource: "cursor", migrationItems: [] },
+        () => {},
+    );
+    const rejected = expect(result).rejects.toThrow("Codex disconnected");
+    connection.dispose();
+    await rejected;
 });
