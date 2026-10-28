@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.40 (2026-10-28)
+
+- Preserve live ACP v2 message positions, phases, native turn identity, completion markers, and turn/work timing.
+- Accept prompts during native turns as steering input; keep command turns serialized and retain native lifecycle ownership.
+- Reconcile complete ACP v2 terminal output on exit without duplicating ACP v1 output.
+- Repair stale tool and terminal history without losing newer live messages or changing their positions.
+
 ## 0.7.39 (2026-10-27)
 
 - `@alwith/api` is a plain peer dependency of the `./client` entry, no longer marked optional: a consumer of the client always has it, and one shared copy keeps the api's error classes identical across packages.

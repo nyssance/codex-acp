@@ -47,11 +47,15 @@
   },
   {
     "terminalId": "item-shell",
+    "output": {
+      "data": "UEFTUyBhLnRlc3QudHMKVGVzdHM6IDEgcGFzc2VkIOKckwo="
+    },
     "exitStatus": {
       "exitCode": 0,
       "signal": null
     },
-    "sessionUpdate": "terminal_update"
+    "sessionUpdate": "terminal_update",
+    "decodedOutput": "PASS a.test.ts\nTests: 1 passed ✓\n"
   },
   {
     "toolCallId": "item-shell",

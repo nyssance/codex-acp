@@ -1,3 +1,4 @@
+import type { SessionUpdate as V2SessionUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import { turnErrorUpdate } from "./alwith/agent/turnErrors";
 import type { ServerNotification } from "./app-server";
 import type {
@@ -267,6 +268,21 @@ export class CodexEventHandler {
     private disposed = false;
     private readonly seenReasoningDeltaItemIds = new Set<string>();
     private readonly agentMessagePhases = new Map<string, string | null>();
+    private readonly liveTurnTiming = new Map<
+        string,
+        {
+            startedAt: number;
+            workEndedAt: number | null;
+            message:
+                | (Extract<
+                      V2SessionUpdate,
+                      { sessionUpdate: "agent_message" }
+                  > & {
+                      _meta: { codex: Record<string, unknown> };
+                  })
+                | null;
+        }
+    >();
     private readonly turnDiffs = new Map<string, string>();
     private readonly oversizedTurnDiffs = new Set<string>();
     /** Latest diff of each subagent turn, keyed by child thread and turn; `null` marks an oversized diff. */
@@ -712,6 +728,7 @@ export class CodexEventHandler {
 
     async dispose(): Promise<void> {
         if (this.disposed) return;
+        this.liveTurnTiming.clear();
         await this.plans.dispose();
         if (this.pendingErrors.length > 0) {
             logger.log(
@@ -817,6 +834,17 @@ export class CodexEventHandler {
             case "error":
                 return await this.createErrorEvent(notification.params);
             case "turn/started":
+                if (this.session.protocolVersion === 2) {
+                    this.liveTurnTiming.set(notification.params.turn.id, {
+                        startedAt:
+                            typeof notification.params.turn.startedAt ===
+                            "number"
+                                ? notification.params.turn.startedAt * 1000
+                                : Date.now(),
+                        workEndedAt: null,
+                        message: null,
+                    });
+                }
                 this.sessionState.interruptTurnId = notification.params.turn.id;
                 // A review's child turn starts under its own id, while the review's items, errors and
                 // completion keep the parent id already set from the `review/start` response.
@@ -824,6 +852,47 @@ export class CodexEventHandler {
                 await this.flushPendingErrors();
                 return null;
             case "turn/completed":
+                if (this.session.protocolVersion === 2) {
+                    const turn = notification.params.turn;
+                    const timing = this.liveTurnTiming.get(turn.id);
+                    this.liveTurnTiming.delete(turn.id);
+                    if (timing?.message) {
+                        const completedAt =
+                            typeof turn.completedAt === "number"
+                                ? turn.completedAt * 1000
+                                : Date.now();
+                        const durationMs =
+                            typeof turn.durationMs === "number"
+                                ? turn.durationMs
+                                : Math.max(0, completedAt - timing.startedAt);
+                        await this.session.updateV2(
+                            {
+                                ...timing.message,
+                                _meta: {
+                                    codex: {
+                                        ...timing.message._meta.codex,
+                                        turnStartedAt: timing.startedAt,
+                                        turnCompletedAt: completedAt,
+                                        turnDurationMs: durationMs,
+                                        ...(timing.workEndedAt === null
+                                            ? {}
+                                            : {
+                                                  workDurationMs: Math.min(
+                                                      durationMs,
+                                                      Math.max(
+                                                          0,
+                                                          timing.workEndedAt -
+                                                              timing.startedAt,
+                                                      ),
+                                                  ),
+                                              }),
+                                    },
+                                },
+                            },
+                            this.subagents.notificationSessionId(notification),
+                        );
+                    }
+                }
                 await this.plans.flush();
                 this.plans.clearTurn();
                 // Subagents can keep running after the root turn ends; their turns still belong to it.
@@ -1073,7 +1142,13 @@ export class CodexEventHandler {
             phase,
             this.sessionState.clientCapabilities.airClient,
         );
-        return createAgentTextMessageChunk(event.delta, event.itemId, meta);
+        return createAgentTextMessageChunk(
+            event.delta,
+            event.itemId,
+            this.session.protocolVersion === 2
+                ? { ...meta, codex: { phase } }
+                : meta,
+        );
     }
 
     private async createConfigWarningEvent(
@@ -1209,6 +1284,14 @@ export class CodexEventHandler {
     private async createItemEvent(
         event: ItemStartedNotification,
     ): Promise<UpdateSessionEvent | null> {
+        if (
+            event.item.type === "agentMessage" &&
+            event.item.phase === "final_answer"
+        ) {
+            const timing = this.liveTurnTiming.get(event.turnId);
+            if (timing?.workEndedAt === null)
+                timing.workEndedAt = event.startedAtMs ?? Date.now();
+        }
         switch (event.item.type) {
             case "fileChange":
                 return this.renderer.render(
@@ -1247,6 +1330,26 @@ export class CodexEventHandler {
                 );
             case "agentMessage":
                 this.rememberAgentMessagePhase(event.item);
+                if (this.session.protocolVersion === 2) {
+                    await this.session.updateV2(
+                        {
+                            sessionUpdate: "agent_message",
+                            messageId: event.item.id,
+                            content: [{ type: "text", text: event.item.text }],
+                            _meta: {
+                                codex: {
+                                    turnId: event.turnId,
+                                    phase: event.item.phase,
+                                    delivery: event.item.delivery,
+                                },
+                            },
+                        },
+                        this.subagents.notificationSessionId({
+                            method: "item/started",
+                            params: event,
+                        }),
+                    );
+                }
                 return null;
             case "contextCompaction":
                 return this.supportsCompaction
@@ -1325,25 +1428,29 @@ export class CodexEventHandler {
                 );
             case "agentMessage":
                 this.rememberAgentMessagePhase(event.item);
-                if (
-                    this.session.protocolVersion === 2 &&
-                    (event.item.delivery === "async" ||
-                        (event.item.questions?.length ?? 0) > 0)
-                ) {
-                    await this.session.updateV2(
-                        {
-                            sessionUpdate: "agent_message",
-                            messageId: event.item.id,
-                            content: [{ type: "text", text: event.item.text }],
-                            _meta: {
-                                codex: {
-                                    turnId: event.turnId,
-                                    phase: event.item.phase,
-                                    delivery: event.item.delivery,
-                                    questions: event.item.questions,
-                                },
+                if (this.session.protocolVersion === 2) {
+                    const message = {
+                        sessionUpdate: "agent_message" as const,
+                        messageId: event.item.id,
+                        content: [
+                            { type: "text" as const, text: event.item.text },
+                        ],
+                        _meta: {
+                            codex: {
+                                turnId: event.turnId,
+                                messageCompleted: true,
+                                messageCompletedAt:
+                                    event.completedAtMs ?? Date.now(),
+                                phase: event.item.phase,
+                                delivery: event.item.delivery,
+                                questions: event.item.questions,
                             },
                         },
+                    };
+                    const timing = this.liveTurnTiming.get(event.turnId);
+                    if (timing) timing.message = message;
+                    await this.session.updateV2(
+                        message,
                         this.subagents.notificationSessionId({
                             method: "item/completed",
                             params: event,

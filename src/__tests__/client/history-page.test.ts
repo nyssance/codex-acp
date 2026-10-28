@@ -197,3 +197,59 @@ test("refresh replaces stale cached snapshots and restores the persisted title w
         content: [{ text: "updated" }],
     });
 });
+
+test("terminal history repairs a running tool without completing other work or moving it past a steer", () => {
+    const store = new SessionStore({ toolContent: "replace" });
+    store.set(createSession("s", "/work"));
+    store.accept("s", { sessionUpdate: "state_update", state: "running" });
+    store.accept("s", {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "old",
+        status: "in_progress",
+    });
+    store.accept("s", { sessionUpdate: "terminal_update", terminalId: "old" });
+    const stale = store.get("s");
+    store.accept("s", {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "old",
+        status: "failed",
+    });
+    store.accept("s", {
+        sessionUpdate: "terminal_update",
+        terminalId: "old",
+        exitStatus: { exitCode: 143 },
+    });
+    const completed = store.get("s");
+    store.set(stale);
+    store.accept("s", {
+        sessionUpdate: "user_message",
+        messageId: "steer",
+        content: [{ type: "text", text: "More" }],
+    });
+    store.accept("s", {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "new",
+        status: "in_progress",
+    });
+    const current = store.get("s");
+    const merged = prependHistory(current, completed);
+    expect(merged.items.map((item) => item.id)).toEqual([
+        "old",
+        "steer",
+        "new",
+    ]);
+    expect(merged.items[0]).toMatchObject({
+        status: "failed",
+        replayed: false,
+        at: stale.items[0].at,
+    });
+    expect(merged.items[2]).toMatchObject({ status: "in_progress" });
+    expect(merged.terminals.old.exitStatus).toEqual({ exitCode: 143 });
+    expect(merged.state).toBe("running");
+    expect(prependHistory(merged, stale, merged).items[0]).toMatchObject({
+        status: "failed",
+    });
+    expect(
+        prependHistory(merged, stale, merged).terminals.old.exitStatus,
+    ).toEqual({ exitCode: 143 });
+});

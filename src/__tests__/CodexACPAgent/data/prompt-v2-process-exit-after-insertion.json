@@ -56,6 +56,11 @@
             "text": "Hello",
             "type": "text"
           },
+          "_meta": {
+            "codex": {
+              "turnId": "turn-1"
+            }
+          },
           "sessionUpdate": "user_message_chunk"
         }
       },
@@ -152,6 +157,11 @@
           "content": {
             "text": "Hello",
             "type": "text"
+          },
+          "_meta": {
+            "codex": {
+              "turnId": "turn-1"
+            }
           },
           "sessionUpdate": "user_message_chunk"
         }

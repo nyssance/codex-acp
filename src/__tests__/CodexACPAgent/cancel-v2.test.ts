@@ -101,6 +101,9 @@ describe("session/cancel and session/close over ACP v2", () => {
     it("drops queued prompts with -32800 on cancel, and lets a later prompt run normally", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
+        client.setCodexResponse("turn/steer", async () => {
+            throw new Error("no active turn to steer");
+        });
 
         const first = client.sendPrompt([{ type: "text", text: "One" }]);
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
@@ -189,6 +192,9 @@ describe("session/cancel and session/close over ACP v2", () => {
     it("drops a queued prompt with -32800 on session/close", async () => {
         const client = await connectSession();
         closeClient = null; // closeSession below already tears the session down.
+        client.setCodexResponse("turn/steer", async () => {
+            throw new Error("no active turn to steer");
+        });
 
         const first = client.sendPrompt([{ type: "text", text: "One" }]);
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
@@ -221,6 +227,9 @@ describe("session/cancel and session/close over ACP v2", () => {
     it("fails an adopted-but-not-landed prompt with -32800 when its turn is cancelled", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
+        client.setCodexResponse("turn/steer", async () => {
+            throw new Error("no active turn to steer");
+        });
 
         // An unowned turn (e.g. a `/goal` auto-continuation) is already running.
         client.emit(turnStarted("goal-turn"));
@@ -259,6 +268,9 @@ describe("session/cancel and session/close over ACP v2", () => {
     it("drops one queued prompt via `$/cancel_request`, leaving the other to run normally", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
+        client.setCodexResponse("turn/steer", async () => {
+            throw new Error("no active turn to steer");
+        });
 
         const first = client.sendPrompt([{ type: "text", text: "One" }]);
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
@@ -384,6 +396,9 @@ describe("session/cancel and session/close over ACP v2", () => {
     it("does not interrupt an adopted turn on `$/cancel_request`, but still drops the pending request", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
+        client.setCodexResponse("turn/steer", async () => {
+            throw new Error("no active turn to steer");
+        });
 
         // An unowned turn (e.g. a `/goal` auto-continuation) is already running.
         client.emit(turnStarted("goal-turn"));

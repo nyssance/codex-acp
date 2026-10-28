@@ -35,6 +35,7 @@ type ClientCapabilityValues = {
     readonly air: AirCapabilities;
     readonly diffPatchFormat: DiffPatchFormat;
     readonly permissionPromptFields: boolean;
+    readonly terminalOutputSnapshot: boolean;
 };
 
 /**
@@ -51,9 +52,14 @@ export class ClientCapabilities {
         terminalOutput: false,
         terminalOutputDelta: false,
         planUpdates: false,
-        air: {rawInputRendering: false, planContentDelta: false, diffPatch: false},
+        air: {
+            rawInputRendering: false,
+            planContentDelta: false,
+            diffPatch: false,
+        },
         diffPatchFormat: "none",
         permissionPromptFields: false,
+        terminalOutputSnapshot: false,
     });
 
     /** The client declares `_meta.jetbrains.air`. */
@@ -70,6 +76,8 @@ export class ClientCapabilities {
     readonly diffPatchFormat: DiffPatchFormat;
     /** A permission request has its own `title` and `description` (ACP v2). */
     readonly permissionPromptFields: boolean;
+    /** Terminal updates replace their output snapshot on ACP v2. */
+    readonly terminalOutputSnapshot: boolean;
 
     private constructor(values: ClientCapabilityValues) {
         this.airClient = values.airClient;
@@ -80,24 +88,38 @@ export class ClientCapabilities {
         this.air = values.air;
         this.diffPatchFormat = values.diffPatchFormat;
         this.permissionPromptFields = values.permissionPromptFields;
+        this.terminalOutputSnapshot = values.terminalOutputSnapshot;
     }
 
-    static from(capabilities: acp.ClientCapabilities | null | undefined): ClientCapabilities {
+    static from(
+        capabilities: acp.ClientCapabilities | null | undefined,
+    ): ClientCapabilities {
         const airClient = isAirClient(capabilities);
-        const diffPatch = clientSupportsAirCapability(capabilities, AIR_DIFF_PATCH_KEY);
+        const diffPatch = clientSupportsAirCapability(
+            capabilities,
+            AIR_DIFF_PATCH_KEY,
+        );
         return new ClientCapabilities({
             airClient,
             airToolCallContract: airClient,
             terminalOutput: capabilities?._meta?.["terminal_output"] === true,
-            terminalOutputDelta: capabilities?._meta?.["terminal_output_delta"] === true,
+            terminalOutputDelta:
+                capabilities?._meta?.["terminal_output_delta"] === true,
             planUpdates: capabilities?.plan != null,
             air: {
-                rawInputRendering: clientSupportsAirCapability(capabilities, AIR_RAW_INPUT_RENDERING_KEY),
-                planContentDelta: clientSupportsAirCapability(capabilities, AIR_PLAN_CONTENT_DELTA_KEY),
+                rawInputRendering: clientSupportsAirCapability(
+                    capabilities,
+                    AIR_RAW_INPUT_RENDERING_KEY,
+                ),
+                planContentDelta: clientSupportsAirCapability(
+                    capabilities,
+                    AIR_PLAN_CONTENT_DELTA_KEY,
+                ),
                 diffPatch,
             },
             diffPatchFormat: diffPatch ? "air" : "none",
             permissionPromptFields: false,
+            terminalOutputSnapshot: false,
         });
     }
 
@@ -109,16 +131,23 @@ export class ClientCapabilities {
      * so its output goes to `content` at the end. A diff carries a Git patch. A permission request has its own title.
      * Plan updates need no capability on v2.
      */
-    static fromV2(capabilities: acp.ClientCapabilities | null | undefined): ClientCapabilities {
+    static fromV2(
+        capabilities: acp.ClientCapabilities | null | undefined,
+    ): ClientCapabilities {
         return new ClientCapabilities({
             airClient: isAirClient(capabilities),
             airToolCallContract: false,
             terminalOutput: true,
             terminalOutputDelta: false,
             planUpdates: true,
-            air: {rawInputRendering: false, planContentDelta: false, diffPatch: false},
+            air: {
+                rawInputRendering: false,
+                planContentDelta: false,
+                diffPatch: false,
+            },
             diffPatchFormat: "acpV2",
             permissionPromptFields: true,
+            terminalOutputSnapshot: true,
         });
     }
 
@@ -137,4 +166,3 @@ export class ClientCapabilities {
         return this.airToolCallContract ? null : "terminal_output_delta";
     }
 }
-

@@ -690,6 +690,7 @@ export class CodexAcpServer {
     >;
     /** Sessions with a v2 prompt that has not finished yet, including before its turn starts. */
     private readonly v2PromptsInFlight = new Set<string>();
+    private readonly v2CommandSessions = new Set<string>();
     private readonly instructionUpdates = new Set<string>();
     /**
      * Per-session callbacks that abort a v2 `session/prompt` still waiting in the turn-start FIFO
@@ -2706,6 +2707,12 @@ export class CodexAcpServer {
      * Shows a landed steer as a live-only `user_message` (v2 only; the steering response itself
      * carries no `messageId`, per user decision).
      */
+    private liveTurnMeta(sessionId: string) {
+        const turnId =
+            this.getSessionState(sessionId).codexReportedRunningTurnId;
+        return turnId === null ? undefined : { codex: { turnId } };
+    }
+
     private async emitLiveSteerUserMessage(
         sessionId: string,
         messageId: string,
@@ -2717,7 +2724,13 @@ export class CodexAcpServer {
         }
         try {
             for (const block of prompt) {
-                await session.update(createUserMessageChunk(block, messageId));
+                await session.update(
+                    createUserMessageChunk(
+                        block,
+                        messageId,
+                        this.liveTurnMeta(sessionId),
+                    ),
+                );
             }
         } catch (error) {
             logger.error(
@@ -6646,9 +6659,45 @@ export class CodexAcpServer {
                 `Session ${sessionId} is closing`,
             );
         }
-        // A prompt overlapping a running one is queued behind it rather than rejected: take this
-        // session's place in the shared turn-start FIFO now (before any await), then wait. Nothing
-        // observable (response, user message, states) happens until this prompt reaches the front.
+        // Ordinary prompts amend the active native turn; commands retain their turn-start FIFO.
+        if (
+            this.availableCommands.classifyPrompt(request.prompt).kind ===
+                "prompt" &&
+            !this.v2CommandSessions.has(sessionId) &&
+            (sessionState.codexReportedRunningTurnId !== null ||
+                this.pendingTurnStarts.has(sessionId))
+        ) {
+            const turnId = await this.getSteerableTurnId(sessionState);
+            if (turnId !== null) {
+                this.configRevisions.assert(
+                    params._meta,
+                    this.configSnapshot(sessionState),
+                );
+                const requestedId = (
+                    params._meta?.["alwith"] as
+                        { messageId?: unknown } | undefined
+                )?.messageId;
+                if (
+                    requestedId !== undefined &&
+                    (typeof requestedId !== "string" || !requestedId)
+                )
+                    throw RequestError.invalidParams(
+                        undefined,
+                        "_meta.alwith.messageId must be a non-empty string",
+                    );
+                this.assertSteerInputSupported(request, sessionState);
+                const messageId = requestedId ?? randomUUID();
+                if (
+                    await this.injectSteerIntoActiveTurn(
+                        request,
+                        turnId,
+                        sessionState,
+                        messageId,
+                    )
+                )
+                    return { messageId };
+            }
+        }
         const reservation = this.acquireTurnStartReservation(sessionId);
         if (reservation.needsWait) {
             // `session/cancel`/`session/close` drop this prompt while it waits here: race the
@@ -6723,6 +6772,7 @@ export class CodexAcpServer {
         const session = new ACPSessionConnection(this.connection, sessionId);
         let failure: acpV2.Error | null = null;
         this.v2PromptsInFlight.add(sessionId);
+        if (promptKind.kind !== "prompt") this.v2CommandSessions.add(sessionId);
         const sendState = async (state: acpV2.StateUpdate) => {
             try {
                 await session.updateState(state);
@@ -6808,7 +6858,11 @@ export class CodexAcpServer {
                 try {
                     for (const block of request.prompt) {
                         await session.update(
-                            createUserMessageChunk(block, messageId),
+                            createUserMessageChunk(
+                                block,
+                                messageId,
+                                this.liveTurnMeta(sessionId),
+                            ),
                         );
                     }
                 } catch (error) {
@@ -6843,6 +6897,7 @@ export class CodexAcpServer {
                                         createUserMessageChunk(
                                             block,
                                             syntheticId,
+                                            this.liveTurnMeta(sessionId),
                                         ),
                                     );
                                 }
@@ -6872,6 +6927,7 @@ export class CodexAcpServer {
                 .then(
                     async (response) => {
                         this.v2PromptsInFlight.delete(sessionId);
+                        this.v2CommandSessions.delete(sessionId);
                         if (!inserted) {
                             const notInsertedMessage =
                                 "The prompt ended before Codex recorded the user message";
@@ -6915,6 +6971,7 @@ export class CodexAcpServer {
                         failure ??= toV2Failure(error);
                         if (!inserted) {
                             this.v2PromptsInFlight.delete(sessionId);
+                            this.v2CommandSessions.delete(sessionId);
                             reject(error);
                             const runtimeLost =
                                 this.getExitCode() !== null ||
@@ -6961,6 +7018,7 @@ export class CodexAcpServer {
                             }
                         }
                         this.v2PromptsInFlight.delete(sessionId);
+                        this.v2CommandSessions.delete(sessionId);
                         await sendIdle(this.failedPromptResponse(sessionId));
                     },
                 )

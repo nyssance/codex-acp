@@ -16,7 +16,7 @@ const live = process.env["RUN_E2E_TESTS"] === "true" ? it : it.skip;
 live.each([1, 2])("Codex 0.164 fork boundary survives continuation and restart in ACP v%s", async version => {
     const binary = process.env["CODEX_PATH"];
     const bundledCodex = createRequire(import.meta.url).resolve("@openai/codex/bin/codex.js");
-    const versionCommand = binary === undefined ? process.execPath : binary;
+    const versionCommand = binary ?? process.execPath;
     const versionArgs = binary === undefined ? [bundledCodex, "--version"] : ["--version"];
     expect(execFileSync(versionCommand, versionArgs, {encoding: "utf8"}).trim()).toBe("codex-cli 0.164.0");
     const root = mkdtempSync(join(tmpdir(), "codex-acp-live-fork-"));

@@ -33,6 +33,7 @@
     },
     "_meta": {
       "codex": {
+        "phase": null,
         "turnId": "turn-1"
       }
     },
@@ -46,6 +47,7 @@
     },
     "_meta": {
       "codex": {
+        "phase": null,
         "turnId": "turn-1"
       }
     },

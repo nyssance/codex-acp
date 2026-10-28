@@ -1,6 +1,6 @@
 import { StringDecoder } from "node:string_decoder";
 import type { Writable } from "node:stream";
-import { finished, Readable } from "node:stream";
+import { finished, type Readable } from "node:stream";
 import { Emitter } from "vscode-jsonrpc/node";
 import type {
     DataCallback,

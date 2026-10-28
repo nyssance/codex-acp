@@ -53,6 +53,11 @@
         "text": "Hello",
         "type": "text"
       },
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
       "sessionUpdate": "user_message_chunk"
     }
   },
@@ -272,6 +277,11 @@
       "content": {
         "text": "Implement the approved plan.",
         "type": "text"
+      },
+      "_meta": {
+        "codex": {
+          "turnId": "turn-2"
+        }
       },
       "sessionUpdate": "user_message_chunk"
     }

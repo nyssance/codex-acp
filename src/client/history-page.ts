@@ -211,11 +211,30 @@ export function prependHistory(
     );
     const merged = page.items.map((item) => {
         const live = existing.get(identity(item));
+        if (live?.kind === "tool" && item.kind === "tool") {
+            const settled = (status: typeof item.status) =>
+                status !== null &&
+                status !== "pending" &&
+                status !== "in_progress";
+            if (settled(item.status) && !settled(live.status))
+                return {
+                    ...item,
+                    at: live.at,
+                    replayed: live.replayed,
+                    _meta: live._meta,
+                };
+            if (settled(live.status) && !settled(item.status)) return live;
+        }
         return live !== undefined &&
             (baseline === undefined || live !== before.get(identity(item)))
             ? live
             : item;
     });
+    const terminals = { ...page.terminals, ...current.terminals };
+    for (const [id, terminal] of Object.entries(page.terminals)) {
+        if (terminal.exitStatus !== null && terminals[id]!.exitStatus === null)
+            terminals[id] = terminal;
+    }
     const pageIds = new Set(page.items.map(identity));
     const overlap = current.items.findIndex((item) =>
         pageIds.has(identity(item)),
@@ -243,7 +262,7 @@ export function prependHistory(
             ),
         ],
         clock: Math.max(current.clock, page.clock),
-        terminals: { ...page.terminals, ...current.terminals },
+        terminals,
         turnUsage: { ...page.turnUsage, ...current.turnUsage },
         turnEndedAt: { ...page.turnEndedAt, ...current.turnEndedAt },
     };
