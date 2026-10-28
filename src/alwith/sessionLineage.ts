@@ -5,9 +5,9 @@ import type {SessionMetadata} from "../SessionMetadata";
 /** Native forks retain turn IDs, so provenance survives adapter and Codex restarts. */
 export async function readSessionLineage(
     client: Pick<CodexAppServerClient, "threadTurnsList">,
-    thread: Pick<Thread, "id" | "sessionId" | "forkedFromId">,
+    thread: Pick<Thread, "id" | "sessionId" | "forkedFromId"> & { projectId?: string | null },
 ): Promise<NonNullable<SessionMetadata["lineage"]>> {
-    const lineage = {nativeSessionId: thread.sessionId, forkedFromId: thread.forkedFromId};
+    const lineage = {projectId: thread.projectId ?? null, nativeSessionId: thread.sessionId, forkedFromId: thread.forkedFromId};
     if (thread.forkedFromId == null) return lineage;
 
     async function* pages(threadId: string, sortDirection: "asc" | "desc"): AsyncGenerator<Turn[]> {

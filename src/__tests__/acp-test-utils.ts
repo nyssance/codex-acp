@@ -403,9 +403,17 @@ export function createCodexMockTestFixture(
         response: { action: "cancel" },
     };
 
+    const mockProjects: Array<{ id: string; name: string; roots: unknown[] }> = [];
     const mockCodexConnection = {
-        sendRequest: (method: string) =>
-            Promise.resolve(
+        sendRequest: (method: string, params?: any) => {
+            if (method === "project/list") return Promise.resolve({ data: mockProjects, nextCursor: null });
+            if (method === "project/read") return Promise.resolve({ project: mockProjects.find(project => project.id === params.projectId) });
+            if (method === "project/create") {
+                const project = { id: `mock-project-${mockProjects.length + 1}`, name: params.name, roots: params.roots };
+                mockProjects.push(project);
+                return Promise.resolve({ project });
+            }
+            return Promise.resolve(
                 method === "config/read"
                     ? { config: {}, origins: {}, layers: [] }
                     : method === "account/read"
@@ -415,7 +423,8 @@ export function createCodexMockTestFixture(
                             workspaceRouting: null,
                         }
                       : undefined,
-            ),
+            );
+        },
         onUnhandledNotification: (handler: (notification: any) => void) => {
             unhandledNotificationHandler = handler;
         },

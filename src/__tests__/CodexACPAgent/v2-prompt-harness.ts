@@ -72,6 +72,10 @@ export function createTurn(status: TurnStatus, id = turnId): Turn {
 /** Canned Codex app-server responses, keyed by method. */
 export function codexResponse(method: string): unknown {
     switch (method) {
+        case "project/list":
+            return { data: [], nextCursor: null };
+        case "project/create":
+            return { project: { id: "test-project" } };
         case "thread/start":
         case "thread/resume":
             return {
@@ -375,6 +379,7 @@ export async function connectSession(
         await v1Connection.agent.request(acp.methods.agent.session.new, {
             cwd,
             mcpServers: [],
+            ...(options.newSessionMeta ? { _meta: options.newSessionMeta } : {}),
         });
         connection = v1Connection;
         request = (method, params, signal) =>

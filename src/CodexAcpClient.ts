@@ -1,3 +1,4 @@
+import { projectsFor } from "./projects/registry";
 import type { ApprovalsReviewer } from "./app-server/v2/ApprovalsReviewer";
 import { readSessionLineage } from "./alwith/sessionLineage";
 import { replayEntriesOfTurn, withReplayTurnMetadata } from "./ReplayHistory";
@@ -1261,12 +1262,14 @@ export class CodexAcpClient {
             request.mcpServers ?? [],
             route.gatewayId,
         );
+        const projectId = await projectsFor(this.codexClient).resolve(request.cwd, request._meta);
         const response = await this.codexClient.threadStart({
             ...hostThreadOptions(
                 request._meta,
                 AgentMode.getInitialAgentMode(),
             ),
             ...(tools ? { dynamicTools: dynamicTools(tools) } : {}),
+            projectId,
             config: sessionConfig.config,
             modelProvider: route.modelProvider,
             ...(route.model ? { model: route.model } : {}),
@@ -2204,6 +2207,7 @@ export class CodexAcpClient {
             cwd: thread.cwd,
             title: listedSessionTitle(thread),
             updatedAt: new Date(thread.updatedAt * 1000).toISOString(),
+            _meta: { codex: { projectId: thread.projectId ?? null } },
         });
 
         let sessions = listResponse.data.map(mapThreadToSession);

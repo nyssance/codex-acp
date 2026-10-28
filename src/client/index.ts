@@ -42,3 +42,6 @@ export type { BrowseHistoryRequest, HistoryPageState } from "./history-page";
 export { latestAssistantReply, readActivityReply } from "./activity-preview";
 
 export * from "./protocol";
+
+export { sessionGroup, groupSessions, projectName, isQuickChatDirectory, matchingProject, normalizedPath, pathContains, QUICK_CHATS_GROUP } from "../projects/projection";
+export type { ProjectContext, SessionGroup } from "../projects/projection";

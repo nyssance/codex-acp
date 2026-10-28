@@ -45,3 +45,12 @@
 
 - Codex app-server usage: see https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md when touching protocol/transport details, adding or consuming JSON-RPC methods, handling approvals/turn events, or updating generated schema/clients.
 - App-server events: prefer `thread/*`, `turn/*`, and `item/*` event surfaces; avoid the deprecated `codex/event/*` API (planned removal). Keep implementations aligned with generated types in `src/app-server` (including `v2` exports).
+
+## Test Runtime isolation
+
+Scripts that start Runtime/engine sessions, including temporary probes, must use
+`startTestRuntime` from `@alwith/api/node`. Never use the real Codex home as test
+state. Default tests use mocks; only an explicitly authorized live test supplies
+`authFrom` to copy auth.json into the helper's temporary home. Use `await using`
+or await `dispose()` in `finally`. Existing server protocol fixtures that already
+create isolated homes remain valid; they must never fall back to the real home.

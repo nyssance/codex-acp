@@ -345,6 +345,7 @@ describe("session/list", () => {
                 sessionId: threadId,
                 cwd: "/repo/project",
                 title: "First message",
+                _meta: { codex: { projectId: null } },
                 updatedAt: "1970-01-01T00:03:20.000Z",
             }],
             nextCursor: null,

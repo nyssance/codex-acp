@@ -33,7 +33,7 @@ test("restores the persisted boundary across pages after the parent and child di
     };
     const client = history(persisted);
     expect(await readSessionLineage(client, fork)).toEqual({
-        nativeSessionId: "native-child", forkedFromId: "parent", forkedAtTurnId: "t2",
+        projectId: null, nativeSessionId: "native-child", forkedFromId: "parent", forkedAtTurnId: "t2",
     });
     // A fresh client has no in-memory fork request or replay state.
     expect(await readSessionLineage(history(persisted), fork)).toEqual(await readSessionLineage(client, fork));
@@ -48,7 +48,7 @@ test("nested forks use their immediate parent and preserve the selected older bo
 test("root sessions do not read history and empty forks expose a null boundary", async () => {
     const client = history({parent: ["p"], child: []});
     expect(await readSessionLineage(client, {...fork, forkedFromId: null})).toEqual({
-        nativeSessionId: "native-child", forkedFromId: null,
+        projectId: null, nativeSessionId: "native-child", forkedFromId: null,
     });
     expect(client.requests).toHaveLength(0);
     expect((await readSessionLineage(client, fork)).forkedAtTurnId).toBeNull();

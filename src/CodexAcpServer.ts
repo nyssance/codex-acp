@@ -5056,8 +5056,8 @@ export class CodexAcpServer {
         configOptions?: Array<acp.SessionConfigOption>;
     } {
         return {
-            ...(sessionState.lineage?.forkedAtTurnId !== undefined
-                ? { _meta: { codex: { ...sessionState.lineage } } }
+            ...(sessionState.lineage !== undefined
+                ? { _meta: { codex: { projectId: sessionState.lineage.projectId ?? null, ...(sessionState.lineage.forkedAtTurnId !== undefined ? sessionState.lineage : {}) } } }
                 : {}),
             ...(this.isSessionConfigEnabled()
                 ? {

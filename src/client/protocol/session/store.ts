@@ -104,7 +104,7 @@ export class SessionStore {
             });
         }
         const next = applyUpdate(session, update, {
-            text: decoded,
+            ...(decoded === undefined ? {} : { text: decoded }),
             policy: this.policy,
         });
         this.sessions.set(id, next);

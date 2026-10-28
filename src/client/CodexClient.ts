@@ -1,3 +1,5 @@
+import { sessionGroup, type ProjectContext, type SessionGroup } from "../projects/projection";
+import type { NewSessionOptions } from "./protocol";
 // The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
 // of ACP (`_codex/*`): the full session list and archive, history browsing and export, skills and
 // plugin marketplaces, rate limits, file search, retries, predictions, fork lineage and realtime.
@@ -83,6 +85,8 @@ export type ForkOptions = SessionRequestOptions & {
 };
 
 export type CodexClientState = ClientState & {
+    projectContext: ProjectContext | null;
+    projectContextError: string | null;
     archivedSessions: SessionSummary[];
     archivedCursor: string | null;
     archivedLoaded: boolean;
@@ -147,6 +151,7 @@ export class CodexClient<
     /** Forks allocate titles and lineage one at a time. */
     private forkQueue: Promise<unknown> = Promise.resolve();
     private archivedGeneration = 0;
+    private projectGeneration = 0;
     private readonly historyRequests = new Map<string, Promise<void>>();
     private readonly retryRequests = new Map<string, Promise<void>>();
     private readonly navigationRequests = new Map<string, Promise<void>>();
@@ -174,6 +179,8 @@ export class CodexClient<
         >,
     ) {
         const codex: Omit<CodexClientState, keyof ClientState> = {
+            projectContext: null,
+            projectContextError: null,
             archivedSessions: [],
             archivedCursor: null,
             archivedLoaded: false,
@@ -221,6 +228,7 @@ export class CodexClient<
     }
 
     protected override onConnected(agent: Agent): void {
+        this.set({ projectContext: null, projectContextError: null });
         this.nativeClient = new CodexCapabilitiesClient(agent);
     }
 
@@ -232,6 +240,7 @@ export class CodexClient<
         this.nativeClient?.dispose();
         this.nativeClient = null;
         this.archivedGeneration++;
+        this.projectGeneration++;
         this.historyRequests.clear();
         this.activityReplyRequests.clear();
     }
@@ -241,6 +250,10 @@ export class CodexClient<
         params: unknown,
     ): boolean {
         switch (method) {
+            case "_codex/projects_changed":
+            case "_codex/thread_project_updated":
+                void this.listSessions({ reset: true }).catch(error => this.set({ projectContextError: asError(error).message }));
+                return true;
             // Codex rescanned its skills or plugins (`skills/changed`): catalogs are stale.
             case "_codex/skills_changed":
                 for (const listener of this.skillsListeners) listener();
@@ -260,10 +273,39 @@ export class CodexClient<
         }
     }
 
+    async refreshProjectContext(createChatDirectory = false): Promise<ProjectContext> {
+        const agent = this.live();
+        const generation = ++this.projectGeneration;
+        try {
+            const context = await agent.request<ProjectContext>("_codex/project_context", { createChatDirectory });
+            if (!context || !Array.isArray(context.projects) || typeof context.homeDirectory !== "string" || typeof context.chatDirectory !== "string" || typeof context.codexChatDirectory !== "string")
+                throw new Error("Codex project context is unavailable or invalid");
+            if (agent !== this.agent) throw new Error("Project context belongs to an obsolete connection");
+            if (generation === this.projectGeneration) this.set({ projectContext: context, projectContextError: null });
+            return context;
+        } catch (error) {
+            if (agent === this.agent && generation === this.projectGeneration) this.set({ projectContextError: asError(error).message });
+            throw error;
+        }
+    }
+
+    sessionGroup(row: Pick<SessionSummary, "cwd" | "projectId">): SessionGroup {
+        const context = this.state.projectContext;
+        if (!context) throw new Error(this.state.projectContextError ?? "Codex projects have not loaded");
+        return sessionGroup(context, row);
+    }
+
+    override async newSession(cwd?: string, options: NewSessionOptions = {}): Promise<string> {
+        if (cwd !== undefined) return super.newSession(cwd, options);
+        const context = await this.refreshProjectContext(true);
+        return super.newSession(context.chatDirectory, { ...options, meta: mergeMeta(options.meta, { codex: { projectId: null } }) });
+    }
+
     // ── List dialect ──
 
     /** codex-acp-v2's full list in one answer; `session/list` is paged and filtered. */
     protected override async fetchSessionList(): Promise<acp.SessionInfo[]> {
+        await this.refreshProjectContext();
         const response = await this.live().request<acp.ListSessionsResponse>(
             "_codex/session_list",
             {},
@@ -279,7 +321,9 @@ export class CodexClient<
             typeof codex === "object" &&
             codex !== null &&
             (codex as { archived?: unknown }).archived === true;
-        return { ...super.summaryOf(info), archived };
+        const projectId = typeof codex === "object" && codex !== null ? (codex as { projectId?: unknown }).projectId : null;
+        if (projectId !== undefined && projectId !== null && typeof projectId !== "string") throw new Error("Invalid Codex project ID");
+        return { ...super.summaryOf(info), archived, projectId: projectId ?? null };
     }
 
     protected override lineageOf(
@@ -300,6 +344,8 @@ export class CodexClient<
         const cursor = options.reset ? null : state.archivedCursor;
         if (!options.reset && state.archivedLoaded && cursor === null) return;
         const generation = ++this.archivedGeneration;
+        if (options.reset || !state.projectContext) await this.refreshProjectContext();
+        if (generation !== this.archivedGeneration) return;
         const before = new Map(
             [...state.sessionList, ...state.archivedSessions].map(
                 (item) => [item.sessionId, item] as const,

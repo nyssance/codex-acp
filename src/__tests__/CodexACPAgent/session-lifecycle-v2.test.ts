@@ -66,6 +66,10 @@ function codexResponse(
     replayTurns: Thread["turns"] = [],
 ): unknown {
     switch (method) {
+        case "project/list":
+            return { data: [], nextCursor: null };
+        case "project/create":
+            return { project: { id: "test-project" } };
         case "initialize":
             return mockInitializeResponse();
         case "thread/start":

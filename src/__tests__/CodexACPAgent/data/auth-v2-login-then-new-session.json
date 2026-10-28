@@ -18,6 +18,7 @@
         "approvalPolicy": "on-request",
         "approvalsReviewer": "auto_review",
         "sandbox": "workspace-write",
+        "projectId": "test-project",
         "config": {
           "features": {
             "cwd_relative_turn_diffs": false

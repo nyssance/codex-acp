@@ -159,3 +159,11 @@ after a newer event is discarded. Await the returned `ready` promise to observe
 setup failures and call `dispose()` when the connection owner is replaced or
 unmounted. Disposal also handles a subscription that finishes registering late.
 The helper only manages observation; Runtime still owns status and read acknowledgement.
+
+## Projects and conversations without a project
+
+`CodexClient.newSession()` asks the adapter for its remote `~/Documents/ALwith` directory, then sends ACP `session/new` with `_meta.codex.projectId: null`. Passing a directory registers or reuses a native Codex project; passing `options.meta.codex.projectId` selects an existing ID. Codex owns IDs and persistence. Registration errors abort creation.
+
+`_codex/project_context` returns the adapter host's home, Codex chat directory, ALwith chat directory and all project pages. `createChatDirectory: true` creates the ALwith directory. `refreshProjectContext()` exposes this data and retains the last valid catalog on a read failure. A new connection clears context from the previous host.
+
+Project IDs returned by ACP new/load/list use `_meta.codex.projectId`. `sessionGroup` and `groupSessions` project the list using persistent IDs, longest matching registered roots, remote quick-chat directories, then full remaining paths. Inferred display membership is never persisted. Project and thread-project change notifications refresh the catalog and list. API contains no ACP metadata interpretation.

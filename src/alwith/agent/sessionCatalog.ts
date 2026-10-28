@@ -86,7 +86,7 @@ export async function readSessionList(client: CodexAppServerClient, params: acp.
                 ? historyTitle(thread, (await client.threadTurnsList({threadId: thread.id, cursor: null, limit: 25, itemsView: "full", sortDirection: "asc"})).data)
                 : listedSessionTitle(thread),
             updatedAt: new Date(thread.updatedAt * 1000).toISOString(),
-            _meta: { codex: { archived, nativeSessionId: thread.sessionId, forkedFromId: thread.forkedFromId } }
+            _meta: { codex: { projectId: thread.projectId ?? null, archived, nativeSessionId: thread.sessionId, forkedFromId: thread.forkedFromId } }
           }))
         ))
       )

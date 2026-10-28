@@ -57,6 +57,10 @@ function thread(id: string) {
 export function defaultAnswer(method: string, params: unknown): unknown {
     const p = (params ?? {}) as { threadId?: string; ephemeral?: boolean };
     switch (method) {
+        case "project/list":
+            return { data: [], nextCursor: null };
+        case "project/create":
+            return { project: { id: "test-project" } };
         case "initialize":
             return { userAgent: "codex-test", codexHome: "/codex-home" };
         case "model/list":

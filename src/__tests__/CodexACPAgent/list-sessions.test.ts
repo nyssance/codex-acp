@@ -177,6 +177,7 @@ describe("CodexACPAgent - list sessions", () => {
             sessionId: "sess-win",
             cwd: "D:\\workspace\\sample-project\\",
             title: "Windows session",
+            _meta: { codex: { projectId: null } },
             updatedAt: "1970-01-01T00:03:20.000Z",
         }]);
 

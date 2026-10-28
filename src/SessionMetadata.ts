@@ -14,6 +14,7 @@ export type SessionMetadata = {
     agentMode?: AgentMode | undefined;
     readOnly?: boolean;
     lineage?: {
+        projectId?: string | null;
         nativeSessionId: string | null;
         forkedFromId: string | null;
         forkedAtTurnId?: string | null;

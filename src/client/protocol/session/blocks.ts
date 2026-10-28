@@ -56,7 +56,7 @@ export function isBooleanOption(
 export function isGroupedSelect(
     options: acp.SessionConfigSelectOptions,
 ): options is acp.SessionConfigSelectGroup[] {
-    return options.length > 0 && "groupId" in options[0];
+    return options[0] !== undefined && "groupId" in options[0];
 }
 
 export type PlanItemsContent = acp.PlanItems & { type: "items" };

@@ -162,6 +162,7 @@
         "configRevision": 0
       },
       "codex": {
+        "projectId": null,
         "nativeSessionId": "fork-1",
         "forkedFromId": null
       }

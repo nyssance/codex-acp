@@ -161,6 +161,7 @@
         "configRevision": 0
       },
       "codex": {
+        "projectId": null,
         "nativeSessionId": "thread-1",
         "forkedFromId": null
       }

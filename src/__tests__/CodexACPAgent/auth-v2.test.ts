@@ -80,6 +80,8 @@ async function connectV2Client(options: { loginSucceeds?: boolean } = {}) {
                 codexRequests.push({ method, params });
             }
             switch (method) {
+                case "project/list": return {data: [], nextCursor: null};
+                case "project/create": return {project: {id: "test-project"}};
                 case "account/read":
                     return {
                         workspaceRouting: null,

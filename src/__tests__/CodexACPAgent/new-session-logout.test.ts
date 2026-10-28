@@ -54,6 +54,8 @@ describe("New session logout handling", () => {
         // The app-server answer goes through the error explanations of the client.
         const {connection} = codexAppServerClient as unknown as {connection: MessageConnection};
         vi.spyOn(connection, "sendRequest").mockImplementation((async (method: string) => {
+            if (method === "project/list") return {data: [], nextCursor: null};
+            if (method === "project/create") return {project: {id: "test-project"}};
             if (method === "thread/start") throw new ResponseError(-32603, errorMessage);
             return undefined;
         }) as never);

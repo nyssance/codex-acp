@@ -45,6 +45,7 @@ export type Launch = { engine: string; [key: string]: unknown };
 
 /** One row of the session list: what `session/list` says about a session, before it is opened. */
 export type SessionSummary = {
+    projectId?: string | null;
     sessionId: string;
     cwd: string;
     title: string | null;
@@ -808,8 +809,8 @@ export class SessionClient<State extends ClientState = ClientState> {
             .join("\n\n");
         const meta = mergeMeta(this.sessionMeta(operation), options.meta);
         return {
-            revision: host.revision,
-            bind: host.bind,
+            ...(host.revision === undefined ? {} : { revision: host.revision }),
+            ...(host.bind === undefined ? {} : { bind: host.bind }),
             ...(mcpServers ? { mcpServers } : {}),
             ...(appended ? { systemPrompt: this.systemPrompt(appended) } : {}),
             ...(meta ? { _meta: meta } : {}),
@@ -857,7 +858,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                     }));
                 else
                     this.listSession({
-                        ...this.summaryOf({ sessionId: session.id, cwd }),
+                        ...this.summaryOf({ sessionId: session.id, cwd, ...(response._meta ? { _meta: response._meta } : {}) }),
                         updatedAt: new Date().toISOString(),
                     });
             },
@@ -1065,6 +1066,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                     this.options.prepareSessionTools
                 )
                     return this.preparePrompt(id, prompt, checkpoint);
+                return undefined;
             },
             () => this.dispatchPrompt(id, prompt, options).receipt,
             (operation) => this.enqueueSession(id, operation, false),
@@ -1410,7 +1412,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 sessionId: response.sessionId,
                 cwd,
                 title: forked.title,
-                _meta: response._meta,
+                ...(response._meta === undefined ? {} : { _meta: response._meta }),
             }),
             updatedAt: new Date().toISOString(),
         });

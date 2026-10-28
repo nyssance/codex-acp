@@ -1,3 +1,4 @@
+import { projectsFor } from "../projects/registry";
 import {ComposerPredictions} from "./agent/composerPredictions";
 import {readSessionList} from "./agent/sessionCatalog";
 import {logger} from "../Logger";
@@ -27,6 +28,7 @@ export const CATALOG_METHODS = {
     "_codex/fuzzy_file_search": "fuzzyFileSearch",
 } as const;
 export const ALWITH_METHODS = [
+    "_codex/project_context",
     ...Object.keys(CATALOG_METHODS), "_codex/plugin_set_enabled",
     "_codex/session_history", "_codex/session_history_items", "_codex/session_list", "_codex/session_prediction_request", "_alwith/config_snapshot", "_codex/session_retry",
     "_codex/session_archive", "_codex/session_unarchive", "_codex/session_rename", "_codex/session_read_state_update",
@@ -60,6 +62,8 @@ export class AlwithExtensions {
         const stop = client.onClientTransportEvent(event => {
             if (event.eventType !== "notification") return;
             const methods: Record<string, string> = {
+                "project/changed": "_codex/projects_changed",
+                "thread/project/updated": "_codex/thread_project_updated",
                 "skills/changed": "_codex/skills_changed",
                 "account/rateLimits/updated": "_codex/rate_limits_updated",
                 "fuzzyFileSearch/sessionUpdated": "_codex/fuzzy_file_search_updated",
@@ -85,6 +89,7 @@ export class AlwithExtensions {
 
     async request(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
         signal?.throwIfAborted();
+        if (method === "_codex/project_context") return projectsFor(this.current()).context(params["createChatDirectory"] === true);
         if (method === "_codex/session_list") return readSessionList(this.current(), params, Object.keys(params).length === 0);
         if (method === "_codex/session_read_state_update") {
             if (typeof params["sessionId"] !== "string" || typeof params["expectedRevision"] !== "string"
