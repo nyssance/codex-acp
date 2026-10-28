@@ -44,13 +44,14 @@
         "example:steering": "bun examples/steering.ts",
         "example:steering:multistep": "bun examples/steering.ts",
         "generate-types": "codex app-server generate-ts --experimental --out src/app-server",
-        "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**' --exclude 'src/client/protocol/**' && bun test src/client/protocol",
+        "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**' --exclude 'src/client/protocol/**' --exclude 'src/__tests__/CodexACPAgent/CodexAcpClient.test.ts' --exclude 'src/__tests__/CodexACPAgent/mcp-session.test.ts' --exclude 'src/__tests__/CodexACPAgent/mcp-config-merge.test.ts' && bun test src/client/protocol",
         "test:integration": "vitest run --no-file-parallelism --hookTimeout=30000 src/__tests__/integration",
         "test:e2e": "bun run build && RUN_E2E_TESTS=true vitest run --no-file-parallelism --retry=2 src/__tests__/CodexACPAgent/e2e",
         "test:watch": "vitest",
         "codex-test": "bun .agents/skills/run-codex/scripts/run-codex-test.ts",
         "check": "bun check --no-script && bun check --no-script -p tsconfig.client-check.json && bun check --no-script -p examples/tsconfig.json",
-        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client-check.json && tsc --noEmit -p examples/tsconfig.json"
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client-check.json && tsc --noEmit -p examples/tsconfig.json",
+        "test:app-server": "bun -e 'if(process.env.RUN_APP_SERVER_TESTS!==\"1\")throw new Error(\"Real app-server tests require explicit authorization and RUN_APP_SERVER_TESTS=1\")' && vitest run --no-file-parallelism src/__tests__/CodexACPAgent/CodexAcpClient.test.ts src/__tests__/CodexACPAgent/mcp-session.test.ts src/__tests__/CodexACPAgent/mcp-config-merge.test.ts"
     },
     "homepage": "https://github.com/nyssance/codex-acp#readme",
     "bugs": {

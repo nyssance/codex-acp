@@ -325,3 +325,7 @@ memory consolidation has finished. Each subscription returns a disposable.
 Unsubscribing a view does not cancel the server's import. Keep the connection
 alive for background imports; after reconnecting use `readHistories()` to recover
 persisted results, and never treat disconnect as successful completion.
+
+### Test isolation
+
+`bun run test` runs mocks, including mock executable lifecycle tests. Tests that start the real Codex app-server are separate: after explicit authorization, use `RUN_APP_SERVER_TESTS=1 bun run test:app-server`. They retain their isolated temporary Codex homes. Live model E2E tests remain manual.
