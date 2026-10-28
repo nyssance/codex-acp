@@ -132,7 +132,7 @@ describe("CodexEventHandler - Guardian approval review events", () => {
         );
     });
 
-    it("ignores Guardian warnings that are not approval review summaries", async () => {
+    it("shows why automatic approval interrupts a turn", async () => {
         const warning: ServerNotification = {
             method: "guardianWarning",
             params: {
@@ -141,11 +141,9 @@ describe("CodexEventHandler - Guardian approval review events", () => {
             },
         };
 
-        vi.spyOn(mockFixture.getCodexAcpAgent(), "getSessionState").mockReturnValue(sessionState);
-        mockFixture.sendServerNotification(warning);
-        await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionId);
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [warning]);
 
         const dump = mockFixture.getAcpConnectionDump([]);
-        expect(dump).toBe("");
+        expect(dump).toContain("interrupting the turn");
     });
 });

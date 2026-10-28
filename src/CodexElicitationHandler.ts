@@ -39,7 +39,7 @@ import {
 } from "./AirExtension";
 type AcpBackedMcpElicitationParams = Extract<
     McpServerElicitationRequestParams,
-    { mode: "form" } | { mode: "url" }
+    { mode: "form" } | { mode: "openai/form" } | { mode: "openaiForm" } | { mode: "url" }
 >;
 
 const USER_INPUT_NOTE_FIELD_SUFFIX = "_note";
@@ -425,12 +425,12 @@ export class CodexElicitationHandler implements ElicitationHandler {
         if (this.isMessageOnlyForm(params)) return false;
         switch (params.mode) {
             case "form":
+            case "openai/form":
+            case "openaiForm":
                 return clientSupportsFormElicitation(this.clientCapabilities);
             case "url":
                 return clientSupportsUrlElicitation(this.clientCapabilities);
             case "openai/userVerification":
-            case "openai/form":
-            case "openaiForm":
                 return false;
         }
     }
@@ -473,7 +473,9 @@ export class CodexElicitationHandler implements ElicitationHandler {
         };
 
         switch (params.mode) {
-            case "form": {
+            case "form":
+            case "openai/form":
+            case "openaiForm": {
                 return {
                     ...base,
                     mode: "form",

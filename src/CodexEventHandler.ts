@@ -1007,7 +1007,9 @@ export class CodexEventHandler {
             case "warning":
                 return this.createWarningEvent(notification.params);
             case "guardianWarning":
-                return null;
+                // Review summaries already have a tool item; failures and interruptions do not.
+                if (/^Automatic approval review \w+ \(risk:/i.test(notification.params.message)) return null;
+                return this.createWarningEvent(notification.params);
             case "deprecationNotice":
                 return this.createDeprecationNoticeEvent(notification.params);
             case "item/autoApprovalReview/started":
