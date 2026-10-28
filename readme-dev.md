@@ -30,16 +30,16 @@ Run from sources
 
 ```json
 {
-  "agent_servers": {
-    "Codex (app-server)": {
-      "command": "npm",
-      "args": ["run", "start", "--prefix", "/path/to/project/"],
-      "env": {
-        "CODEX_PATH": "node_modules/.bin/codex",
-        "APP_SERVER_LOGS": "optional/path/to/existing/log/directory"
-      }
+    "agent_servers": {
+        "Codex (app-server)": {
+            "command": "npm",
+            "args": ["run", "start", "--prefix", "/path/to/project/"],
+            "env": {
+                "CODEX_PATH": "node_modules/.bin/codex",
+                "APP_SERVER_LOGS": "optional/path/to/existing/log/directory"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -47,21 +47,21 @@ Run from binaries
 
 1. Download a `codex-acp-<platform>.zip` archive from https://github.com/agentclientprotocol/codex-acp/releases (`<platform>` is one of: `linux`, `darwin`, `win32`)
 2. Unzip the archive:
-   ```bash
-   unzip codex-acp-<platform>.zip
-   ```
+    ```bash
+    unzip codex-acp-<platform>.zip
+    ```
 3. Adjust ACP client config
 
 ```json
 {
-  "agent_servers": {
-    "Codex (app-server)": {
-      "command": "/path/to/codex-acp",
-      "env": {
-        "CODEX_PATH": "/path/to/codex"
-      }
+    "agent_servers": {
+        "Codex (app-server)": {
+            "command": "/path/to/codex-acp",
+            "env": {
+                "CODEX_PATH": "/path/to/codex"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -114,7 +114,6 @@ the adapter does not rely on notices being displayed.
 Command replies, review results, and terminal/retrying errors retain their existing response or
 failure channels. Clients advertising session compaction support continue to receive the dedicated
 compaction lifecycle instead of the legacy completion advisory.
-
 
 ### App-server recovery
 
@@ -302,3 +301,27 @@ installed Codex platform binary directly; test JavaScript child processes use
 The process-local OpenAI compatibility route also carries native realtime calls and their WebSocket sideband. Responses rewriting applies only to Responses frames. Realtime frames pass unchanged. For ChatGPT's backend, the route preserves Codex's native SDP/session JSON contract and AVAS query parameters; API-key endpoints keep their multipart payload. Resolving the destination remains lazy, so reading history never waits for account discovery.
 
 Browser voice consumers use the shared `@alwith/module-voice` WebRTC lifecycle and explicitly select realtime v3. They must check `supportsCodexRealtime(initializeResponse)` before displaying controls. The native account must support realtime. Verification uses an existing thread, a browser test audio device, and the real ACP/native/backend chain; it does not create another thread or verify a physical microphone.
+
+## External agent imports
+
+`@nyssance/codex-acp-v2/import` exports `CodexImportClient` and the official
+request/result types. Construct it with an already initialized app-server JSON-RPC
+connection, or use `CodexAppServerClient.imports` inside the adapter. This is a
+separate app-server API, not an ACP session extension; it never starts a thread.
+The host owns the connection and process, including disconnect reporting.
+
+Call `detect({ migrationSource: "claude-code" | "cursor", includeHome, cwds })`,
+let the user select returned items, then call `import` with those items and the
+same `migrationSource`. Claude Code supports memory imports; Cursor does not.
+Memory detection requires Codex's `external_agent_memory_import` feature; configure
+that on the app-server launch when needed, without rewriting global configuration.
+
+Subscribe with `onProgress` and `onCompleted` **before** submitting the import.
+Notifications can precede the response; retain events by `importId` at the host
+level rather than filtering solely on an ID assigned after the response.
+The response acknowledges acceptance only. Completion carries per-item successes
+and failures; a completed import may have partial failures and does not imply
+memory consolidation has finished. Each subscription returns a disposable.
+Unsubscribing a view does not cancel the server's import. Keep the connection
+alive for background imports; after reconnecting use `readHistories()` to recover
+persisted results, and never treat disconnect as successful completion.

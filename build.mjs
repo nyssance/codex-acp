@@ -1,5 +1,10 @@
 for (const options of [
     {
+        entrypoints: ["src/import/index.ts"],
+        target: "browser",
+        naming: "import.js",
+    },
+    {
         entrypoints: ["src/index.ts"],
         target: "bun",
         naming: "index.js",
@@ -9,7 +14,12 @@ for (const options of [
         entrypoints: ["src/client/index.ts"],
         target: "browser",
         naming: "client.js",
-        external: ["@alwith/api", "@alwith/api/*", "@agentclientprotocol/sdk", "@agentclientprotocol/sdk/*"],
+        external: [
+            "@alwith/api",
+            "@alwith/api/*",
+            "@agentclientprotocol/sdk",
+            "@agentclientprotocol/sdk/*",
+        ],
     },
 ]) {
     const result = await Bun.build({
