@@ -1,4 +1,4 @@
-// The Codex client: `@alwith/api/client`'s SessionClient plus everything codex-acp-v2 adds on top
+// The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
 // of ACP (`_codex/*`): the full session list and archive, history browsing and export, skills and
 // plugin marketplaces, rate limits, file search, retries, predictions, fork lineage and realtime.
 // Moved out of ALwith U's `agent/client.ts` (2026-10-27 chat-layer extraction): the adapter owns
@@ -9,7 +9,8 @@ import {
     isBooleanOption,
     isSelectOption,
     type Session,
-} from "@alwith/api";
+} from "./protocol";
+import { type StateSetter } from "@alwith/api/client";
 import {
     type ClientOptions,
     type ClientState,
@@ -21,8 +22,7 @@ import {
     type SessionOperation,
     type SessionRequestOptions,
     type SessionSummary,
-    type StateSetter,
-} from "@alwith/api/client";
+} from "./protocol";
 
 import { readActivityReply } from "./activity-preview";
 import {

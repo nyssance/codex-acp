@@ -1,6 +1,6 @@
 import { SessionUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { type Item, type Session, textOf } from "@alwith/api";
+import { type Item, type Session, textOf } from "./protocol";
 
 import { codexMessageError } from "./codex-extensions";
 import { prependHistory, projectHistoryTurns } from "./history-page";

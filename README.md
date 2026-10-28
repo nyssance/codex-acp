@@ -101,3 +101,7 @@ See [AIR extensions](docs/air-extensions.md#async-tasks) for the capability, lif
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
+
+## Application client ownership
+
+The `/client` entry owns ACP requests, session projection, replay and extension handling. `@alwith/api` supplies only Runtime transport and generic application state. The migrated `src/client/protocol` code retains the ALwith Developer and Redistribution License in `licenses/alwith-protocol.txt`; this migration does not relicense it under the repository default. See `docs/session-state.md`.

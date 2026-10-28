@@ -1,4 +1,4 @@
-import { createSession, SessionStore, textOf } from "@alwith/api";
+import { createSession, SessionStore, textOf } from "../../client/protocol";
 import { expect, test, vi } from "vitest";
 
 import {

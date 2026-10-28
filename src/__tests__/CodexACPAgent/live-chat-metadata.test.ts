@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createSession, SessionStore, textOf } from "@alwith/api";
+import { createSession, SessionStore, textOf } from "../../client/protocol";
 import type { ThreadItem } from "../../app-server/v2";
 import {
     connectSession,

@@ -8,7 +8,7 @@ import {
     type MessageItem,
     textOf,
     type TurnError,
-} from "@alwith/api";
+} from "./protocol";
 
 type SkillScope = "user" | "repo" | "system" | "admin";
 

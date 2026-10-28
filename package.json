@@ -17,7 +17,10 @@
         "dist/client.js",
         "dist/types",
         "dist/import.js",
-        "docs/protocol.md"
+        "docs/protocol.md",
+        "licenses/alwith-protocol.txt",
+        "docs/acp-client.md",
+        "docs/session-state.md"
     ],
     "scripts": {
         "prepublishOnly": "bun run build",
@@ -41,7 +44,7 @@
         "example:steering": "bun examples/steering.ts",
         "example:steering:multistep": "bun examples/steering.ts",
         "generate-types": "codex app-server generate-ts --experimental --out src/app-server",
-        "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**'",
+        "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**' --exclude 'src/client/protocol/**' && bun test src/client/protocol",
         "test:integration": "vitest run --no-file-parallelism --hookTimeout=30000 src/__tests__/integration",
         "test:e2e": "bun run build && RUN_E2E_TESTS=true vitest run --no-file-parallelism --retry=2 src/__tests__/CodexACPAgent/e2e",
         "test:watch": "vitest",
@@ -59,10 +62,10 @@
     },
     "keywords": [],
     "author": "Agent Client Protocol",
-    "license": "Apache-2.0",
+    "license": "SEE LICENSE IN LICENSE",
     "type": "module",
     "devDependencies": {
-        "@alwith/api": "0.4.22",
+        "@alwith/api": "^0.5.3",
         "@nyssance/ts7-lint": "^0.1.3",
         "@types/bun": "^1.4.4",
         "@types/cross-spawn": "^6.0.6",
@@ -80,7 +83,8 @@
         "open": "^11.0.4",
         "vscode-jsonrpc": "^10.0.0",
         "ws": "^8.22.0",
-        "zod": "^4.6.7"
+        "zod": "^4.6.7",
+        "effect": "^4.0.6"
     },
     "exports": {
         ".": "./dist/index.js",
@@ -94,6 +98,6 @@
         }
     },
     "peerDependencies": {
-        "@alwith/api": ">=0.4.22"
+        "@alwith/api": ">=0.5.3"
     }
 }

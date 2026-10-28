@@ -1,6 +1,6 @@
 import { SessionUpdate as UpdateGuard } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { createSession, type Session, SessionStore } from "@alwith/api";
+import { createSession, type Session, SessionStore } from "./protocol";
 
 export type HistoryPageState = {
     cursor: string | null;

@@ -1,5 +1,5 @@
 // `@nyssance/codex-acp-v2/client`: what an app needs to talk to this adapter from the browser or
-// Node, on top of `@alwith/api/client`. Nothing here starts a process.
+// Node, using @alwith/api only for Runtime transport and generic state. Nothing here starts a process.
 export {
     CodexCapabilitiesClient,
     supportsCodexRealtime,
@@ -40,3 +40,5 @@ export {
 } from "./history-page";
 export type { BrowseHistoryRequest, HistoryPageState } from "./history-page";
 export { latestAssistantReply, readActivityReply } from "./activity-preview";
+
+export * from "./protocol";

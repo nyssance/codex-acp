@@ -2,7 +2,7 @@ import {
     ContentBlock,
     SessionUpdate,
 } from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { type Item, textOf } from "@alwith/api";
+import { type Item, textOf } from "./protocol";
 
 export function latestAssistantReply(
     items: readonly Item[] | undefined,
