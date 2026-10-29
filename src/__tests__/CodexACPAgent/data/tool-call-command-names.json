@@ -180,6 +180,9 @@
           "terminal_info": {
             "cwd": "/repo",
             "terminal_id": "userShell-execute"
+          },
+          "codex": {
+            "commandSource": "userShell"
           }
         }
       }
@@ -194,14 +197,28 @@
       "update": {
         "sessionUpdate": "tool_call",
         "toolCallId": "userShell-read",
-        "kind": "read",
-        "title": "Read file '/repo/config.json'",
+        "kind": "execute",
+        "title": "cat /repo/config.json",
         "status": "in_progress",
-        "locations": [
+        "content": [
           {
-            "path": "/repo/config.json"
+            "type": "terminal",
+            "terminalId": "userShell-read"
           }
-        ]
+        ],
+        "rawInput": {
+          "command": "cat /repo/config.json",
+          "cwd": "/repo"
+        },
+        "_meta": {
+          "terminal_info": {
+            "cwd": "/repo",
+            "terminal_id": "userShell-read"
+          },
+          "codex": {
+            "commandSource": "userShell"
+          }
+        }
       }
     }
   ]

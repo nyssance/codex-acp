@@ -19,3 +19,21 @@ Codex's detection and persisted history. `_codex/import/run` takes
 `_codex/import/progress` includes the caller's `operationId` and Codex's progress.
 Disconnect rejects the wait; reconnecting clients must inspect history before
 retrying. These operations do not create or attach a conversation.
+
+## User shell commands
+
+`_codex/shell/execute` accepts `{ sessionId, command, timeoutMs? }` and forwards to
+Codex `thread/shellCommand` on the existing connection after preparing the writable
+session. The adapter owns the `sessionId` to `threadId` translation. Initialization
+advertises `_meta.codex.shellCommand.version: 1`.
+
+The response acknowledges acceptance. Execution, output, interruption, completion
+and replay use the existing session updates and native thread history. The command
+runs in the thread directory through its configured shell, with Codex's user-shell
+semantics (full access, independent of the agent sandbox). Clients must offer an
+explicit shell input mode rather than treating ordinary prompts as commands.
+
+User-initiated command tool calls carry `_meta.codex.commandSource: "userShell"`
+on their initial and completed updates, including history replay. Clients can
+render these commands with their output visible instead of grouping them into
+model work disclosures. Other command sources keep their existing presentation.

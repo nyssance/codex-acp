@@ -5,18 +5,21 @@ import type {
     CommandExecutionStatus,
     ThreadItem,
 } from "../../app-server/v2";
-import {stripShellPrefix} from "../../CommandUtils";
-import {commandToolName} from "../../ToolCallName";
-import {textContent} from "../AcpToolCallRenderer";
-import type {PermissionToolFacts, ToolFacts} from "../ToolFacts";
-import {permissionProfileContent, permissionProfilePaths} from "./SandboxPermissionReporter";
-import {toTerminalToolStatus, toToolStatus} from "./ToolStatus";
+import { stripShellPrefix } from "../../CommandUtils";
+import { commandToolName } from "../../ToolCallName";
+import { textContent } from "../AcpToolCallRenderer";
+import type { PermissionToolFacts, ToolFacts } from "../ToolFacts";
+import {
+    permissionProfileContent,
+    permissionProfilePaths,
+} from "./SandboxPermissionReporter";
+import { toTerminalToolStatus, toToolStatus } from "./ToolStatus";
 
 type CommandPermissionParams = CommandExecutionRequestApprovalParams & {
     additionalPermissions?: AdditionalPermissionProfile | null;
 };
 
-type CommandItem = ThreadItem & {type: "commandExecution"};
+type CommandItem = ThreadItem & { type: "commandExecution" };
 
 /**
  * Reports a Codex command execution. The output of a command goes out once.
@@ -52,10 +55,21 @@ export class CommandReporter {
     /** A chunk of command output. AIR gets the output of a read, search or list command at the end. */
     outputDelta(itemId: string, delta: string): ToolFacts {
         if (delta.length > 0) this.standardStreamedCommands.add(itemId);
-        const standard = {commandOutput: {data: delta, terminal: this.terminalCommands.has(itemId)}};
-        if (this.nonTerminalCommands.has(itemId)) return {toolCallId: itemId, report: "update", standard};
+        const standard = {
+            commandOutput: {
+                data: delta,
+                terminal: this.terminalCommands.has(itemId),
+            },
+        };
+        if (this.nonTerminalCommands.has(itemId))
+            return { toolCallId: itemId, report: "update", standard };
         if (delta.length > 0) this.streamedCommands.add(itemId);
-        return {toolCallId: itemId, report: "update", terminalOutput: delta, standard};
+        return {
+            toolCallId: itemId,
+            report: "update",
+            terminalOutput: delta,
+            standard,
+        };
     }
 
     /**
@@ -64,9 +78,20 @@ export class CommandReporter {
      */
     terminalInput(itemId: string, stdin: string): ToolFacts {
         // Stdin is not output: a command that got stdin and no output chunk still sends its output at the end.
-        const standard = {commandOutput: {data: `\n${stdin}\n`, terminal: this.terminalCommands.has(itemId)}};
-        if (this.nonTerminalCommands.has(itemId)) return {toolCallId: itemId, report: "update", standard};
-        return {toolCallId: itemId, report: "update", terminalInput: stdin, standard};
+        const standard = {
+            commandOutput: {
+                data: `\n${stdin}\n`,
+                terminal: this.terminalCommands.has(itemId),
+            },
+        };
+        if (this.nonTerminalCommands.has(itemId))
+            return { toolCallId: itemId, report: "update", standard };
+        return {
+            toolCallId: itemId,
+            report: "update",
+            terminalInput: stdin,
+            standard,
+        };
     }
 
     /** Pass `withName` when the completion can be the first report of the tool call. */
@@ -76,6 +101,9 @@ export class CommandReporter {
         const facts = completionFacts(item, streamed, withName);
         return {
             ...facts,
+            ...(item.source === "userShell"
+                ? { commandSource: "userShell" as const }
+                : {}),
             standard: {
                 content: null,
                 commandEnd: {
@@ -93,46 +121,67 @@ export class CommandReporter {
      * A started command keeps its title, kind, status and locations, so the request repeats none of them.
      * A network request and additional permissions add their own title, locations and text.
      */
-    static permission(params: CommandPermissionParams, started: boolean, name?: string): PermissionToolFacts {
+    static permission(
+        params: CommandPermissionParams,
+        started: boolean,
+        name?: string,
+    ): PermissionToolFacts {
         const network = params.networkApprovalContext;
-        const networkUrl = network?.protocol === "http" || network?.protocol === "https"
-            ? `${network.protocol}://${network.host}`
-            : undefined;
+        const networkUrl =
+            network?.protocol === "http" || network?.protocol === "https"
+                ? `${network.protocol}://${network.host}`
+                : undefined;
         const input = {
-            ...(params.command ? {command: stripShellPrefix(params.command)} : {}),
-            ...(params.cwd ? {cwd: params.cwd} : {}),
-            ...(networkUrl ? {url: networkUrl} : {}),
-            ...(params.additionalPermissions ? {additionalPermissions: params.additionalPermissions} : {}),
+            ...(params.command
+                ? { command: stripShellPrefix(params.command) }
+                : {}),
+            ...(params.cwd ? { cwd: params.cwd } : {}),
+            ...(networkUrl ? { url: networkUrl } : {}),
+            ...(params.additionalPermissions
+                ? { additionalPermissions: params.additionalPermissions }
+                : {}),
         };
         const actions = params.commandActions ?? [];
         const permissionContent = params.additionalPermissions
             ? permissionProfileContent(params.additionalPermissions)
             : [];
         const content = [
-            ...(network ? [textContent(`${network.protocol} access to ${network.host}`)] : []),
+            ...(network
+                ? [textContent(`${network.protocol} access to ${network.host}`)]
+                : []),
             ...permissionContent,
         ];
         return {
             toolCallId: params.itemId,
-            ...(name === undefined ? {} : {name}),
-            ...(started ? {} : {kind: "execute" as const, status: "pending" as const}),
+            ...(name === undefined ? {} : { name }),
+            ...(started
+                ? {}
+                : { kind: "execute" as const, status: "pending" as const }),
             title: network
                 ? `${network.protocol} network access to ${network.host}`
-                : started ? startedCommandTitle(params, actions) : permissionTitle(actions),
-            ...(Object.keys(input).length > 0 ? {input} : {}),
-            locations: [...new Set([
-                ...(started ? [] : actionPaths(actions)),
-                ...permissionProfilePaths(params.additionalPermissions),
-            ])],
-            ...(content.length > 0 ? {result: content} : {}),
+                : started
+                  ? startedCommandTitle(params, actions)
+                  : permissionTitle(actions),
+            ...(Object.keys(input).length > 0 ? { input } : {}),
+            locations: [
+                ...new Set([
+                    ...(started ? [] : actionPaths(actions)),
+                    ...permissionProfilePaths(params.additionalPermissions),
+                ]),
+            ],
+            ...(content.length > 0 ? { result: content } : {}),
             standard: {
                 kind: "execute",
                 status: "pending",
-                title: network ? `${network.protocol} network access to ${network.host}` : permissionTitle(actions),
-                locations: [...new Set([
-                    ...actionPaths(actions),
-                    ...permissionProfilePaths(params.additionalPermissions),
-                ])],
+                title: network
+                    ? `${network.protocol} network access to ${network.host}`
+                    : permissionTitle(actions),
+                locations: [
+                    ...new Set([
+                        ...actionPaths(actions),
+                        ...permissionProfilePaths(params.additionalPermissions),
+                    ]),
+                ],
             },
         };
     }
@@ -141,34 +190,48 @@ export class CommandReporter {
     static history(item: CommandItem): ToolFacts[] {
         const start = startFacts(item);
         if (item.status === "inProgress") return [start];
-        return [start, {
-            ...completionFacts(item, false, false),
-            standard: {
-                content: null,
-                commandEnd: {
-                    output: item.aggregatedOutput ?? "",
-                    exitCode: item.exitCode,
-                    terminal: commandUsesTerminal(item),
-                    streamed: false,
+        return [
+            start,
+            {
+                ...completionFacts(item, false, false),
+                standard: {
+                    content: null,
+                    commandEnd: {
+                        output: item.aggregatedOutput ?? "",
+                        exitCode: item.exitCode,
+                        terminal: commandUsesTerminal(item),
+                        streamed: false,
+                    },
                 },
             },
-        }];
+        ];
     }
 }
 
 /** A shell command shows a terminal. A single read, search or list command does not. */
 export function commandUsesTerminal(item: CommandItem): boolean {
+    if (item.source === "userShell") return true;
     const action = singleAction(item.commandActions);
     return action === undefined || action.type === "unknown";
 }
 
-
 function startFacts(item: CommandItem): ToolFacts {
     const name = commandToolName(item.source);
-    const action = singleAction(item.commandActions);
+    const action =
+        item.source === "userShell"
+            ? undefined
+            : singleAction(item.commandActions);
     return {
-        ...commandActionFacts(item.id, item.status, item.cwd, action ?? {type: "unknown", command: item.command}),
-        ...(name === undefined ? {} : {name}),
+        ...commandActionFacts(
+            item.id,
+            item.status,
+            item.cwd,
+            action ?? { type: "unknown", command: item.command },
+        ),
+        ...(name === undefined ? {} : { name }),
+        ...(item.source === "userShell"
+            ? { commandSource: "userShell" as const }
+            : {}),
     };
 }
 
@@ -179,21 +242,40 @@ function commandActionFacts(
     cwd: string,
     action: CommandAction,
 ): ToolFacts {
-    const common = {toolCallId: id, report: "start" as const, status: toToolStatus(status)};
+    const common = {
+        toolCallId: id,
+        report: "start" as const,
+        status: toToolStatus(status),
+    };
     switch (action.type) {
         case "read":
-            return {...common, kind: "read", title: `Read file '${action.path}'`, locations: [action.path]};
+            return {
+                ...common,
+                kind: "read",
+                title: `Read file '${action.path}'`,
+                locations: [action.path],
+            };
         case "search":
-            return {...common, kind: "search", title: searchTitle(action.query, action.path)};
+            return {
+                ...common,
+                kind: "search",
+                title: searchTitle(action.query, action.path),
+            };
         case "listFiles":
-            return {...common, kind: "read", title: action.path ? `List files in '${action.path}'` : "List files"};
+            return {
+                ...common,
+                kind: "read",
+                title: action.path
+                    ? `List files in '${action.path}'`
+                    : "List files",
+            };
         case "unknown":
             return {
                 ...common,
                 kind: "execute",
                 title: stripShellPrefix(action.command),
-                input: {command: action.command, cwd},
-                terminal: {cwd},
+                input: { command: action.command, cwd },
+                terminal: { cwd },
             };
     }
 }
@@ -213,17 +295,19 @@ function completionFacts(
     const facts: ToolFacts = {
         toolCallId: item.id,
         report: "update",
-        ...(name === undefined ? {} : {name}),
+        ...(name === undefined ? {} : { name }),
         status: toTerminalToolStatus(item.status),
     };
     if (!commandUsesTerminal(item)) {
         const viewedFile = singleAction(item.commandActions)?.type === "read";
-        return output.length === 0 || viewedFile ? facts : {...facts, opaqueResult: output};
+        return output.length === 0 || viewedFile
+            ? facts
+            : { ...facts, opaqueResult: output };
     }
     return {
         ...facts,
-        ...(!streamed && output.length > 0 ? {terminalOutput: output} : {}),
-        terminalExit: {exitCode: item.exitCode},
+        ...(!streamed && output.length > 0 ? { terminalOutput: output } : {}),
+        terminalExit: { exitCode: item.exitCode },
     };
 }
 
@@ -239,11 +323,23 @@ export function searchTitle(query: string | null, path: string | null): string {
 }
 
 /** The title that the started tool call already shows. */
-function startedCommandTitle(params: CommandPermissionParams, actions: CommandAction[]): string {
-    const action = singleAction(actions) ?? (params.command ? {type: "unknown" as const, command: params.command} : undefined);
+function startedCommandTitle(
+    params: CommandPermissionParams,
+    actions: CommandAction[],
+): string {
+    const action =
+        singleAction(actions) ??
+        (params.command
+            ? { type: "unknown" as const, command: params.command }
+            : undefined);
     return action === undefined
         ? "Run command"
-        : commandActionFacts(params.itemId, "inProgress", params.cwd ?? "", action).title ?? "Run command";
+        : (commandActionFacts(
+              params.itemId,
+              "inProgress",
+              params.cwd ?? "",
+              action,
+          ).title ?? "Run command");
 }
 
 function permissionTitle(actions: CommandAction[]): string {
@@ -251,7 +347,9 @@ function permissionTitle(actions: CommandAction[]): string {
     if (!first) return "Run command";
     switch (first.type) {
         case "read":
-            return actions.length === 1 ? "Read file" : "Run command with file reads";
+            return actions.length === 1
+                ? "Read file"
+                : "Run command with file reads";
         case "listFiles":
             return "List files";
         case "search":
@@ -262,7 +360,7 @@ function permissionTitle(actions: CommandAction[]): string {
 }
 
 function actionPaths(actions: CommandAction[]): string[] {
-    return actions.flatMap(action => {
+    return actions.flatMap((action) => {
         switch (action.type) {
             case "read":
                 return [action.path];

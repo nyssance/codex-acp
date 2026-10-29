@@ -39,6 +39,9 @@
         }
       },
       "codex": {
+        "shellCommand": {
+          "version": 1
+        },
         "sessionHistory": {
           "version": 2,
           "items": true,

@@ -1262,7 +1262,10 @@ export class CodexAcpClient {
             request.mcpServers ?? [],
             route.gatewayId,
         );
-        const projectId = await projectsFor(this.codexClient).resolve(request.cwd, request._meta);
+        const projectId = await projectsFor(this.codexClient).resolve(
+            request.cwd,
+            request._meta,
+        );
         const response = await this.codexClient.threadStart({
             ...hostThreadOptions(
                 request._meta,
@@ -2062,10 +2065,16 @@ export class CodexAcpClient {
             });
             if (this.providerCatalog.hasGateway(thread.modelProvider)) {
                 return {
+                    ...(thread.model ? { model: thread.model } : {}),
                     gatewayId: thread.modelProvider,
                     modelProvider: thread.modelProvider,
                 };
             }
+            return {
+                ...(thread.model ? { model: thread.model } : {}),
+                gatewayId: null,
+                modelProvider: await this.getResumeModelProvider(),
+            };
         }
         return {
             gatewayId: null,

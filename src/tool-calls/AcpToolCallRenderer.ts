@@ -47,6 +47,9 @@ export class AcpToolCallRenderer {
         const meta = this.capabilities.airToolCallContract
             ? this.airMeta(facts)
             : this.standardMeta(facts);
+        if (facts.commandSource !== undefined) {
+            meta["codex"] = { commandSource: facts.commandSource };
+        }
         if (!this.capabilities.airToolCallContract) {
             applyStandardFields(rendered, facts.standard);
             const end = facts.standard?.commandEnd;

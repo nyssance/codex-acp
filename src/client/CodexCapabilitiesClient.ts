@@ -41,6 +41,12 @@ export interface CodexCapabilitiesConnection {
 
 /** Shared by U and TV. All session routing is explicit and subscriptions belong to this connection. */
 export class CodexCapabilitiesClient {
+    executeShell(
+        sessionId: string,
+        command: string,
+    ): Promise<Record<string, never>> {
+        return this.request("_codex/shell/execute", { sessionId, command });
+    }
     private readonly realtimeListeners = new Map<
         string,
         Set<(event: RealtimeEvent) => void>

@@ -1,5 +1,5 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type {ContextCompactionMetadata} from "../ContextCompactionMeta";
+import type { ContextCompactionMetadata } from "../ContextCompactionMeta";
 
 /**
  * What a `ToolReporter` knows about one report of a tool call, before the client shape is chosen.
@@ -13,6 +13,7 @@ export type ToolFacts = {
     report: "start" | "update";
     /** The programmatic tool name. */
     name?: string;
+    commandSource?: "userShell";
     kind?: acp.ToolKind;
     title?: string;
     status?: acp.ToolCallStatus;
@@ -33,13 +34,13 @@ export type ToolFacts = {
     /** A result that has no display form. */
     opaqueResult?: unknown;
     /** The tool call shows a terminal. The terminal id is the tool call id. Only a `start` report sets it. */
-    terminal?: {cwd: string};
+    terminal?: { cwd: string };
     /** Command output to append to the terminal. */
     terminalOutput?: string;
     /** Text that was written to the stdin of the command. */
     terminalInput?: string;
     /** The command ended. */
-    terminalExit?: {exitCode: number | null};
+    terminalExit?: { exitCode: number | null };
     mcp?: boolean;
     subagent?: boolean;
     contextCompaction?: ContextCompactionMetadata;
@@ -67,7 +68,7 @@ export type StandardToolCallFields = {
      * A chunk of command output, or the text written to the command stdin.
      * It goes to the output channel that the client declares, see `ClientCapabilities.terminalOutputKey`.
      */
-    commandOutput?: {data: string; terminal: boolean};
+    commandOutput?: { data: string; terminal: boolean };
     /** The end of a command: the output in `rawOutput.formatted_output`, the terminal output, and the exit. */
     commandEnd?: CommandEnd;
     /** MCP progress text to append in `_meta.mcp_output_delta`. AIR gets no MCP progress. */
@@ -88,7 +89,17 @@ export type CommandEnd = {
  * The tool call of a permission request. The client merges it into the stored tool call.
  * A reporter sets only `toolCallId`, `title`, `input`, and the facts that the client does not have yet.
  */
-export type PermissionToolFacts = Omit<ToolFacts, "report" | "terminal" | "terminalOutput" | "terminalInput"
-    | "terminalExit" | "standard"> & {
-    standard?: Omit<StandardToolCallFields, "commandOutput" | "commandEnd" | "mcpProgress">;
+export type PermissionToolFacts = Omit<
+    ToolFacts,
+    | "report"
+    | "terminal"
+    | "terminalOutput"
+    | "terminalInput"
+    | "terminalExit"
+    | "standard"
+> & {
+    standard?: Omit<
+        StandardToolCallFields,
+        "commandOutput" | "commandEnd" | "mcpProgress"
+    >;
 };

@@ -91,7 +91,9 @@ export class ResponsesProxy {
     private starting: Promise<void> | null = null;
     private closed = false;
 
-    constructor() {
+    constructor(
+        private readonly destination: "native" | "external" = "native",
+    ) {
         this.server = createServer((request, response) => {
             void this.forwardHttp(request, response).catch((error: unknown) => {
                 // Transport errors must not expose upstream URLs, headers or conversation content.
@@ -294,7 +296,10 @@ export class ResponsesProxy {
                           })
                         : bytes;
                 body = Buffer.from(
-                    compatibleResponsesRequest(decoded.toString("utf8")),
+                    compatibleResponsesRequest(
+                        decoded.toString("utf8"),
+                        this.destination,
+                    ),
                 );
             } catch {
                 response.writeHead(400).end("Invalid Responses request body");
@@ -441,7 +446,7 @@ export class ResponsesProxy {
             try {
                 const text = messageBytes(data).toString("utf8");
                 message = transformResponses
-                    ? compatibleResponsesRequest(text)
+                    ? compatibleResponsesRequest(text, this.destination)
                     : text;
             } catch {
                 downstream.close(1007, "Invalid Responses JSON");

@@ -938,6 +938,7 @@ export class CodexAcpServer {
                         configRevision: { version: 1 },
                     },
                     codex: {
+                        shellCommand: { version: 1 },
                         sessionHistory: {
                             version: 2,
                             items: true,
@@ -3416,9 +3417,9 @@ export class CodexAcpServer {
                 change(next);
                 const affected = [...this.sessions.values()].filter(
                     (session) => {
-                        const id = previous.gatewayIdFor(
-                            ModelId.fromString(session.currentModelId).model,
-                        );
+                        const id = previous.hasGateway(session.authProvider)
+                            ? session.authProvider
+                            : null;
                         return (
                             id !== null &&
                             previous.gateway(id) !== next.gateway(id)
@@ -3540,9 +3541,11 @@ export class CodexAcpServer {
         this.assertSessionWritable(session.sessionId);
         this.alwith.predictions.cancel(session.sessionId);
         const target = this.codexAcpClient.providerCatalog.gatewayIdFor(model);
-        const current = this.codexAcpClient.providerCatalog.gatewayIdFor(
-            ModelId.fromString(session.currentModelId).model,
-        );
+        const current = this.codexAcpClient.providerCatalog.hasGateway(
+            session.authProvider,
+        )
+            ? session.authProvider
+            : null;
         if (!force && target === current) return;
         if (
             this.isSessionBusy(session.sessionId) ||
@@ -3564,7 +3567,7 @@ export class CodexAcpServer {
                 );
             const client = this.codexAcpClient;
             const resume = (selection: string) =>
-                client.resumeSession(
+                this.codexAcpClient.resumeSession(
                     {
                         sessionId: session.sessionId,
                         cwd: session.cwd,
@@ -3608,11 +3611,72 @@ export class CodexAcpServer {
                     },
                 );
             }
-            await client.appServerClient.threadUnsubscribe({
-                threadId: session.sessionId,
-            });
+            let unloaded = false;
+            const release = client.appServerClient.onClientTransportEvent(
+                (event) => {
+                    if (
+                        event.eventType === "notification" &&
+                        event.method === "thread/status/changed" &&
+                        event.params.threadId === session.sessionId &&
+                        event.params.status.type === "notLoaded"
+                    )
+                        unloaded = true;
+                },
+            );
             try {
+                const detached = await client.appServerClient.threadUnsubscribe(
+                    { threadId: session.sessionId },
+                );
                 const metadata = await resume(model);
+                const expectedProvider =
+                    target ??
+                    (await client.getCurrentModelProvider()) ??
+                    "openai";
+                const ignoredOverrides =
+                    metadata.modelProvider !== expectedProvider ||
+                    (detached.status !== "notLoaded" &&
+                        !unloaded &&
+                        (
+                            await client.appServerClient.threadRead({
+                                threadId: session.sessionId,
+                            })
+                        ).thread.status.type === "systemError");
+                if (ignoredOverrides) {
+                    if (
+                        [...this.sessions.values()].some(
+                            (other) =>
+                                other !== session &&
+                                this.isSessionBusy(other.sessionId) &&
+                                !this.activePrompts.has(other.sessionId),
+                        )
+                    ) {
+                        throw RequestError.invalidRequest(
+                            undefined,
+                            "Wait for background turns before rebuilding the failed session connection",
+                        );
+                    }
+                    // Failed native threads can remain cached and silently ignore all resume overrides.
+                    const replacement = this.replaceProviderConnection(
+                        () => {},
+                        new Map([[session.sessionId, model]]),
+                    );
+                    if (this.providerUpdate === null) {
+                        this.providerUpdate = replacement;
+                        this.recovery?.settleReplacement(replacement);
+                    }
+                    try {
+                        await replacement;
+                    } finally {
+                        if (this.providerUpdate === replacement)
+                            this.providerUpdate = null;
+                    }
+                    const auth =
+                        await this.getAuthStateForProvider(expectedProvider);
+                    session.authProvider = expectedProvider;
+                    session.account = auth.account;
+                    session.authConfigured = auth.authConfigured;
+                    return;
+                }
                 if (!this.sessionPublishIsCurrent(session, generation)) {
                     await client.appServerClient.threadUnsubscribe({
                         threadId: session.sessionId,
@@ -3629,9 +3693,10 @@ export class CodexAcpServer {
                 session.authConfigured = auth.authConfigured;
             } catch (error) {
                 if (this.sessionPublishIsCurrent(session, generation)) {
-                    const failedRouting = client.providerCatalog;
+                    const rollbackClient = this.codexAcpClient;
+                    const failedRouting = rollbackClient.providerCatalog;
                     try {
-                        client.providerCatalog = rollbackRouting;
+                        rollbackClient.providerCatalog = rollbackRouting;
                         await resume(
                             ModelId.fromString(session.currentModelId).model,
                         );
@@ -3644,13 +3709,15 @@ export class CodexAcpServer {
                             "Provider selection and rollback failed; session closed",
                         );
                     } finally {
-                        client.providerCatalog = failedRouting;
+                        rollbackClient.providerCatalog = failedRouting;
                     }
                 }
                 throw RequestError.internalError(
                     { sessionId: session.sessionId },
                     `Could not change the session provider: ${error instanceof Error ? error.message : String(error)}`,
                 );
+            } finally {
+                release();
             }
         } finally {
             reservation.release();
@@ -3662,178 +3729,9 @@ export class CodexAcpServer {
     ): Promise<void> {
         const previous =
             this.providerUpdate?.catch(() => undefined) ?? Promise.resolve();
-        const update = previous.then(async () => {
-            if (this.sessions.size === 0) {
-                return;
-            }
-
-            const activePrompts = [...this.activePrompts.values()].map(
-                (prompt) => prompt.completion,
-            );
-            if (activePrompts.length > 0) {
-                logger.log(
-                    "Waiting for active prompts before provider restart",
-                    { count: activePrompts.length },
-                );
-                await Promise.all(activePrompts);
-            }
-
-            logger.log("Restarting Codex app-server for provider update", {
-                sessionCount: this.sessions.size,
-            });
-            for (const session of this.sessions.values()) {
-                session.asyncTasks.prepareForAppServerReplacement();
-            }
-            await this.finishAllAsyncTasks(
-                "stopped",
-                "before the provider restart",
-            );
-            const replacement = await this.restartCodexClient();
-            // Captured before the swap: draining its per-session queues below (after the process
-            // it wraps has already exited) is how a turn left running on the old client gets
-            // closed out, since the old process's EOF drops the notification and no
-            // `turn/completed` ever arrives for it.
-            const previousClient = this.codexAcpClient;
-            apply(replacement);
-            if (this.initializeRequest === null) {
-                throw new Error(
-                    "Cannot restart Codex app-server before ACP initialization",
-                );
-            }
-            await replacement.initialize(this.initializeRequest);
-            this.codexAcpClient = replacement;
-            this.sessionIndex.observe(replacement);
-            if (this.protocolVersion === 2) this.alwith.observe();
-            this.bindClientTools();
-            this.availableCommands = this.createAvailableCommands(replacement);
-
-            const resumeErrors: unknown[] = [];
-            this.recovery?.completeReplacement(replacement);
-            const replacementGeneration = this.recovery?.generation ?? 0;
-            for (const session of this.sessions.values()) {
-                // v2 only: a turn still running when the old process was killed never gets its
-                // `turn/completed` -- the old process's EOF just drops the notification -- which
-                // would otherwise leave the session wedged at `running` forever (an R13 MUST
-                // violation) and `isSessionBusy` stuck true. Drain the old client's queue first so
-                // an already-buffered `turn/completed` still clears this normally; only a turn
-                // genuinely orphaned by the restart gets force-closed. No-op on v1 (no state
-                // channel) and while a v2 prompt is in flight for the session (its own `idle`
-                // closes the state). This must happen before this session's tracker is registered
-                // and it's resumed: Codex can auto-start a continuation turn within a few ms of
-                // `thread/resume`'s response, and that turn's own `running` would otherwise be
-                // mistaken for the cut-off one and cancelled instead.
-                await previousClient.waitForSessionNotifications(
-                    session.sessionId,
-                );
-                if (session.codexReportedRunningTurnId !== null) {
-                    session.codexReportedRunningTurnId = null;
-                    // the dead process's EOF drops `item/completed` for anything still open on
-                    // the cut-off turn (v1 + v2), leaving the client with a spinner forever. Fail
-                    // those tool calls -- and end their terminals -- before the turn's own
-                    // idle/cancelled close-out below.
-                    await this.finishOutstandingToolCalls(session);
-                    await this.reportCodexTurnState(session.sessionId, {
-                        state: "idle",
-                        stopReason: "cancelled",
-                    });
-                }
-
-                session.asyncTasks.setAppServer(replacement.appServerClient);
-                session.titleGen?.rebindAppServer(replacement.appServerClient);
-                if (replacement.appServerClient.connectionLoss.lost) {
-                    // The new app-server died: the next use of each session resumes it in the restarted one.
-                    break;
-                }
-                // Registered before `resumeSession`, so a goal turn Codex auto-starts within a
-                // few ms of `thread/resume`'s response can't slip past an empty subscription
-                // registry on the new client (10(f1) `startCodexTurnTracker`).
-                const [trackerReady, settleTrackerReady] =
-                    createDeferred<SessionState | null>();
-                this.startCodexTurnTracker(session.sessionId, trackerReady);
-                try {
-                    const request = {
-                        sessionId: session.sessionId,
-                        cwd: session.cwd,
-                        additionalDirectories: session.additionalDirectories,
-                        mcpServers: session.mcpServers ?? [],
-                    };
-                    let resumed: SessionMetadata | null = null;
-                    const resume = async (onSubscribed?: () => void) => {
-                        resumed =
-                            onSubscribed === undefined
-                                ? await replacement.resumeSession(
-                                      request,
-                                      undefined,
-                                      session.instructions,
-                                  )
-                                : await replacement.resumeSession(
-                                      request,
-                                      onSubscribed,
-                                      session.instructions,
-                                  );
-                        return resumed;
-                    };
-                    await (this.recovery?.resumeForReplacement(
-                        session,
-                        replacementGeneration,
-                        replacement,
-                        resume,
-                    ) ?? resume());
-                    session.authProvider = replacement.getModelProvider();
-                    session.asyncTasks.refresh();
-                    settleTrackerReady(session);
-                    logger.log("Resumed session after provider restart", {
-                        sessionId: session.sessionId,
-                    });
-                    if (resumed)
-                        await this.applyResumedModels(
-                            session,
-                            replacement,
-                            resumed,
-                        );
-                } catch (error) {
-                    settleTrackerReady(null);
-                    if (
-                        error instanceof ThreadRefusedError ||
-                        error instanceof SessionReplacedError ||
-                        error instanceof UnpersistedSessionLostError
-                    ) {
-                        // A refused session stays not live and its next use reports the refusal; a session that closed
-                        // or opened again meanwhile needs no resume; a session without messages was never persisted,
-                        // so no app-server can resume it, and its next use reports the loss. None of them fails the
-                        // provider update, which applied to the agent and to every session that can go on.
-                        logger.log(
-                            "Session not resumed after provider restart",
-                            {
-                                sessionId: session.sessionId,
-                                reason: String(error),
-                            },
-                        );
-                        continue;
-                    }
-                    resumeErrors.push(
-                        this.recovery?.mapError(error, replacement) ?? error,
-                    );
-                    logger.error(
-                        `Failed to resume session ${session.sessionId} after provider restart`,
-                        error,
-                    );
-                }
-            }
-            if (
-                this.recovery !== null &&
-                !this.recovery.isReady(replacementGeneration)
-            ) {
-                // The new app-server died: report its exit, so requests that waited for the update restart it.
-                throw this.recovery.errorForGeneration(replacementGeneration);
-            }
-            if (resumeErrors.length > 0) {
-                throw new AggregateError(
-                    resumeErrors,
-                    `Failed to resume ${resumeErrors.length} session(s) after provider restart`,
-                );
-            }
-        });
+        const update = previous.then(() =>
+            this.replaceProviderConnection(apply),
+        );
         this.providerUpdate = update;
         this.recovery?.settleReplacement(update);
         try {
@@ -3844,6 +3742,188 @@ export class CodexAcpServer {
             if (this.providerUpdate === update) {
                 this.providerUpdate = null;
             }
+        }
+    }
+
+    private async replaceProviderConnection(
+        apply: (client: CodexAcpClient) => void,
+        selections: ReadonlyMap<string, string> = new Map(),
+    ): Promise<void> {
+        if (this.sessions.size === 0) {
+            return;
+        }
+
+        const activePrompts = [...this.activePrompts.values()].map(
+            (prompt) => prompt.completion,
+        );
+        if (activePrompts.length > 0) {
+            logger.log("Waiting for active prompts before provider restart", {
+                count: activePrompts.length,
+            });
+            await Promise.all(activePrompts);
+        }
+
+        logger.log("Restarting Codex app-server for provider update", {
+            sessionCount: this.sessions.size,
+        });
+        for (const session of this.sessions.values()) {
+            session.asyncTasks.prepareForAppServerReplacement();
+        }
+        await this.finishAllAsyncTasks(
+            "stopped",
+            "before the provider restart",
+        );
+        const replacement = await this.restartCodexClient();
+        // Captured before the swap: draining its per-session queues below (after the process
+        // it wraps has already exited) is how a turn left running on the old client gets
+        // closed out, since the old process's EOF drops the notification and no
+        // `turn/completed` ever arrives for it.
+        const previousClient = this.codexAcpClient;
+        apply(replacement);
+        if (this.initializeRequest === null) {
+            throw new Error(
+                "Cannot restart Codex app-server before ACP initialization",
+            );
+        }
+        await replacement.initialize(this.initializeRequest);
+        this.codexAcpClient = replacement;
+        this.sessionIndex.observe(replacement);
+        if (this.protocolVersion === 2) this.alwith.observe();
+        this.bindClientTools();
+        this.availableCommands = this.createAvailableCommands(replacement);
+
+        const resumeErrors: unknown[] = [];
+        this.recovery?.completeReplacement(replacement);
+        const replacementGeneration = this.recovery?.generation ?? 0;
+        for (const session of this.sessions.values()) {
+            // v2 only: a turn still running when the old process was killed never gets its
+            // `turn/completed` -- the old process's EOF just drops the notification -- which
+            // would otherwise leave the session wedged at `running` forever (an R13 MUST
+            // violation) and `isSessionBusy` stuck true. Drain the old client's queue first so
+            // an already-buffered `turn/completed` still clears this normally; only a turn
+            // genuinely orphaned by the restart gets force-closed. No-op on v1 (no state
+            // channel) and while a v2 prompt is in flight for the session (its own `idle`
+            // closes the state). This must happen before this session's tracker is registered
+            // and it's resumed: Codex can auto-start a continuation turn within a few ms of
+            // `thread/resume`'s response, and that turn's own `running` would otherwise be
+            // mistaken for the cut-off one and cancelled instead.
+            await previousClient.waitForSessionNotifications(session.sessionId);
+            if (session.codexReportedRunningTurnId !== null) {
+                session.codexReportedRunningTurnId = null;
+                // the dead process's EOF drops `item/completed` for anything still open on
+                // the cut-off turn (v1 + v2), leaving the client with a spinner forever. Fail
+                // those tool calls -- and end their terminals -- before the turn's own
+                // idle/cancelled close-out below.
+                await this.finishOutstandingToolCalls(session);
+                await this.reportCodexTurnState(session.sessionId, {
+                    state: "idle",
+                    stopReason: "cancelled",
+                });
+            }
+
+            session.asyncTasks.setAppServer(replacement.appServerClient);
+            session.titleGen?.rebindAppServer(replacement.appServerClient);
+            if (replacement.appServerClient.connectionLoss.lost) {
+                // The new app-server died: the next use of each session resumes it in the restarted one.
+                break;
+            }
+            // Registered before `resumeSession`, so a goal turn Codex auto-starts within a
+            // few ms of `thread/resume`'s response can't slip past an empty subscription
+            // registry on the new client (10(f1) `startCodexTurnTracker`).
+            const [trackerReady, settleTrackerReady] =
+                createDeferred<SessionState | null>();
+            this.startCodexTurnTracker(session.sessionId, trackerReady);
+            try {
+                const request = {
+                    sessionId: session.sessionId,
+                    cwd: session.cwd,
+                    additionalDirectories: session.additionalDirectories,
+                    mcpServers: session.mcpServers ?? [],
+                    _meta: {
+                        alwith: {
+                            model:
+                                selections.get(session.sessionId) ??
+                                ModelId.fromString(session.currentModelId)
+                                    .model,
+                        },
+                    },
+                };
+                let resumed: SessionMetadata | null = null;
+                const resume = async (onSubscribed?: () => void) => {
+                    resumed =
+                        onSubscribed === undefined
+                            ? await replacement.resumeSession(
+                                  request,
+                                  undefined,
+                                  session.instructions,
+                              )
+                            : await replacement.resumeSession(
+                                  request,
+                                  onSubscribed,
+                                  session.instructions,
+                              );
+                    return resumed;
+                };
+                await (this.recovery?.resumeForReplacement(
+                    session,
+                    replacementGeneration,
+                    replacement,
+                    resume,
+                ) ?? resume());
+                session.authProvider =
+                    replacement.providerCatalog.gatewayIdFor(
+                        selections.get(session.sessionId) ??
+                            ModelId.fromString(session.currentModelId).model,
+                    ) ?? replacement.getModelProvider();
+                session.asyncTasks.refresh();
+                settleTrackerReady(session);
+                logger.log("Resumed session after provider restart", {
+                    sessionId: session.sessionId,
+                });
+                if (resumed)
+                    await this.applyResumedModels(
+                        session,
+                        replacement,
+                        resumed,
+                    );
+            } catch (error) {
+                settleTrackerReady(null);
+                if (
+                    error instanceof ThreadRefusedError ||
+                    error instanceof SessionReplacedError ||
+                    error instanceof UnpersistedSessionLostError
+                ) {
+                    // A refused session stays not live and its next use reports the refusal; a session that closed
+                    // or opened again meanwhile needs no resume; a session without messages was never persisted,
+                    // so no app-server can resume it, and its next use reports the loss. None of them fails the
+                    // provider update, which applied to the agent and to every session that can go on.
+                    logger.log("Session not resumed after provider restart", {
+                        sessionId: session.sessionId,
+                        reason: String(error),
+                    });
+                    continue;
+                }
+                resumeErrors.push(
+                    this.recovery?.mapError(error, replacement) ?? error,
+                );
+                logger.error(
+                    `Failed to resume session ${session.sessionId} after provider restart`,
+                    error,
+                );
+            }
+        }
+        if (
+            this.recovery !== null &&
+            !this.recovery.isReady(replacementGeneration)
+        ) {
+            // The new app-server died: report its exit, so requests that waited for the update restart it.
+            throw this.recovery.errorForGeneration(replacementGeneration);
+        }
+        if (resumeErrors.length > 0) {
+            throw new AggregateError(
+                resumeErrors,
+                `Failed to resume ${resumeErrors.length} session(s) after provider restart`,
+            );
         }
     }
 
@@ -5057,7 +5137,17 @@ export class CodexAcpServer {
     } {
         return {
             ...(sessionState.lineage !== undefined
-                ? { _meta: { codex: { projectId: sessionState.lineage.projectId ?? null, ...(sessionState.lineage.forkedAtTurnId !== undefined ? sessionState.lineage : {}) } } }
+                ? {
+                      _meta: {
+                          codex: {
+                              projectId: sessionState.lineage.projectId ?? null,
+                              ...(sessionState.lineage.forkedAtTurnId !==
+                              undefined
+                                  ? sessionState.lineage
+                                  : {}),
+                          },
+                      },
+                  }
                 : {}),
             ...(this.isSessionConfigEnabled()
                 ? {
@@ -5314,9 +5404,15 @@ export class CodexAcpServer {
         // The account read can wait for a network call of the app-server, so it runs while
         // `thread/resume` reads the rollout. A login with the default auth request can change
         // the provider of the resume, so the login keeps the order.
-        const authorization = this.defaultAuthRequest
-            ? Promise.resolve(await this.checkAuthorization())
-            : this.checkAuthorization();
+        const gatewayRequested =
+            this.codexAcpClient.providerCatalog.active !== null &&
+            (await this.codexAcpClient.sessionRoute(request)).gatewayId !==
+                null;
+        const authorization = gatewayRequested
+            ? Promise.resolve(null)
+            : this.defaultAuthRequest
+              ? Promise.resolve(await this.checkAuthorization())
+              : this.checkAuthorization();
         // The load awaits the result below. This stops an unhandled rejection while `thread/resume` runs.
         authorization.catch(() => {});
         const requestedMcpServers = request.mcpServers ?? [];

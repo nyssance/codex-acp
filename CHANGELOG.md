@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.44 (2026-10-29)
+
+- Keep model-provider routing tied to the native session connection and recover failed threads that ignore provider overrides.
+- Normalize reasoning history when switching between native and external Responses providers.
+- Expose native shell commands and preserve user-shell command metadata in live updates and history replay.
+
 ## 0.7.42 (2026-10-28)
 
 - Accept `openai/form` and `openaiForm` MCP elicitation aliases as structured forms instead of silently cancelling them.

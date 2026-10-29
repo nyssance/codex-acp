@@ -7,6 +7,7 @@ export const CODEX_NATIVE_METHODS = {
     "_codex/import/detect": "externalAgentConfig/detect",
     "_codex/import/run": "externalAgentConfig/import",
     "_codex/import/history": "externalAgentConfig/import/readHistories",
+    "_codex/shell/execute": "thread/shellCommand",
     "_codex/realtime/start": "thread/realtime/start",
     "_codex/realtime/appendAudio": "thread/realtime/appendAudio",
     "_codex/realtime/appendText": "thread/realtime/appendText",
@@ -69,8 +70,9 @@ export async function requestCodexNative(
 ): Promise<unknown> {
     const target = CODEX_NATIVE_METHODS[method];
     if (
-        target.startsWith("thread/realtime/") &&
-        target !== "thread/realtime/listVoices"
+        target === "thread/shellCommand" ||
+        (target.startsWith("thread/realtime/") &&
+            target !== "thread/realtime/listVoices")
     ) {
         const { sessionId, threadId, ...data } = params;
         if (
