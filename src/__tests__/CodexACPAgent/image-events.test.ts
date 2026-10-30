@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionState } from "../../CodexAcpServer";
 import type { ServerNotification } from "../../app-server";
-import { createCodexMockTestFixture, createTestSessionState, setupPromptAndSendNotifications, type CodexMockTestFixture } from "../acp-test-utils";
+import {
+    createCodexMockTestFixture,
+    createTestSessionState,
+    setupPromptAndSendNotifications,
+    type CodexMockTestFixture,
+} from "../acp-test-utils";
 import { AgentMode } from "../../AgentMode";
 
 describe("CodexEventHandler - image events", () => {
@@ -29,6 +34,7 @@ describe("CodexEventHandler - image events", () => {
                     startedAtMs: 0,
                     item: {
                         type: "imageGeneration",
+                        generationId: null,
                         id: "image-generation-1",
                         status: "generating",
                         revisedPrompt: null,
@@ -45,6 +51,7 @@ describe("CodexEventHandler - image events", () => {
                     completedAtMs: 0,
                     item: {
                         type: "imageGeneration",
+                        generationId: null,
                         id: "image-generation-1",
                         status: "generating",
                         revisedPrompt: "A tiny blue square",
@@ -56,10 +63,15 @@ describe("CodexEventHandler - image events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/image-generation-flow.json"
+            "data/image-generation-flow.json",
         );
     });
 
@@ -72,6 +84,7 @@ describe("CodexEventHandler - image events", () => {
                 completedAtMs: 0,
                 item: {
                     type: "imageGeneration",
+                    generationId: null,
                     id: "image-generation-completed-only",
                     status: "generating",
                     revisedPrompt: null,
@@ -81,10 +94,15 @@ describe("CodexEventHandler - image events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [completed]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [completed],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/image-generation-completed-only.json"
+            "data/image-generation-completed-only.json",
         );
     });
 
@@ -115,10 +133,15 @@ describe("CodexEventHandler - image events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/view-image-flow.json"
+            "data/view-image-flow.json",
         );
     });
 });

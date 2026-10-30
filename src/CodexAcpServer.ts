@@ -40,8 +40,10 @@ import {
     desktopAttachmentHistory,
 } from "./DesktopAttachmentHistory";
 import { CodexApprovalHandler } from "./permissions/CodexApprovalHandler";
+import { isRecord } from "./permissions/json";
 import { PermissionLifecycleContext } from "./permissions/lifecycle";
 import { CodexElicitationHandler } from "./CodexElicitationHandler";
+import { renderFileCitations } from "./CodexFileCitations";
 import {
     type CodexAuthRequest,
     getCodexAuthMethods,
@@ -64,6 +66,7 @@ import {
     OPENAI_PROVIDER_ID,
     type SessionMetadata,
     type SessionMetadataWithThread,
+    type RecordedSubagentEntry,
     type UrlElicitationRequester,
 } from "./CodexAcpClient";
 import {
@@ -120,6 +123,7 @@ import {
     isInsertedUserMessage,
     postInsertionFailureText,
     toV1PromptRequest,
+    assertPromptContentSupported,
     toV2Failure,
     toV2IdleState,
     type UserMessageInsertion,
@@ -229,6 +233,11 @@ import packageJson from "../package.json";
 import { isJetBrains2026_1Client } from "./JBUtils";
 import { clientSupportsNotices } from "./SessionNotice";
 import {
+    AsyncQuestionClient,
+    AsyncQuestionElicitations,
+    renderAsyncQuestionReply,
+} from "./CodexAsyncQuestions";
+import {
     createAgentTextMessageChunk,
     createAgentTextThoughtChunk,
     createMessagePhaseMeta,
@@ -241,11 +250,23 @@ import {
     toThreadGoalSnapshot,
 } from "./ThreadGoalSnapshot";
 import {
-    clientSupportsSubagents,
+    subagentProtocol,
     type SubagentAwareSessionCapabilities,
 } from "./subagents/AcpSubagents";
-import { CodexSubagentEventRouter } from "./subagents/CodexSubagentEventRouter";
-import { nameFromAgentPath } from "./subagents/CodexAgentPath";
+import {
+    CodexSubagentEventRouter,
+    reportSubagentModel,
+    type SubagentModels,
+} from "./subagents/CodexSubagentEventRouter";
+import { isRootAgentPath, nameFromAgentPath } from "./subagents/CodexAgentPath";
+import { StandardSubagentEventRouter } from "./subagents/StandardSubagentEventRouter";
+import { SubagentAssociations } from "./subagents/SubagentAssociations";
+import { SubagentInteractionHandlers } from "./subagents/SubagentInteractionHandlers";
+import type { SubagentEventRouter } from "./subagents/SubagentEventRouter";
+import {
+    subagentConfigurationOptions,
+    type ObservedSubagentConfiguration,
+} from "./subagents/SubagentConfiguration";
 import {
     listCodexHooks,
     trustCodexHooks,
@@ -262,6 +283,11 @@ import {
 } from "./AuthStatusMeta";
 import { randomUUID } from "node:crypto";
 import { TitleGenerator } from "./TitleGenerator";
+import {
+    PromptSuggestionGenerator,
+    promptSuggestionsEnabled,
+    promptSuggestionsMeta,
+} from "./PromptSuggestionGenerator";
 import { once } from "node:events";
 import {
     AIR_AGENT_FILE_CHANGE_REPORT_KEY,
@@ -357,7 +383,10 @@ export interface SessionState extends SessionIndexTitleState {
     sessionTitleSource: "unset" | "fallback" | "explicit" | "unknown";
     sessionFailure?: SessionFailure;
     titleGen?: TitleGenerator;
-    subagents: CodexSubagentEventRouter;
+    /** Predicts the follow-up prompt of a finished turn; set for AIR clients only. */
+    promptSuggestions?: PromptSuggestionGenerator | undefined;
+    subagents: SubagentEventRouter;
+    subagentTransition?: Promise<void>;
     asyncTasks: CodexBackgroundTerminalTasks;
     compactions: CodexSessionCompactions;
     toolCallReports: ToolCallReports;
@@ -668,6 +697,11 @@ export class CodexAcpServer {
     private authStatusVersion = 0;
 
     private readonly sessions: Map<string, SessionState>;
+    private readonly subagentAssociations = new SubagentAssociations();
+    private readonly subagentInteractionHandlers = new WeakMap<
+        StandardSubagentEventRouter,
+        SubagentInteractionHandlers
+    >();
     private readonly mcpSessionStartup: McpSessionStartup;
     private readonly pendingTurnStarts: Map<string, PendingTurnStart>;
     private readonly activePrompts: Map<string, ActivePrompt>;
@@ -677,6 +711,11 @@ export class CodexAcpServer {
         { promise: Promise<void>; settled: boolean }
     >;
     private readonly steeringQueues: Map<string, SteeringQueue>;
+    /** The async questions of each session, shown while the turn that asked them runs. */
+    private readonly asyncQuestions = new Map<
+        string,
+        AsyncQuestionElicitations
+    >();
     /**
      * Steers awaiting their `userMessage` landing, keyed by the minted `clientUserMessageId`
      * passed to `turn/steer`. Used only to show a v2 live `user_message` when a steer injected
@@ -771,11 +810,13 @@ export class CodexAcpServer {
             connection.setTurnRunningCheck((sessionId) =>
                 this.isSessionBusy(sessionId),
             );
-            connection.setConfigRevisionSource(
-                (id) =>
-                    this.configSnapshot(this.getSessionState(id))
-                        .configRevision,
-            );
+            connection.setConfigRevisionSource((id) => {
+                // Native child configuration is a read-only upstream snapshot, not an ALwith selection.
+                const session = this.sessions.get(id);
+                return session
+                    ? this.configSnapshot(session).configRevision
+                    : null;
+            });
         } else {
             this.protocolVersion = 1;
             this.v2Connection = null;
@@ -826,6 +867,262 @@ export class CodexAcpServer {
             () => this.refreshAuthState(null),
             this.mcpServerSignIn,
         );
+    }
+
+    usesStandardSubagents(): boolean {
+        return (
+            subagentProtocol(this.clientCapabilities, this.protocolVersion) ===
+            "standard"
+        );
+    }
+
+    private supportsNativeSubagents(): boolean {
+        return (
+            subagentProtocol(this.clientCapabilities, this.protocolVersion) !==
+            "hidden"
+        );
+    }
+
+    private createSubagentRouter(
+        sessionId: string,
+        replay = false,
+    ): SubagentEventRouter {
+        const existing = this.sessions.get(sessionId)?.subagents;
+        if (
+            this.usesStandardSubagents() &&
+            existing instanceof StandardSubagentEventRouter &&
+            !existing.isRetired()
+        )
+            return existing;
+        const session = new ACPSessionConnection(this.connection, sessionId);
+        const release = (id: string) =>
+            this.reportingConnection.reports.releaseOpen(id);
+        const models = () => {
+            const state = this.sessions.get(sessionId);
+            return state ? this.subagentModels(state) : null;
+        };
+        const router = this.usesStandardSubagents()
+            ? new StandardSubagentEventRouter(
+                  sessionId,
+                  session,
+                  this.subagentAssociations,
+                  release,
+                  this.capabilities,
+                  replay,
+                  this.sessions.get(sessionId)?.subagentTransition,
+                  (id) => this.codexAcpClient.appServerClient.runningTurnId(id),
+                  models,
+                  {
+                      read: (id, parent) =>
+                          this.readSubagentConfiguration(id, parent),
+                      enqueuePublication: (publish) =>
+                          this.codexAcpClient.enqueueSessionTransition(
+                              sessionId,
+                              publish,
+                          ),
+                  },
+              )
+            : new CodexSubagentEventRouter(
+                  sessionId,
+                  this.supportsNativeSubagents(),
+                  session,
+                  release,
+                  models,
+              );
+        if (router instanceof StandardSubagentEventRouter)
+            this.getSubagentInteractionHandlers(router, sessionId);
+        return router;
+    }
+
+    private async readSubagentConfiguration(
+        threadId: string,
+        parentThreadId: string,
+    ): Promise<ObservedSubagentConfiguration | null> {
+        const { thread } = await this.codexAcpClient.appServerClient.threadRead(
+            { threadId },
+        );
+        if (
+            thread?.id !== threadId ||
+            thread.parentThreadId !== parentThreadId ||
+            thread.status.type === "notLoaded"
+        )
+            return null;
+        return { model: thread.model, effort: thread.reasoningEffort };
+    }
+
+    private getSubagentInteractionHandlers(
+        router: StandardSubagentEventRouter,
+        rootSessionId: string,
+    ): SubagentInteractionHandlers {
+        const existing = this.subagentInteractionHandlers.get(router);
+        if (existing) return existing;
+        const handlers = new SubagentInteractionHandlers(
+            this.connection,
+            rootSessionId,
+            this.clientCapabilities,
+            new AcpToolCallRenderer(this.capabilities),
+        );
+        router.setInteractionObserver((event, id) =>
+            handlers.observe(event, id),
+        );
+        this.subagentInteractionHandlers.set(router, handlers);
+        return handlers;
+    }
+
+    private childInteractions(
+        sessionId: string,
+    ):
+        | { approvals: ApprovalHandler; elicitations: ElicitationHandler }
+        | undefined {
+        const association = this.subagentAssociations.get(sessionId);
+        if (!association) return undefined;
+        const router = this.sessions.get(association.rootSessionId)?.subagents;
+        return router instanceof StandardSubagentEventRouter &&
+            !router.isRetired()
+            ? this.getSubagentInteractionHandlers(
+                  router,
+                  association.rootSessionId,
+              )
+            : {
+                  approvals: DENY_ALL_APPROVALS,
+                  elicitations: DENY_ALL_ELICITATIONS,
+              };
+    }
+
+    private routeChildApprovals(fallback: ApprovalHandler): ApprovalHandler {
+        return {
+            handleCommandExecution: (params) =>
+                (
+                    this.childInteractions(params.threadId)?.approvals ??
+                    fallback
+                ).handleCommandExecution(params),
+            handleFileChange: (params) =>
+                (
+                    this.childInteractions(params.threadId)?.approvals ??
+                    fallback
+                ).handleFileChange(params),
+            handlePermissionsRequest: (params) =>
+                (
+                    this.childInteractions(params.threadId)?.approvals ??
+                    fallback
+                ).handlePermissionsRequest(params),
+        };
+    }
+
+    private routeChildElicitations(
+        fallback: ElicitationHandler,
+    ): ElicitationHandler {
+        return {
+            handleElicitation: (params) =>
+                (
+                    this.childInteractions(params.threadId)?.elicitations ??
+                    fallback
+                ).handleElicitation(params),
+            handleUserInput: (params) =>
+                (
+                    this.childInteractions(params.threadId)?.elicitations ??
+                    fallback
+                ).handleUserInput(params),
+        };
+    }
+
+    assertSessionMutationAllowed(sessionId: string): void {
+        if (this.isRestrictedChild(sessionId)) {
+            throw RequestError.invalidRequest(
+                undefined,
+                "Subagent sessions do not permit client-initiated mutations",
+            );
+        }
+    }
+
+    private isRestrictedChild(sessionId: string): boolean {
+        return (
+            this.subagentAssociations.isRestricted(sessionId) ||
+            (this.usesStandardSubagents() &&
+                this.codexAcpClient.isSubagentThread(sessionId))
+        );
+    }
+
+    captureSessionSetup(sessionId: string): () => void {
+        const router = this.sessions.get(sessionId)?.subagents;
+        if (router instanceof StandardSubagentEventRouter)
+            router.suspendCancellation();
+        const generation = this.getSessionGeneration(sessionId);
+        const check = () => {
+            this.assertInstructionsReady(sessionId);
+            if (
+                this.sessionIsClosing(sessionId) ||
+                this.getSessionGeneration(sessionId) !== generation
+            ) {
+                throw RequestError.invalidRequest(
+                    undefined,
+                    "Session closed while setup was queued",
+                );
+            }
+        };
+        check();
+        return check;
+    }
+
+    afterSessionSetupResponse(sessionId: string): Promise<void> {
+        const router = this.sessions.get(sessionId)?.subagents;
+        if (
+            !(router instanceof StandardSubagentEventRouter) ||
+            this.sessionIsClosing(sessionId)
+        )
+            return Promise.resolve();
+        this.codexAcpClient.redispatchSessionNotifications(
+            sessionId,
+            router.releaseReplay(),
+            () => router.publishReplaySnapshots(),
+        );
+        return this.codexAcpClient
+            .waitForSessionNotifications(sessionId)
+            .catch((error) => {
+                logger.error(
+                    "Failed to release child traffic after session setup",
+                    error,
+                );
+            });
+    }
+
+    private async interruptStandardChildren(
+        session: SessionState,
+    ): Promise<void> {
+        if (!(session.subagents instanceof StandardSubagentEventRouter)) return;
+        const router = session.subagents;
+        const turns = router.activeTurns();
+        router.cancelInteractions();
+        await Promise.all(
+            turns.map(async (turn) => {
+                try {
+                    const turnId =
+                        this.codexAcpClient.appServerClient.runningTurnId(
+                            turn.threadId,
+                        ) ?? turn.turnId;
+                    if (turnId === null) return;
+                    router.closeWorkRequests(turn.threadId, turnId);
+                    await this.codexAcpClient.turnInterrupt({
+                        threadId: turn.threadId,
+                        turnId,
+                    });
+                } catch (error) {
+                    logger.error(
+                        `Failed to interrupt child ${turn.threadId}`,
+                        error,
+                    );
+                }
+            }),
+        );
+    }
+
+    private observeSubagentWorkEnd(
+        sessionId: string,
+        event: ServerNotification,
+    ): void {
+        const router = this.sessions.get(sessionId)?.subagents;
+        if (router instanceof StandardSubagentEventRouter)
+            router.observeWorkEnd(event);
     }
 
     async initialize(
@@ -1794,14 +2091,28 @@ export class CodexAcpServer {
         }
     }
 
-    private beginSessionOpen(sessionId: string): number {
+    private async beginSessionOpen(sessionId: string): Promise<number> {
         const generation = this.getSessionGeneration(sessionId);
-        if (this.sessionIsClosing(sessionId)) {
-            throw RequestError.invalidRequest(
-                `Session ${sessionId} is closing`,
+        const begin = () => {
+            if (this.sessionIsClosing(sessionId))
+                throw RequestError.invalidRequest(
+                    `Session ${sessionId} is closing`,
+                );
+            if (this.getSessionGeneration(sessionId) !== generation)
+                throw RequestError.invalidRequest(
+                    "Session closed while setup was queued",
+                );
+            const router = this.sessions.get(sessionId)?.subagents;
+            if (router instanceof StandardSubagentEventRouter)
+                router.pauseForSetup();
+            this.sessionOpenGenerations.set(sessionId, generation);
+        };
+        if (this.usesStandardSubagents())
+            await this.codexAcpClient.enqueueSessionTransition(
+                sessionId,
+                begin,
             );
-        }
-        this.sessionOpenGenerations.set(sessionId, generation);
+        else begin();
         const scope = this.sessionOpenScope.getStore();
         if (scope) {
             scope.sessions.set(sessionId, generation);
@@ -1980,7 +2291,7 @@ export class CodexAcpServer {
                 : undefined;
         const requestedSessionGeneration =
             operation === "resume"
-                ? this.beginSessionOpen(existingSessionRequest.sessionId)
+                ? await this.beginSessionOpen(existingSessionRequest.sessionId)
                 : null;
         const gatewayRequested =
             this.codexAcpClient.providerCatalog.active !== null &&
@@ -2103,7 +2414,8 @@ export class CodexAcpServer {
             throw err;
         }
         const sessionGeneration =
-            requestedSessionGeneration ?? this.beginSessionOpen(sessionId);
+            requestedSessionGeneration ??
+            (await this.beginSessionOpen(sessionId));
         if (!this.sessionOpenCanInstall(sessionId, sessionGeneration)) {
             settleTrackerReady?.(null);
             resumeSubscribed = false;
@@ -2162,15 +2474,7 @@ export class CodexAcpServer {
             goalRevision: 0,
             sessionTitle: null,
             sessionTitleSource: operation === "resume" ? "unknown" : "unset",
-            subagents: new CodexSubagentEventRouter(
-                sessionId,
-                clientSupportsSubagents(this.clientCapabilities),
-                new ACPSessionConnection(this.connection, sessionId),
-                (childSessionId) =>
-                    this.reportingConnection.reports.releaseOpen(
-                        childSessionId,
-                    ),
-            ),
+            subagents: this.createSubagentRouter(sessionId),
             asyncTasks: this.createAsyncTasks(sessionId),
             compactions: new CodexSessionCompactions(),
             toolCallReports: this.reportingConnection.reports,
@@ -2183,6 +2487,8 @@ export class CodexAcpServer {
             () => sessionState.sessionTitleSource,
             this.sessionIndex.titleWriter(sessionId),
         );
+        sessionState.promptSuggestions =
+            this.createPromptSuggestions(sessionState);
         this.installSessionState(sessionState);
         AcpV2Connection.of(this.connection)?.restoreForegroundState(
             sessionId,
@@ -2443,7 +2749,10 @@ export class CodexAcpServer {
     }
 
     private installSessionState(sessionState: SessionState): void {
-        this.sessions.get(sessionState.sessionId)?.asyncTasks.clear();
+        const previous = this.sessions.get(sessionState.sessionId);
+        previous?.asyncTasks.clear();
+        // The new state holds no suggestion, so the old one must drop its result in flight and clear what it published.
+        void previous?.promptSuggestions?.clear();
         this.sessions.set(sessionState.sessionId, sessionState);
     }
 
@@ -2503,11 +2812,28 @@ export class CodexAcpServer {
                     baselineEventHandler,
                 );
             },
-            DENY_ALL_APPROVALS,
-            DENY_ALL_ELICITATIONS,
-            clientSupportsSubagents(this.clientCapabilities),
+            this.routeChildApprovals(DENY_ALL_APPROVALS),
+            this.routeChildElicitations(DENY_ALL_ELICITATIONS),
+            this.supportsNativeSubagents(),
             () => {},
-            async () => null,
+            async (childThreadId) => {
+                const state = await ready;
+                return state?.subagents instanceof StandardSubagentEventRouter
+                    ? state.subagents.waitForMaterializedSession(childThreadId)
+                    : null;
+            },
+            async (childId, itemId, request, turnId) => {
+                const state = await ready;
+                return (
+                    state?.subagents.withUserAction?.(
+                        childId,
+                        itemId,
+                        request,
+                        turnId,
+                    ) ?? request()
+                );
+            },
+            (event) => this.observeSubagentWorkEnd(sessionId, event),
         );
     }
 
@@ -3041,7 +3367,13 @@ export class CodexAcpServer {
             cursor: params.cursor,
         });
         if (this.sessionIndex.enabled) {
-            return await this.sessionIndex.list(params);
+            const response = await this.sessionIndex.list(params);
+            return {
+                ...response,
+                sessions: response.sessions.filter(
+                    (session) => !this.isRestrictedChild(session.sessionId),
+                ),
+            };
         }
         if (this.protocolVersion === 2) {
             return this.runWithProcessCheck(() =>
@@ -3058,19 +3390,22 @@ export class CodexAcpServer {
         );
         return {
             ...response,
-            sessions: response.sessions.map((session) => {
-                const activeSession = this.sessions.get(session.sessionId);
-                if (
-                    !activeSession ||
-                    activeSession.additionalDirectories.length === 0
-                ) {
-                    return session;
-                }
-                return {
-                    ...session,
-                    additionalDirectories: activeSession.additionalDirectories,
-                };
-            }),
+            sessions: response.sessions
+                .filter((session) => !this.isRestrictedChild(session.sessionId))
+                .map((session) => {
+                    const activeSession = this.sessions.get(session.sessionId);
+                    if (
+                        !activeSession ||
+                        activeSession.additionalDirectories.length === 0
+                    ) {
+                        return session;
+                    }
+                    return {
+                        ...session,
+                        additionalDirectories:
+                            activeSession.additionalDirectories,
+                    };
+                }),
         };
     }
 
@@ -3093,7 +3428,15 @@ export class CodexAcpServer {
                         "Close",
                         true,
                     );
+                if (
+                    sessionState.subagents instanceof
+                    StandardSubagentEventRouter
+                )
+                    await sessionState.subagents.finishOutstanding(
+                        "disconnected",
+                    );
                 sessionState.asyncTasks.clear();
+                sessionState.promptSuggestions?.invalidate();
             } else {
                 logger.log("Close request received for unknown local session", {
                     sessionId: params.sessionId,
@@ -3134,6 +3477,8 @@ export class CodexAcpServer {
                 this.sessions.delete(params.sessionId);
                 if (this.sessionOpenOwners.get(params.sessionId)?.finished)
                     this.sessionOpenOwners.delete(params.sessionId);
+                this.asyncQuestions.get(params.sessionId)?.dispose();
+                this.asyncQuestions.delete(params.sessionId);
                 if (!this.v2PromptsInFlight.has(params.sessionId)) {
                     AcpV2Connection.of(this.connection)?.forgetSession(
                         params.sessionId,
@@ -3335,6 +3680,16 @@ export class CodexAcpServer {
         params: acpV2.LoginAuthRequest,
         requestId?: acpV2.JsonRpcId,
     ): Promise<acpV2.LoginAuthResponse> {
+        if (
+            !getCodexAuthMethodsV2(this.clientCapabilities).some(
+                (method) => method.methodId === params.methodId,
+            )
+        ) {
+            throw RequestError.invalidParams(
+                undefined,
+                `Unsupported authentication method: ${params.methodId}`,
+            );
+        }
         return await this.authenticate(params, requestId);
     }
 
@@ -3779,6 +4134,10 @@ export class CodexAcpServer {
         // closed out, since the old process's EOF drops the notification and no
         // `turn/completed` ever arrives for it.
         const previousClient = this.codexAcpClient;
+        for (const session of this.sessions.values()) {
+            if (session.subagents instanceof StandardSubagentEventRouter)
+                await session.subagents.finishOutstanding("disconnected");
+        }
         apply(replacement);
         if (this.initializeRequest === null) {
             throw new Error(
@@ -3808,6 +4167,10 @@ export class CodexAcpServer {
             // `thread/resume`'s response, and that turn's own `running` would otherwise be
             // mistaken for the cut-off one and cancelled instead.
             await previousClient.waitForSessionNotifications(session.sessionId);
+            if (session.subagents instanceof StandardSubagentEventRouter)
+                session.subagents = this.createSubagentRouter(
+                    session.sessionId,
+                );
             if (session.codexReportedRunningTurnId !== null) {
                 session.codexReportedRunningTurnId = null;
                 // the dead process's EOF drops `item/completed` for anything still open on
@@ -3823,6 +4186,9 @@ export class CodexAcpServer {
 
             session.asyncTasks.setAppServer(replacement.appServerClient);
             session.titleGen?.rebindAppServer(replacement.appServerClient);
+            session.promptSuggestions?.rebindAppServer(
+                replacement.appServerClient,
+            );
             if (replacement.appServerClient.connectionLoss.lost) {
                 // The new app-server died: the next use of each session resumes it in the restarted one.
                 break;
@@ -4028,6 +4394,22 @@ export class CodexAcpServer {
                     // Every session takes its tasks now, before any await, so a task that a restarted app-server starts
                     // meanwhile is not failed with the old ones.
                     for (const session of this.sessions.values()) {
+                        if (
+                            session.subagents instanceof
+                            StandardSubagentEventRouter
+                        ) {
+                            session.subagentTransition = session.subagents
+                                .finishOutstanding("disconnected")
+                                .catch((error) =>
+                                    logger.error(
+                                        "Failed to report child observability loss",
+                                        error,
+                                    ),
+                                );
+                            session.subagents = this.createSubagentRouter(
+                                session.sessionId,
+                            );
+                        }
                         session.asyncTasks
                             .finishAll("failed")
                             .catch((error) => {
@@ -4094,6 +4476,7 @@ export class CodexAcpServer {
         for (const session of this.sessions.values()) {
             session.asyncTasks.setAppServer(client.appServerClient);
             session.titleGen?.rebindAppServer(client.appServerClient);
+            session.promptSuggestions?.rebindAppServer(client.appServerClient);
         }
     }
 
@@ -4325,9 +4708,7 @@ export class CodexAcpServer {
             sessionId: _params.sessionId,
             modeId: _params.modeId,
         });
-        const sessionState = this.sessions.get(_params.sessionId);
-        if (!sessionState)
-            throw new Error(`Session ${_params.sessionId} not found`);
+        const sessionState = this.getSessionState(_params.sessionId);
 
         await this.applyModeChange(sessionState, _params.modeId);
         return {};
@@ -4345,9 +4726,7 @@ export class CodexAcpServer {
             sessionId: params.sessionId,
             configId: params.configId,
         });
-        const sessionState = this.sessions.get(params.sessionId);
-        if (!sessionState)
-            throw new Error(`Session ${params.sessionId} not found`);
+        const sessionState = this.getSessionState(params.sessionId);
 
         await this.applySessionConfigOption(sessionState, params);
 
@@ -4653,9 +5032,7 @@ export class CodexAcpServer {
             sessionId: params.sessionId,
             modelId: params.modelId,
         });
-        const sessionState = this.sessions.get(params.sessionId);
-        if (!sessionState)
-            throw new Error(`Session ${params.sessionId} not found`);
+        const sessionState = this.getSessionState(params.sessionId);
 
         const { model: requestedModelName, effort: requestedEffort } =
             ModelId.fromString(params.modelId);
@@ -4718,8 +5095,9 @@ export class CodexAcpServer {
      * check guards against deleting a queue a later request has since reused).
      *
      * @param params The target session id and the prompt to steer with.
-     * @returns Whether the prompt joined the active turn ("injected"), started a
-     *     new one ("startedNewTurn"), or could not be applied ("failed"); see
+     * @returns Whether the prompt joined the active turn ("injected"), needs a
+     *     host-owned prompt ("promptRequired"), started a new one
+     *     ("startedNewTurn"), or could not be applied ("failed"); see
      *     {@link performSteeringRequest}.
      */
     async executeOrQueueSteeringRequest(
@@ -4769,15 +5147,18 @@ export class CodexAcpServer {
 
     /**
      * Delivers a steering prompt to the session: injects it into the live turn
-     * when there is one, otherwise starts a new turn.
+     * when there is one. On an idle race, an opted-in host keeps ownership of
+     * the content; legacy clients retain the adapter-started turn behavior.
      *
      * @param params The target session id and the prompt to steer with.
-     * @returns "injected" when the prompt joined an existing turn, otherwise the
-     *     outcome of starting a new turn.
+     * @returns "injected" when the prompt joined an existing turn,
+     *     "promptRequired" when the host requested an owned idle fallback, or
+     *     the outcome of starting a legacy fallback turn.
      */
     private async performSteeringRequest(
         params: SessionSteerRequest,
     ): Promise<SessionSteeringResponse> {
+        assertPromptContentSupported(params);
         logger.log("Steering session requested", {
             sessionId: params.sessionId,
             prompt: params.prompt,
@@ -4805,6 +5186,9 @@ export class CodexAcpServer {
                 });
                 return { outcome: "injected" };
             }
+        }
+        if (params._meta?.steering?.idleBehavior === "promptRequired") {
+            return { outcome: "promptRequired", reason: "noRunningTurn" };
         }
         return await this.startNewTurnFromSteering(params, clientUserMessageId);
     }
@@ -4834,10 +5218,10 @@ export class CodexAcpServer {
      * A failed injection is fatal only when the turn is still the session's
      * current turn and Codex reported something other than "no active turn to
      * steer". Otherwise the turn has already ended underneath us and the caller
-     * should start a new turn instead.
+     * should use its configured idle fallback instead.
      *
      * @returns true when the prompt was injected; false when the caller should
-     *     fall back to starting a new turn.
+     *     return "promptRequired" or use the legacy new-turn fallback.
      */
     private async injectSteerIntoActiveTurn(
         params: SessionSteerRequest,
@@ -5048,9 +5432,36 @@ export class CodexAcpServer {
         if (typeof sessionId !== "string" || !Array.isArray(prompt)) {
             throw RequestError.invalidParams();
         }
+        const meta = params["_meta"];
+        // The ACP type allows `_meta: null`; treat it like an absent `_meta`.
+        if (meta !== undefined && meta !== null && !isRecord(meta)) {
+            throw RequestError.invalidParams(
+                undefined,
+                "steering _meta must be an object",
+            );
+        }
+        const steering = meta?.["steering"];
+        if (steering !== undefined && !isRecord(steering)) {
+            throw RequestError.invalidParams(
+                undefined,
+                "steering _meta.steering must be an object",
+            );
+        }
+        const idleBehavior = steering?.["idleBehavior"];
+        if (idleBehavior !== undefined && idleBehavior !== "promptRequired") {
+            throw RequestError.invalidParams(
+                undefined,
+                "unsupported steering idleBehavior",
+            );
+        }
         return {
             sessionId,
             prompt: prompt as acp.ContentBlock[],
+            ...(idleBehavior === "promptRequired"
+                ? {
+                      _meta: { steering: { idleBehavior } },
+                  }
+                : {}),
         };
     }
 
@@ -5349,6 +5760,20 @@ export class CodexAcpServer {
         ).update(update);
     }
 
+    /** The models of a root session, for the configuration of its native subagent sessions. */
+    private subagentModels(sessionState: SessionState): SubagentModels | null {
+        if (!this.isSessionConfigEnabled()) return null;
+        let currentModel: string | null = null;
+        try {
+            currentModel = ModelId.fromString(
+                sessionState.currentModelId,
+            ).model;
+        } catch {
+            // A session without a known model gives no current entry to match.
+        }
+        return { currentModel, availableModels: sessionState.availableModels };
+    }
+
     private findCurrentModel(
         models: Model[],
         currentModelId: string,
@@ -5394,7 +5819,7 @@ export class CodexAcpServer {
         const previousInstructions = this.sessions.get(
             request.sessionId,
         )?.instructions;
-        const requestedSessionGeneration = this.beginSessionOpen(
+        const requestedSessionGeneration = await this.beginSessionOpen(
             request.sessionId,
         );
         const loadStartedAt = performance.now();
@@ -5558,15 +5983,7 @@ export class CodexAcpServer {
             goalRevision: 0,
             sessionTitle: null,
             sessionTitleSource: "unset",
-            subagents: new CodexSubagentEventRouter(
-                sessionId,
-                clientSupportsSubagents(this.clientCapabilities),
-                new ACPSessionConnection(this.connection, sessionId),
-                (childSessionId) =>
-                    this.reportingConnection.reports.releaseOpen(
-                        childSessionId,
-                    ),
-            ),
+            subagents: this.createSubagentRouter(sessionId, true),
             asyncTasks: this.createAsyncTasks(sessionId),
             compactions: new CodexSessionCompactions(),
             toolCallReports: this.reportingConnection.reports,
@@ -5579,6 +5996,8 @@ export class CodexAcpServer {
             () => sessionState.sessionTitleSource,
             this.sessionIndex.titleWriter(sessionId),
         );
+        sessionState.promptSuggestions =
+            this.createPromptSuggestions(sessionState);
         this.installSessionState(sessionState);
         AcpV2Connection.of(this.connection)?.restoreForegroundState(
             sessionId,
@@ -5679,7 +6098,16 @@ export class CodexAcpServer {
                 : itemsOfEntries(entryPages),
             isOpen,
         );
-        if (clientSupportsSubagents(this.clientCapabilities)) {
+        if (this.usesStandardSubagents()) {
+            await this.streamStandardHistory(
+                sessionId,
+                standardHistoryItems(itemPages),
+                sessionState,
+                isOpen,
+            );
+            return;
+        }
+        if (this.supportsNativeSubagents()) {
             await this.streamNativeThreadHistory(
                 sessionId,
                 itemPages,
@@ -5749,8 +6177,25 @@ export class CodexAcpServer {
         const session = new ACPSessionConnection(this.connection, sessionId);
         const announced = new Map<
             string,
-            { generation: number; sessionId: string; terminal: boolean }
+            {
+                generation: number;
+                sessionId: string;
+                terminal: boolean;
+                model?: string;
+            }
         >();
+        // Sends the model of a replayed child after its announcement, as the live session does. Replay sends only
+        // the resolved model that the activity items name for the child, so an older record gets no model option.
+        const reportModel = (
+            childSessionId: string,
+            model: string | undefined,
+        ) =>
+            reportSubagentModel(
+                session,
+                childSessionId,
+                this.subagentModels(sessionState),
+                model,
+            );
         // v2 only (this path also serves v1's native replay, unchanged there).
         const startedReplayMessages = new Set<string>();
         for await (const items of itemPages) {
@@ -5810,6 +6255,7 @@ export class CodexAcpServer {
                             item.agentPath,
                             `Agent ${item.agentThreadId.slice(-8)}`,
                         );
+                        const model = item.model || previous?.model;
                         await session.update({
                             sessionUpdate: "subagent_spawned",
                             subagentSessionId: childSessionId,
@@ -5821,7 +6267,9 @@ export class CodexAcpServer {
                             generation,
                             sessionId: childSessionId,
                             terminal: false,
+                            ...(model ? { model } : {}),
                         });
+                        await reportModel(childSessionId, model);
                         if (childItems) {
                             const commandIds = new Set<string>();
                             try {
@@ -5872,6 +6320,7 @@ export class CodexAcpServer {
                                 item.agentPath,
                                 `Agent ${item.agentThreadId.slice(-8)}`,
                             );
+                            const model = item.model || undefined;
                             await session.update({
                                 sessionUpdate: "subagent_spawned",
                                 subagentSessionId: item.agentThreadId,
@@ -5883,7 +6332,9 @@ export class CodexAcpServer {
                                 generation: 1,
                                 sessionId: item.agentThreadId,
                                 terminal: false,
+                                ...(model ? { model } : {}),
                             });
+                            await reportModel(item.agentThreadId, model);
                             continue;
                         }
                         if (child.terminal) continue;
@@ -5930,6 +6381,215 @@ export class CodexAcpServer {
         }
     }
 
+    /** Recorded conversation data is independent of verified runtime ownership and current work. */
+    private async streamStandardHistory(
+        sessionId: string,
+        pages: AsyncIterable<RecordedSubagentEntry[]>,
+        state: SessionState,
+        isOpen: () => boolean,
+        threadId = sessionId,
+        ancestry = new Set([threadId]),
+        replayed = new Set<string>(),
+        gaps = new Set<string>(),
+    ): Promise<void> {
+        const router = state.subagents;
+        if (!(router instanceof StandardSubagentEventRouter)) return;
+        const session = new ACPSessionConnection(this.connection, sessionId);
+        const started = new Set<string>();
+        const replayChild = async (
+            childThreadId: string,
+            childId: string | null,
+        ) => {
+            if (childId === null || replayed.has(childThreadId)) return;
+            if (ancestry.has(childThreadId)) {
+                gaps.add(childThreadId);
+                return;
+            }
+            replayed.add(childThreadId);
+            try {
+                const history =
+                    await this.codexAcpClient.readSubagentHistory(
+                        childThreadId,
+                    );
+                if (!isOpen()) throw new SessionClosedDuringLoadError();
+                const parent = router.parentThreadId(childThreadId);
+                if (parent !== undefined) {
+                    try {
+                        const runtime =
+                            await this.codexAcpClient.restoreSubagentSubscription(
+                                state.sessionId,
+                                parent,
+                                history.thread,
+                            );
+                        if (runtime)
+                            await router.restoreRuntime(
+                                runtime,
+                                this.codexAcpClient.appServerClient.runningTurnId(
+                                    childThreadId,
+                                ),
+                            );
+                    } catch (error) {
+                        logger.error(
+                            `Failed to restore subagent ${childThreadId}`,
+                            error,
+                        );
+                    }
+                }
+                await this.streamStandardHistory(
+                    childId,
+                    history.items,
+                    state,
+                    isOpen,
+                    childThreadId,
+                    new Set([...ancestry, childThreadId]),
+                    replayed,
+                    gaps,
+                );
+            } catch (error) {
+                if (error instanceof SessionClosedDuringLoadError) throw error;
+                gaps.add(childThreadId);
+                logger.error(
+                    `Failed to replay subagent ${childThreadId}`,
+                    error,
+                );
+            }
+        };
+        const replayActivity = async (
+            item: ThreadItem & { type: "subAgentActivity" },
+        ): Promise<boolean> => {
+            const childId = await router.announceHistory(
+                item.agentThreadId,
+                item.agentPath,
+            );
+            if (childId === null) return false;
+            const configOptions = subagentConfigurationOptions(
+                this.subagentModels(state),
+                { model: item.model, effort: item.reasoningEffort },
+            );
+            if (configOptions.length > 0) {
+                try {
+                    await session.update(
+                        {
+                            sessionUpdate: "config_option_update",
+                            configOptions,
+                        },
+                        childId,
+                    );
+                } catch (error) {
+                    logger.error(
+                        `Failed to replay child configuration ${item.agentThreadId}`,
+                        error,
+                    );
+                }
+            }
+            await replayChild(item.agentThreadId, childId);
+            return true;
+        };
+        let unresolved: Array<ThreadItem & { type: "subAgentActivity" }> = [];
+        for await (const items of pages) {
+            for (const entry of items) {
+                if (!isOpen()) throw new SessionClosedDuringLoadError();
+                if ("turn" in entry) {
+                    if (entry.turn === null) gaps.add(threadId);
+                    else if (threadId !== state.sessionId)
+                        await router.replayTurnOutcome(threadId, entry.turn);
+                    continue;
+                }
+                const { item, completed, turnId } = entry;
+                if (item.type === "subAgentActivity") {
+                    if (isRootAgentPath(item.agentPath)) continue;
+                    if (ancestry.has(item.agentThreadId)) {
+                        gaps.add(item.agentThreadId);
+                        continue;
+                    }
+                    if (!(await replayActivity(item))) unresolved.push(item);
+                    continue;
+                }
+                if (
+                    item.type === "collabAgentToolCall" &&
+                    item.tool === "spawnAgent"
+                ) {
+                    if (item.senderThreadId === threadId)
+                        for (const child of item.receiverThreadIds) {
+                            if (!child.trim() || ancestry.has(child)) {
+                                gaps.add(child);
+                                continue;
+                            }
+                            await replayChild(
+                                child,
+                                await router.announce(
+                                    child,
+                                    sessionId,
+                                    undefined,
+                                    item.prompt ?? undefined,
+                                ),
+                            );
+                        }
+                    continue;
+                }
+                if (threadId !== state.sessionId) {
+                    // Agent-owned input is not an ordinary human message. Incomplete text has no safe delta cursor.
+                    if (
+                        item.type === "userMessage" ||
+                        (!completed && !supportsPartialHistory(item))
+                    ) {
+                        gaps.add(threadId);
+                        continue;
+                    }
+                    if (!completed) gaps.add(threadId);
+                    if (
+                        !(await router.reconcileHistoryItem(
+                            threadId,
+                            item,
+                            completed,
+                            turnId,
+                        ))
+                    ) {
+                        gaps.add(threadId);
+                        continue;
+                    }
+                    if (!isOpen()) throw new SessionClosedDuringLoadError();
+                }
+                for (const update of await this.createHistoryUpdates(
+                    item,
+                    state,
+                )) {
+                    if (this.protocolVersion === 2)
+                        await this.sendReplayMessageStart(
+                            session,
+                            update,
+                            started,
+                        );
+                    await session.update(update);
+                }
+            }
+        }
+        while (unresolved.length > 0) {
+            const pending: typeof unresolved = [];
+            for (const item of unresolved)
+                if (!(await replayActivity(item))) pending.push(item);
+            if (pending.length === unresolved.length) {
+                for (const item of pending) gaps.add(item.agentThreadId);
+                break;
+            }
+            unresolved = pending;
+        }
+        if (!isOpen()) throw new SessionClosedDuringLoadError();
+        if (threadId === state.sessionId && gaps.size > 0) {
+            const update = {
+                sessionUpdate: "agent_thought_chunk" as const,
+                messageId: `${sessionId}:subagent-history-gap`,
+                content: {
+                    type: "text" as const,
+                    text: "Some recorded child history is unavailable or incomplete.",
+                },
+            };
+            if (this.protocolVersion === 2)
+                await this.sendReplayMessageStart(session, update, started);
+            await session.update(update);
+        }
+    }
+
     private async publishThreadHistoryTitle(
         session: ACPSessionConnection,
         sessionState: SessionState,
@@ -5971,6 +6631,29 @@ export class CodexAcpServer {
             if (title) return title;
         }
         return null;
+    }
+
+    private createPromptSuggestions(
+        sessionState: SessionState,
+    ): PromptSuggestionGenerator | undefined {
+        if (
+            !sessionState.clientCapabilities.airClient ||
+            !promptSuggestionsEnabled()
+        )
+            return undefined;
+        return new PromptSuggestionGenerator(
+            this.codexAcpClient.appServerClient,
+            sessionState.cwd,
+            async (text) => {
+                await new ACPSessionConnection(
+                    this.connection,
+                    sessionState.sessionId,
+                ).update({
+                    sessionUpdate: "session_info_update",
+                    _meta: promptSuggestionsMeta(text),
+                });
+            },
+        );
     }
 
     private async publishFallbackSessionTitle(
@@ -6129,7 +6812,13 @@ export class CodexAcpServer {
                     {
                         sessionUpdate: "agent_message_chunk",
                         messageId: item.id,
-                        content: { type: "text", text: item.text },
+                        content: {
+                            type: "text",
+                            text: renderFileCitations(
+                                item.text,
+                                sessionState.cwd,
+                            ),
+                        },
                         ...(meta ? { _meta: meta } : {}),
                     },
                 ];
@@ -6270,13 +6959,17 @@ export class CodexAcpServer {
 
     private userInputToContentBlocks(input: UserInput): acp.ContentBlock[] {
         switch (input.type) {
-            case "text":
+            case "text": {
+                const asyncQuestionReply = renderAsyncQuestionReply(input.text);
+                if (asyncQuestionReply !== null)
+                    return [{ type: "text", text: asyncQuestionReply }];
                 return (
                     desktopAttachmentHistory(input.text) ??
                     (input.text.length > 0
                         ? [{ type: "text", text: input.text }]
                         : [])
                 );
+            }
             case "image":
                 return [
                     {
@@ -6337,7 +7030,9 @@ export class CodexAcpServer {
     getSessionState(sessionId: string): SessionState {
         const sessionState = this.sessions.get(sessionId);
         if (!sessionState) {
-            throw new Error(`Session ${sessionId} not found`);
+            throw new RequestError(-32002, `Session ${sessionId} not found`, {
+                sessionId,
+            });
         }
         return sessionState;
     }
@@ -6573,6 +7268,7 @@ export class CodexAcpServer {
             turnId: turn.turnId,
         });
         try {
+            await this.interruptStandardChildren(sessionState);
             await this.requestTurnInterrupt(
                 sessionState,
                 turn.threadId,
@@ -6697,6 +7393,7 @@ export class CodexAcpServer {
         requestName: "Cancel" | "Close",
         resolveInterruptedTurn: boolean,
     ): Promise<void> {
+        await this.interruptStandardChildren(sessionState);
         const turnId = await this.getInterruptibleTurnId(
             sessionState,
             requestName,
@@ -7165,6 +7862,7 @@ export class CodexAcpServer {
         insertion?: UserMessageInsertion,
         reservation?: TurnStartReservation,
     ): Promise<acp.PromptResponse> {
+        assertPromptContentSupported(params);
         this.assertInstructionsReady(params.sessionId);
         // Callers that need to gate additional checks (closing, canStart) atomically with the
         // turn-start slot acquire their own reservation and pass it in; otherwise this call is
@@ -7203,6 +7901,9 @@ export class CodexAcpServer {
             prompt: params.prompt,
         });
         const sessionState = this.getSessionState(params.sessionId);
+        // Awaited only when a clear is sent, so a prompt with no held suggestion starts in the same tick.
+        const clearing = sessionState.promptSuggestions?.clear();
+        if (clearing) await clearing;
         const agentFileChangeReportRequest =
             clientSupportsAgentFileChangeReports(this.clientCapabilities)
                 ? parseAgentFileChangeReportRequest(params._meta)
@@ -7360,6 +8061,15 @@ export class CodexAcpServer {
             const observeInteraction = async (
                 event: ServerNotification,
             ): Promise<void> => {
+                const threadId = (event.params as { threadId?: unknown })
+                    .threadId;
+                if (
+                    sessionState.subagents instanceof
+                        StandardSubagentEventRouter &&
+                    typeof threadId === "string" &&
+                    threadId !== sessionState.sessionId
+                )
+                    return;
                 permissionContext.handleNotification(event);
                 await elicitationHandler.handleNotification(event);
             };
@@ -7414,6 +8124,9 @@ export class CodexAcpServer {
                         await promptEventHandler.handleSessionScopedNotification(
                             event,
                         );
+                        this.asyncQuestionsFor(sessionState).handleNotification(
+                            event,
+                        );
                         await this.trackCodexTurnCompletion(
                             sessionState,
                             event,
@@ -7426,6 +8139,10 @@ export class CodexAcpServer {
                         event.params.threadId === sessionState.sessionId &&
                         event.params.turn.id === sessionState.currentTurnId;
                     await promptEventHandler.handleNotification(event);
+                    // After the question text is shown.
+                    this.asyncQuestionsFor(sessionState).handleNotification(
+                        event,
+                    );
                     if (completesActiveTurn) {
                         // The prompt may remain open for plan approval after its turn has ended. Switch at
                         // the causal boundary so a queued late error cannot enter the completed turn's buffer.
@@ -7437,14 +8154,22 @@ export class CodexAcpServer {
                         promptEventHandler,
                     );
                 },
-                approvalHandler,
-                elicitationHandler,
-                clientSupportsSubagents(this.clientCapabilities),
+                this.routeChildApprovals(approvalHandler),
+                this.routeChildElicitations(elicitationHandler),
+                this.supportsNativeSubagents(),
                 observeInteraction,
                 (childThreadId) =>
                     promptEventHandler.waitForNativeSubagentSession(
                         childThreadId,
                     ),
+                (childId, itemId, request, turnId) =>
+                    sessionState.subagents.withUserAction?.(
+                        childId,
+                        itemId,
+                        request,
+                        turnId,
+                    ) ?? request(),
+                (event) => this.observeSubagentWorkEnd(params.sessionId, event),
             );
 
             if (activePrompt.signal.aborted) {
@@ -7938,17 +8663,21 @@ export class CodexAcpServer {
             // Never await — must not block the prompt response.
             // Note: turn.items contains only agent output, not the user message —
             // extract prompt text from params instead.
-            if (sessionState.titleGen) {
-                const promptText = params.prompt
-                    .filter(
-                        (b): b is Extract<acp.ContentBlock, { type: "text" }> =>
-                            b.type === "text",
-                    )
-                    .map((b) => b.text)
-                    .join(" ")
-                    .trim();
-                sessionState.titleGen.onTurnCompleted(promptText);
-            }
+            const promptText = params.prompt
+                .filter(
+                    (b): b is Extract<acp.ContentBlock, { type: "text" }> =>
+                        b.type === "text",
+                )
+                .map((b) => b.text)
+                .join(" ")
+                .trim();
+            sessionState.titleGen?.onTurnCompleted(promptText);
+
+            // Same fire-and-forget rule: a predicted follow-up comes after the answer, never before it.
+            sessionState.promptSuggestions?.onTurnCompleted(
+                promptText,
+                eventHandler.getLastAgentMessageText(),
+            );
 
             // On v2, a prompt whose user message was never recorded (`pendingInsertion` still set)
             // never happened from the client's view, so it must not leave a title behind either.
@@ -8166,6 +8895,28 @@ export class CodexAcpServer {
         throw this.recovery.errorForGeneration(generation);
     }
 
+    /** The async questions of a session, created on first use. */
+    private asyncQuestionsFor(
+        sessionState: SessionState,
+    ): AsyncQuestionElicitations {
+        const sessionId = sessionState.sessionId;
+        let questions = this.asyncQuestions.get(sessionId);
+        if (questions === undefined) {
+            questions = new AsyncQuestionElicitations(
+                sessionId,
+                this.clientCapabilities,
+                new AsyncQuestionClient(
+                    sessionId,
+                    this.connection,
+                    this.clientCapabilities,
+                    () => this.codexAcpClient,
+                ),
+            );
+            this.asyncQuestions.set(sessionId, questions);
+        }
+        return questions;
+    }
+
     /**
      * Ends what a prompt showed as running when its app-server died: open tool calls of the session and of its native
      * subagent sessions, the subagent sessions themselves and compactions. Nothing will ever complete them.
@@ -8178,6 +8929,7 @@ export class CodexAcpServer {
         state: "failed" | "cancelled",
     ): Promise<void> {
         try {
+            this.asyncQuestions.get(sessionState.sessionId)?.dispose();
             await elicitations?.completeAllUrlElicitations();
             const sessionIds = new Set([
                 sessionState.sessionId,
@@ -8362,6 +9114,17 @@ export class CodexAcpServer {
     }
 
     async cancel(params: acp.CancelNotification): Promise<void> {
+        const child = this.subagentAssociations.get(params.sessionId);
+        if (child && this.usesStandardSubagents()) {
+            const router = this.sessions.get(child.rootSessionId)?.subagents;
+            if (router instanceof StandardSubagentEventRouter) {
+                await router.cancelChild(params.sessionId, (threadId, turnId) =>
+                    this.codexAcpClient.turnInterrupt({ threadId, turnId }),
+                );
+            }
+            return;
+        }
+        if (this.isRestrictedChild(params.sessionId)) return;
         this.assertSessionWritable(params.sessionId);
         this.activePrompts.get(params.sessionId)?.requestClientCancel();
         const sessionState = this.sessions.get(params.sessionId);
@@ -8456,6 +9219,29 @@ async function* itemsOfEntries(
 ): AsyncGenerator<ThreadItem[]> {
     for await (const page of pages) {
         yield page.map((entry) => entry.item);
+    }
+}
+
+async function* standardHistoryItems(
+    pages: AsyncIterable<ThreadItem[]>,
+): AsyncGenerator<RecordedSubagentEntry[]> {
+    for await (const page of pages) {
+        yield page.map((item) => ({
+            item,
+            completed: !("status" in item) || item.status !== "inProgress",
+        }));
+    }
+}
+
+function supportsPartialHistory(item: ThreadItem): boolean {
+    switch (item.type) {
+        case "commandExecution":
+        case "fileChange":
+        case "mcpToolCall":
+        case "dynamicToolCall":
+            return true;
+        default:
+            return false;
     }
 }
 

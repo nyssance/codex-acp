@@ -10,9 +10,15 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
+        codexAcpClient.readAuthRequirement = vi
+            .fn()
+            .mockResolvedValue({ required: false, account: null });
 
-        const threadA: Thread = {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
+        const threadA: Thread = {
+            environments: null,
+            extra: null,
+            canAcceptDirectInput: null,
+            daybreakEnabled: null,
             id: "sess-1",
             sessionId: "sess-1",
             parentThreadId: null,
@@ -42,7 +48,11 @@ describe("CodexACPAgent - list sessions", () => {
             name: null,
             turns: [],
         };
-        const threadB: Thread = {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
+        const threadB: Thread = {
+            environments: null,
+            extra: null,
+            canAcceptDirectInput: null,
+            daybreakEnabled: null,
             id: "sess-2",
             sessionId: "sess-2",
             parentThreadId: null,
@@ -73,14 +83,20 @@ describe("CodexACPAgent - list sessions", () => {
             turns: [],
         };
 
-        codexAppServerClient.threadList = vi.fn().mockResolvedValue({readStates: null,
-            data: [threadA, threadB],
-            nextCursor: "next-cursor",
-        });
-        codexAppServerClient.threadLoadedList = vi.fn().mockResolvedValue({readStates: null,
-            data: [],
-            nextCursor: null,
-        });
+        codexAppServerClient.threadList = vi
+            .fn()
+            .mockResolvedValue({
+                readStates: null,
+                data: [threadA, threadB],
+                nextCursor: "next-cursor",
+            });
+        codexAppServerClient.threadLoadedList = vi
+            .fn()
+            .mockResolvedValue({
+                readStates: null,
+                data: [],
+                nextCursor: null,
+            });
         codexAppServerClient.threadRead = vi.fn();
 
         const params: acp.ListSessionsRequest = {
@@ -89,29 +105,42 @@ describe("CodexACPAgent - list sessions", () => {
         };
         const response = await codexAcpAgent.listSessions(params);
 
-        expect(codexAppServerClient.threadList).toHaveBeenCalledWith(expect.objectContaining({
-            sourceKinds: [
-                "cli",
-                "vscode",
-                "appServer",
-                "unknown",
-            ],
-            // Codex answers from the state DB instead of scanning every rollout file.
-            useStateDbOnly: true,
-        }));
+        expect(codexAppServerClient.threadList).toHaveBeenCalledWith(
+            expect.objectContaining({
+                sourceKinds: ["cli", "vscode", "appServer", "unknown"],
+                // Codex answers from the state DB instead of scanning every rollout file.
+                useStateDbOnly: true,
+            }),
+        );
         await expect(JSON.stringify(response, null, 2)).toMatchFileSnapshot(
-            "data/list-sessions.json"
+            "data/list-sessions.json",
         );
     });
 
     it("sends one thread/list request for an empty page", async () => {
         const fixture = createCodexMockTestFixture();
         const codexAppServerClient = fixture.getCodexAppServerClient();
-        fixture.getCodexAcpClient().readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        codexAppServerClient.threadList = vi.fn().mockResolvedValue({readStates: null, data: [], nextCursor: null});
-        codexAppServerClient.threadLoadedList = vi.fn().mockResolvedValue({readStates: null, data: [], nextCursor: null});
+        fixture.getCodexAcpClient().readAuthRequirement = vi
+            .fn()
+            .mockResolvedValue({ required: false, account: null });
+        codexAppServerClient.threadList = vi
+            .fn()
+            .mockResolvedValue({
+                readStates: null,
+                data: [],
+                nextCursor: null,
+            });
+        codexAppServerClient.threadLoadedList = vi
+            .fn()
+            .mockResolvedValue({
+                readStates: null,
+                data: [],
+                nextCursor: null,
+            });
 
-        const response = await fixture.getCodexAcpAgent().listSessions({cwd: "/repo/project", cursor: null});
+        const response = await fixture
+            .getCodexAcpAgent()
+            .listSessions({ cwd: "/repo/project", cursor: null });
 
         expect(response.sessions).toEqual([]);
         expect(codexAppServerClient.threadList).toHaveBeenCalledTimes(1);
@@ -123,9 +152,15 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
+        codexAcpClient.readAuthRequirement = vi
+            .fn()
+            .mockResolvedValue({ required: false, account: null });
 
-        const matchingThread: Thread = {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
+        const matchingThread: Thread = {
+            environments: null,
+            extra: null,
+            canAcceptDirectInput: null,
+            daybreakEnabled: null,
             id: "sess-win",
             sessionId: "sess-win",
             parentThreadId: null,
@@ -163,30 +198,37 @@ describe("CodexACPAgent - list sessions", () => {
             cwd: "D:\\workspace\\other-project",
         };
 
-        codexAppServerClient.threadList = vi.fn().mockResolvedValue({readStates: null,
-            data: [matchingThread, otherThread],
-            nextCursor: null,
-        });
+        codexAppServerClient.threadList = vi
+            .fn()
+            .mockResolvedValue({
+                readStates: null,
+                data: [matchingThread, otherThread],
+                nextCursor: null,
+            });
 
         const response = await codexAcpAgent.listSessions({
             cwd: "d:/workspace/sample-project",
             cursor: null,
         });
 
-        expect(response.sessions).toEqual([{
-            sessionId: "sess-win",
-            cwd: "D:\\workspace\\sample-project\\",
-            title: "Windows session",
-            _meta: { codex: { projectId: null } },
-            updatedAt: "1970-01-01T00:03:20.000Z",
-        }]);
+        expect(response.sessions).toEqual([
+            {
+                sessionId: "sess-win",
+                cwd: "D:\\workspace\\sample-project\\",
+                title: "Windows session",
+                _meta: { codex: { projectId: null } },
+                updatedAt: "1970-01-01T00:03:20.000Z",
+            },
+        ]);
 
         const basenameResponse = await codexAcpAgent.listSessions({
             cwd: "sample-project",
             cursor: null,
         });
 
-        expect(basenameResponse.sessions.map(session => session.sessionId)).toEqual(["sess-win"]);
+        expect(
+            basenameResponse.sessions.map((session) => session.sessionId),
+        ).toEqual(["sess-win"]);
     });
 
     it("should prefer the explicit thread name as the session title", async () => {
@@ -195,9 +237,15 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
+        codexAcpClient.readAuthRequirement = vi
+            .fn()
+            .mockResolvedValue({ required: false, account: null });
 
-        const thread: Thread = {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
+        const thread: Thread = {
+            environments: null,
+            extra: null,
+            canAcceptDirectInput: null,
+            daybreakEnabled: null,
             id: "sess-1",
             sessionId: "sess-1",
             parentThreadId: null,
@@ -228,19 +276,22 @@ describe("CodexACPAgent - list sessions", () => {
             turns: [],
         };
 
-        codexAppServerClient.threadList = vi.fn().mockResolvedValue({readStates: null,
-            data: [thread],
-            nextCursor: null,
-        });
+        codexAppServerClient.threadList = vi
+            .fn()
+            .mockResolvedValue({
+                readStates: null,
+                data: [thread],
+                nextCursor: null,
+            });
 
         const response = await codexAcpAgent.listSessions({
             cwd: null,
             cursor: null,
         });
 
-        await expect(`${JSON.stringify(response, null, 2)}\n`).toMatchFileSnapshot(
-            "data/list-sessions-thread-name.json"
-        );
+        await expect(
+            `${JSON.stringify(response, null, 2)}\n`,
+        ).toMatchFileSnapshot("data/list-sessions-thread-name.json");
     });
 
     it("includes tracked additional directories for active sessions", async () => {
@@ -249,40 +300,52 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null,
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+            workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId: "sess-1",
             currentModelId: "gpt-5[medium]",
-            models: [{
-                id: "gpt-5",
-                model: "gpt-5",
-                upgrade: null,
-                upgradeInfo: null,
-                availabilityNux: null,
-                modelSpecialty: null,
-                multiAgentVersion: null,
-                availableAccessPrograms: null,
-                displayName: "gpt-5",
-                description: "test model",
-                hidden: false,
-                supportedReasoningEfforts: [{reasoningEffort: "medium", description: "balanced"}],
-                defaultReasoningEffort: "medium",
-                inputModalities: ["text"],
-                supportsPersonality: false,
-                additionalSpeedTiers: [],
-                serviceTiers: [],
-                defaultServiceTier: null,
-                isDefault: true,
-            }],
+            models: [
+                {
+                    id: "gpt-5",
+                    model: "gpt-5",
+                    upgrade: null,
+                    upgradeInfo: null,
+                    availabilityNux: null,
+                    modelSpecialty: null,
+                    multiAgentVersion: null,
+                    availableAccessPrograms: null,
+                    displayName: "gpt-5",
+                    description: "test model",
+                    hidden: false,
+                    supportedReasoningEfforts: [
+                        { reasoningEffort: "medium", description: "balanced" },
+                    ],
+                    defaultReasoningEffort: "medium",
+                    inputModalities: ["text"],
+                    supportsPersonality: false,
+                    additionalSpeedTiers: [],
+                    serviceTiers: [],
+                    defaultServiceTier: null,
+                    isDefault: true,
+                },
+            ],
             collaborationMode: "default",
             currentServiceTier: null,
             additionalDirectories: ["/repo/extra"],
         });
-        const thread: Thread = {environments: null, extra: null, canAcceptDirectInput: null, daybreakEnabled: null,
+        const thread: Thread = {
+            environments: null,
+            extra: null,
+            canAcceptDirectInput: null,
+            daybreakEnabled: null,
             id: "sess-1",
             sessionId: "sess-1",
             parentThreadId: null,
@@ -312,7 +375,8 @@ describe("CodexACPAgent - list sessions", () => {
             name: null,
             turns: [],
         };
-        vi.spyOn(codexAppServerClient, "threadList").mockResolvedValue({readStates: null,
+        vi.spyOn(codexAppServerClient, "threadList").mockResolvedValue({
+            readStates: null,
             data: [thread],
             nextCursor: null,
             backwardsCursor: null,
@@ -329,6 +393,8 @@ describe("CodexACPAgent - list sessions", () => {
             cursor: null,
         });
 
-        expect(response.sessions[0]?.additionalDirectories).toEqual(["/repo/extra"]);
+        expect(response.sessions[0]?.additionalDirectories).toEqual([
+            "/repo/extra",
+        ]);
     });
 });

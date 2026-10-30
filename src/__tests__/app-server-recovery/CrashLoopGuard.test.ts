@@ -1,12 +1,14 @@
-import {describe, expect, it} from "vitest";
-import {CrashLoopGuard} from "../../app-server-recovery/CrashLoopGuard";
+import { describe, expect, it } from "vitest";
+import { CrashLoopGuard } from "../../app-server-recovery/CrashLoopGuard";
 
 describe("CrashLoopGuard", () => {
     it("trips at the limit and opens when the oldest crash leaves the window", () => {
         let now = 0;
         const guard = new CrashLoopGuard(3, 1000, () => now);
-        guard.record(); now = 100;
-        guard.record(); now = 200;
+        guard.record();
+        now = 100;
+        guard.record();
+        now = 200;
         expect(guard.tripped()).toBe(false);
         guard.record();
         expect(guard.tripped()).toBe(true);

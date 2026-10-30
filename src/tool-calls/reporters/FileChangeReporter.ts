@@ -1,8 +1,12 @@
-import type {ToolCallContent} from "@agentclientprotocol/sdk/unstable";
-import {parsePatch, type StructuredPatch} from "diff";
-import {AIR_DIFF_PATCH_KEY, withAirMeta} from "../../AirExtension";
-import type {FileChangeRequestApprovalParams, FileUpdateChange, ThreadItem} from "../../app-server/v2";
-import {DIFF_GIT_PATCH_META_KEY} from "../../AcpV2SessionUpdate";
+import type { ToolCallContent } from "@agentclientprotocol/sdk/unstable";
+import { parsePatch, type StructuredPatch } from "diff";
+import { AIR_DIFF_PATCH_KEY, withAirMeta } from "../../AirExtension";
+import type {
+    FileChangeRequestApprovalParams,
+    FileUpdateChange,
+    ThreadItem,
+} from "../../app-server/v2";
+import { DIFF_GIT_PATCH_META_KEY } from "../../AcpV2SessionUpdate";
 import {
     createAddedFileGitPatch,
     createDeletedFileGitPatch,
@@ -11,12 +15,12 @@ import {
     createUpdateGitPatch,
     DIFF_PATCH_MAX_BYTES,
 } from "../../GitPatch";
-import {logger} from "../../Logger";
-import type {DiffPatchFormat} from "../ClientCapabilities";
-import type {PermissionToolFacts, ToolFacts} from "../ToolFacts";
-import {toTerminalToolStatus, toToolStatus} from "./ToolStatus";
+import { logger } from "../../Logger";
+import type { DiffPatchFormat } from "../ClientCapabilities";
+import type { PermissionToolFacts, ToolFacts } from "../ToolFacts";
+import { toTerminalToolStatus, toToolStatus } from "./ToolStatus";
 
-type FileChangeItem = ThreadItem & {type: "fileChange"};
+type FileChangeItem = ThreadItem & { type: "fileChange" };
 
 const FILE_CHANGE_TITLE = "Editing files";
 
@@ -29,7 +33,10 @@ const FILE_CHANGE_TITLE = "Editing files";
  * see `docs/air-extensions.md#diff-patch`. On ACP v2, each file gets one diff with a Git patch.
  */
 export class FileChangeReporter {
-    static started(item: FileChangeItem, diffPatch: DiffPatchFormat): ToolFacts {
+    static started(
+        item: FileChangeItem,
+        diffPatch: DiffPatchFormat,
+    ): ToolFacts {
         const diffs: ToolCallContent[] = [];
         for (const change of item.changes) {
             // An unparseable or a too large change has no diff.
@@ -57,18 +64,26 @@ export class FileChangeReporter {
      * The tool call of an approval request. A started file change already shows its diff,
      * so the request adds only the paths.
      */
-    static permission(params: FileChangeRequestApprovalParams, item: FileChangeItem | undefined): PermissionToolFacts {
+    static permission(
+        params: FileChangeRequestApprovalParams,
+        item: FileChangeItem | undefined,
+    ): PermissionToolFacts {
         return {
             toolCallId: params.itemId,
             title: FILE_CHANGE_TITLE,
-            ...(item === undefined ? {kind: "edit", status: "pending"} : {}),
-            locations: [...new Set(item?.changes.map(change => change.path) ?? [])],
-            standard: {kind: "edit", status: "pending", title: "Edit files"},
+            ...(item === undefined ? { kind: "edit", status: "pending" } : {}),
+            locations: [
+                ...new Set(item?.changes.map((change) => change.path) ?? []),
+            ],
+            standard: { kind: "edit", status: "pending", title: "Edit files" },
         };
     }
 }
 
-function createPatchContent(change: FileUpdateChange, diffPatch: DiffPatchFormat): ToolCallContent[] {
+function createPatchContent(
+    change: FileUpdateChange,
+    diffPatch: DiffPatchFormat,
+): ToolCallContent[] {
     const supportsDiffPatch = diffPatch === "air";
     try {
         if (diffPatch === "acpV2") return createAcpV2Content(change);
@@ -76,9 +91,17 @@ function createPatchContent(change: FileUpdateChange, diffPatch: DiffPatchFormat
             case "add":
                 return createWholeFileContent(change, "add", supportsDiffPatch);
             case "delete":
-                return createWholeFileContent(change, "delete", supportsDiffPatch);
+                return createWholeFileContent(
+                    change,
+                    "delete",
+                    supportsDiffPatch,
+                );
             case "update":
-                return createUpdateFileContent(change, change.kind.move_path, supportsDiffPatch);
+                return createUpdateFileContent(
+                    change,
+                    change.kind.move_path,
+                    supportsDiffPatch,
+                );
         }
     } catch (error) {
         logger.log(`Error processing file update change: ${error}`);
@@ -93,20 +116,27 @@ function createWholeFileContent(
     supportsDiffPatch: boolean,
 ): ToolCallContent[] {
     if (!fitsDiffLimit(change.diff)) {
-        logger.log("Skipped the diff of a file that is too large", {path: change.path});
+        logger.log("Skipped the diff of a file that is too large", {
+            path: change.path,
+        });
         return [];
     }
-    const patch = !supportsDiffPatch ? null
-        : kind === "add" ? createAddedFileGitPatch(change.path, change.diff)
-        : createDeletedFileGitPatch(change.path, change.diff);
-    if (patch !== null) return [createPatchOnlyContent(change.path, kind, patch)];
-    return [{
-        type: "diff",
-        oldText: kind === "add" ? null : change.diff,
-        newText: kind === "add" ? change.diff : "",
-        path: change.path,
-        _meta: {kind},
-    }];
+    const patch = !supportsDiffPatch
+        ? null
+        : kind === "add"
+          ? createAddedFileGitPatch(change.path, change.diff)
+          : createDeletedFileGitPatch(change.path, change.diff);
+    if (patch !== null)
+        return [createPatchOnlyContent(change.path, kind, patch)];
+    return [
+        {
+            type: "diff",
+            oldText: kind === "add" ? null : change.diff,
+            newText: kind === "add" ? change.diff : "",
+            path: change.path,
+            _meta: { kind },
+        },
+    ];
 }
 
 /** The diffs of an updated file: one diff per Codex hunk. */
@@ -118,27 +148,48 @@ function createUpdateFileContent(
     const unifiedDiff = recoverCorruptedDiff(change.diff);
     const targetPath = movePath ?? change.path;
     if (!fitsDiffLimit(unifiedDiff)) {
-        logger.log("Skipped the diff of a file change that is too large", {path: targetPath});
+        logger.log("Skipped the diff of a file change that is too large", {
+            path: targetPath,
+        });
         return [];
     }
 
-    const gitPatch = supportsDiffPatch ? createUpdateGitPatch(change.path, targetPath, unifiedDiff) : null;
+    const gitPatch = supportsDiffPatch
+        ? createUpdateGitPatch(change.path, targetPath, unifiedDiff)
+        : null;
     if (gitPatch !== null) {
         return [createPatchOnlyContent(targetPath, "update", gitPatch)];
     }
 
     // A pure rename has no hunks. Its diff names the new path and changes no line.
     if (movePath !== null && unifiedDiff.trim().length === 0) {
-        return [{type: "diff", oldText: "", newText: "", path: targetPath, _meta: {kind: "update"}}];
+        return [
+            {
+                type: "diff",
+                oldText: "",
+                newText: "",
+                path: targetPath,
+                _meta: { kind: "update" },
+            },
+        ];
     }
     const patch = parseSinglePatch(unifiedDiff);
     if (patch === null) {
-        logger.log("Skipped a file change whose diff has no single valid patch", {path: change.path});
+        logger.log(
+            "Skipped a file change whose diff has no single valid patch",
+            { path: change.path },
+        );
         return [];
     }
-    return patch.hunks.map(hunk => {
-        const {oldText, newText} = hunkTexts(hunk.lines);
-        return {type: "diff", oldText, newText, path: targetPath, _meta: {kind: "update"}};
+    return patch.hunks.map((hunk) => {
+        const { oldText, newText } = hunkTexts(hunk.lines);
+        return {
+            type: "diff",
+            oldText,
+            newText,
+            path: targetPath,
+            _meta: { kind: "update" },
+        };
     });
 }
 
@@ -149,45 +200,63 @@ function createUpdateFileContent(
 function createAcpV2Content(change: FileUpdateChange): ToolCallContent[] {
     const kind = change.kind;
     const oldPath = change.path;
-    const path = kind.type === "update" ? kind.move_path ?? change.path : change.path;
-    const diff = kind.type === "update" ? recoverCorruptedDiff(change.diff) : change.diff;
+    const path =
+        kind.type === "update" ? (kind.move_path ?? change.path) : change.path;
+    const diff =
+        kind.type === "update"
+            ? recoverCorruptedDiff(change.diff)
+            : change.diff;
     if (!fitsDiffLimit(diff)) {
-        logger.log("Skipped the diff of a file change that is too large", {path});
+        logger.log("Skipped the diff of a file change that is too large", {
+            path,
+        });
         return [];
     }
     let patch: string | null;
     switch (kind.type) {
         case "add":
-            patch = diff.length === 0 ? createEmptyFileGitPatch(path, "added") : createAddedFileGitPatch(path, diff);
+            patch =
+                diff.length === 0
+                    ? createEmptyFileGitPatch(path, "added")
+                    : createAddedFileGitPatch(path, diff);
             break;
         case "delete":
-            patch = diff.length === 0 ? createEmptyFileGitPatch(path, "deleted") : createDeletedFileGitPatch(path, diff);
+            patch =
+                diff.length === 0
+                    ? createEmptyFileGitPatch(path, "deleted")
+                    : createDeletedFileGitPatch(path, diff);
             break;
         case "update":
             // A pure rename has no hunks.
-            patch = kind.move_path !== null && diff.trim().length === 0
-                ? createRenameGitPatch(oldPath, path)
-                : createUpdateGitPatch(oldPath, path, diff);
+            patch =
+                kind.move_path !== null && diff.trim().length === 0
+                    ? createRenameGitPatch(oldPath, path)
+                    : createUpdateGitPatch(oldPath, path, diff);
             break;
     }
     if (patch === null) {
-        logger.log("Skipped a file change without a valid Git patch", {path});
+        logger.log("Skipped a file change without a valid Git patch", { path });
         return [];
     }
-    return [{
-        type: "diff",
-        oldText: null,
-        newText: "",
-        path,
-        _meta: {kind: kind.type, [DIFF_GIT_PATCH_META_KEY]: {oldPath, text: patch}},
-    }];
+    return [
+        {
+            type: "diff",
+            oldText: null,
+            newText: "",
+            path,
+            _meta: {
+                kind: kind.type,
+                [DIFF_GIT_PATCH_META_KEY]: { oldPath, text: patch },
+            },
+        },
+    ];
 }
 
 /**
  * The old and the new text of one hunk. Each line keeps its line break, except a line that the
  * `\\ No newline at end of file` marker follows.
  */
-function hunkTexts(lines: string[]): {oldText: string; newText: string} {
+function hunkTexts(lines: string[]): { oldText: string; newText: string } {
     const oldLines: string[] = [];
     const newLines: string[] = [];
     let previous = " ";
@@ -203,7 +272,7 @@ function hunkTexts(lines: string[]): {oldText: string; newText: string} {
         if (sign !== "-") newLines.push(text);
         previous = sign;
     }
-    return {oldText: oldLines.join(""), newText: newLines.join("")};
+    return { oldText: oldLines.join(""), newText: newLines.join("") };
 }
 
 function stripLineBreak(lines: string[]): void {
@@ -216,7 +285,10 @@ function stripLineBreak(lines: string[]): void {
  * over the limit is rejected before it is encoded or copied.
  */
 function fitsDiffLimit(text: string): boolean {
-    return text.length <= DIFF_PATCH_MAX_BYTES && Buffer.byteLength(text, "utf8") <= DIFF_PATCH_MAX_BYTES;
+    return (
+        text.length <= DIFF_PATCH_MAX_BYTES &&
+        Buffer.byteLength(text, "utf8") <= DIFF_PATCH_MAX_BYTES
+    );
 }
 
 function parseSinglePatch(diff: string): StructuredPatch | null {
@@ -228,7 +300,11 @@ function parseSinglePatch(diff: string): StructuredPatch | null {
     }
 }
 
-function createPatchOnlyContent(path: string, kind: string, patch: string): ToolCallContent {
+function createPatchOnlyContent(
+    path: string,
+    kind: string,
+    patch: string,
+): ToolCallContent {
     return {
         type: "diff",
         oldText: null,

@@ -1,6 +1,6 @@
-import {afterEach, describe, expect, it, vi} from 'vitest';
-import {CommandExecutionApprovalRequest} from '../../CodexAppServerClient';
-import type {CommandExecutionRequestApprovalParams} from '../../app-server/v2';
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CommandExecutionApprovalRequest } from "../../CodexAppServerClient";
+import type { CommandExecutionRequestApprovalParams } from "../../app-server/v2";
 import {
     sessionId,
     turnId,
@@ -14,20 +14,28 @@ import {
     settle,
     stateUpdates,
     type PromptSession,
-} from './v2-prompt-harness';
-import {expectConformingV2SessionUpdates} from './v2-session-update-guard';
+} from "./v2-prompt-harness";
+import { expectConformingV2SessionUpdates } from "./v2-session-update-guard";
 
-function userMessageChunks(transcript: PromptSession['transcript']) {
-    return transcript.flatMap(entry => "sessionUpdate" in entry ? [entry.sessionUpdate] : [])
-        .filter(update => update.sessionUpdate === "user_message_chunk");
+function userMessageChunks(transcript: PromptSession["transcript"]) {
+    return transcript
+        .flatMap((entry) =>
+            "sessionUpdate" in entry ? [entry.sessionUpdate] : [],
+        )
+        .filter((update) => update.sessionUpdate === "user_message_chunk");
 }
 
-function agentMessageChunks(transcript: PromptSession['transcript']) {
-    return transcript.flatMap(entry => "sessionUpdate" in entry ? [entry.sessionUpdate] : [])
-        .filter(update => update.sessionUpdate === "agent_message_chunk");
+function agentMessageChunks(transcript: PromptSession["transcript"]) {
+    return transcript
+        .flatMap((entry) =>
+            "sessionUpdate" in entry ? [entry.sessionUpdate] : [],
+        )
+        .filter((update) => update.sessionUpdate === "agent_message_chunk");
 }
 
-function commandApprovalParams(overrides: Partial<CommandExecutionRequestApprovalParams> = {}): CommandExecutionRequestApprovalParams {
+function commandApprovalParams(
+    overrides: Partial<CommandExecutionRequestApprovalParams> = {},
+): CommandExecutionRequestApprovalParams {
     return {
         kind: "command",
         threadId: sessionId,
@@ -43,9 +51,11 @@ function commandApprovalParams(overrides: Partial<CommandExecutionRequestApprova
 
 /** Runs a normal prompt to completion, so `v2PromptsInFlight` no longer owns the session. */
 async function runPromptToCompletion(client: PromptSession) {
-    const response = client.sendPrompt([{type: "text", text: "Hello"}]);
+    const response = client.sendPrompt([{ type: "text", text: "Hello" }]);
     await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
-    const clientUserMessageId = client.turnStartParams[0]!["clientUserMessageId"] as string;
+    const clientUserMessageId = client.turnStartParams[0]![
+        "clientUserMessageId"
+    ] as string;
     client.emit(turnStarted());
     client.emit(itemCompleted(userMessageItem(clientUserMessageId)));
     await response;
@@ -54,7 +64,7 @@ async function runPromptToCompletion(client: PromptSession) {
     await settle();
 }
 
-describe('agent-initiated Codex turns over ACP v2', () => {
+describe("agent-initiated Codex turns over ACP v2", () => {
     let closeClient: (() => void) | null = null;
 
     afterEach(() => {
@@ -64,7 +74,7 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         expectConformingV2SessionUpdates();
     });
 
-    it('sends running/idle and renders items for a Codex turn that starts right after session/new, before any prompt has run', async () => {
+    it("sends running/idle and renders items for a Codex turn that starts right after session/new, before any prompt has run", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
         const start = client.transcript.length;
@@ -77,17 +87,20 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         await settle();
 
         const transcript = client.transcript.slice(start);
-        expect(stateUpdates(transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
+        expect(stateUpdates(transcript)).toEqual([
+            { state: "running" },
+            { state: "idle", stopReason: "end_turn" },
+        ]);
         expect(userMessageChunks(transcript)).toEqual([]);
         expect(agentMessageChunks(transcript)).toEqual([
-            expect.objectContaining({sessionUpdate: "agent_message_chunk"}),
+            expect.objectContaining({ sessionUpdate: "agent_message_chunk" }),
         ]);
     });
 
-    it('sends running/idle and renders items for a Codex turn that starts right after session/resume, before any prompt has run', async () => {
+    it("sends running/idle and renders items for a Codex turn that starts right after session/resume, before any prompt has run", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
-        await client.request("session/resume", {sessionId, cwd});
+        await client.request("session/resume", { sessionId, cwd });
         const start = client.transcript.length;
 
         client.emit(turnStarted());
@@ -98,20 +111,25 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         await settle();
 
         const transcript = client.transcript.slice(start);
-        expect(stateUpdates(transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
+        expect(stateUpdates(transcript)).toEqual([
+            { state: "running" },
+            { state: "idle", stopReason: "end_turn" },
+        ]);
         expect(userMessageChunks(transcript)).toEqual([]);
         expect(agentMessageChunks(transcript)).toEqual([
-            expect.objectContaining({sessionUpdate: "agent_message_chunk"}),
+            expect.objectContaining({ sessionUpdate: "agent_message_chunk" }),
         ]);
     });
 
-    it('does not double-render items for a turn a session/prompt owns', async () => {
+    it("does not double-render items for a turn a session/prompt owns", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
 
-        const response = client.sendPrompt([{type: "text", text: "Hello"}]);
+        const response = client.sendPrompt([{ type: "text", text: "Hello" }]);
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
-        const clientUserMessageId = client.turnStartParams[0]!["clientUserMessageId"] as string;
+        const clientUserMessageId = client.turnStartParams[0]![
+            "clientUserMessageId"
+        ] as string;
         client.emit(turnStarted());
         client.emit(itemCompleted(userMessageItem(clientUserMessageId)));
         await response;
@@ -122,17 +140,20 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         await settle();
 
         expect(agentMessageChunks(client.transcript)).toEqual([
-            expect.objectContaining({sessionUpdate: "agent_message_chunk"}),
+            expect.objectContaining({ sessionUpdate: "agent_message_chunk" }),
         ]);
     });
 
-    it('sends running/idle, without a user_message, for a Codex turn that continues after a prompt\'s own idle', async () => {
+    it("sends running/idle, without a user_message, for a Codex turn that continues after a prompt's own idle", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
 
         await runPromptToCompletion(client);
         // The prompt owned its own turn: exactly one running/idle pair, no duplicates.
-        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
+        expect(stateUpdates(client.transcript)).toEqual([
+            { state: "running" },
+            { state: "idle", stopReason: "end_turn" },
+        ]);
 
         const start = client.transcript.length;
         // No `session/prompt` started this one (e.g. a `/goal` auto-continuation): the same
@@ -143,11 +164,14 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         await settle();
 
         const transcript = client.transcript.slice(start);
-        expect(stateUpdates(transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
+        expect(stateUpdates(transcript)).toEqual([
+            { state: "running" },
+            { state: "idle", stopReason: "end_turn" },
+        ]);
         expect(userMessageChunks(transcript)).toEqual([]);
     });
 
-    it('reports `cancelled` for an unowned turn Codex reports as interrupted', async () => {
+    it("reports `cancelled` for an unowned turn Codex reports as interrupted", async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
         await runPromptToCompletion(client);
@@ -155,21 +179,36 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         const start = client.transcript.length;
         client.emit(turnStarted("turn-2"));
         await settle();
-        client.emit({method: "turn/completed", params: {threadId: sessionId, turn: {rootTurnId: null,
-            id: "turn-2", items: [], itemsView: "notLoaded", status: "interrupted",
-            error: null, startedAt: null, completedAt: null, durationMs: null,
-        }}});
+        client.emit({
+            method: "turn/completed",
+            params: {
+                threadId: sessionId,
+                turn: {
+                    rootTurnId: null,
+                    id: "turn-2",
+                    items: [],
+                    itemsView: "notLoaded",
+                    status: "interrupted",
+                    error: null,
+                    startedAt: null,
+                    completedAt: null,
+                    durationMs: null,
+                },
+            },
+        });
         await settle();
 
         expect(stateUpdates(client.transcript.slice(start))).toEqual([
-            {state: "running"},
-            {state: "idle", stopReason: "cancelled"},
+            { state: "running" },
+            { state: "idle", stopReason: "cancelled" },
         ]);
     });
 
-    it('resumes an unowned turn only after the runtime confirms progress following a permission answer', async () => {
+    it("resumes an unowned turn only after the runtime confirms progress following a permission answer", async () => {
         const client = await connectSession(2, {
-            onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "allow_once"}}),
+            onRequestPermission: async () => ({
+                outcome: { outcome: "selected", optionId: "allow_once" },
+            }),
         });
         closeClient = () => client.connection.close();
         await runPromptToCompletion(client);
@@ -179,12 +218,21 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         client.emit(turnStarted("turn-2"));
         await settle();
 
-        const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams({turnId: "turn-2"}));
-        expect(response).toEqual({decision: "accept"});
-        expect(stateUpdates(client.transcript.slice(start))).toEqual([{state: "running"}, {state: "requires_action"}]);
+        const response = await client.triggerApproval(
+            CommandExecutionApprovalRequest.method,
+            commandApprovalParams({ turnId: "turn-2" }),
+        );
+        expect(response).toEqual({ decision: "accept" });
+        expect(stateUpdates(client.transcript.slice(start))).toEqual([
+            { state: "running" },
+            { state: "requires_action" },
+        ]);
         client.emit({
             method: "thread/status/changed",
-            params: {threadId: sessionId, status: {type: "active", activeFlags: []}},
+            params: {
+                threadId: sessionId,
+                status: { type: "active", activeFlags: [] },
+            },
         });
         await settle();
 
@@ -194,10 +242,10 @@ describe('agent-initiated Codex turns over ACP v2', () => {
         const transcript = client.transcript.slice(start);
         // The runtime, not the permission response, establishes resumed progress.
         expect(stateUpdates(transcript)).toEqual([
-            {state: "running"},
-            {state: "requires_action"},
-            {state: "running"},
-            {state: "idle", stopReason: "end_turn"},
+            { state: "running" },
+            { state: "requires_action" },
+            { state: "running" },
+            { state: "idle", stopReason: "end_turn" },
         ]);
         expect(userMessageChunks(transcript)).toEqual([]);
     });

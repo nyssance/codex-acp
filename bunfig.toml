@@ -1,10 +1,33 @@
 [fmt]
 tabWidth = 4
 semi = true
-ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/**", "**/coverage/**", "Vendor/**", "vendor/**", "**/src-tauri/gen/**", "src/app-server/**", "**/bun.lock", "**/package-lock.json"]
+ignorePatterns = [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/target/**",
+    "**/coverage/**",
+    "Vendor/**",
+    "vendor/**",
+    "**/src-tauri/gen/**",
+    "src/app-server/**",
+    "**/bun.lock",
+    "**/package-lock.json",
+    "src/__tests__/**/data/**",
+]
 
 [lint]
-ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/**", "**/coverage/**", "Vendor/**", "vendor/**", "**/src-tauri/gen/**", "src/app-server/**"]
+ignorePatterns = [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/target/**",
+    "**/coverage/**",
+    "Vendor/**",
+    "vendor/**",
+    "**/src-tauri/gen/**",
+    "src/app-server/**",
+]
 
 [run]
 bun = true

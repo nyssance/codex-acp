@@ -1,4 +1,4 @@
-import type {McpServerOauthLoginCompletedNotification} from "../app-server/v2";
+import type { McpServerOauthLoginCompletedNotification } from "../app-server/v2";
 
 type McpOauthCompletionWaiter = {
     threadId: string;
@@ -17,7 +17,7 @@ export class McpOauthCompletions {
 
     /** Completes the waiters of the server. A notification without a thread completes the waiters of every thread. */
     complete(event: McpServerOauthLoginCompletedNotification): void {
-        for (const waiter of [...this.waiters.get(event.name) ?? []]) {
+        for (const waiter of [...(this.waiters.get(event.name) ?? [])]) {
             if (event.threadId === null || event.threadId === waiter.threadId) {
                 waiter.resolve(event);
             }
@@ -55,7 +55,7 @@ export class McpOauthCompletions {
                     reject(error);
                 },
             };
-            signal?.addEventListener("abort", onAbort, {once: true});
+            signal?.addEventListener("abort", onAbort, { once: true });
             let waiters = this.waiters.get(name);
             if (waiters === undefined) {
                 waiters = new Set();
@@ -67,7 +67,9 @@ export class McpOauthCompletions {
 
     /** Rejects every wait, now and later, because the Codex connection closed. */
     dispose(): void {
-        this.closedError ??= new Error("Codex connection closed during the MCP server sign-in.");
+        this.closedError ??= new Error(
+            "Codex connection closed during the MCP server sign-in.",
+        );
         for (const waiters of [...this.waiters.values()]) {
             for (const waiter of [...waiters]) {
                 waiter.reject(this.closedError);

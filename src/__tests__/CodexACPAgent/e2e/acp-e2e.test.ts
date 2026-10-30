@@ -1,8 +1,8 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import path from "node:path";
-import {afterEach, expect, it} from "vitest";
-import {AgentMode} from "../../../AgentMode";
-import {legacySetSessionModel} from "../../../AcpExtensions";
+import { afterEach, expect, it } from "vitest";
+import { AgentMode } from "../../../AgentMode";
+import { legacySetSessionModel } from "../../../AcpExtensions";
 import {
     createAuthenticatedFixture,
     createGatewayFixture,
@@ -26,18 +26,28 @@ describeE2E("E2E tests", () => {
     it("returns model response", async () => {
         fixture = await createAuthenticatedFixture();
         const session = await fixture.createSession();
-        await fixture.expectPromptText(session.sessionId, "Reply with exactly integration-ok and nothing else.", (text) => {
-            expect(text.toLowerCase()).toContain("integration-ok");
-        });
+        await fixture.expectPromptText(
+            session.sessionId,
+            "Reply with exactly integration-ok and nothing else.",
+            (text) => {
+                expect(text.toLowerCase()).toContain("integration-ok");
+            },
+        );
     });
 
     it("returns model response when authenticated via gateway", async () => {
         const apiKey = requireLiveApiKey();
-        fixture = await createGatewayFixture("https://api.openai.com/v1", {Authorization: `Bearer ${apiKey}`});
-        const session = await fixture.createSession();
-        await fixture.expectPromptText(session.sessionId, "Reply with exactly integration-ok and nothing else.", (text) => {
-            expect(text.toLowerCase()).toContain("integration-ok");
+        fixture = await createGatewayFixture("https://api.openai.com/v1", {
+            Authorization: `Bearer ${apiKey}`,
         });
+        const session = await fixture.createSession();
+        await fixture.expectPromptText(
+            session.sessionId,
+            "Reply with exactly integration-ok and nothing else.",
+            (text) => {
+                expect(text.toLowerCase()).toContain("integration-ok");
+            },
+        );
     });
 
     it("uses the selected session model for subsequent prompts", async () => {
@@ -55,7 +65,9 @@ describeE2E("E2E tests", () => {
             sessionId: session.sessionId,
             modelId: OTHER_TEST_MODEL_ID.toString(),
         });
-        await fixture.expectStatus(session.sessionId, {Model: OTHER_TEST_MODEL_ID});
+        await fixture.expectStatus(session.sessionId, {
+            Model: OTHER_TEST_MODEL_ID,
+        });
     });
 
     it("changes session mode via setSessionMode and reflects it in /status", async () => {
@@ -109,20 +121,29 @@ describeE2E("E2E tests", () => {
 
     it("lists skills from additional session roots", async () => {
         fixture = await createAuthenticatedFixture();
-        const additionalSkillsRoot = path.join(fixture.workspaceDir, "custom-skills");
-        fixture.writeSkill({
-            name: "session-root-skill",
-            description: "Session root skill",
-            body: "This skill exists only in an additional root passed at session creation.",
-        }, path.join(additionalSkillsRoot, ".agents", "skills"));
-
-        const session = await fixture.connection.request(acp.methods.agent.session.new, {
-            cwd: fixture.workspaceDir,
-            mcpServers: [],
-            _meta: {
-                additionalRoots: [additionalSkillsRoot],
+        const additionalSkillsRoot = path.join(
+            fixture.workspaceDir,
+            "custom-skills",
+        );
+        fixture.writeSkill(
+            {
+                name: "session-root-skill",
+                description: "Session root skill",
+                body: "This skill exists only in an additional root passed at session creation.",
             },
-        });
+            path.join(additionalSkillsRoot, ".agents", "skills"),
+        );
+
+        const session = await fixture.connection.request(
+            acp.methods.agent.session.new,
+            {
+                cwd: fixture.workspaceDir,
+                mcpServers: [],
+                _meta: {
+                    additionalRoots: [additionalSkillsRoot],
+                },
+            },
+        );
 
         await fixture.expectPromptText(session.sessionId, "/skills", (text) => {
             expect(text).toContain("Available skills:");
@@ -132,15 +153,21 @@ describeE2E("E2E tests", () => {
 
     it("lists repo skills from the session cwd", async () => {
         fixture = await createAuthenticatedFixture();
-        fixture.writeSkill({
-            name: "workspace-skill",
-            description: "Workspace skill",
-            body: "This skill exists only in the session workspace.",
-        }, path.join(fixture.workspaceDir, ".agents", "skills"));
+        fixture.writeSkill(
+            {
+                name: "workspace-skill",
+                description: "Workspace skill",
+                body: "This skill exists only in the session workspace.",
+            },
+            path.join(fixture.workspaceDir, ".agents", "skills"),
+        );
 
         const session = await fixture.createSession();
 
-        await fixture.expectAvailableCommand(session.sessionId, "$workspace-skill");
+        await fixture.expectAvailableCommand(
+            session.sessionId,
+            "$workspace-skill",
+        );
         await fixture.expectPromptText(session.sessionId, "/skills", (text) => {
             expect(text).toContain("Available skills:");
             expect(text).toContain("- workspace-skill: Workspace skill");

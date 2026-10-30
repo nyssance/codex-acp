@@ -1,7 +1,7 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import { RequestError } from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type {JsonObject} from "./CodexAcpClient";
+import type { JsonObject } from "./CodexAcpClient";
 
 /**
  * An MCP server entry from an ACP v1 or v2 session request.
@@ -13,18 +13,18 @@ export type AcpMcpServer = acp.McpServer | acpV2.McpServer;
  */
 export type NormalizedMcpServer =
     | {
-        type: "stdio";
-        name: string;
-        command: string;
-        args: string[];
-        env: Array<{name: string; value: string}>;
-    }
+          type: "stdio";
+          name: string;
+          command: string;
+          args: string[];
+          env: Array<{ name: string; value: string }>;
+      }
     | {
-        type: "http";
-        name: string;
-        url: string;
-        headers: Array<{name: string; value: string}>;
-    };
+          type: "http";
+          name: string;
+          url: string;
+          headers: Array<{ name: string; value: string }>;
+      };
 
 /**
  * Returns the server name. v2 custom transports have no typed `name`, so it may be empty.
@@ -39,7 +39,13 @@ export function getMcpServerName(server: AcpMcpServer): string {
 export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
     if (!("type" in server)) {
         // v1 stdio entries have no `type` tag.
-        return {type: "stdio", name: server.name, command: server.command, args: server.args, env: server.env};
+        return {
+            type: "stdio",
+            name: server.name,
+            command: server.command,
+            args: server.args,
+            env: server.env,
+        };
     }
     switch (server.type) {
         case "stdio": {
@@ -54,33 +60,53 @@ export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
         }
         case "http": {
             const http = server as acp.McpServerHttp | acpV2.McpServerHttp;
-            return {type: "http", name: http.name, url: http.url, headers: http.headers ?? []};
+            return {
+                type: "http",
+                name: http.name,
+                url: http.url,
+                headers: http.headers ?? [],
+            };
         }
         case "acp":
-            throw RequestError.invalidRequest("Codex doesn't support MCP ACP transport protocol");
+            throw RequestError.invalidParams(
+                undefined,
+                "Codex doesn't support MCP ACP transport protocol",
+            );
         case "sse":
-            throw RequestError.invalidRequest("Codex doesn't support MCP SSE transport protocol");
+            throw RequestError.invalidParams(
+                undefined,
+                "Codex doesn't support MCP SSE transport protocol",
+            );
         default:
             // v2 allows custom and future transport types.
-            throw RequestError.invalidRequest(`Codex doesn't support MCP '${server.type}' transport protocol`);
+            throw RequestError.invalidParams(
+                undefined,
+                `Codex doesn't support MCP '${server.type}' transport protocol`,
+            );
     }
 }
 
 /**
  * Creates a Codex `mcp_servers` config entry.
  */
-export function toCodexMcpServerConfig(server: NormalizedMcpServer): JsonObject {
+export function toCodexMcpServerConfig(
+    server: NormalizedMcpServer,
+): JsonObject {
     switch (server.type) {
         case "stdio":
             return {
-                "command": server.command,
-                "args": server.args,
-                "env": Object.fromEntries(server.env.map(env => [env.name, env.value])),
+                command: server.command,
+                args: server.args,
+                env: Object.fromEntries(
+                    server.env.map((env) => [env.name, env.value]),
+                ),
             };
         case "http":
             return {
-                "url": server.url,
-                "http_headers": Object.fromEntries(server.headers.map(h => [h.name, h.value])),
+                url: server.url,
+                http_headers: Object.fromEntries(
+                    server.headers.map((h) => [h.name, h.value]),
+                ),
             };
     }
 }
@@ -88,6 +114,9 @@ export function toCodexMcpServerConfig(server: NormalizedMcpServer): JsonObject 
 /**
  * A session request whose `mcpServers` may come from either ACP version.
  */
-export type WithAcpMcpServers<T extends {mcpServers?: unknown}> = Omit<T, "mcpServers"> & {
+export type WithAcpMcpServers<T extends { mcpServers?: unknown }> = Omit<
+    T,
+    "mcpServers"
+> & {
     mcpServers?: Array<AcpMcpServer>;
 };

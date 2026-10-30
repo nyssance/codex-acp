@@ -1,12 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SessionState } from '../../CodexAcpServer';
-import type { ServerNotification } from '../../app-server';
-import { createCodexMockTestFixture, createTestSessionState, setupPromptAndSendNotifications, type CodexMockTestFixture } from '../acp-test-utils';
-import {AgentMode} from "../../AgentMode";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { SessionState } from "../../CodexAcpServer";
+import type { ServerNotification } from "../../app-server";
+import {
+    createCodexMockTestFixture,
+    createTestSessionState,
+    setupPromptAndSendNotifications,
+    type CodexMockTestFixture,
+} from "../acp-test-utils";
+import { AgentMode } from "../../AgentMode";
 
-describe('CodexEventHandler - command action events', () => {
+describe("CodexEventHandler - command action events", () => {
     let mockFixture: CodexMockTestFixture;
-    const sessionId = 'test-session-id';
+    const sessionId = "test-session-id";
 
     beforeEach(() => {
         mockFixture = createCodexMockTestFixture();
@@ -15,32 +20,32 @@ describe('CodexEventHandler - command action events', () => {
 
     const sessionState: SessionState = createTestSessionState({
         sessionId,
-        currentModelId: 'model-id[effort]',
-        agentMode: AgentMode.DEFAULT_AGENT_MODE
+        currentModelId: "model-id[effort]",
+        agentMode: AgentMode.DEFAULT_AGENT_MODE,
     });
 
-    it('should handle list files command with explicit path', async () => {
+    it("should handle list files command with explicit path", async () => {
         const listFilesNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-list-path',
+                    type: "commandExecution",
+                    id: "command-list-path",
                     pluginId: null,
                     scriptPath: null,
-                    command: 'ls /test/project',
-                    cwd: '/test/project',
+                    command: "ls /test/project",
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'inProgress',
+                    source: "agent",
+                    status: "inProgress",
                     commandActions: [
                         {
-                            type: 'listFiles',
-                            command: 'ls /test/project',
-                            path: '/test/project',
+                            type: "listFiles",
+                            command: "ls /test/project",
+                            path: "/test/project",
                         },
                     ],
                     aggregatedOutput: null,
@@ -50,34 +55,39 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [listFilesNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [listFilesNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-list-files-with-path.json'
+            "data/command-list-files-with-path.json",
         );
     });
 
-    it('should handle list files command without a path', async () => {
+    it("should handle list files command without a path", async () => {
         const listFilesNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-list-no-path',
+                    type: "commandExecution",
+                    id: "command-list-no-path",
                     pluginId: null,
                     scriptPath: null,
-                    command: 'ls',
-                    cwd: '/test/project',
+                    command: "ls",
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'completed',
+                    source: "agent",
+                    status: "completed",
                     commandActions: [
                         {
-                            type: 'listFiles',
-                            command: 'ls',
+                            type: "listFiles",
+                            command: "ls",
                             path: null,
                         },
                     ],
@@ -88,36 +98,42 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [listFilesNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [listFilesNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-list-files-without-path.json'
+            "data/command-list-files-without-path.json",
         );
     });
 
-    it('should include the path in read file command titles', async () => {
+    it("should include the path in read file command titles", async () => {
         const readFileNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-read-file',
+                    type: "commandExecution",
+                    id: "command-read-file",
                     pluginId: null,
                     scriptPath: null,
                     command: 'sed -n "1,80p" /test/project/src/index.ts',
-                    cwd: '/test/project',
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'inProgress',
+                    source: "agent",
+                    status: "inProgress",
                     commandActions: [
                         {
-                            type: 'read',
-                            command: 'sed -n "1,80p" /test/project/src/index.ts',
-                            name: 'sed',
-                            path: '/test/project/src/index.ts',
+                            type: "read",
+                            command:
+                                'sed -n "1,80p" /test/project/src/index.ts',
+                            name: "sed",
+                            path: "/test/project/src/index.ts",
                         },
                     ],
                     aggregatedOutput: null,
@@ -127,36 +143,41 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [readFileNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [readFileNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-read-file-with-path.json'
+            "data/command-read-file-with-path.json",
         );
     });
 
-    it('should handle search command with query and path', async () => {
+    it("should handle search command with query and path", async () => {
         const searchNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-search-query-path',
+                    type: "commandExecution",
+                    id: "command-search-query-path",
                     pluginId: null,
                     scriptPath: null,
                     command: 'rg "Service" src',
-                    cwd: '/test/project',
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'inProgress',
+                    source: "agent",
+                    status: "inProgress",
                     commandActions: [
                         {
-                            type: 'search',
-                            command: 'rg Service src',
-                            query: 'Service',
-                            path: 'src',
+                            type: "search",
+                            command: "rg Service src",
+                            query: "Service",
+                            path: "src",
                         },
                     ],
                     aggregatedOutput: null,
@@ -166,35 +187,40 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [searchNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [searchNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-search-with-query-and-path.json'
+            "data/command-search-with-query-and-path.json",
         );
     });
 
-    it('should handle search command with only query', async () => {
+    it("should handle search command with only query", async () => {
         const searchNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-search-query-only',
+                    type: "commandExecution",
+                    id: "command-search-query-only",
                     pluginId: null,
                     scriptPath: null,
                     command: 'rg "Service"',
-                    cwd: '/test/project',
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'inProgress',
+                    source: "agent",
+                    status: "inProgress",
                     commandActions: [
                         {
-                            type: 'search',
-                            command: 'rg Service',
-                            query: 'Service',
+                            type: "search",
+                            command: "rg Service",
+                            query: "Service",
                             path: null,
                         },
                     ],
@@ -205,36 +231,41 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [searchNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [searchNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-search-with-query-only.json'
+            "data/command-search-with-query-only.json",
         );
     });
 
-    it('should handle search command with only path (file glob search)', async () => {
+    it("should handle search command with only path (file glob search)", async () => {
         const searchNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-search-path-only',
+                    type: "commandExecution",
+                    id: "command-search-path-only",
                     pluginId: null,
                     scriptPath: null,
                     command: 'rg --files -g "*service*"',
-                    cwd: '/test/project',
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'inProgress',
+                    source: "agent",
+                    status: "inProgress",
                     commandActions: [
                         {
-                            type: 'search',
+                            type: "search",
                             command: "rg --files -g '*service*'",
                             query: null,
-                            path: '*service*',
+                            path: "*service*",
                         },
                     ],
                     aggregatedOutput: null,
@@ -244,34 +275,39 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [searchNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [searchNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-search-with-path-only.json'
+            "data/command-search-with-path-only.json",
         );
     });
 
-    it('should handle search command with neither query nor path', async () => {
+    it("should handle search command with neither query nor path", async () => {
         const searchNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
-                    type: 'commandExecution',
-                    id: 'command-search-no-query-no-path',
+                    type: "commandExecution",
+                    id: "command-search-no-query-no-path",
                     pluginId: null,
                     scriptPath: null,
-                    command: 'rg',
-                    cwd: '/test/project',
+                    command: "rg",
+                    cwd: "/test/project",
                     processId: null,
-                    source: 'agent',
-                    status: 'inProgress',
+                    source: "agent",
+                    status: "inProgress",
                     commandActions: [
                         {
-                            type: 'search',
-                            command: 'rg',
+                            type: "search",
+                            command: "rg",
                             query: null,
                             path: null,
                         },
@@ -283,19 +319,24 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [searchNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [searchNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/command-search-no-query-no-path.json'
+            "data/command-search-no-query-no-path.json",
         );
     });
 
-    it('should handle mcp tools', async () => {
+    it("should handle mcp tools", async () => {
         const searchNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
                     type: "mcpToolCall",
@@ -303,7 +344,7 @@ describe('CodexEventHandler - command action events', () => {
                     server: "server-name",
                     tool: "tool-name",
                     status: "inProgress",
-                    arguments: { argument: "example"},
+                    arguments: { argument: "example" },
                     appContext: null,
                     mcpAppUi: null,
                     readOnlyHint: null,
@@ -315,20 +356,25 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [searchNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [searchNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/mcp-tool-in-progress.json'
+            "data/mcp-tool-in-progress.json",
         );
     });
 
-    it('should include mcp progress and final logs', async () => {
+    it("should include mcp progress and final logs", async () => {
         const notifications: ServerNotification[] = [
             {
-                method: 'item/started',
+                method: "item/started",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
+                    turnId: "turn-1",
                     startedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
@@ -336,7 +382,12 @@ describe('CodexEventHandler - command action events', () => {
                         server: "ijproxy",
                         tool: "read_file",
                         status: "inProgress",
-                        arguments: { file_path: ".ai/local.md", mode: "slice", start_line: 1, max_lines: 200 },
+                        arguments: {
+                            file_path: ".ai/local.md",
+                            mode: "slice",
+                            start_line: 1,
+                            max_lines: 200,
+                        },
                         appContext: null,
                         mcpAppUi: null,
                         readOnlyHint: true,
@@ -348,19 +399,20 @@ describe('CodexEventHandler - command action events', () => {
                 },
             },
             {
-                method: 'item/mcpToolCall/progress',
+                method: "item/mcpToolCall/progress",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
-                    itemId: 'call-id',
-                    message: "File /workspace/.ai/local.md doesn't exist or can't be opened",
+                    turnId: "turn-1",
+                    itemId: "call-id",
+                    message:
+                        "File /workspace/.ai/local.md doesn't exist or can't be opened",
                 },
             },
             {
-                method: 'item/completed',
+                method: "item/completed",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
+                    turnId: "turn-1",
                     completedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
@@ -368,14 +420,20 @@ describe('CodexEventHandler - command action events', () => {
                         server: "ijproxy",
                         tool: "read_file",
                         status: "failed",
-                        arguments: { file_path: ".ai/local.md", mode: "slice", start_line: 1, max_lines: 200 },
+                        arguments: {
+                            file_path: ".ai/local.md",
+                            mode: "slice",
+                            start_line: 1,
+                            max_lines: 200,
+                        },
                         appContext: null,
                         mcpAppUi: null,
                         readOnlyHint: true,
                         pluginId: null,
                         result: null,
                         error: {
-                            message: "File /workspace/.ai/local.md doesn't exist or can't be opened",
+                            message:
+                                "File /workspace/.ai/local.md doesn't exist or can't be opened",
                         },
                         durationMs: 15,
                     },
@@ -383,21 +441,26 @@ describe('CodexEventHandler - command action events', () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/mcp-tool-completed-with-logs.json'
+            "data/mcp-tool-completed-with-logs.json",
         );
     });
 
-    it('should preserve repeated mcp progress messages in final output', async () => {
-        const repeatedMessage = 'Polling for status';
+    it("should preserve repeated mcp progress messages in final output", async () => {
+        const repeatedMessage = "Polling for status";
         const notifications: ServerNotification[] = [
             {
-                method: 'item/started',
+                method: "item/started",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
+                    turnId: "turn-1",
                     startedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
@@ -417,28 +480,28 @@ describe('CodexEventHandler - command action events', () => {
                 },
             },
             {
-                method: 'item/mcpToolCall/progress',
+                method: "item/mcpToolCall/progress",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
-                    itemId: 'call-id',
+                    turnId: "turn-1",
+                    itemId: "call-id",
                     message: repeatedMessage,
                 },
             },
             {
-                method: 'item/mcpToolCall/progress',
+                method: "item/mcpToolCall/progress",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
-                    itemId: 'call-id',
+                    turnId: "turn-1",
+                    itemId: "call-id",
                     message: repeatedMessage,
                 },
             },
             {
-                method: 'item/completed',
+                method: "item/completed",
                 params: {
                     threadId: sessionId,
-                    turnId: 'turn-1',
+                    turnId: "turn-1",
                     completedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
@@ -461,19 +524,24 @@ describe('CodexEventHandler - command action events', () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/mcp-tool-repeated-progress.json'
+            "data/mcp-tool-repeated-progress.json",
         );
     });
 
-    it('should handle dynamic tools', async () => {
+    it("should handle dynamic tools", async () => {
         const dynamicToolNotification: ServerNotification = {
-            method: 'item/started',
+            method: "item/started",
             params: {
                 threadId: sessionId,
-                turnId: 'turn-1',
+                turnId: "turn-1",
                 startedAtMs: 0,
                 item: {
                     type: "dynamicToolCall",
@@ -489,10 +557,15 @@ describe('CodexEventHandler - command action events', () => {
             },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [dynamicToolNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [dynamicToolNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            'data/dynamic-tool-in-progress.json'
+            "data/dynamic-tool-in-progress.json",
         );
     });
 });

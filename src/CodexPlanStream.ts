@@ -1,8 +1,14 @@
-import type {ACPSessionConnection, UpdateSessionEvent} from "./ACPSessionConnection";
-import {AIR_CONTENT_DELTA_KEY, withAirMeta} from "./AirExtension";
-import {createAgentTextMessageChunk, createMessagePhaseMeta} from "./ContentChunks";
-import {logger} from "./Logger";
-import type {ClientCapabilities} from "./tool-calls/ClientCapabilities";
+import type {
+    ACPSessionConnection,
+    UpdateSessionEvent,
+} from "./ACPSessionConnection";
+import { AIR_CONTENT_DELTA_KEY, withAirMeta } from "./AirExtension";
+import {
+    createAgentTextMessageChunk,
+    createMessagePhaseMeta,
+} from "./ContentChunks";
+import { logger } from "./Logger";
+import type { ClientCapabilities } from "./tool-calls/ClientCapabilities";
 
 /**
  * Streams the Markdown plan that Codex writes in plan mode.
@@ -49,17 +55,23 @@ export class CodexPlanStream {
     }
 
     /** Returns the text of the completed plan, or `null` when it is empty. */
-    async completed(itemId: string, itemText: string): Promise<{text: string; update: UpdateSessionEvent | null} | null> {
-        const text = itemText.length > 0 ? itemText : this.streamedText.get(itemId) ?? "";
+    async completed(
+        itemId: string,
+        itemText: string,
+    ): Promise<{ text: string; update: UpdateSessionEvent | null } | null> {
+        const text =
+            itemText.length > 0
+                ? itemText
+                : (this.streamedText.get(itemId) ?? "");
         this.pendingItemIds.delete(itemId);
         if (this.pendingItemIds.size === 0) this.cancelTimer();
         this.streamedText.delete(itemId);
         if (text.length === 0) return null;
         if (this.capabilities.planUpdates) {
             await this.enqueue(itemId, text);
-            return {text, update: null};
+            return { text, update: null };
         }
-        return {text, update: this.remainingMessageText(itemId, text)};
+        return { text, update: this.remainingMessageText(itemId, text) };
     }
 
     async flush(): Promise<void> {
@@ -67,10 +79,14 @@ export class CodexPlanStream {
         do {
             const itemIds = [...this.pendingItemIds];
             this.pendingItemIds.clear();
-            await Promise.all(itemIds.map(itemId => {
-                const text = this.streamedText.get(itemId) ?? "";
-                return text.length > 0 ? this.enqueue(itemId, text) : Promise.resolve();
-            }));
+            await Promise.all(
+                itemIds.map((itemId) => {
+                    const text = this.streamedText.get(itemId) ?? "";
+                    return text.length > 0
+                        ? this.enqueue(itemId, text)
+                        : Promise.resolve();
+                }),
+            );
             await this.chain;
         } while (this.pendingItemIds.size > 0);
     }
@@ -89,16 +105,24 @@ export class CodexPlanStream {
         this.clearTurn();
     }
 
-    private remainingMessageText(itemId: string, text: string): UpdateSessionEvent | null {
+    private remainingMessageText(
+        itemId: string,
+        text: string,
+    ): UpdateSessionEvent | null {
         const reported = this.reportedText.get(itemId) ?? "";
         this.reportedText.delete(itemId);
-        if (reported.length === 0) return planMessageChunk(text, itemId, this.capabilities.airClient);
+        if (reported.length === 0)
+            return planMessageChunk(text, itemId, this.capabilities.airClient);
         if (text.startsWith(reported)) {
             const rest = text.slice(reported.length);
-            return rest.length > 0 ? planMessageChunk(rest, itemId, this.capabilities.airClient) : null;
+            return rest.length > 0
+                ? planMessageChunk(rest, itemId, this.capabilities.airClient)
+                : null;
         }
         // A message chunk cannot be replaced, so the streamed text stays.
-        logger.log("The completed plan differs from the streamed plan text", {itemId});
+        logger.log("The completed plan differs from the streamed plan text", {
+            itemId,
+        });
         return null;
     }
 
@@ -106,7 +130,7 @@ export class CodexPlanStream {
         if (this.disposed || this.timer !== null) return;
         this.timer = setTimeout(() => {
             this.timer = null;
-            void this.flush().catch(error => {
+            void this.flush().catch((error) => {
                 logger.error("Failed to flush throttled plan updates", error);
             });
         }, CodexPlanStream.UPDATE_INTERVAL_MS);
@@ -130,20 +154,42 @@ export class CodexPlanStream {
         return result;
     }
 
-    private planUpdate(itemId: string, text: string): UpdateSessionEvent | null {
+    private planUpdate(
+        itemId: string,
+        text: string,
+    ): UpdateSessionEvent | null {
         const reported = this.reportedText.get(itemId);
         if (reported === text) return null;
-        if (this.capabilities.air.planContentDelta && reported !== undefined && text.startsWith(reported)) {
+        if (
+            this.capabilities.air.planContentDelta &&
+            reported !== undefined &&
+            text.startsWith(reported)
+        ) {
             return {
                 sessionUpdate: "plan_update",
-                plan: {type: "markdown", planId: itemId, content: ""},
-                _meta: withAirMeta(undefined, AIR_CONTENT_DELTA_KEY, text.slice(reported.length)),
+                plan: { type: "markdown", planId: itemId, content: "" },
+                _meta: withAirMeta(
+                    undefined,
+                    AIR_CONTENT_DELTA_KEY,
+                    text.slice(reported.length),
+                ),
             };
         }
-        return {sessionUpdate: "plan_update", plan: {type: "markdown", planId: itemId, content: text}};
+        return {
+            sessionUpdate: "plan_update",
+            plan: { type: "markdown", planId: itemId, content: text },
+        };
     }
 }
 
-function planMessageChunk(text: string, itemId: string, airClient: boolean): UpdateSessionEvent {
-    return createAgentTextMessageChunk(text, itemId, createMessagePhaseMeta("final_answer", airClient));
+function planMessageChunk(
+    text: string,
+    itemId: string,
+    airClient: boolean,
+): UpdateSessionEvent {
+    return createAgentTextMessageChunk(
+        text,
+        itemId,
+        createMessagePhaseMeta("final_answer", airClient),
+    );
 }

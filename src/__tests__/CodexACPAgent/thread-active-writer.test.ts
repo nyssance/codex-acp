@@ -69,21 +69,17 @@ function createFixture() {
     client.readAuthRequirement = vi
         .fn()
         .mockResolvedValue({ required: false, account: null });
-    client.getAccount = vi
-        .fn()
-        .mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+    client.getAccount = vi.fn().mockResolvedValue({
+        workspaceRouting: null,
+        account: null,
+        requiresOpenaiAuth: false,
+    });
     client.listSkills = vi.fn().mockResolvedValue({ data: [] });
-    appServer.listModels = vi
-        .fn()
-        .mockResolvedValue({
-            readStates: null,
-            data: [createTestModel()],
-            nextCursor: null,
-        });
+    appServer.listModels = vi.fn().mockResolvedValue({
+        readStates: null,
+        data: [createTestModel()],
+        nextCursor: null,
+    });
     appServer.threadRead = vi.fn();
     appServer.threadUnsubscribe = vi.fn().mockResolvedValue({});
     return { fixture, agent: fixture.getCodexAcpAgent(), appServer };
@@ -167,27 +163,23 @@ describe("a thread that another Codex client has loaded", () => {
         const { agent, appServer } = createFixture();
         const forkId = "01a0637c-5b99-7242-9064-04545d605fdc";
         appServer.threadResume = vi.fn().mockRejectedValue(ACTIVE_WRITER);
-        appServer.threadFork = vi
-            .fn()
-            .mockResolvedValue({
-                ...testThreadPermissions(),
-                readState: null,
-                ...resumedThread(),
-                thread: {
-                    ...createThread(),
-                    id: forkId,
-                    sessionId: forkId,
-                    forkedFromId: threadId,
-                },
-            });
+        appServer.threadFork = vi.fn().mockResolvedValue({
+            ...testThreadPermissions(),
+            readState: null,
+            ...resumedThread(),
+            thread: {
+                ...createThread(),
+                id: forkId,
+                sessionId: forkId,
+                forkedFromId: threadId,
+            },
+        });
 
-        appServer.threadTurnsList = vi
-            .fn()
-            .mockResolvedValue({
-                data: [],
-                nextCursor: null,
-                backwardsCursor: null,
-            });
+        appServer.threadTurnsList = vi.fn().mockResolvedValue({
+            data: [],
+            nextCursor: null,
+            backwardsCursor: null,
+        });
         const response = await agent.forkSession({
             sessionId: threadId,
             cwd: "/test/cwd",

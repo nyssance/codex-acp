@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionState } from "../../CodexAcpServer";
 import type { ServerNotification } from "../../app-server";
-import { createCodexMockTestFixture, createTestSessionState, setupPromptAndSendNotifications, type CodexMockTestFixture } from "../acp-test-utils";
+import {
+    createCodexMockTestFixture,
+    createTestSessionState,
+    setupPromptAndSendNotifications,
+    type CodexMockTestFixture,
+} from "../acp-test-utils";
 import { AgentMode } from "../../AgentMode";
 
 describe("CodexEventHandler - model rerouted events", () => {
@@ -16,7 +21,7 @@ describe("CodexEventHandler - model rerouted events", () => {
     const sessionState: SessionState = createTestSessionState({
         sessionId,
         currentModelId: "model-id[effort]",
-        agentMode: AgentMode.DEFAULT_AGENT_MODE
+        agentMode: AgentMode.DEFAULT_AGENT_MODE,
     });
 
     it("maps model reroute to agent thought chunk", async () => {
@@ -28,13 +33,18 @@ describe("CodexEventHandler - model rerouted events", () => {
                 fromModel: "gpt-5",
                 toModel: "gpt-5-mini",
                 reason: "highRiskCyberActivity",
-            }
+            },
         };
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [modelReroutedNotification]);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            [modelReroutedNotification],
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/model-rerouted.json"
+            "data/model-rerouted.json",
         );
     });
 });

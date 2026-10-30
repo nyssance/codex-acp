@@ -3,9 +3,9 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 import fs from "node:fs";
 import path from "node:path";
-import {afterEach, beforeEach, expect, it} from "vitest";
-import {ApprovalOptionId} from "../../permissions/option-ids";
-import type {SpawnedAgentFixture} from "../CodexACPAgent/e2e/spawned-agent-fixture";
+import { afterEach, beforeEach, expect, it } from "vitest";
+import { ApprovalOptionId } from "../../permissions/option-ids";
+import type { SpawnedAgentFixture } from "../CodexACPAgent/e2e/spawned-agent-fixture";
 import {
     answerPermissions,
     connectAndLogin,
@@ -18,7 +18,12 @@ import {
     stopAll,
     toolCallUpdates,
 } from "./integration-fixture";
-import {execCommandResponse, type MockResponsesServer, startMockResponsesServer, textResponse} from "./mock-responses-server";
+import {
+    execCommandResponse,
+    type MockResponsesServer,
+    startMockResponsesServer,
+    textResponse,
+} from "./mock-responses-server";
 
 const CALL_ID = "call_shell";
 
@@ -59,20 +64,25 @@ describeIntegration("integration: shell approval", () => {
         return fs.existsSync(marker);
     }
 
-    function expectOnePermissionRequest(): acp.RequestPermissionRequest | undefined {
+    function expectOnePermissionRequest():
+        acp.RequestPermissionRequest | undefined {
         const requests = agent.readPermissionRequests(sessionId, "execute");
         expect(requests).toHaveLength(1);
         return requests[0];
     }
 
     function toolCallWithStatus(status: "completed" | "failed") {
-        return toolCallUpdates(agent, sessionId).find((u) => u.status === status);
+        return toolCallUpdates(agent, sessionId).find(
+            (u) => u.status === status,
+        );
     }
 
     /** Codex sent the command output back to the model in its 2nd request. */
     function expectOutputSentToModel(output: string): void {
         expect(mock.requests).toHaveLength(2);
-        const sent = modelRequestInput(mock, 1).find((i) => i.type === "function_call_output" && i.call_id === CALL_ID);
+        const sent = modelRequestInput(mock, 1).find(
+            (i) => i.type === "function_call_output" && i.call_id === CALL_ID,
+        );
         expect(JSON.stringify(sent)).toContain(output);
     }
 
@@ -100,10 +110,16 @@ describeIntegration("integration: shell approval", () => {
 
         // Check the client, the disk, and what Codex sent to the model.
         expect(response.stopReason).toBe("end_turn");
-        expect(expectOnePermissionRequest()?.options.map((o) => o.optionId)).toEqual([
-            ApprovalOptionId.AllowOnce, ApprovalOptionId.AcceptWithExecpolicyAmendment, ApprovalOptionId.Cancel,
+        expect(
+            expectOnePermissionRequest()?.options.map((o) => o.optionId),
+        ).toEqual([
+            ApprovalOptionId.AllowOnce,
+            ApprovalOptionId.AcceptWithExecpolicyAmendment,
+            ApprovalOptionId.Cancel,
         ]);
-        expect(JSON.stringify(toolCallWithStatus("completed"))).toContain("shell-ok");
+        expect(JSON.stringify(toolCallWithStatus("completed"))).toContain(
+            "shell-ok",
+        );
         expect(commandRan()).toBe(true);
         expectOutputSentToModel("shell-ok");
         expectNoUnscriptedModelRequests(mock);

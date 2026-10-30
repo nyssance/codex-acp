@@ -16,9 +16,9 @@ class Logger {
         }
 
         try {
-            fs.mkdirSync(logDir, {recursive: true});
+            fs.mkdirSync(logDir, { recursive: true });
             this.logFilePath = path.join(logDir, "app-server.log");
-            this.log("Logger initialized", {logFilePath: this.logFilePath});
+            this.log("Logger initialized", { logFilePath: this.logFilePath });
         } catch (ex) {
             console.error("Failed to initialize logger directory", ex);
             this.logFilePath = null;
@@ -36,16 +36,16 @@ class Logger {
             console.error(`[SYSTEM_ERROR] ${message}: ${formattedError}`);
             return;
         }
-        this.log(`[SYSTEM_ERROR] ${message}`, {exception: formattedError});
+        this.log(`[SYSTEM_ERROR] ${message}`, { exception: formattedError });
     }
 
     log(message: string, context?: LogContext) {
         if (!this.logFilePath) return;
         try {
             const timestamp = this.formatTimestamp(new Date());
-            const serializedContext = ` ${JSON.stringify({pid: process.pid, ...context})}`;
+            const serializedContext = ` ${JSON.stringify({ pid: process.pid, ...context })}`;
 
-            if (!message.startsWith('[')) message = `[SYS] ${message}`;
+            if (!message.startsWith("[")) message = `[SYS] ${message}`;
             const line = `${timestamp} ${message}${serializedContext}`;
             fs.appendFileSync(this.logFilePath, `${line}\n`);
         } catch (ex) {
@@ -71,7 +71,9 @@ class Logger {
                 parts.push(err.stack);
             }
             if ("cause" in err && err.cause) {
-                parts.push(`Caused by: ${this.formatError(err.cause as unknown)}`);
+                parts.push(
+                    `Caused by: ${this.formatError(err.cause as unknown)}`,
+                );
             }
             return parts.join("\n");
         }

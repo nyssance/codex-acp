@@ -3,8 +3,8 @@ import type {
     FuzzyFileSearchSessionCompletedNotification,
     FuzzyFileSearchSessionUpdatedNotification,
 } from "../../app-server";
-import type {ToolFacts} from "../ToolFacts";
-import {searchTitle} from "./CommandReporter";
+import type { ToolFacts } from "../ToolFacts";
+import { searchTitle } from "./CommandReporter";
 
 /** Reports a Codex fuzzy file search session. The found files are the locations. */
 export class FuzzySearchReporter {
@@ -19,15 +19,21 @@ export class FuzzySearchReporter {
             report: started ? "start" : "update",
             title: searchTitle(event.query, null),
             status: "in_progress",
-            locations: event.files.map(file => path.isAbsolute(file.path) ? file.path : path.join(file.root, file.path)),
+            locations: event.files.map((file) =>
+                path.isAbsolute(file.path)
+                    ? file.path
+                    : path.join(file.root, file.path),
+            ),
         };
-        return started ? {...facts, kind: "search", input: {query: event.query}} : facts;
+        return started
+            ? { ...facts, kind: "search", input: { query: event.query } }
+            : facts;
     }
 
     completed(event: FuzzyFileSearchSessionCompletedNotification): ToolFacts {
         const toolCallId = fuzzyFileSearchToolCallId(event.sessionId);
         this.activeSessions.delete(toolCallId);
-        return {toolCallId, report: "update", status: "completed"};
+        return { toolCallId, report: "update", status: "completed" };
     }
 }
 

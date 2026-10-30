@@ -1,7 +1,10 @@
-
-import type {AuthenticateRequest, AuthMethod, ClientCapabilities} from "@agentclientprotocol/sdk/unstable";
+import type {
+    AuthenticateRequest,
+    AuthMethod,
+    ClientCapabilities,
+} from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {clientSupportsUrlElicitation} from "./ElicitationCapabilities";
+import { clientSupportsUrlElicitation } from "./ElicitationCapabilities";
 
 export const CODEX_API_KEY_ENV_VAR = "CODEX_API_KEY";
 export const OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY";
@@ -11,7 +14,7 @@ export interface ApiKeyAuthRequest extends AuthenticateRequest {
     _meta?: {
         "api-key"?: {
             apiKey: string;
-        }
+        };
     } | null;
 }
 
@@ -21,16 +24,16 @@ const ApiKeyAuthMethod: AuthMethod = {
     description: "Use an API key to authenticate",
     _meta: {
         "api-key": {
-            provider: "openai"
-        }
-    }
-}
+            provider: "openai",
+        },
+    },
+};
 
 const ChatGptAuthMethod: AuthMethod = {
     id: "chat-gpt",
     name: "ChatGPT",
-    description: "Use ChatGPT to authenticate"
-}
+    description: "Use ChatGPT to authenticate",
+};
 
 export interface ChatGPTAuthRequest extends AuthenticateRequest {
     methodId: "chat-gpt";
@@ -39,8 +42,9 @@ export interface ChatGPTAuthRequest extends AuthenticateRequest {
 const ChatGptDeviceCodeAuthMethod: AuthMethod = {
     id: "chat-gpt-device-code",
     name: "ChatGPT (device code)",
-    description: "Sign in to ChatGPT by opening a verification page and entering a one-time code"
-}
+    description:
+        "Sign in to ChatGPT by opening a verification page and entering a one-time code",
+};
 
 export interface ChatGPTDeviceCodeAuthRequest extends AuthenticateRequest {
     methodId: "chat-gpt-device-code";
@@ -51,25 +55,28 @@ export const GatewayAuthMethod = {
     name: "Custom model gateway",
     description: "Use a custom gateway to authenticate and access models",
     _meta: {
-        "gateway": {
+        gateway: {
             protocol: "openai",
-            restartRequired: "false"
-        }
-    }
-}
+            restartRequired: "false",
+        },
+    },
+};
 
 export interface GatewayAuthRequest extends AuthenticateRequest {
     methodId: "gateway";
     _meta: {
-        "gateway": {
+        gateway: {
             baseUrl: string;
             headers: Record<string, string>;
             providerName?: string;
-        }
+        };
     };
 }
 
-export function getCodexAuthMethods(clientCapabilities?: ClientCapabilities | null, env: NodeJS.ProcessEnv = process.env): AuthMethod[] {
+export function getCodexAuthMethods(
+    clientCapabilities?: ClientCapabilities | null,
+    env: NodeJS.ProcessEnv = process.env,
+): AuthMethod[] {
     const authMethods: AuthMethod[] = [ApiKeyAuthMethod];
     if (!env["NO_BROWSER"]) {
         authMethods.push(ChatGptAuthMethod);
@@ -77,7 +84,8 @@ export function getCodexAuthMethods(clientCapabilities?: ClientCapabilities | nu
     if (clientSupportsUrlElicitation(clientCapabilities)) {
         authMethods.push(ChatGptDeviceCodeAuthMethod);
     }
-    const supportsGatewayAuth = clientCapabilities?.auth?._meta?.["gateway"] === true;
+    const supportsGatewayAuth =
+        clientCapabilities?.auth?._meta?.["gateway"] === true;
     if (supportsGatewayAuth) {
         authMethods.push(GatewayAuthMethod);
     }
@@ -88,18 +96,34 @@ export function getCodexAuthMethods(clientCapabilities?: ClientCapabilities | nu
  * The same selection as {@link getCodexAuthMethods}, in the v2 descriptor shape. Every Codex
  * method is an agent-handled login. Takes client capabilities already mapped to the v1 shape.
  */
-export function getCodexAuthMethodsV2(clientCapabilities?: ClientCapabilities | null, env: NodeJS.ProcessEnv = process.env): acpV2.AuthMethod[] {
-    return getCodexAuthMethods(clientCapabilities, env).map(({id, name, description, _meta}) => ({
-        methodId: id,
-        type: "agent" as const,
-        name,
-        ...(description != null ? {description} : {}),
-        ...(_meta != null ? {_meta} : {}),
-    }));
+export function getCodexAuthMethodsV2(
+    clientCapabilities?: ClientCapabilities | null,
+    env: NodeJS.ProcessEnv = process.env,
+): acpV2.AuthMethod[] {
+    return getCodexAuthMethods(clientCapabilities, env).map(
+        ({ id, name, description, _meta }) => ({
+            methodId: id,
+            type: "agent" as const,
+            name,
+            ...(description != null ? { description } : {}),
+            ...(_meta != null ? { _meta } : {}),
+        }),
+    );
 }
 
-export type CodexAuthRequest = ApiKeyAuthRequest | ChatGPTAuthRequest | ChatGPTDeviceCodeAuthRequest | GatewayAuthRequest;
+export type CodexAuthRequest =
+    | ApiKeyAuthRequest
+    | ChatGPTAuthRequest
+    | ChatGPTDeviceCodeAuthRequest
+    | GatewayAuthRequest;
 
-export function isCodexAuthRequest(request: AuthenticateRequest): request is CodexAuthRequest {
-    return request.methodId === "api-key" || request.methodId === "chat-gpt" || request.methodId === "chat-gpt-device-code" || request.methodId === "gateway";
+export function isCodexAuthRequest(
+    request: AuthenticateRequest,
+): request is CodexAuthRequest {
+    return (
+        request.methodId === "api-key" ||
+        request.methodId === "chat-gpt" ||
+        request.methodId === "chat-gpt-device-code" ||
+        request.methodId === "gateway"
+    );
 }

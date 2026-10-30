@@ -1,13 +1,17 @@
-import {describe, expect, it} from "vitest";
-import type {ServerNotification} from "../../app-server";
-import type {ThreadItem} from "../../app-server/v2";
-import {AcpToolCallRenderer} from "../../tool-calls/AcpToolCallRenderer";
-import {ClientCapabilities} from "../../tool-calls/ClientCapabilities";
-import {CommandReporter} from "../../tool-calls/reporters/CommandReporter";
-import {McpStartupReporter} from "../../tool-calls/reporters/McpStartupReporter";
-import {createCodexMockTestFixture, createTestSessionState, setupPromptAndSendNotifications} from "../acp-test-utils";
+import { describe, expect, it } from "vitest";
+import type { ServerNotification } from "../../app-server";
+import type { ThreadItem } from "../../app-server/v2";
+import { AcpToolCallRenderer } from "../../tool-calls/AcpToolCallRenderer";
+import { ClientCapabilities } from "../../tool-calls/ClientCapabilities";
+import { CommandReporter } from "../../tool-calls/reporters/CommandReporter";
+import { McpStartupReporter } from "../../tool-calls/reporters/McpStartupReporter";
+import {
+    createCodexMockTestFixture,
+    createTestSessionState,
+    setupPromptAndSendNotifications,
+} from "../acp-test-utils";
 
-type CommandItem = ThreadItem & {type: "commandExecution"};
+type CommandItem = ThreadItem & { type: "commandExecution" };
 
 function command(overrides: Partial<CommandItem> = {}): CommandItem {
     return {
@@ -29,17 +33,24 @@ function command(overrides: Partial<CommandItem> = {}): CommandItem {
 }
 
 function occurrences(value: unknown, text: string): number {
-    const serialized = typeof value === "string" ? value : JSON.stringify(value);
+    const serialized =
+        typeof value === "string" ? value : JSON.stringify(value);
     return serialized.split(JSON.stringify(text).slice(1, -1)).length - 1;
 }
 
-const DELTA_CLIENT = ClientCapabilities.from({_meta: {terminal_output_delta: true, jetbrains: {air: {version: 1}}}});
-const ZED_CLIENT = ClientCapabilities.from({_meta: {terminal_output: true}});
+const DELTA_CLIENT = ClientCapabilities.from({
+    _meta: { terminal_output_delta: true, jetbrains: { air: { version: 1 } } },
+});
+const ZED_CLIENT = ClientCapabilities.from({
+    _meta: { terminal_output: true },
+});
 
 function completion(item: CommandItem, capabilities: ClientCapabilities) {
     const reporter = new CommandReporter();
-    reporter.started({...item, status: "inProgress"});
-    return new AcpToolCallRenderer(capabilities).render(reporter.completed(item));
+    reporter.started({ ...item, status: "inProgress" });
+    return new AcpToolCallRenderer(capabilities).render(
+        reporter.completed(item),
+    );
 }
 
 describe("command output is sent once", () => {
@@ -49,8 +60,15 @@ describe("command output is sent once", () => {
             toolCallId: "cmd-1",
             status: "completed",
             _meta: {
-                terminal_output_delta: {data: "a.txt\nb.txt\n", terminal_id: "cmd-1"},
-                terminal_exit: {exit_code: 0, signal: null, terminal_id: "cmd-1"},
+                terminal_output_delta: {
+                    data: "a.txt\nb.txt\n",
+                    terminal_id: "cmd-1",
+                },
+                terminal_exit: {
+                    exit_code: 0,
+                    signal: null,
+                    terminal_id: "cmd-1",
+                },
             },
         });
     });
@@ -58,31 +76,64 @@ describe("command output is sent once", () => {
     it("keeps the Zed terminal conventions for a client without output deltas", () => {
         const renderer = new AcpToolCallRenderer(ZED_CLIENT);
         const reporter = new CommandReporter();
-        const start = renderer.render(reporter.started(command({status: "inProgress", aggregatedOutput: null, exitCode: null})));
-        const chunk = renderer.render(reporter.outputDelta("cmd-1", "a.txt\nb.txt\n")!);
+        const start = renderer.render(
+            reporter.started(
+                command({
+                    status: "inProgress",
+                    aggregatedOutput: null,
+                    exitCode: null,
+                }),
+            ),
+        );
+        const chunk = renderer.render(
+            reporter.outputDelta("cmd-1", "a.txt\nb.txt\n")!,
+        );
         const end = renderer.render(reporter.completed(command()));
 
         expect(start).toMatchObject({
-            content: [{type: "terminal", terminalId: "cmd-1"}],
-            _meta: {terminal_info: {cwd: "/workspace", terminal_id: "cmd-1"}},
+            content: [{ type: "terminal", terminalId: "cmd-1" }],
+            _meta: {
+                terminal_info: { cwd: "/workspace", terminal_id: "cmd-1" },
+            },
         });
         expect(chunk).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
-            _meta: {terminal_output: {data: "a.txt\nb.txt\n", terminal_id: "cmd-1"}},
+            _meta: {
+                terminal_output: {
+                    data: "a.txt\nb.txt\n",
+                    terminal_id: "cmd-1",
+                },
+            },
         });
         expect(end).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
             status: "completed",
-            _meta: {terminal_exit: {exit_code: 0, signal: null, terminal_id: "cmd-1"}},
+            _meta: {
+                terminal_exit: {
+                    exit_code: 0,
+                    signal: null,
+                    terminal_id: "cmd-1",
+                },
+            },
         });
     });
 
     it("sends no output of a file read to AIR, which shows the viewed file", () => {
-        const update = completion(command({
-            commandActions: [{type: "read", command: "cat a.txt", name: "a.txt", path: "/workspace/a.txt"}],
-        }), DELTA_CLIENT);
+        const update = completion(
+            command({
+                commandActions: [
+                    {
+                        type: "read",
+                        command: "cat a.txt",
+                        name: "a.txt",
+                        path: "/workspace/a.txt",
+                    },
+                ],
+            }),
+            DELTA_CLIENT,
+        );
 
         expect(update).toEqual({
             sessionUpdate: "tool_call_update",
@@ -92,9 +143,14 @@ describe("command output is sent once", () => {
     });
 
     it("sends the output of a list to AIR once in rawOutput", () => {
-        const update = completion(command({
-            commandActions: [{type: "listFiles", command: "ls", path: "/workspace"}],
-        }), DELTA_CLIENT);
+        const update = completion(
+            command({
+                commandActions: [
+                    { type: "listFiles", command: "ls", path: "/workspace" },
+                ],
+            }),
+            DELTA_CLIENT,
+        );
 
         expect(update).toEqual({
             sessionUpdate: "tool_call_update",
@@ -105,28 +161,45 @@ describe("command output is sent once", () => {
     });
 
     it("sends the output of a read command to Zed once as content text, because Zed has no chunk channel for it", () => {
-        const update = completion(command({
-            commandActions: [{type: "read", command: "cat a.txt", name: "a.txt", path: "/workspace/a.txt"}],
-        }), ZED_CLIENT);
+        const update = completion(
+            command({
+                commandActions: [
+                    {
+                        type: "read",
+                        command: "cat a.txt",
+                        name: "a.txt",
+                        path: "/workspace/a.txt",
+                    },
+                ],
+            }),
+            ZED_CLIENT,
+        );
 
         expect(update).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
             status: "completed",
-            content: [{type: "content", content: {type: "text", text: "a.txt\nb.txt\n"}}],
-            rawOutput: {exit_code: 0},
+            content: [
+                {
+                    type: "content",
+                    content: { type: "text", text: "a.txt\nb.txt\n" },
+                },
+            ],
+            rawOutput: { exit_code: 0 },
         });
     });
 
     it("sends stdin as terminal_input and not as output", () => {
         const renderer = new AcpToolCallRenderer(DELTA_CLIENT);
         const reporter = new CommandReporter();
-        reporter.started(command({status: "inProgress"}));
+        reporter.started(command({ status: "inProgress" }));
 
-        expect(renderer.render(reporter.terminalInput("cmd-1", "yes")!)).toEqual({
+        expect(
+            renderer.render(reporter.terminalInput("cmd-1", "yes")!),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
-            _meta: {terminal_input: {data: "yes", terminal_id: "cmd-1"}},
+            _meta: { terminal_input: { data: "yes", terminal_id: "cmd-1" } },
         });
     });
 
@@ -136,7 +209,10 @@ describe("command output is sent once", () => {
         await setupPromptAndSendNotifications(
             fixture,
             sessionId,
-            createTestSessionState({sessionId, clientCapabilities: DELTA_CLIENT}),
+            createTestSessionState({
+                sessionId,
+                clientCapabilities: DELTA_CLIENT,
+            }),
             liveCommand(sessionId),
         );
 
@@ -144,7 +220,7 @@ describe("command output is sent once", () => {
         expect(occurrences(dump, "a.txt\nb.txt\n")).toBe(1);
         expect(dump).toContain("terminal_output_delta");
         expect(dump).not.toContain("formatted_output");
-        expect(dump).not.toContain("exit_code\": 0,\n        \"formatted");
+        expect(dump).not.toContain('exit_code": 0,\n        "formatted');
     });
 
     it("sends the live output of Zed only as terminal_output chunks", async () => {
@@ -153,13 +229,16 @@ describe("command output is sent once", () => {
         await setupPromptAndSendNotifications(
             fixture,
             sessionId,
-            createTestSessionState({sessionId, clientCapabilities: ZED_CLIENT}),
+            createTestSessionState({
+                sessionId,
+                clientCapabilities: ZED_CLIENT,
+            }),
             liveCommand(sessionId),
         );
 
         const dump = fixture.getAcpConnectionDump([]);
         expect(occurrences(dump, "a.txt\nb.txt\n")).toBe(1);
-        expect(dump).toContain("\"terminal_output\"");
+        expect(dump).toContain('"terminal_output"');
         expect(dump).toContain("terminal_exit");
         expect(dump).not.toContain("formatted_output");
         expect(dump).not.toContain("terminal_output_delta");
@@ -168,45 +247,88 @@ describe("command output is sent once", () => {
     it("sends no output of a live file read to AIR, neither as chunks nor at the end", async () => {
         const fixture = createCodexMockTestFixture();
         const sessionId = "read-once";
-        const read = {commandActions: [{type: "read" as const, command: "cat a.txt", name: "a.txt", path: "/workspace/a.txt"}]};
+        const read = {
+            commandActions: [
+                {
+                    type: "read" as const,
+                    command: "cat a.txt",
+                    name: "a.txt",
+                    path: "/workspace/a.txt",
+                },
+            ],
+        };
         await setupPromptAndSendNotifications(
             fixture,
             sessionId,
-            createTestSessionState({sessionId, clientCapabilities: DELTA_CLIENT}),
+            createTestSessionState({
+                sessionId,
+                clientCapabilities: DELTA_CLIENT,
+            }),
             liveCommand(sessionId, read),
         );
 
         const dump = fixture.getAcpConnectionDump([]);
         expect(occurrences(dump, "a.txt\nb.txt\n")).toBe(0);
         expect(dump).not.toContain("terminal_output_delta");
-        expect(dump).not.toContain("\"rawOutput\"");
+        expect(dump).not.toContain('"rawOutput"');
     });
 
     it("sends the output of a command that got stdin and no output chunk at the end", () => {
         const renderer = new AcpToolCallRenderer(ZED_CLIENT);
         const reporter = new CommandReporter();
-        reporter.started(command({status: "inProgress", aggregatedOutput: null, exitCode: null}));
+        reporter.started(
+            command({
+                status: "inProgress",
+                aggregatedOutput: null,
+                exitCode: null,
+            }),
+        );
         renderer.render(reporter.terminalInput("cmd-1", "yes"));
 
-        expect(renderer.render(reporter.completed(command()))._meta).toMatchObject({
-            terminal_output: {data: "a.txt\nb.txt\n", terminal_id: "cmd-1"},
+        expect(
+            renderer.render(reporter.completed(command()))._meta,
+        ).toMatchObject({
+            terminal_output: { data: "a.txt\nb.txt\n", terminal_id: "cmd-1" },
         });
     });
 });
 
-function liveCommand(sessionId: string, overrides: Partial<CommandItem> = {}): ServerNotification[] {
+function liveCommand(
+    sessionId: string,
+    overrides: Partial<CommandItem> = {},
+): ServerNotification[] {
     return [
         {
             method: "item/started",
-            params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: command({status: "inProgress", aggregatedOutput: null, exitCode: null, ...overrides})},
+            params: {
+                threadId: sessionId,
+                turnId: "turn-1",
+                startedAtMs: 0,
+                item: command({
+                    status: "inProgress",
+                    aggregatedOutput: null,
+                    exitCode: null,
+                    ...overrides,
+                }),
+            },
         },
         {
             method: "item/commandExecution/outputDelta",
-            params: {threadId: sessionId, turnId: "turn-1", itemId: "cmd-1", delta: "a.txt\nb.txt\n"},
+            params: {
+                threadId: sessionId,
+                turnId: "turn-1",
+                itemId: "cmd-1",
+                delta: "a.txt\nb.txt\n",
+            },
         },
         {
             method: "item/completed",
-            params: {threadId: sessionId, turnId: "turn-1", completedAtMs: 1, item: command(overrides)},
+            params: {
+                threadId: sessionId,
+                turnId: "turn-1",
+                completedAtMs: 1,
+                item: command(overrides),
+            },
         },
     ];
 }
@@ -218,23 +340,52 @@ describe("late output deltas", () => {
         const notifications: ServerNotification[] = [
             {
                 method: "item/started",
-                params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: command({status: "inProgress", aggregatedOutput: null, exitCode: null})},
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    startedAtMs: 0,
+                    item: command({
+                        status: "inProgress",
+                        aggregatedOutput: null,
+                        exitCode: null,
+                    }),
+                },
             },
             {
                 method: "item/completed",
-                params: {threadId: sessionId, turnId: "turn-1", completedAtMs: 1, item: command()},
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    completedAtMs: 1,
+                    item: command(),
+                },
             },
             {
                 method: "item/commandExecution/outputDelta",
-                params: {threadId: sessionId, turnId: "turn-1", itemId: "cmd-1", delta: "late-command-output"},
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    itemId: "cmd-1",
+                    delta: "late-command-output",
+                },
             },
             {
                 method: "item/mcpToolCall/progress",
-                params: {threadId: sessionId, turnId: "turn-1", itemId: "cmd-1", message: "late-mcp-output"},
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    itemId: "cmd-1",
+                    message: "late-mcp-output",
+                },
             },
         ];
 
-        await setupPromptAndSendNotifications(fixture, sessionId, createTestSessionState({sessionId}), notifications);
+        await setupPromptAndSendNotifications(
+            fixture,
+            sessionId,
+            createTestSessionState({ sessionId }),
+            notifications,
+        );
 
         const dump = fixture.getAcpConnectionDump([]);
         expect(dump).not.toContain("late-command-output");
@@ -244,10 +395,14 @@ describe("late output deltas", () => {
 
 describe("MCP startup tool call ids", () => {
     it("gives each startup report a unique tool call id", () => {
-        const event = {ready: [], failed: [{server: "broken", error: "boom", failureReason: null}], cancelled: ["slow"]};
+        const event = {
+            ready: [],
+            failed: [{ server: "broken", error: "boom", failureReason: null }],
+            cancelled: ["slow"],
+        };
         const first = McpStartupReporter.failures(event as never);
         const second = McpStartupReporter.failures(event as never);
-        const ids = [...first, ...second].map(facts => facts.toolCallId);
+        const ids = [...first, ...second].map((facts) => facts.toolCallId);
 
         expect(new Set(ids).size).toBe(4);
         expect(ids[0]).toMatch(/^mcp_startup\.broken\./);

@@ -1,5 +1,5 @@
-import type {Model} from "./app-server/v2";
-import {logger} from "./Logger";
+import type { Model } from "./app-server/v2";
+import { logger } from "./Logger";
 
 const LIST_TIMEOUT_MS = 10_000;
 const MAX_REPORTED_BODY_CHARS = 500;
@@ -29,14 +29,26 @@ export async function listGatewayModels(
     const path = parsedUrl?.pathname ?? url;
     if (parsedUrl?.username || parsedUrl?.password) {
         // Node's fetch refuses such a URL, with a message that holds the credentials.
-        logger.log("[WARN] The gateway model listing failed", {path, reason: "the base URL carries credentials"});
-        throw new GatewayListingError(`Model listing GET ${path} failed: the base URL carries credentials`);
+        logger.log("[WARN] The gateway model listing failed", {
+            path,
+            reason: "the base URL carries credentials",
+        });
+        throw new GatewayListingError(
+            `Model listing GET ${path} failed: the base URL carries credentials`,
+        );
     }
-    const failure = (reason: string, details: Record<string, unknown>): GatewayListingError => {
-        logger.log("[WARN] The gateway model listing failed", {url, reason, ...details});
+    const failure = (
+        reason: string,
+        details: Record<string, unknown>,
+    ): GatewayListingError => {
+        logger.log("[WARN] The gateway model listing failed", {
+            url,
+            reason,
+            ...details,
+        });
         return new GatewayListingError(`Model listing GET ${path} ${reason}`);
     };
-    const requestHeaders = {...headers, "Accept": "application/json"};
+    const requestHeaders = { ...headers, Accept: "application/json" };
     for (const [name, value] of Object.entries(requestHeaders)) {
         // Node's fetch names an invalid header by its value, so check each header first.
         try {
@@ -55,14 +67,23 @@ export async function listGatewayModels(
         });
         body = await response.text();
     } catch (error) {
-        throw failure(`failed: ${error instanceof Error ? error.message : String(error)}`, {});
+        throw failure(
+            `failed: ${error instanceof Error ? error.message : String(error)}`,
+            {},
+        );
     }
     if (response.status >= 400 && response.status < 500) {
-        logger.log("The gateway has no model listing; models are not narrowed", {path, status: response.status});
+        logger.log(
+            "The gateway has no model listing; models are not narrowed",
+            { path, status: response.status },
+        );
         return null;
     }
     if (!response.ok) {
-        throw failure(`returned ${response.status}: ${body.slice(0, MAX_REPORTED_BODY_CHARS)}`, {status: response.status});
+        throw failure(
+            `returned ${response.status}: ${body.slice(0, MAX_REPORTED_BODY_CHARS)}`,
+            { status: response.status },
+        );
     }
     let ids: string[] | null;
     try {
@@ -73,16 +94,20 @@ export async function listGatewayModels(
     if (ids === null) {
         throw failure("returned a malformed body", {});
     }
-    logger.log("The gateway listed its models", {url, models: ids});
+    logger.log("The gateway listed its models", { url, models: ids });
     return new Set(ids.map(normalizeModelId));
 }
 
 function readModelIds(body: unknown): string[] | null {
     if (typeof body !== "object" || body === null) return null;
-    const data = (body as {data?: unknown}).data;
+    const data = (body as { data?: unknown }).data;
     if (!Array.isArray(data)) return null;
     const ids = data
-        .map(entry => typeof entry === "object" && entry !== null ? (entry as {id?: unknown}).id : undefined)
+        .map((entry) =>
+            typeof entry === "object" && entry !== null
+                ? (entry as { id?: unknown }).id
+                : undefined,
+        )
         .filter((id): id is string => typeof id === "string" && id.length > 0);
     return ids.length === data.length ? ids : null;
 }
@@ -94,11 +119,17 @@ function normalizeModelId(id: string): string {
 
 /** Whether the gateway lists the Codex model, by its `model` or its `id`. */
 export function isListedModel(model: Model, listed: GatewayModelIds): boolean {
-    return isListedModelId(model.model, listed) || isListedModelId(model.id, listed);
+    return (
+        isListedModelId(model.model, listed) ||
+        isListedModelId(model.id, listed)
+    );
 }
 
 /** Whether the gateway lists a model of this id. */
-export function isListedModelId(modelId: string, listed: GatewayModelIds): boolean {
+export function isListedModelId(
+    modelId: string,
+    listed: GatewayModelIds,
+): boolean {
     return listed.has(normalizeModelId(modelId));
 }
 
@@ -106,16 +137,27 @@ export function isListedModelId(modelId: string, listed: GatewayModelIds): boole
  * Keeps the Codex models the gateway lists, in Codex order, with exactly one default.
  * A gateway that lists none of them leaves no model: the session then offers none.
  */
-export function narrowToListedModels(models: Model[], listed: GatewayModelIds): Model[] {
-    const narrowed = models.filter(model => isListedModel(model, listed));
+export function narrowToListedModels(
+    models: Model[],
+    listed: GatewayModelIds,
+): Model[] {
+    const narrowed = models.filter((model) => isListedModel(model, listed));
     if (narrowed.length === 0) {
-        logger.log("[WARN] The gateway lists none of the Codex models; no model is available", {
-            codexModels: models.map(model => model.id),
-        });
+        logger.log(
+            "[WARN] The gateway lists none of the Codex models; no model is available",
+            {
+                codexModels: models.map((model) => model.id),
+            },
+        );
         return [];
     }
-    const defaultIndex = Math.max(0, narrowed.findIndex(model => model.isDefault));
-    return narrowed.map((model, index) => model.isDefault === (index === defaultIndex)
-        ? model
-        : {...model, isDefault: index === defaultIndex});
+    const defaultIndex = Math.max(
+        0,
+        narrowed.findIndex((model) => model.isDefault),
+    );
+    return narrowed.map((model, index) =>
+        model.isDefault === (index === defaultIndex)
+            ? model
+            : { ...model, isDefault: index === defaultIndex },
+    );
 }

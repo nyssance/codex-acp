@@ -7,7 +7,11 @@ import type {
     PatchApplyStatus,
 } from "../../app-server/v2";
 
-type CodexItemStatus = CommandExecutionStatus | PatchApplyStatus | McpToolCallStatus | DynamicToolCallStatus
+type CodexItemStatus =
+    | CommandExecutionStatus
+    | PatchApplyStatus
+    | McpToolCallStatus
+    | DynamicToolCallStatus
     | CollabAgentToolCallStatus;
 
 export function toToolStatus(status: CodexItemStatus): acp.ToolCallStatus {
@@ -24,6 +28,8 @@ export function toToolStatus(status: CodexItemStatus): acp.ToolCallStatus {
 }
 
 /** The status of a finished item. Every status other than `completed` is a failure. */
-export function toTerminalToolStatus(status: CodexItemStatus): "completed" | "failed" {
+export function toTerminalToolStatus(
+    status: CodexItemStatus,
+): "completed" | "failed" {
     return status === "completed" ? "completed" : "failed";
 }

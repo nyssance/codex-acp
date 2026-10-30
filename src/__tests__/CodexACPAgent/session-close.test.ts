@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
     createCodexMockTestFixture,
     createTestModel,
@@ -6,11 +6,11 @@ import {
     type CodexMockTestFixture,
     deferred,
 } from "../acp-test-utils";
-import type {CodexAcpServer} from "../../CodexAcpServer";
-import type {CodexAcpClient, SessionMetadata} from "../../CodexAcpClient";
-import type {McpStartupResult} from "../../mcp/McpStartupTracker";
-import type {TurnStartResponse} from "../../app-server/v2";
-import type {McpServer} from "@agentclientprotocol/sdk/unstable";
+import type { CodexAcpServer } from "../../CodexAcpServer";
+import type { CodexAcpClient, SessionMetadata } from "../../CodexAcpClient";
+import type { McpStartupResult } from "../../mcp/McpStartupTracker";
+import type { TurnStartResponse } from "../../app-server/v2";
+import type { McpServer } from "@agentclientprotocol/sdk/unstable";
 
 const sessionId = "session-id";
 
@@ -18,27 +18,35 @@ describe("ACP session close", () => {
     it("advertises session close support", async () => {
         const fixture = createCodexMockTestFixture();
 
-        const response = await fixture.getCodexAcpAgent().initialize({protocolVersion: 1});
+        const response = await fixture
+            .getCodexAcpAgent()
+            .initialize({ protocolVersion: 1 });
 
-        expect(response.agentCapabilities?.sessionCapabilities?.close).toEqual({});
+        expect(response.agentCapabilities?.sessionCapabilities?.close).toEqual(
+            {},
+        );
     });
 
     it("unsubscribes idle sessions and clears local session handlers", async () => {
-        const {fixture, codexAcpAgent} = await createSession();
+        const { fixture, codexAcpAgent } = await createSession();
 
         mockPromptTurn(fixture, sessionId);
         await codexAcpAgent.prompt({
             sessionId,
-            prompt: [{type: "text", text: "register session handlers"}],
+            prompt: [{ type: "text", text: "register session handlers" }],
         });
 
         fixture.clearCodexConnectionDump();
         fixture.clearAcpConnectionDump();
 
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
 
-        await expect(fixture.getCodexConnectionDump([])).toMatchFileSnapshot("data/session-close-idle.json");
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        await expect(fixture.getCodexConnectionDump([])).toMatchFileSnapshot(
+            "data/session-close-idle.json",
+        );
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
 
         fixture.sendServerNotification({
             method: "thread/name/updated",
@@ -53,124 +61,165 @@ describe("ACP session close", () => {
     });
 
     it("interrupts active turns before unsubscribing", async () => {
-        const {fixture, codexAcpAgent} = await createSession();
+        const { fixture, codexAcpAgent } = await createSession();
         codexAcpAgent.getSessionState(sessionId).currentTurnId = "turn-id";
 
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
 
-        await expect(fixture.getCodexConnectionDump([])).toMatchFileSnapshot("data/session-close-active-turn.json");
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        await expect(fixture.getCodexConnectionDump([])).toMatchFileSnapshot(
+            "data/session-close-active-turn.json",
+        );
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
     });
 
     it("does not publish available commands after close completes", async () => {
-        const skills = deferred<{data: []}>();
-        const {fixture, codexAcpAgent} = await createSession({
-            configure: ({codexAcpClient}) => {
-                vi.spyOn(codexAcpClient, "listSkills").mockReturnValue(skills.promise);
+        const skills = deferred<{ data: [] }>();
+        const { fixture, codexAcpAgent } = await createSession({
+            configure: ({ codexAcpClient }) => {
+                vi.spyOn(codexAcpClient, "listSkills").mockReturnValue(
+                    skills.promise,
+                );
             },
         });
 
-        await codexAcpAgent.closeSession({sessionId});
-        skills.resolve({data: []});
+        await codexAcpAgent.closeSession({ sessionId });
+        skills.resolve({ data: [] });
         await waitForMicrotasks();
 
         expect(fixture.getAcpConnectionEvents([])).toEqual([]);
     });
 
     it("does not wait for delayed turn start before closing", async () => {
-        const {fixture, codexAcpAgent} = await createSession();
+        const { fixture, codexAcpAgent } = await createSession();
         const turnStart = deferred<TurnStartResponse>();
         const turnStartCalled = deferred<void>();
 
-        vi.spyOn(fixture.getCodexAppServerClient(), "turnStart").mockImplementation(async () => {
+        vi.spyOn(
+            fixture.getCodexAppServerClient(),
+            "turnStart",
+        ).mockImplementation(async () => {
             turnStartCalled.resolve();
             return await turnStart.promise;
         });
 
         const promptPromise = codexAcpAgent.prompt({
             sessionId,
-            prompt: [{type: "text", text: "long running prompt"}],
+            prompt: [{ type: "text", text: "long running prompt" }],
         });
         await turnStartCalled.promise;
         fixture.clearCodexConnectionDump();
 
-        const closePromise = codexAcpAgent.closeSession({sessionId});
+        const closePromise = codexAcpAgent.closeSession({ sessionId });
 
         await expect(closePromise).resolves.toEqual({});
-        await expect(promptPromise).resolves.toMatchObject({stopReason: "cancelled"});
+        await expect(promptPromise).resolves.toMatchObject({
+            stopReason: "cancelled",
+        });
 
-        const requestMethods = fixture.getCodexConnectionEvents([])
-            .flatMap(event => event.eventType === "request" ? [event.method] : []);
+        const requestMethods = fixture
+            .getCodexConnectionEvents([])
+            .flatMap((event) =>
+                event.eventType === "request" ? [event.method] : [],
+            );
         expect(requestMethods).toEqual(["thread/unsubscribe"]);
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
 
         fixture.clearCodexConnectionDump();
         turnStart.resolve(createTurnStartResponse("turn-id"));
 
         await vi.waitFor(() => {
-            const lateRequestMethods = fixture.getCodexConnectionEvents([])
-                .flatMap(event => event.eventType === "request" ? [event.method] : []);
+            const lateRequestMethods = fixture
+                .getCodexConnectionEvents([])
+                .flatMap((event) =>
+                    event.eventType === "request" ? [event.method] : [],
+                );
             expect(lateRequestMethods).toContain("turn/interrupt");
         });
     });
 
     it("does not start a turn after close while prompt startup is still setting the skill roots", async () => {
-        const {fixture, codexAcpAgent} = await createSession();
+        const { fixture, codexAcpAgent } = await createSession();
         // New skill roots make the prompt set them before the turn starts.
-        codexAcpAgent.getSessionState(sessionId).additionalDirectories = ["/workspace/extra"];
+        codexAcpAgent.getSessionState(sessionId).additionalDirectories = [
+            "/workspace/extra",
+        ];
         const skillRefresh = deferred<void>();
-        const listSkillsSpy = vi.spyOn(fixture.getCodexAppServerClient(), "skillsExtraRootsSet")
+        const listSkillsSpy = vi
+            .spyOn(fixture.getCodexAppServerClient(), "skillsExtraRootsSet")
             .mockReturnValue(skillRefresh.promise);
-        const turnStartSpy = vi.spyOn(fixture.getCodexAppServerClient(), "turnStart")
+        const turnStartSpy = vi
+            .spyOn(fixture.getCodexAppServerClient(), "turnStart")
             .mockResolvedValue(createTurnStartResponse("turn-id"));
 
         const promptPromise = codexAcpAgent.prompt({
             sessionId,
-            prompt: [{type: "text", text: "prompt before turn start"}],
+            prompt: [{ type: "text", text: "prompt before turn start" }],
         });
 
         await vi.waitFor(() => {
             expect(listSkillsSpy).toHaveBeenCalled();
         });
 
-        await expect(codexAcpAgent.closeSession({sessionId})).resolves.toEqual({});
-        await expect(promptPromise).resolves.toMatchObject({stopReason: "cancelled"});
+        await expect(
+            codexAcpAgent.closeSession({ sessionId }),
+        ).resolves.toEqual({});
+        await expect(promptPromise).resolves.toMatchObject({
+            stopReason: "cancelled",
+        });
 
         skillRefresh.resolve();
         await waitForMicrotasks();
 
         expect(turnStartSpy).not.toHaveBeenCalled();
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
     });
 
     it("does not hang when close interrupt fails during an active prompt", async () => {
-        const {fixture, codexAcpAgent} = await createSession();
-        const turnInterruptSpy = vi.spyOn(fixture.getCodexAcpClient(), "turnInterrupt")
+        const { fixture, codexAcpAgent } = await createSession();
+        const turnInterruptSpy = vi
+            .spyOn(fixture.getCodexAcpClient(), "turnInterrupt")
             .mockRejectedValue(new Error("interrupt failed"));
 
-        vi.spyOn(fixture.getCodexAppServerClient(), "turnStart").mockResolvedValue(createTurnStartResponse("turn-id"));
+        vi.spyOn(
+            fixture.getCodexAppServerClient(),
+            "turnStart",
+        ).mockResolvedValue(createTurnStartResponse("turn-id"));
 
         const promptPromise = codexAcpAgent.prompt({
             sessionId,
-            prompt: [{type: "text", text: "long running prompt"}],
+            prompt: [{ type: "text", text: "long running prompt" }],
         });
 
         await vi.waitFor(() => {
-            expect(codexAcpAgent.getSessionState(sessionId).currentTurnId).toBe("turn-id");
+            expect(codexAcpAgent.getSessionState(sessionId).currentTurnId).toBe(
+                "turn-id",
+            );
         });
         fixture.clearCodexConnectionDump();
 
-        await expect(codexAcpAgent.closeSession({sessionId})).resolves.toEqual({});
-        await expect(promptPromise).resolves.toMatchObject({stopReason: "cancelled"});
+        await expect(
+            codexAcpAgent.closeSession({ sessionId }),
+        ).resolves.toEqual({});
+        await expect(promptPromise).resolves.toMatchObject({
+            stopReason: "cancelled",
+        });
 
         expect(turnInterruptSpy).toHaveBeenCalledWith({
             threadId: sessionId,
             turnId: "turn-id",
         });
         await expect(fixture.getCodexConnectionDump([])).toMatchFileSnapshot(
-            "data/session-close-interrupt-failed.json"
+            "data/session-close-interrupt-failed.json",
         );
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
     });
 
     it("suppresses MCP startup updates while close is in progress", async () => {
@@ -184,9 +233,16 @@ describe("ACP session close", () => {
             args: ["broken"],
             env: [],
         };
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: false,
+        });
+        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({ data: [] });
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId,
             currentModelId: "model-id[medium]",
@@ -195,24 +251,35 @@ describe("ACP session close", () => {
             currentServiceTier: null,
             additionalDirectories: [],
         });
-        vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockReturnValue(mcpStartup.promise);
+        vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockReturnValue(
+            mcpStartup.promise,
+        );
         const unsubscribe = deferred<void>();
-        vi.spyOn(codexAcpClient, "closeSession").mockReturnValue(unsubscribe.promise);
+        vi.spyOn(codexAcpClient, "closeSession").mockReturnValue(
+            unsubscribe.promise,
+        );
 
-        const newSessionPromise = codexAcpAgent.newSession({cwd: "/test/cwd", mcpServers: [mcpServer]});
+        const newSessionPromise = codexAcpAgent.newSession({
+            cwd: "/test/cwd",
+            mcpServers: [mcpServer],
+        });
         await vi.waitFor(() => {
-            expect(codexAcpClient.awaitMcpServerStartup).toHaveBeenCalledWith(["broken-mcp"], expect.any(Number), {threadId: "session-id", signal: expect.any(AbortSignal)});
+            expect(codexAcpClient.awaitMcpServerStartup).toHaveBeenCalledWith(
+                ["broken-mcp"],
+                expect.any(Number),
+                { threadId: "session-id", signal: expect.any(AbortSignal) },
+            );
         });
         fixture.clearAcpConnectionDump();
 
-        const closePromise = codexAcpAgent.closeSession({sessionId});
+        const closePromise = codexAcpAgent.closeSession({ sessionId });
         await vi.waitFor(() => {
             expect(codexAcpClient.closeSession).toHaveBeenCalledWith(sessionId);
         });
 
         mcpStartup.resolve({
             ready: [],
-            failed: [{server: "broken-mcp", error: "boom"}],
+            failed: [{ server: "broken-mcp", error: "boom" }],
             cancelled: [],
         });
         await newSessionPromise;
@@ -225,24 +292,39 @@ describe("ACP session close", () => {
     });
 
     it("stops the MCP startup wait and forgets the startup states of the closed session", async () => {
-        const {fixture, codexAcpAgent, codexAcpClient} = await createSession({
-            mcpServers: [{name: "slow-mcp", command: "npx", args: ["slow"], env: []}],
+        const { fixture, codexAcpAgent, codexAcpClient } = await createSession({
+            mcpServers: [
+                { name: "slow-mcp", command: "npx", args: ["slow"], env: [] },
+            ],
         });
-        const tracker = codexAcpClient.appServerClient.mcpStartup as unknown as {
-            waiters: unknown[],
-            states: Map<string, Map<string | null, unknown>>,
+        const tracker = codexAcpClient.appServerClient
+            .mcpStartup as unknown as {
+            waiters: unknown[];
+            states: Map<string, Map<string | null, unknown>>;
         };
         fixture.sendServerNotification({
             method: "mcpServer/startupStatus/updated",
-            params: {threadId: sessionId, name: "slow-mcp", status: "starting", error: null, failureReason: null},
+            params: {
+                threadId: sessionId,
+                name: "slow-mcp",
+                status: "starting",
+                error: null,
+                failureReason: null,
+            },
         });
         fixture.sendServerNotification({
             method: "mcpServer/startupStatus/updated",
-            params: {threadId: null, name: "global-mcp", status: "ready", error: null, failureReason: null},
+            params: {
+                threadId: null,
+                name: "global-mcp",
+                status: "ready",
+                error: null,
+                failureReason: null,
+            },
         });
         expect(tracker.waiters).toHaveLength(1);
 
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
         await waitForMicrotasks();
 
         expect(tracker.waiters).toHaveLength(0);
@@ -254,10 +336,20 @@ describe("ACP session close", () => {
         const fixture = createCodexMockTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
-        await codexAcpAgent.initialize({protocolVersion: 1, clientCapabilities: {elicitation: {url: {}}}});
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
+        await codexAcpAgent.initialize({
+            protocolVersion: 1,
+            clientCapabilities: { elicitation: { url: {} } },
+        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: false,
+        });
+        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({ data: [] });
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId,
             currentModelId: "model-id[medium]",
@@ -266,28 +358,45 @@ describe("ACP session close", () => {
             currentServiceTier: null,
             additionalDirectories: [],
         });
-        vi.spyOn(codexAcpClient, "mcpServerOauthLogin").mockResolvedValue({authorizationUrl: "https://example.com/oauth"});
+        vi.spyOn(codexAcpClient, "mcpServerOauthLogin").mockResolvedValue({
+            authorizationUrl: "https://example.com/oauth",
+        });
         fixture.setElicitationResponse(new Promise(() => {}));
-        await codexAcpAgent.newSession({cwd: "/test/cwd", mcpServers: [{name: "linear", command: "npx", args: [], env: []}]});
+        await codexAcpAgent.newSession({
+            cwd: "/test/cwd",
+            mcpServers: [{ name: "linear", command: "npx", args: [], env: [] }],
+        });
         fixture.clearAcpConnectionDump();
 
         fixture.sendServerNotification({
             method: "mcpServer/startupStatus/updated",
-            params: {threadId: sessionId, name: "linear", status: "failed", error: "expired", failureReason: "reauthenticationRequired"},
+            params: {
+                threadId: sessionId,
+                name: "linear",
+                status: "failed",
+                error: "expired",
+                failureReason: "reauthenticationRequired",
+            },
         });
         await vi.waitFor(() => {
-            expect(fixture.getAcpConnectionEvents([]).map(event => event.method)).toEqual(["createElicitation"]);
+            expect(
+                fixture.getAcpConnectionEvents([]).map((event) => event.method),
+            ).toEqual(["createElicitation"]);
         });
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
         await waitForMicrotasks();
 
-        expect(fixture.getAcpConnectionEvents([]).map(event => event.method)).toEqual(["createElicitation", "completeElicitation"]);
+        expect(
+            fixture.getAcpConnectionEvents([]).map((event) => event.method),
+        ).toEqual(["createElicitation", "completeElicitation"]);
     });
 
     it("rejects an in-flight resume that completes after close", async () => {
-        const {codexAcpAgent, codexAcpClient} = await createSession();
+        const { codexAcpAgent, codexAcpClient } = await createSession();
         const resume = deferred<SessionMetadata>();
-        vi.spyOn(codexAcpClient, "resumeSession").mockReturnValue(resume.promise);
+        vi.spyOn(codexAcpClient, "resumeSession").mockReturnValue(
+            resume.promise,
+        );
         const closeSessionSpy = vi.spyOn(codexAcpClient, "closeSession");
 
         const resumePromise = codexAcpAgent.resumeSession({
@@ -296,17 +405,19 @@ describe("ACP session close", () => {
             mcpServers: [],
         });
 
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
         resume.resolve(createSessionMetadata());
 
         await expect(resumePromise).rejects.toThrow("Invalid request");
         expect(closeSessionSpy).toHaveBeenCalledTimes(2);
         expect(closeSessionSpy).toHaveBeenLastCalledWith(sessionId);
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
     });
 
     it("does not let a stale resume unsubscribe a newer reopened session", async () => {
-        const {codexAcpAgent, codexAcpClient} = await createSession();
+        const { codexAcpAgent, codexAcpClient } = await createSession();
         const staleResume = deferred<SessionMetadata>();
         vi.spyOn(codexAcpClient, "resumeSession")
             .mockReturnValueOnce(staleResume.promise)
@@ -319,7 +430,7 @@ describe("ACP session close", () => {
             mcpServers: [],
         });
 
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
         await codexAcpAgent.resumeSession({
             sessionId,
             cwd: "/test/cwd",
@@ -330,17 +441,21 @@ describe("ACP session close", () => {
 
         await expect(staleResumePromise).rejects.toThrow("Invalid request");
         expect(closeSessionSpy).toHaveBeenCalledTimes(1);
-        expect(codexAcpAgent.getSessionState(sessionId).sessionId).toBe(sessionId);
+        expect(codexAcpAgent.getSessionState(sessionId).sessionId).toBe(
+            sessionId,
+        );
     });
 
     it("blocks reopen while stale resume cleanup is unsubscribing", async () => {
-        const {codexAcpAgent, codexAcpClient} = await createSession();
+        const { codexAcpAgent, codexAcpClient } = await createSession();
         const staleResume = deferred<SessionMetadata>();
         const staleUnsubscribe = deferred<void>();
-        const resumeSpy = vi.spyOn(codexAcpClient, "resumeSession")
+        const resumeSpy = vi
+            .spyOn(codexAcpClient, "resumeSession")
             .mockReturnValueOnce(staleResume.promise)
             .mockResolvedValueOnce(createSessionMetadata());
-        const closeSessionSpy = vi.spyOn(codexAcpClient, "closeSession")
+        const closeSessionSpy = vi
+            .spyOn(codexAcpClient, "closeSession")
             .mockResolvedValueOnce()
             .mockReturnValueOnce(staleUnsubscribe.promise);
 
@@ -350,41 +465,50 @@ describe("ACP session close", () => {
             mcpServers: [],
         });
 
-        await codexAcpAgent.closeSession({sessionId});
+        await codexAcpAgent.closeSession({ sessionId });
         staleResume.resolve(createSessionMetadata());
 
         await vi.waitFor(() => {
             expect(closeSessionSpy).toHaveBeenCalledTimes(2);
         });
 
-        await expect(codexAcpAgent.resumeSession({
-            sessionId,
-            cwd: "/test/cwd",
-            mcpServers: [],
-        })).rejects.toThrow("Invalid request");
+        await expect(
+            codexAcpAgent.resumeSession({
+                sessionId,
+                cwd: "/test/cwd",
+                mcpServers: [],
+            }),
+        ).rejects.toThrow("Invalid request");
         expect(resumeSpy).toHaveBeenCalledTimes(1);
 
         staleUnsubscribe.resolve(undefined);
         await expect(staleResumePromise).rejects.toThrow("Invalid request");
 
-        await expect(codexAcpAgent.resumeSession({
-            sessionId,
-            cwd: "/test/cwd",
-            mcpServers: [],
-        })).resolves.toEqual(expect.objectContaining({
-            models: expect.objectContaining({
-                currentModelId: "model-id[medium]",
+        await expect(
+            codexAcpAgent.resumeSession({
+                sessionId,
+                cwd: "/test/cwd",
+                mcpServers: [],
             }),
-        }));
+        ).resolves.toEqual(
+            expect.objectContaining({
+                models: expect.objectContaining({
+                    currentModelId: "model-id[medium]",
+                }),
+            }),
+        );
     });
 
     it("preserves local close cleanup while stale resume cleanup overlaps close", async () => {
-        const {codexAcpAgent, codexAcpClient} = await createSession();
+        const { codexAcpAgent, codexAcpClient } = await createSession();
         const staleResume = deferred<SessionMetadata>();
         const activeUnsubscribe = deferred<void>();
         const staleUnsubscribe = deferred<void>();
-        vi.spyOn(codexAcpClient, "resumeSession").mockReturnValue(staleResume.promise);
-        const closeSessionSpy = vi.spyOn(codexAcpClient, "closeSession")
+        vi.spyOn(codexAcpClient, "resumeSession").mockReturnValue(
+            staleResume.promise,
+        );
+        const closeSessionSpy = vi
+            .spyOn(codexAcpClient, "closeSession")
             .mockReturnValueOnce(activeUnsubscribe.promise)
             .mockReturnValueOnce(staleUnsubscribe.promise);
 
@@ -393,7 +517,7 @@ describe("ACP session close", () => {
             cwd: "/test/cwd",
             mcpServers: [],
         });
-        const closePromise = codexAcpAgent.closeSession({sessionId});
+        const closePromise = codexAcpAgent.closeSession({ sessionId });
 
         await vi.waitFor(() => {
             expect(closeSessionSpy).toHaveBeenCalledTimes(1);
@@ -406,7 +530,9 @@ describe("ACP session close", () => {
 
         activeUnsubscribe.resolve(undefined);
         await expect(closePromise).resolves.toEqual({});
-        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
+            `Session ${sessionId} not found`,
+        );
 
         staleUnsubscribe.resolve(undefined);
         await expect(staleResumePromise).rejects.toThrow("Invalid request");
@@ -416,18 +542,27 @@ describe("ACP session close", () => {
         const fixture = createCodexMockTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "resumeSession").mockImplementation(async (_request, onSubscribed) => {
-            onSubscribed?.();
-            throw new Error("model list failed");
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
         });
-        const closeSessionSpy = vi.spyOn(codexAcpClient, "closeSession").mockResolvedValue();
+        vi.spyOn(codexAcpClient, "resumeSession").mockImplementation(
+            async (_request, onSubscribed) => {
+                onSubscribed?.();
+                throw new Error("model list failed");
+            },
+        );
+        const closeSessionSpy = vi
+            .spyOn(codexAcpClient, "closeSession")
+            .mockResolvedValue();
 
-        await expect(codexAcpAgent.resumeSession({
-            sessionId,
-            cwd: "/test/cwd",
-            mcpServers: [],
-        })).rejects.toThrow("model list failed");
+        await expect(
+            codexAcpAgent.resumeSession({
+                sessionId,
+                cwd: "/test/cwd",
+                mcpServers: [],
+            }),
+        ).rejects.toThrow("model list failed");
 
         expect(closeSessionSpy).toHaveBeenCalledWith(sessionId);
     });
@@ -436,46 +571,68 @@ describe("ACP session close", () => {
         const fixture = createCodexMockTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(codexAcpClient, "resumeSession").mockImplementation(async (_request, onSubscribed) => {
-            onSubscribed?.();
-            return createSessionMetadata();
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
         });
-        vi.spyOn(codexAcpClient, "getAccount").mockRejectedValue(new Error("account read failed"));
-        const closeSessionSpy = vi.spyOn(codexAcpClient, "closeSession").mockResolvedValue();
+        vi.spyOn(codexAcpClient, "resumeSession").mockImplementation(
+            async (_request, onSubscribed) => {
+                onSubscribed?.();
+                return createSessionMetadata();
+            },
+        );
+        vi.spyOn(codexAcpClient, "getAccount").mockRejectedValue(
+            new Error("account read failed"),
+        );
+        const closeSessionSpy = vi
+            .spyOn(codexAcpClient, "closeSession")
+            .mockResolvedValue();
 
-        await expect(codexAcpAgent.resumeSession({
-            sessionId,
-            cwd: "/test/cwd",
-            mcpServers: [],
-        })).rejects.toThrow("account read failed");
+        await expect(
+            codexAcpAgent.resumeSession({
+                sessionId,
+                cwd: "/test/cwd",
+                mcpServers: [],
+            }),
+        ).rejects.toThrow("account read failed");
 
         expect(closeSessionSpy).toHaveBeenCalledWith(sessionId);
     });
 
     it("does not route stale turn notifications into a reopened session", async () => {
-        const {fixture, codexAcpAgent, codexAcpClient} = await createSession();
+        const { fixture, codexAcpAgent, codexAcpClient } =
+            await createSession();
         const oldTurnStart = deferred<TurnStartResponse>();
-        const turnStartSpy = vi.spyOn(fixture.getCodexAppServerClient(), "turnStart")
+        const turnStartSpy = vi
+            .spyOn(fixture.getCodexAppServerClient(), "turnStart")
             .mockReturnValueOnce(oldTurnStart.promise)
             .mockResolvedValueOnce(createTurnStartResponse("new-turn"));
-        vi.spyOn(fixture.getCodexAppServerClient(), "awaitTurnCompleted").mockResolvedValue({
+        vi.spyOn(
+            fixture.getCodexAppServerClient(),
+            "awaitTurnCompleted",
+        ).mockResolvedValue({
             threadId: sessionId,
             turn: createCompletedTurn("new-turn"),
         });
 
         const promptPromise = codexAcpAgent.prompt({
             sessionId,
-            prompt: [{type: "text", text: "old prompt"}],
+            prompt: [{ type: "text", text: "old prompt" }],
         });
         await vi.waitFor(() => {
             expect(turnStartSpy).toHaveBeenCalledTimes(1);
         });
 
-        await expect(codexAcpAgent.closeSession({sessionId})).resolves.toEqual({});
-        await expect(promptPromise).resolves.toMatchObject({stopReason: "cancelled"});
+        await expect(
+            codexAcpAgent.closeSession({ sessionId }),
+        ).resolves.toEqual({});
+        await expect(promptPromise).resolves.toMatchObject({
+            stopReason: "cancelled",
+        });
 
-        vi.spyOn(codexAcpClient, "resumeSession").mockResolvedValue(createSessionMetadata());
+        vi.spyOn(codexAcpClient, "resumeSession").mockResolvedValue(
+            createSessionMetadata(),
+        );
         await codexAcpAgent.resumeSession({
             sessionId,
             cwd: "/test/cwd",
@@ -483,21 +640,29 @@ describe("ACP session close", () => {
         });
         await codexAcpAgent.prompt({
             sessionId,
-            prompt: [{type: "text", text: "new prompt"}],
+            prompt: [{ type: "text", text: "new prompt" }],
         });
 
         fixture.clearAcpConnectionDump();
         oldTurnStart.resolve(createTurnStartResponse("old-turn"));
 
         await vi.waitFor(() => {
-            const requestMethods = fixture.getCodexConnectionEvents([])
-                .flatMap(event => event.eventType === "request" ? [event.method] : []);
+            const requestMethods = fixture
+                .getCodexConnectionEvents([])
+                .flatMap((event) =>
+                    event.eventType === "request" ? [event.method] : [],
+                );
             expect(requestMethods).toContain("turn/interrupt");
         });
 
         fixture.sendServerNotification({
             method: "item/agentMessage/delta",
-            params: {threadId: sessionId, turnId: "old-turn", itemId: "old-item", delta: "stale"},
+            params: {
+                threadId: sessionId,
+                turnId: "old-turn",
+                itemId: "old-item",
+                delta: "stale",
+            },
         });
         await waitForMicrotasks();
         expect(fixture.getAcpConnectionEvents([])).toEqual([]);
@@ -511,7 +676,12 @@ describe("ACP session close", () => {
         });
         fixture.sendServerNotification({
             method: "item/agentMessage/delta",
-            params: {threadId: sessionId, turnId: "new-turn", itemId: "new-item", delta: "fresh"},
+            params: {
+                threadId: sessionId,
+                turnId: "new-turn",
+                itemId: "new-item",
+                delta: "fresh",
+            },
         });
 
         await vi.waitFor(() => {
@@ -521,26 +691,35 @@ describe("ACP session close", () => {
     });
 });
 
-async function createSession(options: {
-    mcpServers?: McpServer[],
-    configure?: (params: {
-        fixture: CodexMockTestFixture,
-        codexAcpAgent: CodexAcpServer,
-        codexAcpClient: CodexAcpClient,
-    }) => void,
-} = {}): Promise<{
-    fixture: CodexMockTestFixture,
-    codexAcpAgent: CodexAcpServer,
-    codexAcpClient: CodexAcpClient,
+async function createSession(
+    options: {
+        mcpServers?: McpServer[];
+        configure?: (params: {
+            fixture: CodexMockTestFixture;
+            codexAcpAgent: CodexAcpServer;
+            codexAcpClient: CodexAcpClient;
+        }) => void;
+    } = {},
+): Promise<{
+    fixture: CodexMockTestFixture;
+    codexAcpAgent: CodexAcpServer;
+    codexAcpClient: CodexAcpClient;
 }> {
     const fixture = createCodexMockTestFixture();
     const codexAcpAgent = fixture.getCodexAcpAgent();
     const codexAcpClient = fixture.getCodexAcpClient();
     const model = createTestModel();
 
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-    vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+        required: false,
+        account: null,
+    });
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        workspaceRouting: null,
+        account: null,
+        requiresOpenaiAuth: false,
+    });
+    vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({ data: [] });
     vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
         sessionId,
         currentModelId: "model-id[medium]",
@@ -550,18 +729,22 @@ async function createSession(options: {
         additionalDirectories: [],
     });
 
-    options.configure?.({fixture, codexAcpAgent, codexAcpClient});
+    options.configure?.({ fixture, codexAcpAgent, codexAcpClient });
 
-    await codexAcpAgent.newSession({cwd: "/test/cwd", mcpServers: options.mcpServers ?? []});
+    await codexAcpAgent.newSession({
+        cwd: "/test/cwd",
+        mcpServers: options.mcpServers ?? [],
+    });
     fixture.clearCodexConnectionDump();
     fixture.clearAcpConnectionDump();
 
-    return {fixture, codexAcpAgent, codexAcpClient};
+    return { fixture, codexAcpAgent, codexAcpClient };
 }
 
 function createTurnStartResponse(turnId: string): TurnStartResponse {
     return {
-        turn: {rootTurnId: null,
+        turn: {
+            rootTurnId: null,
             id: turnId,
             items: [],
             itemsView: "notLoaded",
@@ -575,7 +758,8 @@ function createTurnStartResponse(turnId: string): TurnStartResponse {
 }
 
 function createCompletedTurn(turnId: string): TurnStartResponse["turn"] {
-    return {rootTurnId: null,
+    return {
+        rootTurnId: null,
         id: turnId,
         items: [],
         itemsView: "notLoaded",
@@ -599,5 +783,5 @@ function createSessionMetadata(): SessionMetadata {
 }
 
 async function waitForMicrotasks(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 }

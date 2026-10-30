@@ -10,10 +10,14 @@ export class SessionWriteQueue {
     run<T>(sessionId: string, write: () => Promise<T>): Promise<T> {
         const previous = this.tails.get(sessionId) ?? Promise.resolve();
         const run = previous.then(write);
-        const settled = run.then(() => undefined, () => undefined);
+        const settled = run.then(
+            () => undefined,
+            () => undefined,
+        );
         this.tails.set(sessionId, settled);
         void settled.then(() => {
-            if (this.tails.get(sessionId) === settled) this.tails.delete(sessionId);
+            if (this.tails.get(sessionId) === settled)
+                this.tails.delete(sessionId);
         });
         return run;
     }

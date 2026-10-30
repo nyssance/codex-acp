@@ -12,25 +12,23 @@ startup state (`ready`, `failed`, or `cancelled`) before the request completes.
 
 ```json
 {
-  "cwd": "/workspace",
-  "mcpServers": [
-    {
-      "name": "docs",
-      "command": "npx",
-      "args": [
-        "docs-mcp"
-      ],
-      "env": []
+    "cwd": "/workspace",
+    "mcpServers": [
+        {
+            "name": "docs",
+            "command": "npx",
+            "args": ["docs-mcp"],
+            "env": []
+        }
+    ],
+    "_meta": {
+        "mcpStartupAwaitTimeoutMs": 3000
     }
-  ],
-  "_meta": {
-    "mcpStartupAwaitTimeoutMs": 3000
-  }
 }
 ```
 
 | Value              | Behavior                                                                                                                              |
-|--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `<= 0` or ommitted | Do not wait. The request completes immediately once the session is created, before any requested MCP server reaches a terminal state. |
 | `> 0`              | Wait up to that many milliseconds for a terminal state. If the timeout elapses first, the request completes without waiting further.  |
 

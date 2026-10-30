@@ -77,15 +77,15 @@
         "vitest": "^5.0.5"
     },
     "dependencies": {
-        "@agentclientprotocol/sdk": "^2.0.2",
-        "@openai/codex": "^0.165.0",
+        "@agentclientprotocol/sdk": "^2.1.0",
+        "@openai/codex": "^0.166.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",
         "open": "^11.0.4",
         "vscode-jsonrpc": "^10.0.0",
         "ws": "^8.22.0",
         "zod": "^4.6.7",
-        "effect": "^4.0.6"
+        "effect": "^4.1.0"
     },
     "exports": {
         ".": "./dist/index.js",

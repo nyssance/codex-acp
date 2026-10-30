@@ -1,5 +1,5 @@
-import {describe, expect, it} from "vitest";
-import {createObjectDump} from "./acp-test-utils";
+import { describe, expect, it } from "vitest";
+import { createObjectDump } from "./acp-test-utils";
 
 describe("createObjectDump anonymizer", () => {
     it("anonymizes both direct keys and dotted paths", () => {
@@ -12,8 +12,8 @@ describe("createObjectDump anonymizer", () => {
                 },
             },
             items: [
-                {secret: "first-item", visible: "keep"},
-                {secret: "second-item"},
+                { secret: "first-item", visible: "keep" },
+                { secret: "second-item" },
             ],
         };
 

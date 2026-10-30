@@ -6,7 +6,7 @@ import {
     createCodexMockTestFixture,
     createTestSessionState,
     setupPromptAndSendNotifications,
-    type CodexMockTestFixture
+    type CodexMockTestFixture,
 } from "../acp-test-utils";
 
 describe("CodexEventHandler - reasoning events", () => {
@@ -21,7 +21,7 @@ describe("CodexEventHandler - reasoning events", () => {
     const sessionState: SessionState = createTestSessionState({
         sessionId,
         currentModelId: "model-id[effort]",
-        agentMode: AgentMode.DEFAULT_AGENT_MODE
+        agentMode: AgentMode.DEFAULT_AGENT_MODE,
     });
 
     it("streams reasoning deltas and section breaks without duplicating the completed item", async () => {
@@ -71,10 +71,15 @@ describe("CodexEventHandler - reasoning events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/reasoning-deltas-and-section-break.json"
+            "data/reasoning-deltas-and-section-break.json",
         );
     });
 
@@ -96,10 +101,15 @@ describe("CodexEventHandler - reasoning events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/reasoning-completed-parts.json"
+            "data/reasoning-completed-parts.json",
         );
     });
 });

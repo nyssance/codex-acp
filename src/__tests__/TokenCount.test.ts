@@ -1,5 +1,10 @@
-import {describe, expect, it} from "vitest";
-import {PromptTokenUsage, toPromptUsage, toTokenCount, type TokenCount} from "../TokenCount";
+import { describe, expect, it } from "vitest";
+import {
+    PromptTokenUsage,
+    toPromptUsage,
+    toTokenCount,
+    type TokenCount,
+} from "../TokenCount";
 
 describe("toTokenCount", () => {
     it("separates cache reads and cache writes from fresh input", () => {
@@ -40,14 +45,16 @@ describe("toTokenCount", () => {
 
 describe("toPromptUsage", () => {
     it("reports cache writes as ACP cachedWriteTokens", () => {
-        const usage = toPromptUsage(toTokenCount({
-            totalTokens: 24075,
-            inputTokens: 23932,
-            cachedInputTokens: 0,
-            cacheWriteInputTokens: 23801,
-            outputTokens: 143,
-            reasoningOutputTokens: 57,
-        }));
+        const usage = toPromptUsage(
+            toTokenCount({
+                totalTokens: 24075,
+                inputTokens: 23932,
+                cachedInputTokens: 0,
+                cacheWriteInputTokens: 23801,
+                outputTokens: 143,
+                reasoningOutputTokens: 57,
+            }),
+        );
 
         expect(usage).toEqual({
             totalTokens: 24075,

@@ -6,7 +6,7 @@ import {
     createCodexMockTestFixture,
     createTestSessionState,
     setupPromptAndSendNotifications,
-    type CodexMockTestFixture
+    type CodexMockTestFixture,
 } from "../acp-test-utils";
 
 describe("CodexEventHandler - web search events", () => {
@@ -21,7 +21,7 @@ describe("CodexEventHandler - web search events", () => {
     const sessionState: SessionState = createTestSessionState({
         sessionId,
         currentModelId: "model-id[effort]",
-        agentMode: AgentMode.DEFAULT_AGENT_MODE
+        agentMode: AgentMode.DEFAULT_AGENT_MODE,
     });
 
     it("maps web search start and completion to a search tool call", async () => {
@@ -66,10 +66,15 @@ describe("CodexEventHandler - web search events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/web-search-start-and-complete.json"
+            "data/web-search-start-and-complete.json",
         );
     });
 
@@ -114,10 +119,15 @@ describe("CodexEventHandler - web search events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/web-search-action-titles.json"
+            "data/web-search-action-titles.json",
         );
     });
 });

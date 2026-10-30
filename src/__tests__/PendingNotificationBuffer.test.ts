@@ -1,10 +1,13 @@
-import {describe, expect, it, vi} from "vitest";
-import type {ServerNotification} from "../app-server";
-import {logger} from "../Logger";
-import {PendingNotificationBuffer} from "../subagents/PendingNotificationBuffer";
+import { describe, expect, it, vi } from "vitest";
+import type { ServerNotification } from "../app-server";
+import { logger } from "../Logger";
+import { PendingNotificationBuffer } from "../subagents/PendingNotificationBuffer";
 
 function delta(itemId: string, text: string): ServerNotification {
-    return {method: "item/agentMessage/delta", params: {threadId: "child", turnId: "t", itemId, delta: text}};
+    return {
+        method: "item/agentMessage/delta",
+        params: { threadId: "child", turnId: "t", itemId, delta: text },
+    };
 }
 
 describe("PendingNotificationBuffer", () => {
@@ -15,10 +18,12 @@ describe("PendingNotificationBuffer", () => {
         buffer.push(delta("b", "!"));
         buffer.push(delta("a", "?"));
 
-        expect(buffer.take().map(notification => notification.params)).toEqual([
-            {threadId: "child", turnId: "t", itemId: "a", delta: "Hello"},
-            {threadId: "child", turnId: "t", itemId: "b", delta: "!"},
-            {threadId: "child", turnId: "t", itemId: "a", delta: "?"},
+        expect(
+            buffer.take().map((notification) => notification.params),
+        ).toEqual([
+            { threadId: "child", turnId: "t", itemId: "a", delta: "Hello" },
+            { threadId: "child", turnId: "t", itemId: "b", delta: "!" },
+            { threadId: "child", turnId: "t", itemId: "a", delta: "?" },
         ]);
     });
 
@@ -31,7 +36,9 @@ describe("PendingNotificationBuffer", () => {
 
         expect(first).toEqual(delta("a", "Hel"));
         expect(second).toEqual(delta("a", "lo"));
-        expect((buffer.take()[0]!.params as {delta: string}).delta).toBe("Hello");
+        expect((buffer.take()[0]!.params as { delta: string }).delta).toBe(
+            "Hello",
+        );
     });
 
     it("keeps thousands of deltas without a loss", () => {
@@ -40,7 +47,9 @@ describe("PendingNotificationBuffer", () => {
 
         const taken = buffer.take();
         expect(taken).toHaveLength(1);
-        expect((taken[0]!.params as {delta: string}).delta).toHaveLength(5000);
+        expect((taken[0]!.params as { delta: string }).delta).toHaveLength(
+            5000,
+        );
     });
 
     it("counts the escaped size of a merged delta against the byte cap", () => {
@@ -50,13 +59,19 @@ describe("PendingNotificationBuffer", () => {
         const buffer = new PendingNotificationBuffer("child", maxBytes);
         buffer.push(first);
         // Each quote and each newline is 1 byte of text, but 2 bytes in JSON.
-        buffer.push(delta("a", "\"\n\"\n\"\n"));
+        buffer.push(delta("a", '"\n"\n"\n'));
         buffer.push(delta("a", "12345"));
 
         const taken = buffer.take();
-        expect(taken.reduce((bytes, notification) => bytes + Buffer.byteLength(JSON.stringify(notification), "utf8"), 0))
-            .toBeLessThanOrEqual(maxBytes);
-        expect((taken[0]!.params as {delta: string}).delta).toBe("x12345");
+        expect(
+            taken.reduce(
+                (bytes, notification) =>
+                    bytes +
+                    Buffer.byteLength(JSON.stringify(notification), "utf8"),
+                0,
+            ),
+        ).toBeLessThanOrEqual(maxBytes);
+        expect((taken[0]!.params as { delta: string }).delta).toBe("x12345");
         log.mockRestore();
     });
 

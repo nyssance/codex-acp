@@ -1,4 +1,5 @@
-export type AsyncTaskState = "running" | "paused" | "completed" | "failed" | "stopped";
+export type AsyncTaskState =
+    "running" | "paused" | "completed" | "failed" | "stopped";
 
 export type AsyncTaskSpawnedUpdate = {
     sessionUpdate: "async_task_spawned";
@@ -36,6 +37,4 @@ export type AsyncTaskStateUpdate = {
 };
 
 export type AsyncTaskUpdate =
-    | AsyncTaskSpawnedUpdate
-    | AsyncTaskProgressUpdate
-    | AsyncTaskStateUpdate;
+    AsyncTaskSpawnedUpdate | AsyncTaskProgressUpdate | AsyncTaskStateUpdate;

@@ -224,6 +224,7 @@ export class CodexAppServerClient {
     >();
     private readonly threadSettings = new Map<string, ThreadSettings>();
     private readonly staleTurnIds = new Map<string, Set<string>>();
+    private readonly runningTurnIds = new Map<string, string>();
     private readonly leakedReviewErrors = new Map<
         string,
         { error: TurnError; failedTurnIds: Set<string> }
@@ -257,7 +258,23 @@ export class CodexAppServerClient {
                 this.mcpOauthCompletions.complete(serverNotification.params);
             }
             if (isTurnCompletedNotification(serverNotification)) {
+                if (
+                    serverNotification.params.turn.status !== "inProgress" &&
+                    this.runningTurnIds.get(
+                        serverNotification.params.threadId,
+                    ) === serverNotification.params.turn.id
+                ) {
+                    this.runningTurnIds.delete(
+                        serverNotification.params.threadId,
+                    );
+                }
                 this.recordTurnCompleted(serverNotification.params);
+            }
+            if (serverNotification.method === "turn/started") {
+                this.runningTurnIds.set(
+                    serverNotification.params.threadId,
+                    serverNotification.params.turn.id,
+                );
             }
             if (isCompactionCompletedNotification(serverNotification)) {
                 this.recordCompactionCompleted(serverNotification);
@@ -475,9 +492,9 @@ export class CodexAppServerClient {
                 threadId: error.threadId,
                 turn: {
                     id: error.turnId,
+                    rootTurnId: null,
                     items: [],
                     itemsView: "notLoaded",
-                    rootTurnId: null,
                     status: "failed",
                     error: error.error,
                     startedAt: null,
@@ -1310,9 +1327,9 @@ export class CodexAppServerClient {
             threadId,
             turn: {
                 id: turnId,
+                rootTurnId: null,
                 items: [],
                 itemsView: "notLoaded",
-                rootTurnId: null,
                 status: "interrupted",
                 error: null,
                 startedAt: null,
@@ -1419,6 +1436,10 @@ export class CodexAppServerClient {
                 turn: { ...turn, status: "completed", error: null },
             },
         };
+    }
+
+    runningTurnId(threadId: string): string | undefined {
+        return this.runningTurnIds.get(threadId);
     }
 
     private recordTurnCompleted(event: TurnCompletedNotification): void {

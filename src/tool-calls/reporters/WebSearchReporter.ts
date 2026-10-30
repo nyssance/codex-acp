@@ -1,22 +1,26 @@
-import type {ThreadItem} from "../../app-server/v2";
-import type {ToolFacts} from "../ToolFacts";
+import type { ThreadItem } from "../../app-server/v2";
+import type { ToolFacts } from "../ToolFacts";
 
-type WebSearchItem = ThreadItem & {type: "webSearch"};
+type WebSearchItem = ThreadItem & { type: "webSearch" };
 
 /** Reports a Codex web search. */
 export class WebSearchReporter {
     static started(item: WebSearchItem): ToolFacts {
-        return {...facts(item, "start"), kind: "search", status: "in_progress"};
+        return {
+            ...facts(item, "start"),
+            kind: "search",
+            status: "in_progress",
+        };
     }
 
     static completed(item: WebSearchItem): ToolFacts {
-        return {...facts(item, "update"), status: "completed"};
+        return { ...facts(item, "update"), status: "completed" };
     }
 
     /** The replay of a web search. Every client gets the same `rawInput`. */
     static history(item: WebSearchItem): ToolFacts {
-        const {standard: _standard, ...replayed} = facts(item, "start");
-        return {...replayed, kind: "search", status: "completed"};
+        const { standard: _standard, ...replayed } = facts(item, "start");
+        return { ...replayed, kind: "search", status: "completed" };
     }
 }
 
@@ -25,9 +29,16 @@ function facts(item: WebSearchItem, report: ToolFacts["report"]): ToolFacts {
         toolCallId: item.id,
         report,
         title: webSearchTitle(item),
-        input: {query: item.query, action: item.action},
+        input: { query: item.query, action: item.action },
         // A live report of a client that is not AIR also names the item.
-        standard: {rawInput: {type: item.type, id: item.id, query: item.query, action: item.action}},
+        standard: {
+            rawInput: {
+                type: item.type,
+                id: item.id,
+                query: item.query,
+                action: item.action,
+            },
+        },
     };
 }
 
@@ -38,8 +49,13 @@ function webSearchTitle(item: WebSearchItem): string {
     }
     switch (action.type) {
         case "search": {
-            const queries = action.queries?.filter((query) => query && query.length > 0) ?? [];
-            const query = action.query ?? (queries.length > 0 ? queries.join(", ") : null) ?? item.query;
+            const queries =
+                action.queries?.filter((query) => query && query.length > 0) ??
+                [];
+            const query =
+                action.query ??
+                (queries.length > 0 ? queries.join(", ") : null) ??
+                item.query;
             return query ? `Web search: ${query}` : "Web search";
         }
         case "openPage":

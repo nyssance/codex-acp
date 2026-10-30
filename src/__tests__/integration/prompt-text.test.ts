@@ -1,6 +1,6 @@
 // Real codex-acp + real `codex app-server`; only the model is a local mock.
-import {afterEach, beforeEach, expect, it} from "vitest";
-import type {SpawnedAgentFixture} from "../CodexACPAgent/e2e/spawned-agent-fixture";
+import { afterEach, beforeEach, expect, it } from "vitest";
+import type { SpawnedAgentFixture } from "../CodexACPAgent/e2e/spawned-agent-fixture";
 import {
     agentText,
     connectAndLogin,
@@ -12,7 +12,11 @@ import {
     spawnAgent,
     stopAll,
 } from "./integration-fixture";
-import {type MockResponsesServer, startMockResponsesServer, textResponse} from "./mock-responses-server";
+import {
+    type MockResponsesServer,
+    startMockResponsesServer,
+    textResponse,
+} from "./mock-responses-server";
 
 describeIntegration("integration: text reply", () => {
     let mock: MockResponsesServer;
@@ -38,7 +42,7 @@ describeIntegration("integration: text reply", () => {
     /** The model's request carries the prompt and is sent to the integration model. */
     function expectPromptSentToModel(text: string): void {
         expect(mock.requests).toHaveLength(1);
-        const request = mock.requests[0] as {model: string};
+        const request = mock.requests[0] as { model: string };
         expect(request.model).toBe(INTEGRATION_MODEL_ID.model);
         expect(JSON.stringify(request)).toContain(text);
     }
@@ -57,7 +61,11 @@ describeIntegration("integration: text reply", () => {
         mock.enqueue(textResponse("integ", "ration", "-ok"));
 
         // Send the prompt and wait for the turn to end.
-        const response = await sendPrompt(agent, sessionId, "say integration-ok");
+        const response = await sendPrompt(
+            agent,
+            sessionId,
+            "say integration-ok",
+        );
 
         // Check what the client received and what Codex sent to the model.
         expect(response.stopReason).toBe("end_turn");

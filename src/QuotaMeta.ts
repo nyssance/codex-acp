@@ -1,4 +1,4 @@
-import type {TokenCount} from "./TokenCount";
+import type { TokenCount } from "./TokenCount";
 
 export interface ModelTokenCount {
     model: string;

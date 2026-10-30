@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
     createRecoveryFixture,
     defaultAnswer,
@@ -15,52 +15,100 @@ import {
  */
 function subscribingAppServer(fixture: RecoveryFixture): Set<string> {
     const subscribed = new Set<string>();
-    const subscribe = (method: string) => fixture.answers.set(method, params => {
-        const answer = method === "thread/fork"
-            ? {...defaultAnswer("thread/resume", {threadId: "fork-id"}) as object}
-            : defaultAnswer(method, params);
-        subscribed.add((answer as {thread: {id: string}}).thread.id);
-        return answer;
-    });
+    const subscribe = (method: string) =>
+        fixture.answers.set(method, (params) => {
+            const answer =
+                method === "thread/fork"
+                    ? {
+                          ...(defaultAnswer("thread/resume", {
+                              threadId: "fork-id",
+                          }) as object),
+                      }
+                    : defaultAnswer(method, params);
+            subscribed.add((answer as { thread: { id: string } }).thread.id);
+            return answer;
+        });
     subscribe("thread/start");
     subscribe("thread/resume");
     subscribe("thread/fork");
-    fixture.answers.set("thread/unsubscribe", params => {
-        const {threadId} = params as {threadId: string};
-        return {status: subscribed.delete(threadId) ? "unsubscribed" : "notSubscribed"};
+    fixture.answers.set("thread/unsubscribe", (params) => {
+        const { threadId } = params as { threadId: string };
+        return {
+            status: subscribed.delete(threadId)
+                ? "unsubscribed"
+                : "notSubscribed",
+        };
     });
     let turns = 0;
-    fixture.answers.set("turn/start", params => {
-        const {threadId} = params as {threadId: string};
-        const turn = {id: `turn-${++turns}`, items: [], status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null};
+    fixture.answers.set("turn/start", (params) => {
+        const { threadId } = params as { threadId: string };
+        const turn = {
+            id: `turn-${++turns}`,
+            items: [],
+            status: "inProgress",
+            error: null,
+            startedAt: null,
+            completedAt: null,
+            durationMs: null,
+        };
         setTimeout(() => {
             if (!subscribed.has(threadId)) return;
             const rpc = fixture.current().rpc;
-            rpc.notify({method: "turn/started", params: {threadId, turn}});
-            rpc.notify({method: "turn/completed", params: {threadId, turn: {...turn, status: "completed"}}});
+            rpc.notify({ method: "turn/started", params: { threadId, turn } });
+            rpc.notify({
+                method: "turn/completed",
+                params: { threadId, turn: { ...turn, status: "completed" } },
+            });
         }, 1);
-        return {turn};
+        return { turn };
     });
     return subscribed;
 }
 
 const CLIENTS = [
-    {name: "a client that is not AIR", air: false, capabilities: {}},
-    {name: "AIR without the session index", air: true, capabilities: {}},
+    { name: "a client that is not AIR", air: false, capabilities: {} },
+    { name: "AIR without the session index", air: true, capabilities: {} },
     {
         name: "AIR with the session index",
         air: true,
-        capabilities: {_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionFailure", "sessionIndex"]}}}},
+        capabilities: {
+            _meta: {
+                jetbrains: {
+                    air: {
+                        version: 1,
+                        capabilities: ["sessionFailure", "sessionIndex"],
+                    },
+                },
+            },
+        },
     },
 ];
 
-async function promptWithin(fixture: RecoveryFixture, sessionId: string, ms = 1000) {
+async function promptWithin(
+    fixture: RecoveryFixture,
+    sessionId: string,
+    ms = 1000,
+) {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`the prompt of ${sessionId} did not end within ${ms} ms`)), ms);
+        timer = setTimeout(
+            () =>
+                reject(
+                    new Error(
+                        `the prompt of ${sessionId} did not end within ${ms} ms`,
+                    ),
+                ),
+            ms,
+        );
     });
     try {
-        return await Promise.race([fixture.agent.prompt({sessionId, prompt: [{type: "text", text: "hi"}]}), timeout]);
+        return await Promise.race([
+            fixture.agent.prompt({
+                sessionId,
+                prompt: [{ type: "text", text: "hi" }],
+            }),
+            timeout,
+        ]);
     } finally {
         clearTimeout(timer);
     }
@@ -72,14 +120,27 @@ describe("a prompt after session/fork", () => {
             const fixture = createRecoveryFixture();
             const subscribed = subscribingAppServer(fixture);
             await initialize(fixture, client.air, client.capabilities);
-            const {sessionId: sourceId} = await fixture.agent.newSession({cwd: "/work", mcpServers: []});
+            const { sessionId: sourceId } = await fixture.agent.newSession({
+                cwd: "/work",
+                mcpServers: [],
+            });
 
-            const {sessionId: forkId} = await fixture.agent.forkSession({sessionId: sourceId, cwd: "/work", mcpServers: []});
+            const { sessionId: forkId } = await fixture.agent.forkSession({
+                sessionId: sourceId,
+                cwd: "/work",
+                mcpServers: [],
+            });
 
             expect(forkId).toBe("fork-id");
-            await expect(promptWithin(fixture, forkId)).resolves.toMatchObject({stopReason: "end_turn"});
-            await expect(promptWithin(fixture, sourceId)).resolves.toMatchObject({stopReason: "end_turn"});
-            expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual([]);
+            await expect(promptWithin(fixture, forkId)).resolves.toMatchObject({
+                stopReason: "end_turn",
+            });
+            await expect(
+                promptWithin(fixture, sourceId),
+            ).resolves.toMatchObject({ stopReason: "end_turn" });
+            expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual(
+                [],
+            );
             expect(subscribed).toContain(forkId);
             expect(subscribed).toContain(sourceId);
             fixture.agent.sessionIndex.dispose();
@@ -90,12 +151,23 @@ describe("a prompt after session/fork", () => {
         const fixture = createRecoveryFixture();
         const subscribed = subscribingAppServer(fixture);
         await initialize(fixture, true);
-        const {sessionId: sourceId} = await fixture.agent.newSession({cwd: "/work", mcpServers: []});
+        const { sessionId: sourceId } = await fixture.agent.newSession({
+            cwd: "/work",
+            mcpServers: [],
+        });
         fixture.answers.set("model/list", () => new Error("model list failed"));
 
-        await expect(fixture.agent.forkSession({sessionId: sourceId, cwd: "/work", mcpServers: []})).rejects.toThrow();
+        await expect(
+            fixture.agent.forkSession({
+                sessionId: sourceId,
+                cwd: "/work",
+                mcpServers: [],
+            }),
+        ).rejects.toThrow();
 
-        expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual([{threadId: "fork-id"}]);
+        expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual([
+            { threadId: "fork-id" },
+        ]);
         expect(subscribed).not.toContain("fork-id");
         expect(subscribed).toContain(sourceId);
     });
@@ -104,14 +176,28 @@ describe("a prompt after session/fork", () => {
         const fixture = createRecoveryFixture();
         const subscribed = subscribingAppServer(fixture);
         await initialize(fixture, true);
-        const {sessionId: sourceId} = await fixture.agent.newSession({cwd: "/work", mcpServers: []});
-        const agent = fixture.agent as unknown as {getAuthStateForProvider(): Promise<unknown>};
-        vi.spyOn(agent, "getAuthStateForProvider").mockRejectedValueOnce(new Error("auth status failed"));
+        const { sessionId: sourceId } = await fixture.agent.newSession({
+            cwd: "/work",
+            mcpServers: [],
+        });
+        const agent = fixture.agent as unknown as {
+            getAuthStateForProvider(): Promise<unknown>;
+        };
+        vi.spyOn(agent, "getAuthStateForProvider").mockRejectedValueOnce(
+            new Error("auth status failed"),
+        );
 
-        await expect(fixture.agent.forkSession({sessionId: sourceId, cwd: "/work", mcpServers: []}))
-            .rejects.toThrow("auth status failed");
+        await expect(
+            fixture.agent.forkSession({
+                sessionId: sourceId,
+                cwd: "/work",
+                mcpServers: [],
+            }),
+        ).rejects.toThrow("auth status failed");
 
-        expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual([{threadId: "fork-id"}]);
+        expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual([
+            { threadId: "fork-id" },
+        ]);
         expect(subscribed).not.toContain("fork-id");
         expect(subscribed).toContain(sourceId);
     });
@@ -120,41 +206,84 @@ describe("a prompt after session/fork", () => {
         const fixture = createRecoveryFixture();
         const subscribed = subscribingAppServer(fixture);
         await initialize(fixture, true);
-        const {sessionId: sourceId} = await fixture.agent.newSession({cwd: "/work", mcpServers: []});
-        const agent = fixture.agent as unknown as {getAuthStateForProvider(): Promise<unknown>};
+        const { sessionId: sourceId } = await fixture.agent.newSession({
+            cwd: "/work",
+            mcpServers: [],
+        });
+        const agent = fixture.agent as unknown as {
+            getAuthStateForProvider(): Promise<unknown>;
+        };
         let failAuth: (error: Error) => void = () => {};
-        const auth = vi.spyOn(agent, "getAuthStateForProvider")
-            .mockImplementationOnce(() => new Promise((_, reject) => { failAuth = reject; }));
-        const fork = fixture.agent.forkSession({sessionId: sourceId, cwd: "/work", mcpServers: []});
+        const auth = vi
+            .spyOn(agent, "getAuthStateForProvider")
+            .mockImplementationOnce(
+                () =>
+                    new Promise((_, reject) => {
+                        failAuth = reject;
+                    }),
+            );
+        const fork = fixture.agent.forkSession({
+            sessionId: sourceId,
+            cwd: "/work",
+            mcpServers: [],
+        });
         fork.catch(() => undefined);
         await vi.waitFor(() => expect(auth).toHaveBeenCalled());
 
         // The client found the new thread in the session list.
-        await fixture.agent.loadSession({sessionId: "fork-id", cwd: "/work", mcpServers: []});
+        await fixture.agent.loadSession({
+            sessionId: "fork-id",
+            cwd: "/work",
+            mcpServers: [],
+        });
         failAuth(new Error("auth status failed"));
 
         await expect(fork).rejects.toThrow("auth status failed");
         expect(requestsOf(fixture.current(), "thread/unsubscribe")).toEqual([]);
         expect(subscribed).toContain("fork-id");
-        await expect(promptWithin(fixture, "fork-id")).resolves.toMatchObject({stopReason: "end_turn"});
+        await expect(promptWithin(fixture, "fork-id")).resolves.toMatchObject({
+            stopReason: "end_turn",
+        });
     });
 
     it("keeps a load of the fork out while a failed fork gives its subscription back", async () => {
         const fixture = createRecoveryFixture();
         subscribingAppServer(fixture);
         await initialize(fixture, true);
-        const {sessionId: sourceId} = await fixture.agent.newSession({cwd: "/work", mcpServers: []});
-        const agent = fixture.agent as unknown as {getAuthStateForProvider(): Promise<unknown>};
-        vi.spyOn(agent, "getAuthStateForProvider").mockRejectedValueOnce(new Error("auth status failed"));
+        const { sessionId: sourceId } = await fixture.agent.newSession({
+            cwd: "/work",
+            mcpServers: [],
+        });
+        const agent = fixture.agent as unknown as {
+            getAuthStateForProvider(): Promise<unknown>;
+        };
+        vi.spyOn(agent, "getAuthStateForProvider").mockRejectedValueOnce(
+            new Error("auth status failed"),
+        );
         fixture.answers.set("thread/unsubscribe", () => undefined);
 
-        const fork = fixture.agent.forkSession({sessionId: sourceId, cwd: "/work", mcpServers: []});
+        const fork = fixture.agent.forkSession({
+            sessionId: sourceId,
+            cwd: "/work",
+            mcpServers: [],
+        });
         fork.catch(() => undefined);
-        await vi.waitFor(() => expect(fixture.current().rpc.hasPending("thread/unsubscribe")).toBe(true));
+        await vi.waitFor(() =>
+            expect(fixture.current().rpc.hasPending("thread/unsubscribe")).toBe(
+                true,
+            ),
+        );
 
-        await expect(fixture.agent.loadSession({sessionId: "fork-id", cwd: "/work", mcpServers: []}))
-            .rejects.toMatchObject({data: "Session fork-id is closing"});
-        fixture.current().rpc.resolve("thread/unsubscribe", {status: "unsubscribed"});
+        await expect(
+            fixture.agent.loadSession({
+                sessionId: "fork-id",
+                cwd: "/work",
+                mcpServers: [],
+            }),
+        ).rejects.toMatchObject({ data: "Session fork-id is closing" });
+        fixture
+            .current()
+            .rpc.resolve("thread/unsubscribe", { status: "unsubscribed" });
         await expect(fork).rejects.toThrow("auth status failed");
     });
 
@@ -162,11 +291,24 @@ describe("a prompt after session/fork", () => {
         const fixture = createRecoveryFixture();
         subscribingAppServer(fixture);
         await initialize(fixture, true);
-        const {sessionId: sourceId} = await fixture.agent.newSession({cwd: "/work", mcpServers: []});
-        const {sessionId: forkId} = await fixture.agent.forkSession({sessionId: sourceId, cwd: "/work", mcpServers: []});
+        const { sessionId: sourceId } = await fixture.agent.newSession({
+            cwd: "/work",
+            mcpServers: [],
+        });
+        const { sessionId: forkId } = await fixture.agent.forkSession({
+            sessionId: sourceId,
+            cwd: "/work",
+            mcpServers: [],
+        });
 
-        await fixture.agent.loadSession({sessionId: forkId, cwd: "/work", mcpServers: []});
+        await fixture.agent.loadSession({
+            sessionId: forkId,
+            cwd: "/work",
+            mcpServers: [],
+        });
 
-        await expect(promptWithin(fixture, forkId)).resolves.toMatchObject({stopReason: "end_turn"});
+        await expect(promptWithin(fixture, forkId)).resolves.toMatchObject({
+            stopReason: "end_turn",
+        });
     });
 });

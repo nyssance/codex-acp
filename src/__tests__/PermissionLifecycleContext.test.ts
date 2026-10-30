@@ -1,11 +1,11 @@
-import {describe, expect, it, vi} from "vitest";
-import type {SessionState} from "../CodexAcpServer";
-import {CodexElicitationHandler} from "../CodexElicitationHandler";
-import type {AcpClientConnection} from "../ACPSessionConnection";
-import type {ServerNotification} from "../app-server";
-import {PermissionLifecycleContext} from "../permissions/lifecycle";
-import {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
-import {ClientCapabilities} from "../tool-calls/ClientCapabilities";
+import { describe, expect, it, vi } from "vitest";
+import type { SessionState } from "../CodexAcpServer";
+import { CodexElicitationHandler } from "../CodexElicitationHandler";
+import type { AcpClientConnection } from "../ACPSessionConnection";
+import type { ServerNotification } from "../app-server";
+import { PermissionLifecycleContext } from "../permissions/lifecycle";
+import { AcpToolCallRenderer } from "../tool-calls/AcpToolCallRenderer";
+import { ClientCapabilities } from "../tool-calls/ClientCapabilities";
 
 function sessionState(): SessionState {
     return {
@@ -14,7 +14,11 @@ function sessionState(): SessionState {
     } as SessionState;
 }
 
-function mcpStarted(id: string, turnId: string, threadId = "thread"): ServerNotification {
+function mcpStarted(
+    id: string,
+    turnId: string,
+    threadId = "thread",
+): ServerNotification {
     return {
         method: "item/started",
         params: {
@@ -50,14 +54,23 @@ function fileChangeStarted(id: string, threadId: string): ServerNotification {
             item: {
                 type: "fileChange",
                 id,
-                changes: [{path: `/${threadId}.txt`, kind: {type: "add"}, diff: "+content"}],
+                changes: [
+                    {
+                        path: `/${threadId}.txt`,
+                        kind: { type: "add" },
+                        diff: "+content",
+                    },
+                ],
                 status: "inProgress",
             },
         },
     };
 }
 
-function commandStarted(id: string, threadId: string): Extract<ServerNotification, {method: "item/started"}> {
+function commandStarted(
+    id: string,
+    threadId: string,
+): Extract<ServerNotification, { method: "item/started" }> {
     return {
         method: "item/started",
         params: {
@@ -88,7 +101,8 @@ function turnCompleted(threadId: string): ServerNotification {
         method: "turn/completed",
         params: {
             threadId,
-            turn: {rootTurnId: null,
+            turn: {
+                rootTurnId: null,
                 id: `turn-${threadId}`,
                 items: [],
                 itemsView: "full",
@@ -111,7 +125,8 @@ describe("PermissionLifecycleContext", () => {
             method: "turn/completed",
             params: {
                 threadId: "thread",
-                turn: {rootTurnId: null,
+                turn: {
+                    rootTurnId: null,
                     id: "turn-1",
                     items: [],
                     itemsView: "full",
@@ -125,15 +140,19 @@ describe("PermissionLifecycleContext", () => {
         });
         prompt.handleNotification(mcpStarted("current-call", "turn-2"));
 
-        expect(prompt.popPendingMcpApproval("thread", "server")).toBe("current-call");
+        expect(prompt.popPendingMcpApproval("thread", "server")).toBe(
+            "current-call",
+        );
     });
 
     it("keeps synthetic IDs session-scoped across prompt contexts", () => {
         const lifecycle = new PermissionLifecycleContext(sessionState());
-        expect(lifecycle.beginPrompt().nextStandaloneMcpToolCallId("server"))
-            .toBe("elicitation:session:server:1");
-        expect(lifecycle.beginPrompt().nextStandaloneMcpToolCallId("server"))
-            .toBe("elicitation:session:server:2");
+        expect(
+            lifecycle.beginPrompt().nextStandaloneMcpToolCallId("server"),
+        ).toBe("elicitation:session:server:1");
+        expect(
+            lifecycle.beginPrompt().nextStandaloneMcpToolCallId("server"),
+        ).toBe("elicitation:session:server:2");
     });
 
     it("isolates MCP correlation between prompt generations", () => {
@@ -142,31 +161,54 @@ describe("PermissionLifecycleContext", () => {
         const currentPrompt = lifecycle.beginPrompt();
         currentPrompt.handleNotification(mcpStarted("current-call", "turn-2"));
 
-        expect(stalePrompt.popPendingMcpApproval("thread", "server")).toBeUndefined();
-        expect(currentPrompt.popPendingMcpApproval("thread", "server")).toBe("current-call");
+        expect(
+            stalePrompt.popPendingMcpApproval("thread", "server"),
+        ).toBeUndefined();
+        expect(currentPrompt.popPendingMcpApproval("thread", "server")).toBe(
+            "current-call",
+        );
     });
 
     it("clears only the completed thread's permission correlation", () => {
-        const prompt = new PermissionLifecycleContext(sessionState()).beginPrompt();
+        const prompt = new PermissionLifecycleContext(
+            sessionState(),
+        ).beginPrompt();
         prompt.handleNotification(mcpStarted("call-a", "turn-a", "child-a"));
         prompt.handleNotification(mcpStarted("call-b", "turn-b", "child-b"));
-        prompt.handleNotification(fileChangeStarted("shared-file-change", "child-a"));
-        prompt.handleNotification(fileChangeStarted("shared-file-change", "child-b"));
+        prompt.handleNotification(
+            fileChangeStarted("shared-file-change", "child-a"),
+        );
+        prompt.handleNotification(
+            fileChangeStarted("shared-file-change", "child-b"),
+        );
         prompt.handleNotification(commandStarted("shared-command", "child-a"));
         prompt.handleNotification(commandStarted("shared-command", "child-b"));
 
         prompt.handleNotification(turnCompleted("child-b"));
 
-        expect(prompt.popPendingMcpApproval("child-a", "server")).toBe("call-a");
-        expect(prompt.popPendingMcpApproval("child-b", "server")).toBeUndefined();
-        expect(prompt.fileChange("child-a", "shared-file-change")?.changes[0]?.path).toBe("/child-a.txt");
-        expect(prompt.fileChange("child-b", "shared-file-change")).toBeUndefined();
-        expect(prompt.commandName("child-a", "shared-command")).toBe("exec_command");
+        expect(prompt.popPendingMcpApproval("child-a", "server")).toBe(
+            "call-a",
+        );
+        expect(
+            prompt.popPendingMcpApproval("child-b", "server"),
+        ).toBeUndefined();
+        expect(
+            prompt.fileChange("child-a", "shared-file-change")?.changes[0]
+                ?.path,
+        ).toBe("/child-a.txt");
+        expect(
+            prompt.fileChange("child-b", "shared-file-change"),
+        ).toBeUndefined();
+        expect(prompt.commandName("child-a", "shared-command")).toBe(
+            "exec_command",
+        );
         expect(prompt.commandName("child-b", "shared-command")).toBeUndefined();
     });
 
     it("clears a completed command's name", () => {
-        const prompt = new PermissionLifecycleContext(sessionState()).beginPrompt();
+        const prompt = new PermissionLifecycleContext(
+            sessionState(),
+        ).beginPrompt();
         const notification = commandStarted("command", "thread");
         prompt.handleNotification(notification);
         expect(prompt.commandName("thread", "command")).toBe("exec_command");
@@ -189,15 +231,17 @@ describe("PermissionLifecycleContext", () => {
         const lifecycle = new PermissionLifecycleContext(state);
         const prompt = lifecycle.beginPrompt();
         const connection = {
-            request: vi.fn().mockResolvedValue({action: "decline"}),
+            request: vi.fn().mockResolvedValue({ action: "decline" }),
         } as unknown as AcpClientConnection;
-        const clientCapabilities = {elicitation: {form: {}}};
+        const clientCapabilities = { elicitation: { form: {} } };
         const handler = new CodexElicitationHandler(
             connection,
             prompt,
             clientCapabilities,
             undefined,
-            new AcpToolCallRenderer(ClientCapabilities.from(clientCapabilities)),
+            new AcpToolCallRenderer(
+                ClientCapabilities.from(clientCapabilities),
+            ),
         );
 
         await handler.handleElicitation({
@@ -207,20 +251,27 @@ describe("PermissionLifecycleContext", () => {
             mode: "form",
             _meta: null,
             message: "Collect a value",
-            requestedSchema: {type: "object", properties: {value: {type: "string"}}},
+            requestedSchema: {
+                type: "object",
+                properties: { value: { type: "string" } },
+            },
         });
 
-        expect(prompt.nextStandaloneMcpToolCallId("server")).toBe("elicitation:session:server:1");
+        expect(prompt.nextStandaloneMcpToolCallId("server")).toBe(
+            "elicitation:session:server:1",
+        );
     });
 
     it("does not allocate a synthetic ID for a correlated permission fallback", async () => {
         const state = sessionState();
         const prompt = new PermissionLifecycleContext(state).beginPrompt();
-        const requests: Array<{toolCall: {toolCallId: string}}> = [];
+        const requests: Array<{ toolCall: { toolCallId: string } }> = [];
         const connection = {
             request: vi.fn().mockImplementation((_method, request) => {
                 requests.push(request);
-                return Promise.resolve({outcome: {outcome: "selected", optionId: "cancel"}});
+                return Promise.resolve({
+                    outcome: { outcome: "selected", optionId: "cancel" },
+                });
             }),
             notify: vi.fn(),
         } as unknown as AcpClientConnection;
@@ -236,16 +287,16 @@ describe("PermissionLifecycleContext", () => {
             turnId: "turn-1",
             serverName: "server",
             mode: "form" as const,
-            _meta: {codex_approval_kind: "mcp_tool_call"},
+            _meta: { codex_approval_kind: "mcp_tool_call" },
             message: "Allow?",
-            requestedSchema: {type: "object" as const, properties: {}},
+            requestedSchema: { type: "object" as const, properties: {} },
         };
 
         prompt.handleNotification(mcpStarted("correlated-call", "turn-1"));
         await handler.handleElicitation(approval);
         await handler.handleElicitation(approval);
 
-        expect(requests.map(request => request.toolCall.toolCallId)).toEqual([
+        expect(requests.map((request) => request.toolCall.toolCallId)).toEqual([
             "correlated-call",
             "elicitation:session:server:1",
         ]);

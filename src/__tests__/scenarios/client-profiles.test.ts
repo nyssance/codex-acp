@@ -1602,15 +1602,26 @@ describe("AIR", () => {
 
     it("gets no key of the pre-contract shape", () => {
         const text = SCENARIOS.map((each) =>
-            JSON.stringify(recording("air", each.name).map(message => {
-                if (message.direction !== "response" || !["session/new", "session/load", "session/resume", "session/fork"].includes(message.method)) return message;
-                const params = message.params as Update;
-                const meta = params["_meta"] as Update | undefined;
-                if (!meta?.["codex"]) return message;
-                expect(meta["codex"]).toEqual({projectId: null});
-                const {codex: _project, ...rest} = meta;
-                return {...message, params: {...params, _meta: rest}};
-            })),
+            JSON.stringify(
+                recording("air", each.name).map((message) => {
+                    if (
+                        message.direction !== "response" ||
+                        ![
+                            "session/new",
+                            "session/load",
+                            "session/resume",
+                            "session/fork",
+                        ].includes(message.method)
+                    )
+                        return message;
+                    const params = message.params as Update;
+                    const meta = params["_meta"] as Update | undefined;
+                    if (!meta?.["codex"]) return message;
+                    expect(meta["codex"]).toEqual({ projectId: null });
+                    const { codex: _project, ...rest } = meta;
+                    return { ...message, params: { ...params, _meta: rest } };
+                }),
+            ),
         ).join("\n");
         expect(text).not.toContain("formatted_output");
         expect(text).not.toContain('"codex"');
@@ -1628,6 +1639,7 @@ describe("history replay", () => {
                     history: [
                         {
                             type: "imageGeneration",
+                            generationId: null,
                             id: "h-gen",
                             status: "generating",
                             revisedPrompt: null,

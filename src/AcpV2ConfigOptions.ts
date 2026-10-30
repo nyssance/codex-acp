@@ -7,31 +7,43 @@ import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
  * v2 renames the option's `id` to `configId` and a select group's `group` to `groupId`; all
  * values are unchanged.
  */
-export function toV2ConfigOption(option: acp.SessionConfigOption): acpV2.SessionConfigOption {
+export function toV2ConfigOption(
+    option: acp.SessionConfigOption,
+): acpV2.SessionConfigOption {
     switch (option.type) {
         case "boolean": {
-            const {id, ...rest} = option;
-            return {configId: id, ...rest};
+            const { id, ...rest } = option;
+            return { configId: id, ...rest };
         }
         case "select": {
-            const {id, options, ...rest} = option;
-            return {configId: id, ...rest, options: toV2SelectOptions(options)};
+            const { id, options, ...rest } = option;
+            return {
+                configId: id,
+                ...rest,
+                options: toV2SelectOptions(options),
+            };
         }
     }
 }
 
-export function toV2ConfigOptions(options: Array<acp.SessionConfigOption>): Array<acpV2.SessionConfigOption> {
+export function toV2ConfigOptions(
+    options: Array<acp.SessionConfigOption>,
+): Array<acpV2.SessionConfigOption> {
     return options.map(toV2ConfigOption);
 }
 
-function toV2SelectOptions(options: acp.SessionConfigSelectOptions): acpV2.SessionConfigSelectOptions {
+function toV2SelectOptions(
+    options: acp.SessionConfigSelectOptions,
+): acpV2.SessionConfigSelectOptions {
     if (!isGrouped(options)) {
         return options;
     }
-    return options.map(({group, ...rest}) => ({groupId: group, ...rest}));
+    return options.map(({ group, ...rest }) => ({ groupId: group, ...rest }));
 }
 
-function isGrouped(options: acp.SessionConfigSelectOptions): options is Array<acp.SessionConfigSelectGroup> {
+function isGrouped(
+    options: acp.SessionConfigSelectOptions,
+): options is Array<acp.SessionConfigSelectGroup> {
     const first = options[0];
     return first !== undefined && "group" in first;
 }
@@ -47,14 +59,14 @@ export function toV1SetSessionConfigOptionRequest(
     const base = {
         sessionId: params.sessionId,
         configId: params.configId,
-        ...(params._meta !== undefined ? {_meta: params._meta} : {}),
+        ...(params._meta !== undefined ? { _meta: params._meta } : {}),
     };
     const value: unknown = params.value;
     if (params.type === "id" && typeof value === "string") {
-        return {...base, value};
+        return { ...base, value };
     }
     if (params.type === "boolean" && typeof value === "boolean") {
-        return {...base, type: "boolean", value};
+        return { ...base, type: "boolean", value };
     }
     throw acp.RequestError.invalidParams();
 }

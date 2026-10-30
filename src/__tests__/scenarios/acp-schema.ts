@@ -1,7 +1,7 @@
 import fs from "node:fs";
-import {createRequire} from "node:module";
-import {Ajv2020, type ValidateFunction} from "ajv/dist/2020.js";
-import type {RecordedMessage} from "./scenario-harness";
+import { createRequire } from "node:module";
+import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
+import type { RecordedMessage } from "./scenario-harness";
 
 /**
  * Validates the outbound messages of the adapter against the ACP JSON schema that `@agentclientprotocol/sdk` ships.
@@ -9,11 +9,18 @@ import type {RecordedMessage} from "./scenario-harness";
  */
 
 const SCHEMA_ID = "acp";
-const ajv = new Ajv2020({strict: false, allErrors: true});
-ajv.addSchema(JSON.parse(fs.readFileSync(
-    createRequire(import.meta.url).resolve("@agentclientprotocol/sdk/schema/v1/schema.unstable.json"),
-    "utf8",
-)), SCHEMA_ID);
+const ajv = new Ajv2020({ strict: false, allErrors: true });
+ajv.addSchema(
+    JSON.parse(
+        fs.readFileSync(
+            createRequire(import.meta.url).resolve(
+                "@agentclientprotocol/sdk/schema/v1/schema.unstable.json",
+            ),
+            "utf8",
+        ),
+    ),
+    SCHEMA_ID,
+);
 
 /** The ACP type of each recorded message. */
 const MESSAGE_TYPES: Record<string, string> = {
@@ -43,15 +50,27 @@ const EXTENSION_NOTIFICATION_SCHEMAS: Record<string, object> = {
                 required: ["kind", "label"],
                 additionalProperties: false,
                 properties: {
-                    kind: {enum: ["account", "api_key", "gateway", "external", "none"]},
-                    label: {type: "string"},
-                    detail: {type: "string"},
+                    kind: {
+                        enum: [
+                            "account",
+                            "api_key",
+                            "gateway",
+                            "external",
+                            "none",
+                        ],
+                    },
+                    label: { type: "string" },
+                    detail: { type: "string" },
                     account: {
                         type: "object",
                         additionalProperties: false,
-                        properties: {email: {type: "string"}, organization: {type: "string"}, plan: {type: "string"}},
+                        properties: {
+                            email: { type: "string" },
+                            organization: { type: "string" },
+                            plan: { type: "string" },
+                        },
                     },
-                    vendor: {type: "object"},
+                    vendor: { type: "object" },
                 },
             },
         },
@@ -77,28 +96,34 @@ const validateAirSessionUpdateEnvelope = ajv.compile({
     type: "object",
     required: ["sessionId", "update"],
     properties: {
-        sessionId: {$ref: `${SCHEMA_ID}#/$defs/SessionId`},
-        _meta: {type: ["object", "null"]},
+        sessionId: { $ref: `${SCHEMA_ID}#/$defs/SessionId` },
+        _meta: { type: ["object", "null"] },
         update: {
             type: "object",
             required: ["sessionUpdate"],
             properties: {
-                sessionUpdate: {enum: [...AIR_SESSION_UPDATES]},
-                _meta: {type: ["object", "null"]},
+                sessionUpdate: { enum: [...AIR_SESSION_UPDATES] },
+                _meta: { type: ["object", "null"] },
             },
         },
     },
 });
 
 function isAirSessionUpdate(message: RecordedMessage): boolean {
-    const update = (message.params as {update?: {sessionUpdate?: string}} | undefined)?.update;
-    return message.direction === "notify" && message.method === "session/update"
-        && AIR_SESSION_UPDATES.has(update?.sessionUpdate ?? "");
+    const update = (
+        message.params as { update?: { sessionUpdate?: string } } | undefined
+    )?.update;
+    return (
+        message.direction === "notify" &&
+        message.method === "session/update" &&
+        AIR_SESSION_UPDATES.has(update?.sessionUpdate ?? "")
+    );
 }
 
 function validator(type: string): ValidateFunction {
     const validate = ajv.getSchema(`${SCHEMA_ID}#/$defs/${type}`);
-    if (validate === undefined) throw new Error(`The ACP schema has no type ${type}`);
+    if (validate === undefined)
+        throw new Error(`The ACP schema has no type ${type}`);
     return validate;
 }
 
@@ -110,17 +135,26 @@ export function acpMessageType(message: RecordedMessage): string | null {
     if (message.direction === "codexResponse") return null;
     if (isAirSessionUpdate(message)) return null;
     const type = MESSAGE_TYPES[`${message.direction} ${message.method}`];
-    if (type === undefined) throw new Error(`No ACP type for ${message.direction} ${message.method}`);
+    if (type === undefined)
+        throw new Error(
+            `No ACP type for ${message.direction} ${message.method}`,
+        );
     return type;
 }
 
 /** Returns the schema errors of an extension notification, or `null` when the message is not one. */
-function extensionNotificationErrors(message: RecordedMessage): string[] | null {
-    if (message.direction !== "notify" || !message.method.startsWith("_")) return null;
+function extensionNotificationErrors(
+    message: RecordedMessage,
+): string[] | null {
+    if (message.direction !== "notify" || !message.method.startsWith("_"))
+        return null;
     const schema = EXTENSION_NOTIFICATION_SCHEMAS[message.method];
-    if (schema === undefined) return [`No schema for the extension notification ${message.method}`];
+    if (schema === undefined)
+        return [`No schema for the extension notification ${message.method}`];
     const validate = ajv.compile(schema);
-    return validate(message.params) ? [] : [`${message.method}: ${ajv.errorsText(validate.errors)}`];
+    return validate(message.params)
+        ? []
+        : [`${message.method}: ${ajv.errorsText(validate.errors)}`];
 }
 
 /** Returns the schema errors of one message, or an empty list. */
@@ -130,10 +164,14 @@ export function schemaErrors(message: RecordedMessage): string[] {
     if (isAirSessionUpdate(message)) {
         return validateAirSessionUpdateEnvelope(message.params)
             ? []
-            : [`AIR session update: ${ajv.errorsText(validateAirSessionUpdateEnvelope.errors)}`];
+            : [
+                  `AIR session update: ${ajv.errorsText(validateAirSessionUpdateEnvelope.errors)}`,
+              ];
     }
     const type = acpMessageType(message);
     if (type === null) return [];
     const validate = validator(type);
-    return validate(message.params) ? [] : [`${type}: ${ajv.errorsText(validate.errors)}`];
+    return validate(message.params)
+        ? []
+        : [`${type}: ${ajv.errorsText(validate.errors)}`];
 }

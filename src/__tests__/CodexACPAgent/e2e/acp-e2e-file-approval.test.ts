@@ -1,9 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import fs from "node:fs";
 import path from "node:path";
-import {afterEach, beforeEach, expect, it, onTestFinished, vi} from "vitest";
-import {AgentMode} from "../../../AgentMode";
-import {ApprovalOptionId} from "../../../permissions/option-ids";
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vitest";
+import { AgentMode } from "../../../AgentMode";
+import { ApprovalOptionId } from "../../../permissions/option-ids";
 import {
     createAuthenticatedFixture,
     createPermissionResponder,
@@ -31,19 +31,34 @@ describeE2E("E2E read-only mode file permission tests", () => {
     });
 
     it("applies an approved workspace file edit", async () => {
-        fixture.setPermissionResponder(createPermissionResponder("edit", ApprovalOptionId.AllowOnce));
-        const sessionId = await expectFileEditApplied(fixture, newFilePathIn(fixture.workspaceDir));
-        expect(fixture.readPermissionRequests(sessionId, "edit").length).toBeGreaterThanOrEqual(1);
-        expect(fixture.readPermissionRequests(sessionId, "execute")).toHaveLength(0);
+        fixture.setPermissionResponder(
+            createPermissionResponder("edit", ApprovalOptionId.AllowOnce),
+        );
+        const sessionId = await expectFileEditApplied(
+            fixture,
+            newFilePathIn(fixture.workspaceDir),
+        );
+        expect(
+            fixture.readPermissionRequests(sessionId, "edit").length,
+        ).toBeGreaterThanOrEqual(1);
+        expect(
+            fixture.readPermissionRequests(sessionId, "execute"),
+        ).toHaveLength(0);
     });
 
     it("does not apply a workspace file edit when permission is cancelled", async () => {
         fixture.setPermissionResponder(() => createPermissionResponse(null));
-        await expectFileEditBlocked(fixture, newFilePathIn(fixture.workspaceDir));
+        await expectFileEditBlocked(
+            fixture,
+            newFilePathIn(fixture.workspaceDir),
+        );
     });
 
     it("can't edit file outside workspace", async () => {
-        await expectFileEditBlocked(fixture, newFilePathIn(createDirOutsideWorkspace(fixture)));
+        await expectFileEditBlocked(
+            fixture,
+            newFilePathIn(createDirOutsideWorkspace(fixture)),
+        );
     });
 });
 
@@ -59,7 +74,10 @@ describeE2E("E2E workspace access mode file permission tests", () => {
     });
 
     it("edits a workspace file without prompting for permission", async () => {
-        const sessionId = await expectFileEditApplied(fixture, newFilePathIn(fixture.workspaceDir));
+        const sessionId = await expectFileEditApplied(
+            fixture,
+            newFilePathIn(fixture.workspaceDir),
+        );
         expectNoPermissionRequests(fixture, sessionId);
     });
 });
@@ -82,9 +100,15 @@ describeE2E("E2E switching to read-only mode file permission tests", () => {
             sessionId: session.sessionId,
             modeId: AgentMode.ReadOnly.id,
         });
-        fixture.setPermissionResponder(createPermissionResponder("edit", ApprovalOptionId.Cancel));
+        fixture.setPermissionResponder(
+            createPermissionResponder("edit", ApprovalOptionId.Cancel),
+        );
 
-        await expectFileEditBlocked(fixture, newFilePathIn(fixture.workspaceDir), session.sessionId);
+        await expectFileEditBlocked(
+            fixture,
+            newFilePathIn(fixture.workspaceDir),
+            session.sessionId,
+        );
     });
 });
 
@@ -100,18 +124,30 @@ describeE2E("E2E full-access mode file permission tests", () => {
     });
 
     it("edits a file outside workspace without prompting for permission", async () => {
-        const sessionId = await expectFileEditApplied(fixture, newFilePathIn(createDirOutsideWorkspace(fixture)));
+        const sessionId = await expectFileEditApplied(
+            fixture,
+            newFilePathIn(createDirOutsideWorkspace(fixture)),
+        );
         expectNoPermissionRequests(fixture, sessionId);
     });
 });
 
-async function expectFileEditApplied(fixture: SpawnedAgentFixture, filePath: string): Promise<string> {
+async function expectFileEditApplied(
+    fixture: SpawnedAgentFixture,
+    filePath: string,
+): Promise<string> {
     const turn = await askAgentToEditFile(fixture, filePath);
     expectEndTurn(turn.response);
-    await vi.waitFor(() => {
-        expect(fs.existsSync(filePath), turn.diagnostics()).toBe(true);
-        expect(fs.readFileSync(filePath, "utf8").trim(), turn.diagnostics()).toBe(FILE_CONTENT);
-    }, {timeout: FILE_APPEARS_TIMEOUT_MS});
+    await vi.waitFor(
+        () => {
+            expect(fs.existsSync(filePath), turn.diagnostics()).toBe(true);
+            expect(
+                fs.readFileSync(filePath, "utf8").trim(),
+                turn.diagnostics(),
+            ).toBe(FILE_CONTENT);
+        },
+        { timeout: FILE_APPEARS_TIMEOUT_MS },
+    );
     return turn.sessionId;
 }
 
@@ -141,14 +177,20 @@ async function askAgentToEditFile(
     filePath: string,
     existingSessionId?: string,
 ): Promise<EditFileTurn> {
-    const sessionId = existingSessionId ?? (await fixture.createSession()).sessionId;
-    const response = await fixture.connection.request(acp.methods.agent.session.prompt, {
-        sessionId,
-        prompt: [{
-            type: "text",
-            text: `Create ${filePath} by editing files directly. Content must be exactly: '${FILE_CONTENT}'. Do not use shell commands.`,
-        }],
-    });
+    const sessionId =
+        existingSessionId ?? (await fixture.createSession()).sessionId;
+    const response = await fixture.connection.request(
+        acp.methods.agent.session.prompt,
+        {
+            sessionId,
+            prompt: [
+                {
+                    type: "text",
+                    text: `Create ${filePath} by editing files directly. Content must be exactly: '${FILE_CONTENT}'. Do not use shell commands.`,
+                },
+            ],
+        },
+    );
     return {
         sessionId,
         response,
@@ -164,8 +206,13 @@ function newFilePathIn(directory: string): string {
 }
 
 function createDirOutsideWorkspace(fixture: SpawnedAgentFixture): string {
-    const outsideWorkspaceDir = path.join(path.dirname(fixture.workspaceDir), "outside-workspace");
-    onTestFinished(() => fs.rmSync(outsideWorkspaceDir, {recursive: true, force: true}));
+    const outsideWorkspaceDir = path.join(
+        path.dirname(fixture.workspaceDir),
+        "outside-workspace",
+    );
+    onTestFinished(() =>
+        fs.rmSync(outsideWorkspaceDir, { recursive: true, force: true }),
+    );
     fs.mkdirSync(outsideWorkspaceDir);
     return outsideWorkspaceDir;
 }

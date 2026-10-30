@@ -1,8 +1,8 @@
-import type {ThreadItem} from "../../app-server/v2";
-import type {ToolFacts} from "../ToolFacts";
-import {toToolStatus} from "./ToolStatus";
+import type { ThreadItem } from "../../app-server/v2";
+import type { ToolFacts } from "../ToolFacts";
+import { toToolStatus } from "./ToolStatus";
 
-type CollabAgentToolCallItem = ThreadItem & {type: "collabAgentToolCall"};
+type CollabAgentToolCallItem = ThreadItem & { type: "collabAgentToolCall" };
 
 /**
  * Reports a Codex collaboration tool call, for a client without native subagent sessions.
@@ -17,7 +17,7 @@ export class CollabAgentReporter {
         return {
             ...facts(item, "start"),
             kind: "other",
-            ...(item.prompt ? {readableInput: item.prompt} : {}),
+            ...(item.prompt ? { readableInput: item.prompt } : {}),
         };
     }
 
@@ -26,7 +26,10 @@ export class CollabAgentReporter {
     }
 }
 
-function facts(item: CollabAgentToolCallItem, report: ToolFacts["report"]): ToolFacts {
+function facts(
+    item: CollabAgentToolCallItem,
+    report: ToolFacts["report"],
+): ToolFacts {
     const input = {
         prompt: item.prompt,
         senderThreadId: item.senderThreadId,
@@ -41,10 +44,10 @@ function facts(item: CollabAgentToolCallItem, report: ToolFacts["report"]): Tool
         title: item.tool,
         status: toToolStatus(item.status),
         input,
-        ...(item.tool === "spawnAgent" ? {subagent: true} : {}),
+        ...(item.tool === "spawnAgent" ? { subagent: true } : {}),
         standard: {
             content: null,
-            rawInput: {...input, status: item.status},
+            rawInput: { ...input, status: item.status },
             rawOutput: null,
         },
     };
