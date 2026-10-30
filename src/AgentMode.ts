@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type {
     ApprovalsReviewer,
     AskForApproval,
@@ -136,7 +137,7 @@ export class AgentMode {
 
     toSessionModeState(airClient: boolean): SessionModeState {
         return {
-            availableModes: AgentMode.all().map((mode) =>
+            availableModes: this.availableModes().map((mode) =>
                 mode.toSessionMode(airClient),
             ),
             currentModeId: this.id,
@@ -151,10 +152,7 @@ export class AgentMode {
             category: "mode",
             type: "select",
             currentValue: this.id,
-            options: [
-                ...AgentMode.all(),
-                ...(this.permissionProfile === null ? [] : [this]),
-            ].map((mode) => {
+            options: this.availableModes().map((mode) => {
                 const meta = airOnlyMeta(airClient, AIR_KIND_KEY, mode.kind);
                 return {
                     value: mode.id,
@@ -164,6 +162,12 @@ export class AgentMode {
                 };
             }),
         };
+    }
+
+    private availableModes(): AgentMode[] {
+        return AgentMode.find(this.id)
+            ? AgentMode.all()
+            : [...AgentMode.all(), this];
     }
 
     static all(): AgentMode[] {
@@ -189,25 +193,37 @@ export class AgentMode {
         const profile = thread.activePermissionProfile;
         if (profile && !profile.id.startsWith(":"))
             return AgentMode.fromPermissionProfile(profile.id);
-        if (
-            thread.approvalPolicy === "never" &&
-            thread.sandbox.type === "dangerFullAccess"
-        )
-            return AgentMode.AgentFullAccess;
-        if (
-            thread.approvalsReviewer === "auto_review" &&
-            thread.sandbox.type === "workspaceWrite"
-        )
-            return AgentMode.Agent;
-        if (
-            thread.approvalsReviewer === "user" &&
-            thread.approvalPolicy === "on-request"
-        ) {
-            if (thread.sandbox.type === "readOnly") return AgentMode.ReadOnly;
-            if (thread.sandbox.type === "workspaceWrite")
-                return AgentMode.WorkspaceWrite;
-        }
-        throw new Error("Unknown Codex approval mode");
+        const preset = AgentMode.all().find(
+            (mode) =>
+                isDeepStrictEqual(mode.approvalPolicy, thread.approvalPolicy) &&
+                mode.approvalsReviewer === thread.approvalsReviewer &&
+                isDeepStrictEqual(mode.sandboxPolicy, thread.sandbox),
+        );
+        if (preset) return preset;
+        const sandboxMode = (() => {
+            switch (thread.sandbox.type) {
+                case "readOnly":
+                    return "read-only";
+                case "workspaceWrite":
+                    return "workspace-write";
+                case "dangerFullAccess":
+                    return "danger-full-access";
+                case "externalSandbox":
+                    return "danger-full-access";
+            }
+        })();
+        return new AgentMode(
+            "custom",
+            "Custom permissions",
+            "Keep the session's existing permission settings.",
+            thread.approvalsReviewer === "auto_review"
+                ? "auto_review"
+                : "standard",
+            thread.approvalPolicy,
+            thread.approvalsReviewer,
+            structuredClone(thread.sandbox),
+            sandboxMode,
+        );
     }
 
     static getInitialAgentMode(): AgentMode {

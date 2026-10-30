@@ -37,3 +37,10 @@ User-initiated command tool calls carry `_meta.codex.commandSource: "userShell"`
 on their initial and completed updates, including history replay. Clients can
 render these commands with their output visible instead of grouping them into
 model work disclosures. Other command sources keep their existing presentation.
+
+When a restored thread's approval policy, reviewer, or sandbox differs from the
+built-in presets, its mode is `custom` ("Custom permissions"). Both mode lists
+and config options include this current value. Sending `_meta.codex.mode: "custom"`
+on resume or fork preserves the thread's permissions without applying overrides.
+Selecting the current `custom` mode is a no-op; choosing a preset explicitly
+replaces it. Custom settings retain the complete sandbox policy for later turns.

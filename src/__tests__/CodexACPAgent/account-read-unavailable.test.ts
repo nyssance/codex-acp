@@ -121,29 +121,28 @@ function fixtureWithSession(): CodexMockTestFixture {
         .fn()
         .mockResolvedValue({ data: [model], nextCursor: null });
     appServer.accountLogout = vi.fn().mockResolvedValue({});
-    appServer.threadResume = vi
-        .fn()
-        .mockResolvedValue({
-            runtimeWorkspaceRoots: [],
-            activePermissionProfile: null,
-            multiAgentMode: "explicitRequestOnly",
-            initialTurnsPage: null,
-            thread: {
-                id: SESSION_ID,
-                historyMode: "paginated",
-                turns: [],
-                cwd: "/test/project",
-                name: null,
-                preview: "",
-            },
-            itemsBackwardsCursor: "item:last",
-            model: model.id,
-            modelProvider: "openai",
+    appServer.threadResume = vi.fn().mockResolvedValue({
+        runtimeWorkspaceRoots: [],
+        activePermissionProfile: null,
+        multiAgentMode: "explicitRequestOnly",
+        initialTurnsPage: null,
+        thread: {
+            id: SESSION_ID,
+            historyMode: "paginated",
+            turns: [],
             cwd: "/test/project",
-            approvalPolicy: "never",
-            sandbox: { type: "dangerFullAccess" },
-            reasoningEffort: model.defaultReasoningEffort,
-        });
+            name: null,
+            preview: "",
+        },
+        itemsBackwardsCursor: "item:last",
+        model: model.id,
+        modelProvider: "openai",
+        cwd: "/test/project",
+        approvalPolicy: "never",
+        approvalsReviewer: "user",
+        sandbox: { type: "dangerFullAccess" },
+        reasoningEffort: model.defaultReasoningEffort,
+    });
     appServer.threadItemsList = vi.fn().mockResolvedValue({
         data: [
             {
@@ -190,13 +189,11 @@ describe("CodexACPAgent - an unavailable account read", () => {
         appServer.accountRead = vi.fn().mockRejectedValue(routingFailure());
         await initialize(fixture);
 
-        await fixture
-            .getCodexAcpAgent()
-            .loadSession({
-                sessionId: SESSION_ID,
-                cwd: "/test/project",
-                mcpServers: [],
-            });
+        await fixture.getCodexAcpAgent().loadSession({
+            sessionId: SESSION_ID,
+            cwd: "/test/project",
+            mcpServers: [],
+        });
         await drainScheduledWork();
 
         expect(historyTexts(fixture)).toEqual(["history"]);
@@ -223,13 +220,11 @@ describe("CodexACPAgent - an unavailable account read", () => {
         const before = authStatusUpdates(fixture);
         appServer.accountRead = vi.fn().mockRejectedValue(routingFailure());
 
-        await fixture
-            .getCodexAcpAgent()
-            .loadSession({
-                sessionId: SESSION_ID,
-                cwd: "/test/project",
-                mcpServers: [],
-            });
+        await fixture.getCodexAcpAgent().loadSession({
+            sessionId: SESSION_ID,
+            cwd: "/test/project",
+            mcpServers: [],
+        });
         await drainScheduledWork();
 
         expect(before).toEqual([
@@ -520,13 +515,11 @@ describe("CodexACPAgent - an unavailable account read", () => {
             ).mockRejectedValue(new Error("resume failed"));
             await initialize(fixture);
 
-            const load = fixture
-                .getCodexAcpAgent()
-                .loadSession({
-                    sessionId: SESSION_ID,
-                    cwd: "/test/project",
-                    mcpServers: [],
-                });
+            const load = fixture.getCodexAcpAgent().loadSession({
+                sessionId: SESSION_ID,
+                cwd: "/test/project",
+                mcpServers: [],
+            });
             const outcome = load.then(
                 () => "answered",
                 (error: Error) => error.message,
@@ -553,13 +546,11 @@ describe("CodexACPAgent - an unavailable account read", () => {
         await initialize(fixture);
 
         await expect(
-            fixture
-                .getCodexAcpAgent()
-                .loadSession({
-                    sessionId: SESSION_ID,
-                    cwd: "/test/project",
-                    mcpServers: [],
-                }),
+            fixture.getCodexAcpAgent().loadSession({
+                sessionId: SESSION_ID,
+                cwd: "/test/project",
+                mcpServers: [],
+            }),
         ).rejects.toThrow("workspace routing discovery unauthorized (401)");
     });
 
@@ -691,13 +682,11 @@ describe("CodexACPAgent - an unavailable account read", () => {
         await initialize(fixture);
 
         await expect(
-            fixture
-                .getCodexAcpAgent()
-                .loadSession({
-                    sessionId: SESSION_ID,
-                    cwd: "/test/project",
-                    mcpServers: [],
-                }),
+            fixture.getCodexAcpAgent().loadSession({
+                sessionId: SESSION_ID,
+                cwd: "/test/project",
+                mcpServers: [],
+            }),
         ).rejects.toThrow("workspace routing discovery unauthorized (401)");
         // The read of `initialize` pushes the none status. The load pushes nothing more.
         expect(authStatusUpdates(fixture)).toEqual([NONE_STATUS]);

@@ -227,6 +227,7 @@ async function runInWorkspace(
         modelProvider: "openai",
         cwd: workspace,
         approvalPolicy: "never",
+        approvalsReviewer: "user",
         sandbox: { type: "dangerFullAccess" },
         reasoningEffort: model.defaultReasoningEffort,
     });

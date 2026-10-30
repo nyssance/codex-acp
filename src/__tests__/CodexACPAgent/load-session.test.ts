@@ -167,6 +167,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -276,6 +277,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -514,6 +516,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -730,6 +733,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -931,6 +935,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -1219,6 +1224,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/test/project",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -1295,6 +1301,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/test/project",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -1376,6 +1383,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/test/project",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -1543,6 +1551,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/test/project",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -1650,6 +1659,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/test/project",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });

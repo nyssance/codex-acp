@@ -572,6 +572,7 @@ describe("ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             modelProvider: "openai",
             cwd,
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -762,14 +763,13 @@ describe("resume replay of Codex file citations", () => {
             modelProvider: "openai",
             cwd,
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({
-                thread: createThread({ turns: citationTurns }),
-            });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
+            thread: createThread({ turns: citationTurns }),
+        });
 
         await agent.initialize({ protocolVersion: 1 });
         await agent.loadSession({ sessionId, cwd, mcpServers: [] });
@@ -873,14 +873,13 @@ describe("resume replay of async question answers", () => {
             modelProvider: "openai",
             cwd,
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({
-                thread: createThread({ turns: answerTurns }),
-            });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
+            thread: createThread({ turns: answerTurns }),
+        });
 
         await agent.initialize({ protocolVersion: 1 });
         await agent.loadSession({ sessionId, cwd, mcpServers: [] });

@@ -2272,7 +2272,8 @@ export class CodexAcpServer {
             request._meta?.["codex"] as { mode?: unknown } | undefined
         )?.mode;
         const initialMode =
-            modeHint === undefined
+            modeHint === undefined ||
+            (modeHint === "custom" && "sessionId" in request)
                 ? AgentMode.getInitialAgentMode()
                 : typeof modeHint === "string"
                   ? AgentMode.find(modeHint)
@@ -4866,6 +4867,8 @@ export class CodexAcpServer {
                 "Unknown permission profile",
             );
         }
+        if (value === "custom" && sessionState.agentMode.id === "custom")
+            return;
         const newMode = AgentMode.find(value);
         if (!newMode) {
             throw RequestError.invalidParams();
@@ -5469,6 +5472,7 @@ export class CodexAcpServer {
         metadata: SessionMetadata,
         initialMode: AgentMode,
     ): AgentMode {
+        if (metadata.agentMode) return metadata.agentMode;
         switch (metadata.permissionProfile) {
             case undefined:
             case null:

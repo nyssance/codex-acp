@@ -28,29 +28,28 @@ function loadFixture(): CodexMockTestFixture {
     appServer.listModels = vi
         .fn()
         .mockResolvedValue({ data: [model], nextCursor: null });
-    appServer.threadResume = vi
-        .fn()
-        .mockResolvedValue({
-            runtimeWorkspaceRoots: [],
-            activePermissionProfile: null,
-            multiAgentMode: "explicitRequestOnly",
-            initialTurnsPage: null,
-            thread: {
-                id: SESSION_ID,
-                historyMode: "paginated",
-                turns: [],
-                cwd: "/test/project",
-                name: null,
-                preview: "",
-            },
-            itemsBackwardsCursor: "item:last",
-            model: model.id,
-            modelProvider: "openai",
+    appServer.threadResume = vi.fn().mockResolvedValue({
+        runtimeWorkspaceRoots: [],
+        activePermissionProfile: null,
+        multiAgentMode: "explicitRequestOnly",
+        initialTurnsPage: null,
+        thread: {
+            id: SESSION_ID,
+            historyMode: "paginated",
+            turns: [],
             cwd: "/test/project",
-            approvalPolicy: "never",
-            sandbox: { type: "dangerFullAccess" },
-            reasoningEffort: model.defaultReasoningEffort,
-        });
+            name: null,
+            preview: "",
+        },
+        itemsBackwardsCursor: "item:last",
+        model: model.id,
+        modelProvider: "openai",
+        cwd: "/test/project",
+        approvalPolicy: "never",
+        approvalsReviewer: "user",
+        sandbox: { type: "dangerFullAccess" },
+        reasoningEffort: model.defaultReasoningEffort,
+    });
     appServer.threadItemsList = vi.fn().mockResolvedValue({
         data: [
             {
@@ -97,13 +96,11 @@ describe("CodexACPAgent - loadSession auth", () => {
             );
         await initialize(fixture);
 
-        const load = fixture
-            .getCodexAcpAgent()
-            .loadSession({
-                sessionId: SESSION_ID,
-                cwd: "/test/project",
-                mcpServers: [],
-            });
+        const load = fixture.getCodexAcpAgent().loadSession({
+            sessionId: SESSION_ID,
+            cwd: "/test/project",
+            mcpServers: [],
+        });
         await vi.waitFor(() =>
             expect(appServer.threadResume).toHaveBeenCalledTimes(1),
         );
@@ -120,26 +117,22 @@ describe("CodexACPAgent - loadSession auth", () => {
         const fixture = loadFixture();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        appServer.accountRead = vi
-            .fn()
-            .mockResolvedValue({
-                workspaceRouting: null,
-                account: null,
-                requiresOpenaiAuth: true,
-            });
+        appServer.accountRead = vi.fn().mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: true,
+        });
         const closeSpy = vi
             .spyOn(client, "closeSession")
             .mockResolvedValue(undefined as never);
         await initialize(fixture);
 
         await expect(
-            fixture
-                .getCodexAcpAgent()
-                .loadSession({
-                    sessionId: SESSION_ID,
-                    cwd: "/test/project",
-                    mcpServers: [],
-                }),
+            fixture.getCodexAcpAgent().loadSession({
+                sessionId: SESSION_ID,
+                cwd: "/test/project",
+                mcpServers: [],
+            }),
         ).rejects.toMatchObject({ code: -32000 });
 
         expect(closeSpy).toHaveBeenCalledWith(SESSION_ID);
@@ -152,13 +145,11 @@ describe("CodexACPAgent - loadSession auth", () => {
     it("fails with auth_required when the resume also fails", async () => {
         const fixture = loadFixture();
         const appServer = fixture.getCodexAppServerClient();
-        appServer.accountRead = vi
-            .fn()
-            .mockResolvedValue({
-                workspaceRouting: null,
-                account: null,
-                requiresOpenaiAuth: true,
-            });
+        appServer.accountRead = vi.fn().mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: true,
+        });
         appServer.threadResume = vi
             .fn()
             .mockRejectedValue(
@@ -167,13 +158,11 @@ describe("CodexACPAgent - loadSession auth", () => {
         await initialize(fixture);
 
         await expect(
-            fixture
-                .getCodexAcpAgent()
-                .loadSession({
-                    sessionId: SESSION_ID,
-                    cwd: "/test/project",
-                    mcpServers: [],
-                }),
+            fixture.getCodexAcpAgent().loadSession({
+                sessionId: SESSION_ID,
+                cwd: "/test/project",
+                mcpServers: [],
+            }),
         ).rejects.toMatchObject({ code: -32000 });
     });
 });
