@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.48 (2026-10-30)
+
+- Preserve custom approval policies, reviewers, and complete sandbox settings when restoring or forking sessions, and expose the current custom mode in permission selectors.
+- Add correlated, bounded HTTP and WebSocket proxy diagnostics without logging credentials, request content, response text, or routing tokens.
+- Report interrupted upstream streams as transport failures without inserting diagnostic text into streamed responses.
+
 ## 0.7.45 (2026-10-30)
 
 - Sync upstream through `ac8d925`, including standard subagent sessions, async question elicitations, prompt suggestions, file citations, and session lookup improvements.
