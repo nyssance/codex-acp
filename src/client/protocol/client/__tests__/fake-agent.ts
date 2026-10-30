@@ -49,6 +49,8 @@ export type FakeAgent = {
             | null;
     };
     replayUpdates: acp.SessionUpdate[];
+    forkFrames: { sessionId: string | null; update: acp.SessionUpdate }[];
+    cancelled: string[];
 };
 
 function modelOption(current: string): acp.SessionConfigOption {
@@ -90,6 +92,8 @@ export function createFakeAgent(): FakeAgent {
     const rejectPrompt: FakeAgent["rejectPrompt"] = { current: null };
     const resumeResponse: FakeAgent["resumeResponse"] = { current: null };
     const replayUpdates: acp.SessionUpdate[] = [];
+    const forkFrames: FakeAgent["forkFrames"] = [];
+    const cancelled: string[] = [];
     let link: acp.AgentContext | null = null;
     const optionsFor = (
         meta?: acp.NewSessionRequest["_meta"],
@@ -125,6 +129,11 @@ export function createFakeAgent(): FakeAgent {
         const id = sessionId();
         const codex = { nativeSessionId: id, forkedFromId: params.sessionId };
         origins.set(id, codex);
+        for (const frame of forkFrames)
+            await client.notify("session/update", {
+                sessionId: frame.sessionId ?? id,
+                update: frame.update,
+            });
         for (const update of replayUpdates)
             await client.notify("session/update", { sessionId: id, update });
         return {
@@ -336,6 +345,7 @@ export function createFakeAgent(): FakeAgent {
         return { messageId };
     });
     app.onNotification("session/cancel", ({ params }) => {
+        cancelled.push(params.sessionId);
         active.get(params.sessionId)?.abort();
     });
     app.onRequest("session/delete", ({ params }) => {
@@ -358,6 +368,8 @@ export function createFakeAgent(): FakeAgent {
         configChanges,
         rejectPrompt,
         replayUpdates,
+        forkFrames,
+        cancelled,
         resumeResponse,
         requestForm: async (params) => {
             if (link === null) throw new Error("Fake agent is not connected");

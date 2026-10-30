@@ -268,6 +268,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     private readonly contextRevisions = new Map<string, string | undefined>();
     private listRequest: Promise<void> | null = null;
     private listGeneration = 0;
+    private readonly retiredChildren = new Set<string>();
 
     constructor(
         openPort: () => Promise<RuntimeClient<Launch>>,
@@ -387,6 +388,20 @@ export class SessionClient<State extends ClientState = ClientState> {
             });
             agent.onAgentRequest((request) => {
                 if (this.agent !== agent) return;
+                const id = (request.params as { sessionId?: unknown } | null)
+                    ?.sessionId;
+                if (
+                    typeof id === "string" &&
+                    (this.retiredChildren.has(id) ||
+                        (this.sessions.sessions.get(id)?.subagent &&
+                            !this.sessions.get(id).attached))
+                ) {
+                    void agent.respond(request.id, undefined, {
+                        code: -32800,
+                        message: "Subagent attachment has been retired",
+                    });
+                    return;
+                }
                 if (!this.handleAgentRequest(agent, request))
                     this.requests.receive(request);
             });
@@ -545,6 +560,17 @@ export class SessionClient<State extends ClientState = ClientState> {
             // frame waits for the response and is applied right after it; otherwise the session was closed here and this is the
             // agent's tail after our close, which belongs to nobody any more.
             this.lifecycle.births.buffer(sessionId, update);
+            return;
+        }
+        const current = this.sessions.get(sessionId);
+        if (current.subagent && !current.attached) return;
+        if (SessionUpdateGuard.isSubagentUpdate(update)) {
+            if (!current.attached && !current.restoring) return;
+            const child = this.sessions.announce(sessionId, update);
+            const parent = this.sessions.accept(sessionId, update);
+            if (!parent.restoring) this.updates.enqueue(sessionId, parent);
+            this.retiredChildren.delete(child.id);
+            this.publishSession(child);
             return;
         }
         const session = this.sessions.accept(sessionId, update);
@@ -884,8 +910,11 @@ export class SessionClient<State extends ClientState = ClientState> {
         request: () => Promise<Response>,
         settle: (response: Response) => void,
     ): Promise<Response> {
-        return this.lifecycle.births.run(request, settle, (id, update) =>
-            this.onUpdate(id, update),
+        return this.lifecycle.births.run(
+            request,
+            settle,
+            (id, update) => this.onUpdate(id, update),
+            (id) => this.sessions.sessions.has(id),
         );
     }
 
@@ -919,6 +948,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         cwd: string,
         options: SessionRequestOptions = {},
     ): Promise<void> {
+        this.assertRootSession(id);
         const existing = this.sessions.sessions.get(id);
         // A replay in flight already carries this open. A read-only attach (another client holds the
         // writer) is resumed again: the writer may have let go since.
@@ -937,6 +967,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         id: string,
         options: SessionRequestOptions = {},
     ): Promise<void> {
+        this.assertRootSession(id);
         const session = this.state.sessions[id];
         if (
             session?.attached &&
@@ -977,6 +1008,8 @@ export class SessionClient<State extends ClientState = ClientState> {
         signal: AbortSignal,
         options: SessionRequestOptions,
     ): Promise<void> {
+        this.assertRootSession(id);
+        this.dropChildren(id);
         const generation = this.lifecycle.beginReplay(id);
         if (!this.sessions.sessions.has(id))
             this.sessions.set(createSession(id, cwd));
@@ -1034,6 +1067,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         } catch (error) {
             if (!this.current(scope) || !this.sessions.sessions.has(id))
                 throw error;
+            this.dropChildren(id);
             if (await this.recoverReplay(id, cwd, error, scope)) return;
             this.publishSession({
                 ...this.sessions.get(id),
@@ -1064,6 +1098,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         prompt: acp.ContentBlock[],
         options: PromptOptions = {},
     ): Promise<string> {
+        this.assertRootSession(id);
         return this.lifecycle.prompt(
             id,
             (checkpoint) => {
@@ -1229,6 +1264,17 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     async cancel(id: string): Promise<void> {
+        if (this.retiredChildren.has(id))
+            throw new Error(`Subagent ${id} attachment has been retired`);
+        const child = this.sessions.sessions.get(id);
+        if (child?.subagent) {
+            if (!child.attached || !child.subagent.capabilities?.cancel)
+                throw new Error(`Subagent ${id} does not allow cancellation`);
+            this.cancelTreeRequests(id);
+            await this.live().notify("session/cancel", { sessionId: id });
+            return;
+        }
+        this.cancelTreeRequests(id);
         this.lifecycle.cancelPreparing(id);
         // The protocol: every pending permission of the session MUST be answered `cancelled`
         // (and forms cancelled) — otherwise they hang in the agent and the Runtime and come back
@@ -1266,6 +1312,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         configId: string,
         value: string | boolean,
     ): Promise<void> {
+        this.assertRootSession(id);
         const write = async (): Promise<void> => {
             const agent = this.live();
             const generation = this.lifecycle.capture(id);
@@ -1325,6 +1372,8 @@ export class SessionClient<State extends ClientState = ClientState> {
     // ── Close, stop, delete, fork ──
 
     async close(id: string): Promise<void> {
+        this.assertRootSession(id);
+        this.cancelTreeRequests(id);
         this.lifecycle.cancelPreparing(id);
         await this.lifecycle.operations.close(id, () =>
             this.enqueueSession(id, async () => {
@@ -1339,6 +1388,8 @@ export class SessionClient<State extends ClientState = ClientState> {
 
     /** End the live session while retaining what is on screen. */
     async stopSession(id: string): Promise<void> {
+        this.assertRootSession(id);
+        this.cancelTreeRequests(id);
         this.lifecycle.cancelPreparing(id);
         await this.lifecycle.operations.close(id, () =>
             this.enqueueSession(id, async () => {
@@ -1346,6 +1397,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 await this.stopWithAccessRevocation(id, () =>
                     this.live().request("session/close", { sessionId: id }),
                 );
+                this.dropChildren(id);
                 this.updates.remove(id);
                 this.lifecycle.retire(id);
                 const session = this.sessions.sessions.get(id);
@@ -1364,6 +1416,8 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     async delete(id: string): Promise<void> {
+        this.assertRootSession(id);
+        this.cancelTreeRequests(id);
         this.lifecycle.cancelPreparing(id);
         await this.lifecycle.operations.delete(id, async () => {
             // Host access is revoked before the lifecycle changes; a failed revocation leaves the session as it was.
@@ -1384,6 +1438,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         cwd: string,
         options: SessionRequestOptions = {},
     ): Promise<string> {
+        this.assertRootSession(id);
         const { revision, bind, ...context } = await this.requestContext(
             cwd,
             { kind: "fork", sourceSessionId: id },
@@ -1398,7 +1453,10 @@ export class SessionClient<State extends ClientState = ClientState> {
                 }),
             // Fork history arrives before the new session id is known: it waits in the creation buffer and is applied as replay below.
             (response) =>
-                this.sessions.set(createSession(response.sessionId, cwd)),
+                this.sessions.set({
+                    ...createSession(response.sessionId, cwd),
+                    attached: true,
+                }),
         );
         await bind?.(response.sessionId);
         this.contextRevisions.set(response.sessionId, revision);
@@ -1428,12 +1486,36 @@ export class SessionClient<State extends ClientState = ClientState> {
         return response.sessionId;
     }
 
+    private assertRootSession(id: string): void {
+        if (
+            this.retiredChildren.has(id) ||
+            this.sessions.sessions.get(id)?.subagent
+        )
+            throw new Error(
+                `Subagent ${id} is managed by its parent; only advertised cancellation is supported`,
+            );
+    }
+
+    private cancelTreeRequests(id: string): void {
+        this.requests.cancelSession(id);
+        for (const child of this.sessions.children(id))
+            this.cancelTreeRequests(child.id);
+    }
+
+    private dropChildren(id: string): void {
+        for (const child of this.sessions.children(id))
+            this.dropSession(child.id);
+    }
+
     protected dropSession(id: string): void {
+        this.dropChildren(id);
         this.lifecycle.retire(id);
         this.contextRevisions.delete(id);
         this.updates.remove(id);
         this.requests.cancelSession(id);
-        this.sessions.sessions.delete(id);
+        if (this.sessions.sessions.get(id)?.subagent)
+            this.retiredChildren.add(id);
+        this.sessions.delete(id);
         this.onSessionDropped(id);
         this.patch((state) => {
             const { [id]: _removed, ...sessions } = state.sessions;

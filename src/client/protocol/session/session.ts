@@ -7,7 +7,7 @@ import { IdleStateUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstab
 import { isText } from "./blocks";
 import { configRevisionOf } from "./config";
 
-export type SessionState = "idle" | "running" | "requires_action";
+export type SessionState = "unknown" | "idle" | "running" | "requires_action";
 
 type ItemBase = {
     id: string;
@@ -134,7 +134,29 @@ export type ApplyOptions = {
     policy?: FoldPolicy;
 };
 
+export type SubagentSession = {
+    parentId: string;
+    description: string | null;
+    capabilities: acp.SubagentSessionCapabilities | null;
+    _meta: Record<string, unknown> | null;
+};
+
+/** Whether a session belongs to this conversation, at any nesting depth. */
+export function inSessionTree(
+    sessions: Record<string, Session>,
+    rootId: string,
+    id: string | null,
+): boolean {
+    while (id !== null) {
+        if (id === rootId) return true;
+        id = sessions[id]?.subagent?.parentId ?? null;
+    }
+    return false;
+}
+
 export type Session = {
+    /** Standard ACP child sessions are streamed by their parent, never independently opened. */
+    subagent?: SubagentSession;
     id: string;
     cwd: string;
     title: string | null;
@@ -731,6 +753,8 @@ function fold(
             const frame = update as acp.StateUpdate & {
                 sessionUpdate: "state_update";
             };
+            if (frame.state === "unknown")
+                return { ...session, state: "unknown" };
             if (frame.state === "running")
                 return {
                     ...session,

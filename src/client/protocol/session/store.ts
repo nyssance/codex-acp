@@ -9,6 +9,8 @@ import {
     acknowledgePrompt,
     addPrompt,
     applyUpdate,
+    createSession,
+    patchMeta,
     type FoldPolicy,
     markInterrupted,
     type Session,
@@ -40,6 +42,64 @@ export class SessionStore {
         this.sessions.set(session.id, session);
     }
 
+    children(id: string): Session[] {
+        return [...this.sessions.values()].filter(
+            (session) => session.subagent?.parentId === id,
+        );
+    }
+
+    delete(id: string): void {
+        this.sessions.delete(id);
+        for (const key of this.decoders.keys())
+            if (key.startsWith(`[${JSON.stringify(id)},`))
+                this.decoders.delete(key);
+        this.childStates.delete(id);
+    }
+
+    private readonly childStates = new Map<string, string>();
+
+    announce(parentId: string, frame: acp.SubagentUpdate): Session {
+        const parent = this.get(parentId);
+        const existing = this.sessions.get(frame.sessionId);
+        if (existing && existing.subagent?.parentId !== parentId)
+            throw new Error(
+                `Subagent ${frame.sessionId} already belongs to another session`,
+            );
+        let child = existing ?? {
+            ...createSession(frame.sessionId, parent.cwd),
+            state: "unknown" as const,
+        };
+        child = {
+            ...child,
+            attached: true,
+            title: frame.title === undefined ? child.title : frame.title,
+            subagent: {
+                parentId,
+                description:
+                    frame.description === undefined
+                        ? (child.subagent?.description ?? null)
+                        : frame.description,
+                capabilities:
+                    frame.capabilities === undefined
+                        ? (child.subagent?.capabilities ?? null)
+                        : frame.capabilities,
+                _meta: patchMeta(child.subagent?._meta ?? null, frame._meta),
+            },
+        };
+        this.set(child);
+        if (frame.state === null) {
+            this.childStates.delete(child.id);
+            child = { ...child, state: "unknown" };
+            this.set(child);
+        } else if (frame.state !== undefined) {
+            child = this.accept(child.id, {
+                ...frame.state,
+                sessionUpdate: "state_update",
+            });
+        }
+        return child;
+    }
+
     /**
      * A replay is about to stream in. From `"start"` the session is emptied first; from a record position (`after`) what is
      * held stays and the replayed frames extend it, so a session that lost its connection catches up without being rebuilt.
@@ -59,7 +119,8 @@ export class SessionStore {
                 appliedThrough: -1,
             });
             for (const key of this.decoders.keys())
-                if (key.startsWith(`${id}:`)) this.decoders.delete(key);
+                if (key.startsWith(`[${JSON.stringify(id)},`))
+                    this.decoders.delete(key);
             return;
         }
         this.sessions.set(id, { ...session, restoring: true, error: null });
@@ -81,19 +142,39 @@ export class SessionStore {
 
     accept(id: string, update: acp.SessionUpdate): Session {
         const session = this.get(id);
+        if (session.subagent && update.sessionUpdate === "state_update") {
+            // The protocol mirrors the same state on both parent and child channels.
+            const { sessionUpdate: _kind, ...state } = update;
+            const signature = JSON.stringify(state, (_key, value: unknown) =>
+                value !== null &&
+                typeof value === "object" &&
+                !Array.isArray(value)
+                    ? Object.fromEntries(
+                          Object.entries(value).toSorted(([a], [b]) =>
+                              a.localeCompare(b),
+                          ),
+                      )
+                    : value,
+            );
+            if (this.childStates.get(id) === signature) return session;
+            this.childStates.set(id, signature);
+        }
         let decoded: string | undefined;
         if (update.sessionUpdate === "terminal_update") {
             const frame = update as acp.TerminalUpdate;
             if (frame.output) {
                 const decoder = new TextDecoder();
-                this.decoders.set(`${id}:${frame.terminalId}`, decoder);
+                this.decoders.set(
+                    JSON.stringify([id, frame.terminalId]),
+                    decoder,
+                );
                 decoded = decoder.decode(decodeBase64(frame.output.data), {
                     stream: true,
                 });
             }
         } else if (update.sessionUpdate === "terminal_output_chunk") {
             const frame = update as acp.TerminalOutputChunk;
-            const key = `${id}:${frame.terminalId}`;
+            const key = JSON.stringify([id, frame.terminalId]);
             let decoder = this.decoders.get(key);
             if (!decoder) {
                 decoder = new TextDecoder();

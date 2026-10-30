@@ -4,7 +4,7 @@ export class SessionBirths<Update> {
     private creating = 0;
     private size = 0;
     private overflow: Error | null = null;
-    private readonly frames = new Map<string, Update[]>();
+    private frames: { sessionId: string; update: Update }[] = [];
 
     constructor(private readonly capacity = 4096) {
         if (!Number.isSafeInteger(capacity) || capacity < 1)
@@ -19,9 +19,7 @@ export class SessionBirths<Update> {
             );
             throw this.overflow;
         }
-        let frames = this.frames.get(sessionId);
-        if (!frames) this.frames.set(sessionId, (frames = []));
-        frames.push(update);
+        this.frames.push({ sessionId, update });
         this.size++;
         return true;
     }
@@ -30,7 +28,7 @@ export class SessionBirths<Update> {
         this.epoch = {};
         this.overflow = null;
         this.creating = 0;
-        this.frames.clear();
+        this.frames = [];
         this.size = 0;
     }
 
@@ -42,6 +40,7 @@ export class SessionBirths<Update> {
         request: () => Promise<Response>,
         settle: (response: Response) => void,
         accept: (sessionId: string, update: Update) => void,
+        known?: (sessionId: string) => boolean,
     ): Promise<Response> {
         this.assertCapacity();
         if (this.creating >= 256)
@@ -56,16 +55,24 @@ export class SessionBirths<Update> {
                 );
             this.assertCapacity();
             settle(response);
-            const queued = this.frames.get(response.sessionId) ?? [];
-            this.frames.delete(response.sessionId);
-            this.size -= queued.length;
-            for (const update of queued) accept(response.sessionId, update);
+            // Preserve wire order: an announcement makes its following child frames addressable.
+            const queued = this.frames;
+            this.frames = [];
+            for (const frame of queued) {
+                if (
+                    frame.sessionId === response.sessionId ||
+                    known?.(frame.sessionId)
+                ) {
+                    this.size--;
+                    accept(frame.sessionId, frame.update);
+                } else this.frames.push(frame);
+            }
             return response;
         } finally {
             if (epoch === this.epoch) {
                 this.creating--;
                 if (this.creating === 0) {
-                    this.frames.clear();
+                    this.frames = [];
                     this.size = 0;
                     this.overflow = null;
                 }

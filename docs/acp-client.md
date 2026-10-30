@@ -166,3 +166,22 @@ The helper only manages observation; Runtime still owns status and read acknowle
 `_codex/project_context` returns the adapter host's home, Codex chat directory, ALwith chat directory and all project pages. `createChatDirectory: true` creates the ALwith directory. `refreshProjectContext()` exposes this data and retains the last valid catalog on a read failure. A new connection clears context from the previous host.
 
 Project IDs returned by ACP new/load/list use `_meta.codex.projectId`. `sessionGroup` and `groupSessions` project the list using persistent IDs, longest matching registered roots, remote quick-chat directories, then full remaining paths. Inferred display membership is never persisted. Project and thread-project change notifications refresh the catalog and list. API contains no ACP metadata interpretation.
+
+## Standard ACP subagents
+
+A `subagent_update` on a held parent registers the child in `state.sessions`.
+The child's `subagent` contains `parentId`, description, advertised capabilities
+and patched metadata; title, state, configuration, transcript and terminals use
+the same session model as the parent. `inSessionTree` selects requests across
+all descendants. Child sessions never enter the top-level history list.
+
+Announcements precede child traffic, including during creation and fork replay.
+Omitted fields retain their values; null clears them. Missing or cleared state is
+`unknown`, not idle. Mirrored child state frames are idempotent. Closing, stopping
+or replaying a parent retires its descendants and cancels their pending requests.
+A failed replay also retires children announced by that failed attachment.
+
+Child streams need no open/resume call. Prompt, configuration, fork, close and
+delete are rejected on children. `cancel(childId)` sends only `session/cancel`,
+and only when the child is attached and advertises cancellation. Cancelling a
+parent answers pending requests throughout its subtree before cancelling it.

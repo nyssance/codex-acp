@@ -476,3 +476,214 @@ test("disconnect marks every held session disconnected and releases the agent fo
     expect(port.started).toEqual(["agent"]);
     expect(client.state.connection).toBe("ready");
 });
+
+test("standard child sessions stream independently, patch metadata, and retire with their parent", async () => {
+    const { client, fake } = await make();
+    const root = await client.newSession("/tmp/parent");
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        title: "Research",
+        description: "Read sources",
+        capabilities: { cancel: {} },
+        state: { state: "running" },
+        _meta: { role: "research", remove: true },
+    });
+    await fake.pushUpdate("worker", {
+        sessionUpdate: "subagent_update",
+        sessionId: "nested",
+        title: "Check",
+        state: { state: "running" },
+    });
+    await fake.pushUpdate("nested", {
+        sessionUpdate: "agent_message",
+        messageId: "answer",
+        content: [{ type: "text", text: "Nested answer" }],
+    });
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        description: null,
+        _meta: { remove: null },
+    });
+    await until(() => replyText(client, "nested") === "Nested answer");
+    expect(client.session(root).items).toEqual([]);
+    expect(client.session("worker").subagent).toEqual({
+        parentId: root,
+        description: null,
+        capabilities: { cancel: {} },
+        _meta: { role: "research" },
+    });
+    expect(client.session("worker").title).toBe("Research");
+    expect(client.session("nested").subagent?.parentId).toBe("worker");
+    expect(
+        client.state.sessionList.some((row) => row.sessionId === "worker"),
+    ).toBe(false);
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        state: null,
+        capabilities: null,
+        title: null,
+    });
+    await until(() => client.session("worker").state === "unknown");
+    expect(client.session("worker").title).toBeNull();
+    await expect(client.cancel("worker")).rejects.toThrow(
+        "does not allow cancellation",
+    );
+    await expect(client.open("nested", "/tmp/parent")).rejects.toThrow(
+        "managed by its parent",
+    );
+    await expect(client.fork("nested", "/tmp/parent")).rejects.toThrow(
+        "managed by its parent",
+    );
+    expect(() =>
+        client.prompt("nested", [{ type: "text", text: "no" }]),
+    ).toThrow("managed by its parent");
+    expect(() => client.setConfig("nested", "model", "no")).toThrow(
+        "managed by its parent",
+    );
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        _meta: { alwith: { seq: 99 } },
+    });
+    expect(client.session(root).appliedThrough).toBe(99);
+    await client.close(root);
+    await expect(client.open("worker", "/tmp/parent")).rejects.toThrow(
+        "managed by its parent",
+    );
+    await expect(client.cancel("worker")).rejects.toThrow("retired");
+    expect(client.state.sessions.worker).toBeUndefined();
+    expect(client.state.sessions.nested).toBeUndefined();
+    await fake.pushUpdate("nested", {
+        sessionUpdate: "state_update",
+        state: "running",
+    });
+    expect(client.state.sessions.nested).toBeUndefined();
+});
+
+test("fork announcements and child messages arriving before the response retain wire order", async () => {
+    const { client, fake } = await make();
+    const root = await client.newSession("/tmp/parent");
+    fake.forkFrames.push(
+        {
+            sessionId: null,
+            update: {
+                sessionUpdate: "subagent_update",
+                sessionId: "fork-child",
+                state: { state: "running" },
+            },
+        },
+        {
+            sessionId: "fork-child",
+            update: {
+                sessionUpdate: "agent_message",
+                messageId: "answer",
+                content: [{ type: "text", text: "Done" }],
+            },
+        },
+        {
+            sessionId: null,
+            update: {
+                sessionUpdate: "subagent_update",
+                sessionId: "fork-child",
+                state: { state: "idle", stopReason: "end_turn" },
+            },
+        },
+        {
+            sessionId: "fork-child",
+            update: {
+                sessionUpdate: "state_update",
+                state: "idle",
+                stopReason: "end_turn",
+            },
+        },
+    );
+    const fork = await client.fork(root, "/tmp/parent");
+    expect(replyText(client, "fork-child")).toBe("Done");
+    expect(client.session("fork-child").state).toBe("idle");
+    const clock = client.session("fork-child").clock;
+    await fake.pushUpdate("fork-child", {
+        sessionUpdate: "state_update",
+        state: "idle",
+        stopReason: "end_turn",
+    });
+    expect(client.session("fork-child").clock).toBe(clock);
+    await client.stopSession(fork);
+    expect(client.state.sessions["fork-child"]).toBeUndefined();
+    await fake.pushUpdate(fork, {
+        sessionUpdate: "subagent_update",
+        sessionId: "late-child",
+    });
+    expect(client.state.sessions["late-child"]).toBeUndefined();
+});
+
+test("parent cancellation resolves nested forms and advertised child cancellation targets the child", async () => {
+    const { client, fake } = await make();
+    const root = await client.newSession("/tmp/parent");
+    const cancelled = fake.cancelled;
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        capabilities: { cancel: {} },
+    });
+    await fake.pushUpdate("worker", {
+        sessionUpdate: "subagent_update",
+        sessionId: "nested",
+    });
+    await until(() => client.state.sessions.nested !== undefined);
+    const answer = fake.requestForm({
+        sessionId: "nested",
+        mode: "form",
+        message: "Choose",
+        requestedSchema: {
+            type: "object",
+            properties: { choice: { type: "string" } },
+        },
+    });
+    await until(() =>
+        client.state.actions.some((action) => action.sessionId === "nested"),
+    );
+    await client.cancel("worker");
+    expect(await answer).toMatchObject({ action: "cancel" });
+    await until(() => cancelled.includes("worker"));
+    expect(cancelled).toEqual(["worker"]);
+    const another = fake.requestForm({
+        sessionId: "nested",
+        mode: "form",
+        message: "Choose again",
+        requestedSchema: { type: "object", properties: {} },
+    });
+    await until(() => client.state.actions.length > 0);
+    await client.cancel(root);
+    expect(await another).toMatchObject({ action: "cancel" });
+});
+
+test("a failed parent resume drops announced descendants and rejects their late requests", async () => {
+    const { client, fake } = await make();
+    fake.replayUpdates.push({
+        sessionUpdate: "subagent_update",
+        sessionId: "retired-child",
+        state: { state: "running" },
+    });
+    fake.resumeResponse.current = () =>
+        Promise.reject(new Error("Replay failed"));
+    await expect(client.open("parent", "/tmp")).rejects.toThrow(
+        "Internal error",
+    );
+    expect(client.state.sessions["retired-child"]).toBeUndefined();
+    await expect(
+        fake.requestForm({
+            sessionId: "retired-child",
+            mode: "form",
+            message: "Too late",
+            requestedSchema: { type: "object", properties: {} },
+        }),
+    ).rejects.toThrow("retired");
+    expect(client.state.actions).toEqual([]);
+    fake.resumeResponse.current = null;
+    await client.open("parent", "/tmp");
+    expect(client.session("retired-child").state).toBe("running");
+    expect(client.session("retired-child").attached).toBe(true);
+});
