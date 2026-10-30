@@ -5,6 +5,8 @@ import { zstdCompressSync } from "node:zlib";
 
 import WebSocket, { type RawData, WebSocketServer } from "ws";
 
+import { PROXY_DIAGNOSTIC_PREFIX } from "../alwith/codex/proxyDiagnostics";
+
 import { ResponsesProxy } from "../alwith/codex/responsesProxy";
 
 const foreign = {
@@ -22,6 +24,7 @@ const body = JSON.stringify({ input: [foreign, message] });
 const cleanup: Array<() => void> = [];
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     for (const close of cleanup.splice(0).toReversed()) close();
 });
 async function listen(server: Server): Promise<string> {
@@ -524,4 +527,120 @@ it("preserves ChatGPT live websocket routing after backend path translation", as
     expect(path).toBe(
         "/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
     );
+});
+
+it("exports correlated reset diagnostics without credentials, routing tokens or request content", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const upstream = createServer((request) => request.socket.destroy());
+    const base = await listen(upstream);
+    const route = await proxy().route(`${base}/private-provider-path`);
+    const response = await fetch(`${route}/responses`, {
+        method: "POST",
+        headers: { authorization: "Bearer private-api-key" },
+        body: JSON.stringify({
+            input: [
+                {
+                    type: "message",
+                    role: "user",
+                    content: [{ type: "input_text", text: "private-prompt" }],
+                },
+            ],
+        }),
+    });
+    expect(response.status).toBe(502);
+    await response.text();
+    const lines = log.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX));
+    const allEvents = lines.map((line) =>
+        JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)),
+    );
+    const requestId = allEvents.findLast(
+        (event) => event.phase === "started",
+    ).requestId;
+    const events = allEvents.filter((event) => event.requestId === requestId);
+    expect(events.map((event) => event.phase)).toEqual(["started", "failed"]);
+    expect(new Set(events.map((event) => event.requestId)).size).toBe(1);
+    expect(events[1]).toMatchObject({
+        stage: "connect_upstream",
+        targetHost: "127.0.0.1",
+        endpoint: "responses",
+        status: null,
+    });
+    expect(events[1].errors).toContain("ECONNRESET");
+    for (const secret of [
+        "private-api-key",
+        "private-prompt",
+        "private-provider-path",
+        new URL(route).pathname.slice(1),
+    ]) {
+        expect(lines.join("\n")).not.toContain(secret);
+    }
+});
+
+it("records upstream status, request ID and streamed bytes with a single terminal diagnostic", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const upstream = createServer((_request, response) => {
+        response.writeHead(200, {
+            "content-type": "text/event-stream",
+            "x-request-id": "req_test123",
+        });
+        response.write("data: first\n\n");
+        response.end("data: [DONE]\n\n");
+    });
+    const route = await proxy().route(await listen(upstream));
+    const response = await fetch(`${route}/responses`, {
+        method: "POST",
+        body,
+    });
+    const text = await response.text();
+    const events = log.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
+        .map((line) => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+    expect(events.map((event) => event.phase)).toEqual([
+        "started",
+        "headers",
+        "completed",
+    ]);
+    expect(events.at(-1)).toMatchObject({
+        status: 200,
+        upstreamRequestId: "req_test123",
+        receivedBytes: Buffer.byteLength(text),
+        errors: [],
+    });
+    expect(events.at(-1).firstByteMs).toBeTypeOf("number");
+});
+
+it("reports a truncated upstream stream as failure without injecting error text into SSE", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const upstream = createServer((_request, response) => {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        response.write("data: partial\n\n");
+        setTimeout(() => response.destroy(), 10);
+    });
+    const route = await proxy().route(await listen(upstream));
+    const response = await fetch(`${route}/responses`, {
+        method: "POST",
+        body,
+    });
+    await expect(response.text()).rejects.toThrow();
+    await new Promise((resolve) => setImmediate(resolve));
+    const allEvents = log.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
+        .map((line) => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+    const requestId = allEvents.findLast(
+        (event) => event.phase === "started",
+    ).requestId;
+    const events = allEvents.filter((event) => event.requestId === requestId);
+    expect(events.map((event) => event.phase)).toEqual([
+        "started",
+        "headers",
+        "failed",
+    ]);
+    expect(events.at(-1)).toMatchObject({
+        stage: "read_response",
+        status: 200,
+    });
 });

@@ -18,6 +18,8 @@ import { zstdDecompressSync } from "node:zlib";
 
 import WebSocket, { type RawData, WebSocketServer } from "ws";
 
+import { ProxyDiagnostics } from "./proxyDiagnostics";
+
 import { compatibleResponsesRequest } from "./responsesCompatibility";
 
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
@@ -95,22 +97,38 @@ export class ResponsesProxy {
         private readonly destination: "native" | "external" = "native",
     ) {
         this.server = createServer((request, response) => {
-            void this.forwardHttp(request, response).catch((error: unknown) => {
-                // Transport errors must not expose upstream URLs, headers or conversation content.
-                if (!response.headersSent)
-                    response.writeHead(502, { "content-type": "text/plain" });
-                const code =
-                    error !== null &&
-                    typeof error === "object" &&
-                    "code" in error &&
-                    typeof error.code === "string" &&
-                    /^[A-Za-z0-9_]+$/.test(error.code)
-                        ? error.code
-                        : "UPSTREAM_TRANSPORT_ERROR";
-                response.end(
-                    `Responses compatibility proxy could not forward the request (${code})`,
-                );
+            const diagnostic = new ProxyDiagnostics("http", this.destination);
+            response.once("finish", () => diagnostic.end("completed"));
+            response.once("close", () => {
+                if (!response.writableFinished)
+                    setImmediate(() => diagnostic.end("cancelled"));
             });
+            void this.forwardHttp(request, response, diagnostic).catch(
+                (error: unknown) => {
+                    diagnostic.end("failed", error);
+                    if (response.destroyed) return;
+                    if (response.headersSent) {
+                        response.destroy();
+                        return;
+                    }
+                    // Transport errors must not expose upstream URLs, headers or conversation content.
+                    if (!response.headersSent)
+                        response.writeHead(502, {
+                            "content-type": "text/plain",
+                        });
+                    const code =
+                        error !== null &&
+                        typeof error === "object" &&
+                        "code" in error &&
+                        typeof error.code === "string" &&
+                        /^[A-Za-z0-9_]+$/.test(error.code)
+                            ? error.code
+                            : "UPSTREAM_TRANSPORT_ERROR";
+                    response.end(
+                        `Responses compatibility proxy could not forward the request (${code})`,
+                    );
+                },
+            );
         });
         this.server.on("connection", (socket) => {
             this.sockets.add(socket);
@@ -118,6 +136,11 @@ export class ResponsesProxy {
             socket.once("close", () => this.sockets.delete(socket));
         });
         this.server.on("upgrade", (request, socket, head) => {
+            const diagnostic = new ProxyDiagnostics(
+                "websocket",
+                this.destination,
+            );
+            socket.once("close", () => diagnostic.end("cancelled"));
             void this.target(request)
                 .then((target) => {
                     if (socket.destroyed) return;
@@ -128,14 +151,23 @@ export class ResponsesProxy {
                             target.pathname,
                         )
                     ) {
+                        diagnostic.end("completed");
                         socket.end(
                             "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n",
                         );
                         return;
                     }
-                    this.upgradeWebsocket(request, socket, head, target);
+                    diagnostic.target(target);
+                    this.upgradeWebsocket(
+                        request,
+                        socket,
+                        head,
+                        target,
+                        diagnostic,
+                    );
                 })
-                .catch(() => {
+                .catch((error: unknown) => {
+                    diagnostic.end("failed", error);
                     socket.end(
                         "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
                     );
@@ -227,8 +259,10 @@ export class ResponsesProxy {
     private async forwardHttp(
         request: IncomingMessage,
         response: ServerResponse,
+        diagnostic: ProxyDiagnostics,
     ): Promise<void> {
         const target = await this.target(request);
+        if (target) diagnostic.target(target);
         if (
             !target ||
             (request.method !== "POST" &&
@@ -243,7 +277,9 @@ export class ResponsesProxy {
         const transformResponses = /\/responses(?:\/compact)?$/.test(
             target.pathname,
         );
+        diagnostic.stage("read_request");
         const bytes = await requestBody(request);
+        diagnostic.stage("prepare_request");
         const encoding = request.headers["content-encoding"];
         if (
             transformResponses &&
@@ -310,6 +346,8 @@ export class ResponsesProxy {
         const abort = new AbortController();
         this.aborts.add(abort);
         response.once("close", () => abort.abort());
+        diagnostic.sent(body.length);
+        diagnostic.stage("connect_upstream");
         try {
             // Bun's native fetch preserves streaming and cancellation without its node:http proxy incompatibility.
             // Node uses raw HTTP below because its fetch always decompresses upstream response bodies.
@@ -325,6 +363,10 @@ export class ResponsesProxy {
                     decompress: false,
                 };
                 const incoming = await fetch(target, options);
+                diagnostic.headers(
+                    incoming.status,
+                    incoming.headers.get("x-request-id"),
+                );
                 response.writeHead(
                     incoming.status,
                     forwardingHeaders(
@@ -336,10 +378,12 @@ export class ResponsesProxy {
                 if (responseBody === null) response.end();
                 else
                     await new Promise<void>((resolve, reject) => {
-                        pipeline(
-                            ResponsesReadable.from(responseBody),
-                            response,
-                            (error) => (error ? reject(error) : resolve()),
+                        const stream = ResponsesReadable.from(responseBody);
+                        stream.on("data", (chunk: Uint8Array) =>
+                            diagnostic.received(chunk.byteLength),
+                        );
+                        pipeline(stream, response, (error) =>
+                            error ? reject(error) : resolve(),
                         );
                     });
                 return;
@@ -351,6 +395,15 @@ export class ResponsesProxy {
                     target,
                     { method: request.method, headers, signal: abort.signal },
                     (incoming) => {
+                        const requestId = incoming.headers["x-request-id"];
+                        diagnostic.headers(
+                            incoming.statusCode ?? 502,
+                            typeof requestId === "string" ? requestId : null,
+                            upstream.reusedSocket,
+                        );
+                        incoming.on("data", (chunk: Buffer) =>
+                            diagnostic.received(chunk.length),
+                        );
                         response.writeHead(
                             incoming.statusCode ?? 502,
                             forwardingHeaders(incoming.headers, false),
@@ -373,7 +426,9 @@ export class ResponsesProxy {
         socket: Duplex,
         head: Buffer,
         target: URL,
+        diagnostic: ProxyDiagnostics,
     ): void {
+        diagnostic.stage("connect_upstream");
         target.protocol = target.protocol === "https:" ? "wss:" : "ws:";
         const upstream = new WebSocket(target, {
             headers: forwardingHeaders(request.headers, true),
@@ -386,7 +441,8 @@ export class ResponsesProxy {
         let handedOff = false;
         let rejected = false;
         socket.once("close", () => upstream.terminate());
-        upstream.on("error", () => {
+        upstream.on("error", (error) => {
+            diagnostic.end("failed", error);
             if (!handedOff && !rejected && !socket.destroyed)
                 socket.end(
                     "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
@@ -395,6 +451,13 @@ export class ResponsesProxy {
         // Preserve auth recovery, rate limits and Codex's HTTP fallback before committing a 101.
         upstream.once("unexpected-response", (_sent, incoming) => {
             rejected = true;
+            const requestId = incoming.headers["x-request-id"];
+            diagnostic.headers(
+                incoming.statusCode ?? 502,
+                typeof requestId === "string" ? requestId : null,
+            );
+            incoming.once("end", () => diagnostic.end("completed"));
+            incoming.once("error", (error) => diagnostic.end("failed", error));
             const headers = forwardingHeaders(incoming.headers, false);
             const lines = Object.entries(headers).flatMap(([name, value]) =>
                 value === undefined
@@ -408,6 +471,16 @@ export class ResponsesProxy {
             );
             pipeline(incoming, socket, () => upstream.terminate());
         });
+        upstream.once("upgrade", (incoming) => {
+            const requestId = incoming.headers["x-request-id"];
+            diagnostic.headers(
+                101,
+                typeof requestId === "string" ? requestId : null,
+            );
+        });
+        upstream.once("close", (code) => {
+            if (handedOff) diagnostic.websocketClosed(code);
+        });
         upstream.once("open", () => {
             if (socket.destroyed || this.closed) {
                 upstream.terminate();
@@ -419,6 +492,7 @@ export class ResponsesProxy {
                     downstream,
                     upstream,
                     target.pathname.endsWith("/responses"),
+                    diagnostic,
                 ),
             );
         });
@@ -428,9 +502,11 @@ export class ResponsesProxy {
         downstream: WebSocket,
         upstream: WebSocket,
         transformResponses: boolean,
+        diagnostic: ProxyDiagnostics,
     ): void {
         this.peers.add(downstream);
-        const fail = (): void => {
+        const fail = (error?: Error): void => {
+            diagnostic.end("failed", error);
             if (downstream.readyState === WebSocket.OPEN)
                 downstream.close(1011, "Responses upstream disconnected");
             upstream.terminate();
@@ -453,14 +529,16 @@ export class ResponsesProxy {
                 return;
             }
             if (upstream.readyState === WebSocket.OPEN) {
+                diagnostic.sent(Buffer.byteLength(message));
                 upstream.send(message, (error) => {
-                    if (error) fail();
+                    if (error) fail(error);
                 });
                 // Bound pending writes while retaining ws's ordered send queue.
                 if (upstream.bufferedAmount > MAX_BODY_BYTES) fail();
             }
         });
         upstream.on("message", (data, binary) => {
+            diagnostic.received(messageBytes(data).length);
             if (downstream.readyState !== WebSocket.OPEN) return;
             downstream.send(data, { binary }, (error) => {
                 if (error) upstream.terminate();

@@ -44,3 +44,23 @@ and config options include this current value. Sending `_meta.codex.mode: "custo
 on resume or fork preserves the thread's permissions without applying overrides.
 Selecting the current `custom` mode is a no-op; choosing a preset explicitly
 replaces it. Custom settings retain the complete sandbox policy for later turns.
+
+## Model transport diagnostics
+
+The Responses compatibility proxy emits bounded JSON lines on stderr with the prefix
+`[alwith-model-proxy] `. This is diagnostic output, not ACP protocol traffic. Each
+HTTP request or WebSocket connection gets a random `requestId`; `started`, `headers`
+and one terminal `completed`, `cancelled` or `failed` event share that identifier.
+Events include the request stage, target hostname and port, endpoint category,
+transport/runtime, elapsed time, request/response byte counts, first-byte timing,
+HTTP status, WebSocket close code and a syntax-checked `x-request-id` when available. Error cause chains
+contain at most four allowlisted transport codes, never messages or stacks.
+
+No prompt, response text, authorization headers, URL paths or queries, local route
+tokens, model identifiers, proxy addresses or environment values are emitted.
+`proxyEnv` lists configured proxy variable names only; it does not prove which proxy
+was used. `reusedSocket` is available on Node HTTP and remains null on Bun and
+WebSocket transports. An empty or unknown error code is recorded as `UNKNOWN`.
+The host must validate the schema before including these events in diagnostic exports.
+These observations locate the failed stage but cannot identify which remote network
+component reset a connection without additional network or server evidence.
