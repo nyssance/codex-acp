@@ -687,3 +687,56 @@ test("a failed parent resume drops announced descendants and rejects their late 
     expect(client.session("retired-child").state).toBe("running");
     expect(client.session("retired-child").attached).toBe(true);
 });
+
+test("reconnecting preserves a valid child approval replayed by the Runtime", async () => {
+    const { client, fake, port } = await make();
+    const root = await client.newSession("/tmp/parent");
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        state: { state: "requires_action" },
+    });
+    await until(() => client.state.sessions.worker !== undefined);
+    client.disconnect();
+    port.seedRunningSession(root, "agent", [
+        {
+            id: 91,
+            method: "session/request_permission",
+            params: {
+                sessionId: "worker",
+                title: "Continue reading?",
+                options: [
+                    {
+                        optionId: "allow",
+                        name: "Allow once",
+                        kind: "allow_once",
+                    },
+                ],
+            },
+        },
+    ]);
+    await client.connect();
+    await until(() =>
+        client.state.actions.some((action) => action.sessionId === "worker"),
+    );
+    expect(client.state.actions).toHaveLength(1);
+    expect(client.state.actions[0]).toMatchObject({
+        kind: "permission",
+        sessionId: "worker",
+    });
+    expect(client.session("worker").subagent?.parentId).toBe(root);
+    fake.replayUpdates.push({
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        state: { state: "requires_action" },
+    });
+    await client.open(root, "/tmp/parent");
+    expect(client.state.actions).toHaveLength(1);
+    expect(client.session("worker").attached).toBe(true);
+    client.disconnect();
+    fake.replayUpdates.length = 0;
+    await client.connect();
+    await client.open(root, "/tmp/parent");
+    expect(client.state.sessions.worker).toBeUndefined();
+    expect(client.state.actions).toHaveLength(0);
+});

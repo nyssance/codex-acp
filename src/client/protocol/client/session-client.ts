@@ -390,12 +390,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 if (this.agent !== agent) return;
                 const id = (request.params as { sessionId?: unknown } | null)
                     ?.sessionId;
-                if (
-                    typeof id === "string" &&
-                    (this.retiredChildren.has(id) ||
-                        (this.sessions.sessions.get(id)?.subagent &&
-                            !this.sessions.get(id).attached))
-                ) {
+                if (typeof id === "string" && this.retiredChildren.has(id)) {
                     void agent.respond(request.id, undefined, {
                         code: -32800,
                         message: "Subagent attachment has been retired",
@@ -1009,7 +1004,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         options: SessionRequestOptions,
     ): Promise<void> {
         this.assertRootSession(id);
-        this.dropChildren(id);
+        this.detachChildren(id);
         const generation = this.lifecycle.beginReplay(id);
         if (!this.sessions.sessions.has(id))
             this.sessions.set(createSession(id, cwd));
@@ -1049,6 +1044,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             signal.throwIfAborted();
             if (!this.current(scope))
                 throw new Error("Session retired during history load");
+            this.pruneChildren(id);
             this.sessions.endReplay(id, replayReceiptOf(response));
             this.publishSession({
                 ...this.sessions.get(id),
@@ -1500,6 +1496,24 @@ export class SessionClient<State extends ClientState = ClientState> {
         this.requests.cancelSession(id);
         for (const child of this.sessions.children(id))
             this.cancelTreeRequests(child.id);
+    }
+
+    private detachChildren(id: string): void {
+        for (const child of this.sessions.children(id)) {
+            this.detachChildren(child.id);
+            this.publishSession({
+                ...child,
+                attached: false,
+                state: "unknown",
+            });
+        }
+    }
+
+    private pruneChildren(id: string): void {
+        for (const child of this.sessions.children(id)) {
+            if (child.attached) this.pruneChildren(child.id);
+            else this.dropSession(child.id);
+        }
     }
 
     private dropChildren(id: string): void {

@@ -177,9 +177,11 @@ all descendants. Child sessions never enter the top-level history list.
 
 Announcements precede child traffic, including during creation and fork replay.
 Omitted fields retain their values; null clears them. Missing or cleared state is
-`unknown`, not idle. Mirrored child state frames are idempotent. Closing, stopping
-or replaying a parent retires its descendants and cancels their pending requests.
-A failed replay also retires children announced by that failed attachment.
+`unknown`, not idle. Mirrored child state frames are idempotent. Closing or stopping
+a parent retires its descendants and cancels their pending requests. Replaying
+detaches old child streams; reannounced children retain their pending approvals,
+while children absent from the completed replay are retired. A failed replay
+also retires children announced by that failed attachment.
 
 Child streams need no open/resume call. Prompt, configuration, fork, close and
 delete are rejected on children. `cancel(childId)` sends only `session/cancel`,

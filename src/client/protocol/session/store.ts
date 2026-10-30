@@ -65,9 +65,13 @@ export class SessionStore {
             throw new Error(
                 `Subagent ${frame.sessionId} already belongs to another session`,
             );
-        let child = existing ?? {
+        // A new attachment rebuilds the transcript while preserving the parent's identity and pending requests.
+        if (existing && !existing.attached) this.delete(existing.id);
+        let child: Session = (existing?.attached ? existing : undefined) ?? {
             ...createSession(frame.sessionId, parent.cwd),
             state: "unknown" as const,
+            title: existing?.title ?? null,
+            ...(existing?.subagent ? { subagent: existing.subagent } : {}),
         };
         child = {
             ...child,
