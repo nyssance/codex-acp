@@ -1,7 +1,7 @@
-import {describe, expect, it, vi} from "vitest";
-import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
-import {ModelId} from "../../ModelId";
-import {ResponseError, type MessageConnection} from "vscode-jsonrpc/node";
+import { describe, expect, it, vi } from "vitest";
+import { createCodexMockTestFixture, createTestModel } from "../acp-test-utils";
+import { ModelId } from "../../ModelId";
+import { ResponseError, type MessageConnection } from "vscode-jsonrpc/node";
 
 describe("New session logout handling", () => {
     it("logs out when newSession fails with an error containing log out", async () => {
@@ -9,17 +9,27 @@ describe("New session logout handling", () => {
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
 
         const errorMessage = `Internal error: "failed to reload config: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again."`;
-        vi.spyOn(codexAppServerClient, "threadStart").mockRejectedValue(new Error(errorMessage));
+        vi.spyOn(codexAppServerClient, "threadStart").mockRejectedValue(
+            new Error(errorMessage),
+        );
 
-        const logoutSpy = vi.spyOn(codexAcpClient, "logout").mockResolvedValue();
+        const logoutSpy = vi
+            .spyOn(codexAcpClient, "logout")
+            .mockResolvedValue();
 
-        await expect(codexAcpAgent.newSession({cwd: "", mcpServers: []}))
-            .rejects.toMatchObject({
-                data: expect.stringContaining("You have been logged out. Please try again."),
-            });
+        await expect(
+            codexAcpAgent.newSession({ cwd: "", mcpServers: [] }),
+        ).rejects.toMatchObject({
+            data: expect.stringContaining(
+                "You have been logged out. Please try again.",
+            ),
+        });
         expect(logoutSpy).toHaveBeenCalledOnce();
     });
 
@@ -28,17 +38,27 @@ describe("New session logout handling", () => {
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
 
         const errorMessage = `Internal error: "failed to reload config: Failed to load cloud requirements (workspace-managed policies)."`;
-        vi.spyOn(codexAppServerClient, "threadStart").mockRejectedValue(new Error(errorMessage));
+        vi.spyOn(codexAppServerClient, "threadStart").mockRejectedValue(
+            new Error(errorMessage),
+        );
 
-        const logoutSpy = vi.spyOn(codexAcpClient, "logout").mockResolvedValue();
+        const logoutSpy = vi
+            .spyOn(codexAcpClient, "logout")
+            .mockResolvedValue();
 
-        await expect(codexAcpAgent.newSession({cwd: "", mcpServers: []}))
-            .rejects.toMatchObject({
-                data: expect.stringContaining("You have been logged out. Please try again."),
-            });
+        await expect(
+            codexAcpAgent.newSession({ cwd: "", mcpServers: [] }),
+        ).rejects.toMatchObject({
+            data: expect.stringContaining(
+                "You have been logged out. Please try again.",
+            ),
+        });
         expect(logoutSpy).toHaveBeenCalledOnce();
     });
 
@@ -47,23 +67,39 @@ describe("New session logout handling", () => {
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        const logoutSpy = vi.spyOn(codexAcpClient, "logout").mockResolvedValue();
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        const logoutSpy = vi
+            .spyOn(codexAcpClient, "logout")
+            .mockResolvedValue();
 
-        const errorMessage = 'Internal error: "failed to reload config: filesystem path `/tmp` must be absolute, use `~/...`, or start with `:`"';
+        const errorMessage =
+            'Internal error: "failed to reload config: filesystem path `/tmp` must be absolute, use `~/...`, or start with `:`"';
         // The app-server answer goes through the error explanations of the client.
-        const {connection} = codexAppServerClient as unknown as {connection: MessageConnection};
-        vi.spyOn(connection, "sendRequest").mockImplementation((async (method: string) => {
-            if (method === "project/list") return {data: [], nextCursor: null};
-            if (method === "project/create") return {project: {id: "test-project"}};
-            if (method === "thread/start") throw new ResponseError(-32603, errorMessage);
+        const { connection } = codexAppServerClient as unknown as {
+            connection: MessageConnection;
+        };
+        vi.spyOn(connection, "sendRequest").mockImplementation((async (
+            method: string,
+        ) => {
+            if (method === "project/list")
+                return { data: [], nextCursor: null };
+            if (method === "project/create")
+                return { project: { id: "test-project" } };
+            if (method === "thread/start")
+                throw new ResponseError(-32603, errorMessage);
             return undefined;
         }) as never);
 
-        await expect(codexAcpAgent.newSession({cwd: "", mcpServers: []}))
-            .rejects.toMatchObject({
-                message: expect.stringContaining(`Check global and project .codex directories`),
-            });
+        await expect(
+            codexAcpAgent.newSession({ cwd: "", mcpServers: [] }),
+        ).rejects.toMatchObject({
+            message: expect.stringContaining(
+                `Check global and project .codex directories`,
+            ),
+        });
         expect(logoutSpy).toHaveBeenCalledTimes(0);
     });
 
@@ -72,14 +108,23 @@ describe("New session logout handling", () => {
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
         const model = createTestModel();
-        const currentModelId = ModelId.create(model.id, model.defaultReasoningEffort).toString();
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount")
-            .mockResolvedValueOnce({workspaceRouting: null,
+        const currentModelId = ModelId.create(
+            model.id,
+            model.defaultReasoningEffort,
+        ).toString();
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        const getAccountSpy = vi
+            .spyOn(codexAcpClient, "getAccount")
+            .mockResolvedValueOnce({
+                workspaceRouting: null,
                 account: { type: "apiKey" },
                 requiresOpenaiAuth: false,
             })
-            .mockResolvedValueOnce({workspaceRouting: null,
+            .mockResolvedValueOnce({
+                workspaceRouting: null,
                 account: null,
                 requiresOpenaiAuth: true,
             });
@@ -103,23 +148,38 @@ describe("New session logout handling", () => {
                 additionalDirectories: [],
             })
             .mockRejectedValueOnce(new Error(errorMessage));
-        const logoutSpy = vi.spyOn(codexAcpClient, "logout").mockResolvedValue();
+        const logoutSpy = vi
+            .spyOn(codexAcpClient, "logout")
+            .mockResolvedValue();
 
-        const openAiSession = await codexAcpAgent.newSession({cwd: "/workspace", mcpServers: []});
-        const customProviderSession = await codexAcpAgent.newSession({cwd: "/workspace", mcpServers: []});
+        const openAiSession = await codexAcpAgent.newSession({
+            cwd: "/workspace",
+            mcpServers: [],
+        });
+        const customProviderSession = await codexAcpAgent.newSession({
+            cwd: "/workspace",
+            mcpServers: [],
+        });
 
-        await expect(codexAcpAgent.newSession({cwd: "/workspace", mcpServers: []}))
-            .rejects.toMatchObject({
-                data: expect.stringContaining("You have been logged out. Please try again."),
-            });
+        await expect(
+            codexAcpAgent.newSession({ cwd: "/workspace", mcpServers: [] }),
+        ).rejects.toMatchObject({
+            data: expect.stringContaining(
+                "You have been logged out. Please try again.",
+            ),
+        });
 
         expect(logoutSpy).toHaveBeenCalledOnce();
         expect(getAccountSpy).toHaveBeenCalledTimes(2);
-        expect(codexAcpAgent.getSessionState(openAiSession.sessionId)).toMatchObject({
+        expect(
+            codexAcpAgent.getSessionState(openAiSession.sessionId),
+        ).toMatchObject({
             account: null,
             authConfigured: false,
         });
-        expect(codexAcpAgent.getSessionState(customProviderSession.sessionId)).toMatchObject({
+        expect(
+            codexAcpAgent.getSessionState(customProviderSession.sessionId),
+        ).toMatchObject({
             account: null,
             authConfigured: true,
             authProvider: "custom-provider",

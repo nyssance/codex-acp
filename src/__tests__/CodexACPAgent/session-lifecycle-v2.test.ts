@@ -340,6 +340,30 @@ describe("Session lifecycle over ACP v2", () => {
         },
     );
 
+    it("does not offer the Visualize skill, whose output ACP clients cannot render", async () => {
+        const listed = skills("deploy");
+        listed.data[0]!.skills.push({
+            ...listed.data[0]!.skills[0]!,
+            name: "visualize:visualize",
+            pluginId: "visualize@openai-bundled",
+        });
+        const { connection } = await connectV2Client({
+            listSkills: async () => listed,
+        });
+        closeClient = () => connection.close();
+
+        const response = await connection.agent.request(
+            acpV2.methods.agent.session.new,
+            { cwd },
+        );
+
+        const commands = response.availableCommands?.map(
+            (command) => command.name,
+        );
+        expect(commands).toContain("$deploy");
+        expect(commands).not.toContain("$visualize:visualize");
+    });
+
     it("loads commands for the fork cwd and publishes only subsequent changes", async () => {
         let currentSkills = skills("fork-skill");
         const listSkills = vi.fn(async () => currentSkills);
@@ -384,6 +408,7 @@ describe("Session lifecycle over ACP v2", () => {
             availableCommands: response.availableCommands?.map((command) =>
                 command.name === "$fork-skill"
                     ? {
+                          type: "command",
                           name: "$new-fork-skill",
                           description: "Run new-fork-skill",
                           input: null,
@@ -418,6 +443,7 @@ describe("Session lifecycle over ACP v2", () => {
             sessionUpdate: "available_commands_update",
             availableCommands: expect.arrayContaining([
                 {
+                    type: "command",
                     name: "$recovered",
                     description: "Run recovered",
                     input: null,

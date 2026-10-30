@@ -1,10 +1,13 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type {DynamicToolCallOutputContentItem, ThreadItem} from "../../app-server/v2";
-import {functionToolName} from "../../ToolCallName";
-import type {ToolFacts} from "../ToolFacts";
-import {toTerminalToolStatus, toToolStatus} from "./ToolStatus";
+import type {
+    DynamicToolCallOutputContentItem,
+    ThreadItem,
+} from "../../app-server/v2";
+import { functionToolName } from "../../ToolCallName";
+import type { ToolFacts } from "../ToolFacts";
+import { toTerminalToolStatus, toToolStatus } from "./ToolStatus";
 
-type DynamicToolCallItem = ThreadItem & {type: "dynamicToolCall"};
+type DynamicToolCallItem = ThreadItem & { type: "dynamicToolCall" };
 
 /** Reports a client-defined dynamic tool call. Its content items are the result. The success flag is the status. */
 export class DynamicToolReporter {
@@ -16,7 +19,7 @@ export class DynamicToolReporter {
             kind: "execute",
             title: item.tool,
             status: toToolStatus(item.status),
-            input: {arguments: item.arguments},
+            input: { arguments: item.arguments },
             ...resultFacts(item),
         };
     }
@@ -34,16 +37,23 @@ export class DynamicToolReporter {
 
 function resultFacts(item: DynamicToolCallItem): Pick<ToolFacts, "result"> {
     if (item.contentItems === null) return {};
-    return {result: item.contentItems.map(contentItem => ({type: "content", content: displayBlock(contentItem)}))};
+    return {
+        result: item.contentItems.map((contentItem) => ({
+            type: "content",
+            content: displayBlock(contentItem),
+        })),
+    };
 }
 
-function displayBlock(item: DynamicToolCallOutputContentItem): acp.ContentBlock {
+function displayBlock(
+    item: DynamicToolCallOutputContentItem,
+): acp.ContentBlock {
     switch (item.type) {
         case "inputText":
-            return {type: "text", text: item.text};
+            return { type: "text", text: item.text };
         case "inputImage":
-            return {type: "resource_link", uri: item.imageUrl, name: "image"};
+            return { type: "resource_link", uri: item.imageUrl, name: "image" };
         case "inputAudio":
-            return {type: "resource_link", uri: item.audioUrl, name: "audio"};
+            return { type: "resource_link", uri: item.audioUrl, name: "audio" };
     }
 }

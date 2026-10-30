@@ -1,5 +1,10 @@
 {
-  "extends": "./tsconfig.client.json",
-  "compilerOptions": { "noEmit": true, "declaration": false, "emitDeclarationOnly": false, "types": ["bun"] },
-  "include": ["src/client/**/*.ts", "src/__tests__/client/**/*.ts"]
+    "extends": "./tsconfig.client.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "declaration": false,
+        "emitDeclarationOnly": false,
+        "types": ["bun"]
+    },
+    "include": ["src/client/**/*.ts", "src/__tests__/client/**/*.ts"]
 }

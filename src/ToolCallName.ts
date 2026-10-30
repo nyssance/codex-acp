@@ -1,11 +1,16 @@
-import type {CommandExecutionSource} from "./app-server/v2";
+import type { CommandExecutionSource } from "./app-server/v2";
 
 /** Matches Codex's flattened ToolName at boundaries that require a single string. */
-export function functionToolName(name: string, namespace?: string | null): string {
+export function functionToolName(
+    name: string,
+    namespace?: string | null,
+): string {
     return `${namespace ?? ""}${name}`;
 }
 
-export function commandToolName(source: CommandExecutionSource): string | undefined {
+export function commandToolName(
+    source: CommandExecutionSource,
+): string | undefined {
     switch (source) {
         case "unifiedExecStartup":
             return "exec_command";

@@ -1,18 +1,25 @@
-import {createThread} from "./v2-prompt-harness";
-import {describe, expect, it, vi} from "vitest";
-import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
-import type {McpStartupResult} from "../../mcp/McpStartupTracker";
+import { createThread } from "./v2-prompt-harness";
+import { describe, expect, it, vi } from "vitest";
+import { createCodexMockTestFixture, createTestModel } from "../acp-test-utils";
+import type { McpStartupResult } from "../../mcp/McpStartupTracker";
 
 describe("ACP session fork", () => {
     it("creates and installs a forked session", async () => {
         const fixture = createCodexMockTestFixture();
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
-        const model = createTestModel({id: "gpt-5"});
+        const model = createTestModel({ id: "gpt-5" });
 
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        vi.spyOn(client, "getAccount").mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: false,
+        });
+        vi.spyOn(client, "listSkills").mockResolvedValue({ data: [] });
         const forkSpy = vi.spyOn(client, "forkSession").mockResolvedValue({
             sessionId: "fork-id",
             currentModelId: "gpt-5[medium]",
@@ -36,14 +43,22 @@ describe("ACP session fork", () => {
         expect(fixture.getAcpConnectionEvents([])).toEqual([
             {
                 method: "notify",
-                args: ["_auth/status_update", {authStatus: {kind: "none", label: "Not logged in"}}],
+                args: [
+                    "_auth/status_update",
+                    { authStatus: { kind: "none", label: "Not logged in" } },
+                ],
             },
         ]);
-        expect(forkSpy).toHaveBeenCalledWith({
-            sessionId: "source-id",
-            cwd: "/workspace",
-            mcpServers: [],
-        }, expect.any(Function), expect.any(Function), undefined);
+        expect(forkSpy).toHaveBeenCalledWith(
+            {
+                sessionId: "source-id",
+                cwd: "/workspace",
+                mcpServers: [],
+            },
+            expect.any(Function),
+            expect.any(Function),
+            undefined,
+        );
         // Regression pin: v1 must keep sending `modes` (v2 drops it via `forkSessionV2`).
         expect(response.modes).toBeDefined();
     });
@@ -54,39 +69,60 @@ describe("ACP session fork", () => {
         const client = fixture.getCodexAcpClient();
         const mcpStartup = deferred<McpStartupResult>();
 
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        vi.spyOn(client, "getAccount").mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: false,
+        });
+        vi.spyOn(client, "listSkills").mockResolvedValue({ data: [] });
         vi.spyOn(client, "forkSession").mockResolvedValue({
             sessionId: "fork-id",
             currentModelId: "gpt-5[medium]",
-            models: [createTestModel({id: "gpt-5"})],
+            models: [createTestModel({ id: "gpt-5" })],
             collaborationMode: "default",
             currentServiceTier: null,
             additionalDirectories: [],
         });
-        const awaitMcpStartupSpy = vi.spyOn(client, "awaitMcpServerStartup")
+        const awaitMcpStartupSpy = vi
+            .spyOn(client, "awaitMcpServerStartup")
             .mockReturnValue(mcpStartup.promise);
 
         const forkPromise = agent.forkSession({
             sessionId: "source-id",
             cwd: "/workspace",
-            mcpServers: [{name: "fork-mcp", command: "npx", args: ["fork"], env: []}],
-            _meta: {mcpStartupAwaitTimeoutMs: 30_000},
+            mcpServers: [
+                { name: "fork-mcp", command: "npx", args: ["fork"], env: [] },
+            ],
+            _meta: { mcpStartupAwaitTimeoutMs: 30_000 },
         });
         let forkSettled = false;
         void forkPromise.then(
-            () => { forkSettled = true; },
-            () => { forkSettled = true; },
+            () => {
+                forkSettled = true;
+            },
+            () => {
+                forkSettled = true;
+            },
         );
 
         await vi.waitFor(() => {
-            expect(awaitMcpStartupSpy).toHaveBeenCalledWith(["fork-mcp"], expect.any(Number), {threadId: "fork-id", signal: expect.any(AbortSignal)});
+            expect(awaitMcpStartupSpy).toHaveBeenCalledWith(
+                ["fork-mcp"],
+                expect.any(Number),
+                { threadId: "fork-id", signal: expect.any(AbortSignal) },
+            );
         });
         expect(forkSettled).toBe(false);
 
-        mcpStartup.resolve({ready: ["fork-mcp"], failed: [], cancelled: []});
-        await expect(forkPromise).resolves.toMatchObject({sessionId: "fork-id", modes: expect.any(Object)});
+        mcpStartup.resolve({ ready: ["fork-mcp"], failed: [], cancelled: [] });
+        await expect(forkPromise).resolves.toMatchObject({
+            sessionId: "fork-id",
+            modes: expect.any(Object),
+        });
     });
 
     it("leaves no MCP startup wait after a fork without the startup wait", async () => {
@@ -94,13 +130,20 @@ describe("ACP session fork", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
 
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
+            required: false,
+            account: null,
+        });
+        vi.spyOn(client, "getAccount").mockResolvedValue({
+            workspaceRouting: null,
+            account: null,
+            requiresOpenaiAuth: false,
+        });
+        vi.spyOn(client, "listSkills").mockResolvedValue({ data: [] });
         vi.spyOn(client, "forkSession").mockResolvedValue({
             sessionId: "fork-id",
             currentModelId: "gpt-5[medium]",
-            models: [createTestModel({id: "gpt-5"})],
+            models: [createTestModel({ id: "gpt-5" })],
             collaborationMode: "default",
             currentServiceTier: null,
             additionalDirectories: [],
@@ -109,42 +152,75 @@ describe("ACP session fork", () => {
         await agent.forkSession({
             sessionId: "source-id",
             cwd: "/workspace",
-            mcpServers: [{name: "fork-mcp", command: "npx", args: ["fork"], env: []}],
+            mcpServers: [
+                { name: "fork-mcp", command: "npx", args: ["fork"], env: [] },
+            ],
         });
 
-        const tracker = client.appServerClient.mcpStartup as unknown as {waiters: unknown[]};
+        const tracker = client.appServerClient.mcpStartup as unknown as {
+            waiters: unknown[];
+        };
         expect(tracker.waiters).toHaveLength(0);
     });
 });
 
-function deferred<T>(): {promise: Promise<T>, resolve: (value: T) => void} {
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     let resolve: (value: T) => void = () => {};
     const promise = new Promise<T>((innerResolve) => {
         resolve = innerResolve;
     });
-    return {promise, resolve};
+    return { promise, resolve };
 }
 
-
 describe("fork lineage response metadata", () => {
-    it.each([1, 2])("preserves the inherited boundary in ACP v%s", async version => {
-        const fixture = createCodexMockTestFixture();
-        const agent = fixture.getCodexAcpAgent();
-        const client = fixture.getCodexAcpClient();
-        const lineage = {nativeSessionId: "native-fork", forkedFromId: "source", forkedAtTurnId: "selected-turn"};
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({workspaceRouting: null, account: null, requiresOpenaiAuth: false});
-        vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
-        vi.spyOn(client, "forkSession").mockResolvedValue({
-            sessionId: "fork-id", currentModelId: "gpt-5[medium]", models: [createTestModel({id: "gpt-5"})],
-            collaborationMode: "default", additionalDirectories: [], lineage,
-        });
-        vi.spyOn(client, "readSessionReplay").mockResolvedValue({
-            thread: {...createThread(), id: "fork-id", name: null, turns: []},
-            history: (async function* () {})(),
-        });
-        const params = {sessionId: "source", cwd: "/workspace", mcpServers: []};
-        const response = version === 1 ? await agent.forkSession(params) : await agent.forkSessionV2(params);
-        expect(response._meta).toMatchObject({codex: lineage});
-    });
+    it.each([1, 2])(
+        "preserves the inherited boundary in ACP v%s",
+        async (version) => {
+            const fixture = createCodexMockTestFixture();
+            const agent = fixture.getCodexAcpAgent();
+            const client = fixture.getCodexAcpClient();
+            const lineage = {
+                nativeSessionId: "native-fork",
+                forkedFromId: "source",
+                forkedAtTurnId: "selected-turn",
+            };
+            vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
+                required: false,
+                account: null,
+            });
+            vi.spyOn(client, "getAccount").mockResolvedValue({
+                workspaceRouting: null,
+                account: null,
+                requiresOpenaiAuth: false,
+            });
+            vi.spyOn(client, "listSkills").mockResolvedValue({ data: [] });
+            vi.spyOn(client, "forkSession").mockResolvedValue({
+                sessionId: "fork-id",
+                currentModelId: "gpt-5[medium]",
+                models: [createTestModel({ id: "gpt-5" })],
+                collaborationMode: "default",
+                additionalDirectories: [],
+                lineage,
+            });
+            vi.spyOn(client, "readSessionReplay").mockResolvedValue({
+                thread: {
+                    ...createThread(),
+                    id: "fork-id",
+                    name: null,
+                    turns: [],
+                },
+                history: (async function* () {})(),
+            });
+            const params = {
+                sessionId: "source",
+                cwd: "/workspace",
+                mcpServers: [],
+            };
+            const response =
+                version === 1
+                    ? await agent.forkSession(params)
+                    : await agent.forkSessionV2(params);
+            expect(response._meta).toMatchObject({ codex: lineage });
+        },
+    );
 });

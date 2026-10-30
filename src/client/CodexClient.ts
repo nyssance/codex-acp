@@ -1,4 +1,8 @@
-import { sessionGroup, type ProjectContext, type SessionGroup } from "../projects/projection";
+import {
+    sessionGroup,
+    type ProjectContext,
+    type SessionGroup,
+} from "../projects/projection";
 import type { NewSessionOptions } from "./protocol";
 // The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
 // of ACP (`_codex/*`): the full session list and archive, history browsing and export, skills and
@@ -252,7 +256,9 @@ export class CodexClient<
         switch (method) {
             case "_codex/projects_changed":
             case "_codex/thread_project_updated":
-                void this.listSessions({ reset: true }).catch(error => this.set({ projectContextError: asError(error).message }));
+                void this.listSessions({ reset: true }).catch((error) =>
+                    this.set({ projectContextError: asError(error).message }),
+                );
                 return true;
             // Codex rescanned its skills or plugins (`skills/changed`): catalogs are stale.
             case "_codex/skills_changed":
@@ -273,32 +279,63 @@ export class CodexClient<
         }
     }
 
-    async refreshProjectContext(createChatDirectory = false): Promise<ProjectContext> {
+    async refreshProjectContext(
+        createChatDirectory = false,
+    ): Promise<ProjectContext> {
         const agent = this.live();
         const generation = ++this.projectGeneration;
         try {
-            const context = await agent.request<ProjectContext>("_codex/project_context", { createChatDirectory });
-            if (!context || !Array.isArray(context.projects) || typeof context.homeDirectory !== "string" || typeof context.chatDirectory !== "string" || typeof context.codexChatDirectory !== "string")
-                throw new Error("Codex project context is unavailable or invalid");
-            if (agent !== this.agent) throw new Error("Project context belongs to an obsolete connection");
-            if (generation === this.projectGeneration) this.set({ projectContext: context, projectContextError: null });
+            const context = await agent.request<ProjectContext>(
+                "_codex/project_context",
+                { createChatDirectory },
+            );
+            if (
+                !context ||
+                !Array.isArray(context.projects) ||
+                typeof context.homeDirectory !== "string" ||
+                typeof context.chatDirectory !== "string" ||
+                typeof context.codexChatDirectory !== "string"
+            )
+                throw new Error(
+                    "Codex project context is unavailable or invalid",
+                );
+            if (agent !== this.agent)
+                throw new Error(
+                    "Project context belongs to an obsolete connection",
+                );
+            if (generation === this.projectGeneration)
+                this.set({
+                    projectContext: context,
+                    projectContextError: null,
+                });
             return context;
         } catch (error) {
-            if (agent === this.agent && generation === this.projectGeneration) this.set({ projectContextError: asError(error).message });
+            if (agent === this.agent && generation === this.projectGeneration)
+                this.set({ projectContextError: asError(error).message });
             throw error;
         }
     }
 
     sessionGroup(row: Pick<SessionSummary, "cwd" | "projectId">): SessionGroup {
         const context = this.state.projectContext;
-        if (!context) throw new Error(this.state.projectContextError ?? "Codex projects have not loaded");
+        if (!context)
+            throw new Error(
+                this.state.projectContextError ??
+                    "Codex projects have not loaded",
+            );
         return sessionGroup(context, row);
     }
 
-    override async newSession(cwd?: string, options: NewSessionOptions = {}): Promise<string> {
+    override async newSession(
+        cwd?: string,
+        options: NewSessionOptions = {},
+    ): Promise<string> {
         if (cwd !== undefined) return super.newSession(cwd, options);
         const context = await this.refreshProjectContext(true);
-        return super.newSession(context.chatDirectory, { ...options, meta: mergeMeta(options.meta, { codex: { projectId: null } }) });
+        return super.newSession(context.chatDirectory, {
+            ...options,
+            meta: mergeMeta(options.meta, { codex: { projectId: null } }),
+        });
     }
 
     // ── List dialect ──
@@ -321,9 +358,21 @@ export class CodexClient<
             typeof codex === "object" &&
             codex !== null &&
             (codex as { archived?: unknown }).archived === true;
-        const projectId = typeof codex === "object" && codex !== null ? (codex as { projectId?: unknown }).projectId : null;
-        if (projectId !== undefined && projectId !== null && typeof projectId !== "string") throw new Error("Invalid Codex project ID");
-        return { ...super.summaryOf(info), archived, projectId: projectId ?? null };
+        const projectId =
+            typeof codex === "object" && codex !== null
+                ? (codex as { projectId?: unknown }).projectId
+                : null;
+        if (
+            projectId !== undefined &&
+            projectId !== null &&
+            typeof projectId !== "string"
+        )
+            throw new Error("Invalid Codex project ID");
+        return {
+            ...super.summaryOf(info),
+            archived,
+            projectId: projectId ?? null,
+        };
     }
 
     protected override lineageOf(
@@ -344,7 +393,8 @@ export class CodexClient<
         const cursor = options.reset ? null : state.archivedCursor;
         if (!options.reset && state.archivedLoaded && cursor === null) return;
         const generation = ++this.archivedGeneration;
-        if (options.reset || !state.projectContext) await this.refreshProjectContext();
+        if (options.reset || !state.projectContext)
+            await this.refreshProjectContext();
         if (generation !== this.archivedGeneration) return;
         const before = new Map(
             [...state.sessionList, ...state.archivedSessions].map(

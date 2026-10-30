@@ -221,6 +221,7 @@ function reportsOfEachKind(): Record<string, ToolFacts[]> {
         imageGeneration: [
             ImageGenerationReporter.whole({
                 type: "imageGeneration",
+                generationId: null,
                 id: "gen",
                 status: "completed",
                 revisedPrompt: "A square",
@@ -465,6 +466,7 @@ describe("ClientCapabilities", () => {
 describe("Codex 0.164 image attachments", () => {
     const item: Extract<ThreadItem, { type: "imageGeneration" }> = {
         type: "imageGeneration",
+        generationId: null,
         id: "image-file",
         status: "completed",
         revisedPrompt: null,

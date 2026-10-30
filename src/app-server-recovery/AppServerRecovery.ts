@@ -1,8 +1,13 @@
-import {ConnectionError, ConnectionErrors, ErrorCodes, ResponseError} from "vscode-jsonrpc/node";
-import type {CodexAcpClient} from "../CodexAcpClient";
-import type {CodexConnection} from "../CodexJsonRpcConnection";
-import {isMissingRolloutError} from "../CodexThreadErrors";
-import {logger} from "../Logger";
+import {
+    ConnectionError,
+    ConnectionErrors,
+    ErrorCodes,
+    ResponseError,
+} from "vscode-jsonrpc/node";
+import type { CodexAcpClient } from "../CodexAcpClient";
+import type { CodexConnection } from "../CodexJsonRpcConnection";
+import { isMissingRolloutError } from "../CodexThreadErrors";
+import { logger } from "../Logger";
 import {
     type AppServerExit,
     appServerExitedError,
@@ -16,9 +21,12 @@ import {
     UnpersistedSessionLostError,
     ThreadRefusedError,
 } from "./AppServerExit";
-import {AppServerConnectionLostError} from "./ConnectionLoss";
-import type {CodexAppServerSupervisor, SupervisedChild} from "./CodexAppServerSupervisor";
-import {CrashLoopGuard} from "./CrashLoopGuard";
+import { AppServerConnectionLostError } from "./ConnectionLoss";
+import type {
+    CodexAppServerSupervisor,
+    SupervisedChild,
+} from "./CodexAppServerSupervisor";
+import { CrashLoopGuard } from "./CrashLoopGuard";
 
 /** Exit code of a Windows process that misses the VC++ runtime (0xC0000135). Starting it again cannot help. */
 const MISSING_VC_RUNTIME_EXIT_CODE = 3221225781;
@@ -48,12 +56,16 @@ export const DEFAULT_RECOVERY_LIMITS: RecoveryLimits = {
 };
 
 /** Reads the overrides of `readme-dev.md` from the environment. */
-export function recoveryLimitsFromEnv(env: NodeJS.ProcessEnv = process.env): RecoveryLimits {
-    const limits = {...DEFAULT_RECOVERY_LIMITS};
+export function recoveryLimitsFromEnv(
+    env: NodeJS.ProcessEnv = process.env,
+): RecoveryLimits {
+    const limits = { ...DEFAULT_RECOVERY_LIMITS };
     const crashLimit = Number(env["CODEX_ACP_APP_SERVER_CRASH_LIMIT"]);
-    if (Number.isInteger(crashLimit) && crashLimit > 0) limits.crashLimit = crashLimit;
+    if (Number.isInteger(crashLimit) && crashLimit > 0)
+        limits.crashLimit = crashLimit;
     const windowMs = Number(env["CODEX_ACP_APP_SERVER_CRASH_WINDOW_MS"]);
-    if (Number.isFinite(windowMs) && windowMs > 0) limits.crashWindowMs = windowMs;
+    if (Number.isFinite(windowMs) && windowMs > 0)
+        limits.crashWindowMs = windowMs;
     return limits;
 }
 
@@ -79,7 +91,11 @@ export interface RecoveryHost<S extends RecoverableSession> {
      * Opens the thread of `session` again in `client`; answers the collaboration mode of the resumed thread.
      * `onSubscribed` runs once the app-server holds the thread for the connection.
      */
-    resumeSession(session: S, client: CodexAcpClient, onSubscribed: () => void): Promise<{collaborationMode: string}>;
+    resumeSession(
+        session: S,
+        client: CodexAcpClient,
+        onSubscribed: () => void,
+    ): Promise<{ collaborationMode: string }>;
     /** Applies the collaboration mode that `session` holds to its thread in `client`. */
     applyCollaborationMode(session: S, client: CodexAcpClient): Promise<void>;
     collaborationMode(session: S): string;
@@ -123,7 +139,10 @@ export class AppServerRecovery<S extends RecoverableSession> {
     private readonly opens = new Map<string, number>();
     private readonly crashGuard: CrashLoopGuard;
     private readonly threadGuard: CrashLoopGuard;
-    private readonly generationLostListeners = new Map<number, Set<() => void>>();
+    private readonly generationLostListeners = new Map<
+        number,
+        Set<() => void>
+    >();
     private transitions: Promise<unknown> = Promise.resolve();
     private respawning: Promise<void> | null = null;
     /** The client of the starting or ready generation, for the thread loads in flight at a crash. */
@@ -136,27 +155,40 @@ export class AppServerRecovery<S extends RecoverableSession> {
     private loadQueue: Promise<unknown> = Promise.resolve();
     /** The client generation that a provider restart started and has not installed yet. */
     private pendingReplacement: {
-        generation: number,
-        release: () => void,
-        watchdog: ReturnType<typeof setTimeout>,
-        timedOut: boolean,
+        generation: number;
+        release: () => void;
+        watchdog: ReturnType<typeof setTimeout>;
+        timedOut: boolean;
     } | null = null;
 
     constructor(
         private readonly host: RecoveryHost<S>,
         private readonly limits: RecoveryLimits = DEFAULT_RECOVERY_LIMITS,
         private readonly now: () => number = Date.now,
-        private readonly sleep: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
+        private readonly sleep: (ms: number) => Promise<void> = (ms) =>
+            new Promise((resolve) => setTimeout(resolve, ms)),
     ) {
-        this.crashGuard = new CrashLoopGuard(limits.crashLimit, limits.crashWindowMs, now);
-        this.threadGuard = new CrashLoopGuard(limits.threadCrashLimit, limits.threadWindowMs, now);
+        this.crashGuard = new CrashLoopGuard(
+            limits.crashLimit,
+            limits.crashWindowMs,
+            now,
+        );
+        this.threadGuard = new CrashLoopGuard(
+            limits.threadCrashLimit,
+            limits.threadWindowMs,
+            now,
+        );
         this.readyGeneration = host.supervisor.generation;
         this.liveClient = host.currentClient();
         this.clientGenerations.set(this.liveClient, this.readyGeneration);
         this.generationClients.set(this.readyGeneration, this.liveClient);
         this.gateThreadLoads(this.liveClient);
-        host.supervisor.onExit((exit, child) => this.handleExit(exit, child.generation));
-        host.supervisor.onDeath(child => this.snapshotLoads(child.generation));
+        host.supervisor.onExit((exit, child) =>
+            this.handleExit(exit, child.generation),
+        );
+        host.supervisor.onDeath((child) =>
+            this.snapshotLoads(child.generation),
+        );
     }
 
     /** The generation whose client is installed. */
@@ -166,9 +198,11 @@ export class AppServerRecovery<S extends RecoverableSession> {
 
     /** True while the installed generation runs, nothing replaces it and the agent is not shutting down. */
     isReady(generation = this.readyGeneration): boolean {
-        return this.state === "ready"
-            && generation === this.readyGeneration
-            && this.host.supervisor.isAlive(generation);
+        return (
+            this.state === "ready" &&
+            generation === this.readyGeneration &&
+            this.host.supervisor.isAlive(generation)
+        );
     }
 
     /**
@@ -196,7 +230,11 @@ export class AppServerRecovery<S extends RecoverableSession> {
 
     /** True when the thread of `session` is loaded in the installed, running app-server. */
     sessionIsLive(session: S | undefined): boolean {
-        return session !== undefined && this.isReady() && this.loadedGenerations.get(session) === this.readyGeneration;
+        return (
+            session !== undefined &&
+            this.isReady() &&
+            this.loadedGenerations.get(session) === this.readyGeneration
+        );
     }
 
     /** Records that the thread of `session` was loaded in the app-server of `generation`. */
@@ -233,9 +271,14 @@ export class AppServerRecovery<S extends RecoverableSession> {
         session: S,
         generation: number,
         client: CodexAcpClient,
-        resume: (onSubscribed: () => void) => Promise<{collaborationMode: string}>,
+        resume: (
+            onSubscribed: () => void,
+        ) => Promise<{ collaborationMode: string }>,
     ): Promise<void> {
-        return this.track(session, this.resumeInto(session, generation, client, resume, false));
+        return this.track(
+            session,
+            this.resumeInto(session, generation, client, resume, false),
+        );
     }
 
     /**
@@ -247,12 +290,16 @@ export class AppServerRecovery<S extends RecoverableSession> {
             listener();
             return () => {};
         }
-        const listeners = this.generationLostListeners.get(generation) ?? new Set();
+        const listeners =
+            this.generationLostListeners.get(generation) ?? new Set();
         listeners.add(listener);
         this.generationLostListeners.set(generation, listeners);
         return () => {
             listeners.delete(listener);
-            if (listeners.size === 0 && this.generationLostListeners.get(generation) === listeners) {
+            if (
+                listeners.size === 0 &&
+                this.generationLostListeners.get(generation) === listeners
+            ) {
                 this.generationLostListeners.delete(generation);
             }
         };
@@ -270,10 +317,21 @@ export class AppServerRecovery<S extends RecoverableSession> {
      * also when the app-server died after it answered.
      */
     mapError(error: unknown, client?: CodexAcpClient): unknown {
-        if (isAppServerUnavailableError(error) || !isConnectionDeathError(error)) return error;
-        const generation = client !== undefined ? this.clientGenerations.get(client) : undefined;
+        if (
+            isAppServerUnavailableError(error) ||
+            !isConnectionDeathError(error)
+        )
+            return error;
+        const generation =
+            client !== undefined
+                ? this.clientGenerations.get(client)
+                : undefined;
         // An error recognized only by its text (the MCP waits of the adapter) counts only for an app-server that is gone.
-        if (!isTypedConnectionDeathError(error) && this.host.supervisor.isAlive(generation)) return error;
+        if (
+            !isTypedConnectionDeathError(error) &&
+            this.host.supervisor.isAlive(generation)
+        )
+            return error;
         return this.errorForGeneration(generation);
     }
 
@@ -283,12 +341,15 @@ export class AppServerRecovery<S extends RecoverableSession> {
      */
     errorForGeneration(generation?: number): AppServerUnavailableError {
         const supervisor = this.host.supervisor;
-        const exit = generation !== undefined ? supervisor.exitOf(generation) : supervisor.lastExit;
+        const exit =
+            generation !== undefined
+                ? supervisor.exitOf(generation)
+                : supervisor.lastExit;
         if (exit !== undefined) return this.exitError(exit);
         if (supervisor.shuttingDown) return this.shuttingDownError();
         return new AppServerUnavailableError(
             "The connection to the Codex app-server was lost. The agent starts it again on the next request.",
-            {exitCode: null, signal: null, restartable: true},
+            { exitCode: null, signal: null, restartable: true },
         );
     }
 
@@ -308,10 +369,13 @@ export class AppServerRecovery<S extends RecoverableSession> {
         return this.loadInTurn(threadId, load);
     }
 
-    private async loadInTurn<T>(threadId: string, load: () => Promise<T>): Promise<T> {
+    private async loadInTurn<T>(
+        threadId: string,
+        load: () => Promise<T>,
+    ): Promise<T> {
         const previous = this.loadQueue;
         let release: () => void = () => {};
-        this.loadQueue = new Promise<void>(resolve => {
+        this.loadQueue = new Promise<void>((resolve) => {
             release = resolve;
         });
         await previous.catch(() => undefined);
@@ -326,16 +390,21 @@ export class AppServerRecovery<S extends RecoverableSession> {
     assertThreadMayLoad(threadId: string): void {
         if (!this.threadGuard.tripped(threadId)) return;
         const exit = this.host.supervisor.lastExit;
-        const cause = exit !== undefined && likelyOutOfMemory(exit)
-            ? "was killed (likely out of memory)"
-            : "crashed";
+        const cause =
+            exit !== undefined && likelyOutOfMemory(exit)
+                ? "was killed (likely out of memory)"
+                : "crashed";
         const count = this.threadGuard.count(threadId);
         throw new ThreadRefusedError(
-            `The Codex app-server ${cause} ${count} times while opening session ${threadId}, so the agent does not open `
-            + `this session again for ${formatDuration(this.threadGuard.retryAfterMs(threadId))}, to keep the other `
-            + "sessions working. The session may be too large for the available memory.",
-            {exitCode: exit?.code ?? null, signal: exit?.signal ?? null, restartable: false,
-                retryAfterMs: this.threadGuard.retryAfterMs(threadId)},
+            `The Codex app-server ${cause} ${count} times while opening session ${threadId}, so the agent does not open ` +
+                `this session again for ${formatDuration(this.threadGuard.retryAfterMs(threadId))}, to keep the other ` +
+                "sessions working. The session may be too large for the available memory.",
+            {
+                exitCode: exit?.code ?? null,
+                signal: exit?.signal ?? null,
+                restartable: false,
+                retryAfterMs: this.threadGuard.retryAfterMs(threadId),
+            },
         );
     }
 
@@ -347,16 +416,20 @@ export class AppServerRecovery<S extends RecoverableSession> {
      */
     async beginReplacement(): Promise<CodexAcpClient> {
         let release: () => void = () => {};
-        const held = new Promise<void>(resolve => {
+        const held = new Promise<void>((resolve) => {
             release = resolve;
         });
-        const turn = this.transitions.then(() => undefined, () => undefined);
+        const turn = this.transitions.then(
+            () => undefined,
+            () => undefined,
+        );
         this.transitions = turn.then(() => held);
         await turn;
         try {
             const supervisor = this.host.supervisor;
             if (supervisor.shuttingDown) throw this.shuttingDownError();
-            if (this.nonRestartableExit !== null) throw this.exitError(this.nonRestartableExit);
+            if (this.nonRestartableExit !== null)
+                throw this.exitError(this.nonRestartableExit);
             if (this.crashGuard.tripped()) throw this.crashLoopError();
             const previous = supervisor.current;
             this.state = "starting";
@@ -364,25 +437,36 @@ export class AppServerRecovery<S extends RecoverableSession> {
             await supervisor.stop(previous);
             // A previous child that died on its own counted its crash only at the end of its drain.
             if (supervisor.shuttingDown) throw this.shuttingDownError();
-            if (this.nonRestartableExit !== null) throw this.exitError(this.nonRestartableExit);
+            if (this.nonRestartableExit !== null)
+                throw this.exitError(this.nonRestartableExit);
             if (this.crashGuard.tripped()) throw this.crashLoopError();
-            const {child, client} = this.spawnClient();
+            const { child, client } = this.spawnClient();
             const watchdog = setTimeout(() => {
                 const pending = this.pendingReplacement;
                 if (pending?.generation !== child.generation) return;
-                logger.log("[APP-SERVER RESTART] The provider restart did not finish its handshake in time; stopping the new app-server", {
-                    generation: child.generation,
-                    ms: this.limits.handshakeTimeoutMs,
-                });
+                logger.log(
+                    "[APP-SERVER RESTART] The provider restart did not finish its handshake in time; stopping the new app-server",
+                    {
+                        generation: child.generation,
+                        ms: this.limits.handshakeTimeoutMs,
+                    },
+                );
                 // The attempt is over: a late answer of initialize must not install this app-server as ready.
                 pending.timedOut = true;
                 child.failing = true;
                 child.terminate();
             }, this.limits.handshakeTimeoutMs);
-            this.pendingReplacement = {generation: child.generation, release, watchdog, timedOut: false};
+            this.pendingReplacement = {
+                generation: child.generation,
+                release,
+                watchdog,
+                timedOut: false,
+            };
             return client;
         } catch (error) {
-            this.state = this.host.supervisor.shuttingDown ? "shutdown" : "dead";
+            this.state = this.host.supervisor.shuttingDown
+                ? "shutdown"
+                : "dead";
             release();
             throw error;
         }
@@ -394,18 +478,28 @@ export class AppServerRecovery<S extends RecoverableSession> {
      */
     completeReplacement(client: CodexAcpClient): void {
         const pending = this.pendingReplacement;
-        if (pending === null || this.clientGenerations.get(client) !== pending.generation) return;
+        if (
+            pending === null ||
+            this.clientGenerations.get(client) !== pending.generation
+        )
+            return;
         this.pendingReplacement = null;
         clearTimeout(pending.watchdog);
         this.readyGeneration = pending.generation;
-        const usable = !pending.timedOut && this.host.supervisor.isAlive(pending.generation);
-        this.state = usable ? "ready" : this.host.supervisor.shuttingDown ? "shutdown" : "dead";
+        const usable =
+            !pending.timedOut &&
+            this.host.supervisor.isAlive(pending.generation);
+        this.state = usable
+            ? "ready"
+            : this.host.supervisor.shuttingDown
+              ? "shutdown"
+              : "dead";
         pending.release();
         if (pending.timedOut) {
             throw new AppServerUnavailableError(
-                `The restarted Codex app-server did not answer initialize within ${formatDuration(this.limits.handshakeTimeoutMs)}. `
-                + "The agent starts it again on the next request.",
-                {exitCode: null, signal: null, restartable: true},
+                `The restarted Codex app-server did not answer initialize within ${formatDuration(this.limits.handshakeTimeoutMs)}. ` +
+                    "The agent starts it again on the next request.",
+                { exitCode: null, signal: null, restartable: true },
             );
         }
     }
@@ -418,12 +512,20 @@ export class AppServerRecovery<S extends RecoverableSession> {
             this.pendingReplacement = null;
             clearTimeout(pending.watchdog);
             this.readyGeneration = pending.generation;
-            this.state = this.host.supervisor.shuttingDown ? "shutdown" : "dead";
+            this.state = this.host.supervisor.shuttingDown
+                ? "shutdown"
+                : "dead";
             const child = this.host.supervisor.current;
-            if (child.generation === pending.generation && !child.dead && !pending.timedOut) {
+            if (
+                child.generation === pending.generation &&
+                !child.dead &&
+                !pending.timedOut
+            ) {
                 // The handshake failed without a crash. It counts as one, like a failed restart handshake.
                 this.crashGuard.record();
-                logger.log("[APP-SERVER RESTART] The provider restart failed before the new app-server was installed; stopping it");
+                logger.log(
+                    "[APP-SERVER RESTART] The provider restart failed before the new app-server was installed; stopping it",
+                );
                 void this.host.supervisor.stop(child);
             }
             pending.release();
@@ -431,49 +533,63 @@ export class AppServerRecovery<S extends RecoverableSession> {
     }
 
     /** Spawns a child and its client. A spawn that throws counts as a crash and becomes a 1001 error. */
-    private spawnClient(): {child: SupervisedChild, client: CodexAcpClient} {
+    private spawnClient(): { child: SupervisedChild; client: CodexAcpClient } {
         let child: SupervisedChild;
         let client: CodexAcpClient;
         try {
             child = this.host.supervisor.spawn();
             client = this.host.createClient(child.connection);
         } catch (error) {
-            this.state = this.host.supervisor.shuttingDown ? "shutdown" : "dead";
+            this.state = this.host.supervisor.shuttingDown
+                ? "shutdown"
+                : "dead";
             this.crashGuard.record();
-            const message = error instanceof Error ? error.message : String(error);
-            logger.error("[APP-SERVER RESTART] The Codex app-server could not be started", error);
-            throw new AppServerUnavailableError(`The Codex app-server could not be started: ${message}`, {
-                exitCode: null,
-                signal: null,
-                restartable: !this.crashGuard.tripped(),
-            });
+            const message =
+                error instanceof Error ? error.message : String(error);
+            logger.error(
+                "[APP-SERVER RESTART] The Codex app-server could not be started",
+                error,
+            );
+            throw new AppServerUnavailableError(
+                `The Codex app-server could not be started: ${message}`,
+                {
+                    exitCode: null,
+                    signal: null,
+                    restartable: !this.crashGuard.tripped(),
+                },
+            );
         }
         this.liveClient = client;
         this.clientGenerations.set(client, child.generation);
         this.generationClients.set(child.generation, client);
         this.gateThreadLoads(client);
-        return {child, client};
+        return { child, client };
     }
 
     /** Every request of `client` that reads a whole rollout goes through {@link loadThread}. */
     private gateThreadLoads(client: CodexAcpClient): void {
-        client.appServerClient.threadLoadGate = (threadId, request) => this.loadThread(threadId, request);
+        client.appServerClient.threadLoadGate = (threadId, request) =>
+            this.loadThread(threadId, request);
     }
 
     private track(session: S, resume: Promise<void>): Promise<void> {
         this.resumes.set(session, resume);
         this.resumesById.set(session.sessionId, resume);
         const clear = () => {
-            if (this.resumes.get(session) === resume) this.resumes.delete(session);
-            if (this.resumesById.get(session.sessionId) === resume) this.resumesById.delete(session.sessionId);
+            if (this.resumes.get(session) === resume)
+                this.resumes.delete(session);
+            if (this.resumesById.get(session.sessionId) === resume)
+                this.resumesById.delete(session.sessionId);
         };
         void resume.then(clear, clear);
         return resume;
     }
 
     private respawn(): Promise<void> {
-        if (this.host.supervisor.shuttingDown) return Promise.reject(this.shuttingDownError());
-        if (this.nonRestartableExit !== null) return Promise.reject(this.exitError(this.nonRestartableExit));
+        if (this.host.supervisor.shuttingDown)
+            return Promise.reject(this.shuttingDownError());
+        if (this.nonRestartableExit !== null)
+            return Promise.reject(this.exitError(this.nonRestartableExit));
         if (this.respawning !== null) return this.respawning;
         const attempt = this.enqueue(() => this.restart());
         this.respawning = attempt;
@@ -507,24 +623,31 @@ export class AppServerRecovery<S extends RecoverableSession> {
         }
         if (this.isReady()) return;
         if (supervisor.shuttingDown) throw this.shuttingDownError();
-        if (this.nonRestartableExit !== null) throw this.exitError(this.nonRestartableExit);
+        if (this.nonRestartableExit !== null)
+            throw this.exitError(this.nonRestartableExit);
         if (this.crashGuard.tripped()) throw this.crashLoopError();
 
         const crashes = this.crashGuard.count();
-        const delay = crashes === 0
-            ? 0
-            : this.limits.backoffMs[Math.min(crashes, this.limits.backoffMs.length) - 1]!;
+        const delay =
+            crashes === 0
+                ? 0
+                : this.limits.backoffMs[
+                      Math.min(crashes, this.limits.backoffMs.length) - 1
+                  ]!;
         const lastCrashAt = this.crashGuard.lastCrashAt() ?? 0;
         const wait = Math.max(0, lastCrashAt + delay - this.now());
         if (wait > 0) {
-            logger.log("[APP-SERVER RESTART] waiting before the restart", {ms: wait, crashes});
+            logger.log("[APP-SERVER RESTART] waiting before the restart", {
+                ms: wait,
+                crashes,
+            });
             await this.sleep(wait);
         }
         if (supervisor.shuttingDown) throw this.shuttingDownError();
 
         const startedAt = this.now();
         this.state = "starting";
-        const {child, client} = this.spawnClient();
+        const { child, client } = this.spawnClient();
         let timedOut = false;
         try {
             const handshake = this.host.handshake(client);
@@ -559,16 +682,21 @@ export class AppServerRecovery<S extends RecoverableSession> {
         }
     }
 
-    private async withHandshakeTimeout(handshake: Promise<void>, onTimeout: () => void): Promise<void> {
+    private async withHandshakeTimeout(
+        handshake: Promise<void>,
+        onTimeout: () => void,
+    ): Promise<void> {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const timeout = new Promise<never>((_, reject) => {
             timer = setTimeout(() => {
                 onTimeout();
-                reject(new AppServerUnavailableError(
-                    `The restarted Codex app-server did not answer initialize within ${formatDuration(this.limits.handshakeTimeoutMs)}. `
-                    + "The agent starts it again on the next request.",
-                    {exitCode: null, signal: null, restartable: true},
-                ));
+                reject(
+                    new AppServerUnavailableError(
+                        `The restarted Codex app-server did not answer initialize within ${formatDuration(this.limits.handshakeTimeoutMs)}. ` +
+                            "The agent starts it again on the next request.",
+                        { exitCode: null, signal: null, restartable: true },
+                    ),
+                );
             }, this.limits.handshakeTimeoutMs);
         });
         try {
@@ -584,16 +712,20 @@ export class AppServerRecovery<S extends RecoverableSession> {
         if (this.sessionIsLive(session)) return;
         const generation = this.readyGeneration;
         const client = this.host.currentClient();
-        logger.log("[APP-SERVER RECOVERY] resuming a session in the restarted app-server", {
-            sessionId: session.sessionId,
-            generation,
-        });
+        logger.log(
+            "[APP-SERVER RECOVERY] resuming a session in the restarted app-server",
+            {
+                sessionId: session.sessionId,
+                generation,
+            },
+        );
         const started = this.now();
         await this.resumeInto(
             session,
             generation,
             client,
-            onSubscribed => this.host.resumeSession(session, client, onSubscribed),
+            (onSubscribed) =>
+                this.host.resumeSession(session, client, onSubscribed),
             true,
         );
         this.host.resumed(session);
@@ -615,21 +747,25 @@ export class AppServerRecovery<S extends RecoverableSession> {
         session: S,
         generation: number,
         client: CodexAcpClient,
-        resume: (onSubscribed: () => void) => Promise<{collaborationMode: string}>,
+        resume: (
+            onSubscribed: () => void,
+        ) => Promise<{ collaborationMode: string }>,
         refuseWhileOpen: boolean,
     ): Promise<void> {
         const sessionId = session.sessionId;
         const lifetime = this.host.sessionLifetime(session);
-        const stillValid = () => this.host.isCurrent(session, lifetime)
-            && this.isReady(generation)
-            && !(refuseWhileOpen && this.opens.has(sessionId));
-        const invalidated = () => this.isReady(generation)
-            ? sessionReplacedError(sessionId)
-            : this.errorForGeneration(generation);
+        const stillValid = () =>
+            this.host.isCurrent(session, lifetime) &&
+            this.isReady(generation) &&
+            !(refuseWhileOpen && this.opens.has(sessionId));
+        const invalidated = () =>
+            this.isReady(generation)
+                ? sessionReplacedError(sessionId)
+                : this.errorForGeneration(generation);
         let subscribed = false;
         try {
             if (!stillValid()) throw invalidated();
-            let resumed: {collaborationMode: string};
+            let resumed: { collaborationMode: string };
             try {
                 resumed = await resume(() => {
                     subscribed = true;
@@ -641,8 +777,15 @@ export class AppServerRecovery<S extends RecoverableSession> {
             // The collaboration mode is a setting of the thread in the app-server. A mode chosen while the session
             // was not live is only stored, so apply it, again if it changed while the previous apply ran.
             let applied = resumed.collaborationMode;
-            for (let attempt = 0; applied !== this.host.collaborationMode(session); attempt++) {
-                if (attempt >= MAX_MODE_APPLIES) throw new Error("The collaboration mode kept changing while the session was reopened");
+            for (
+                let attempt = 0;
+                applied !== this.host.collaborationMode(session);
+                attempt++
+            ) {
+                if (attempt >= MAX_MODE_APPLIES)
+                    throw new Error(
+                        "The collaboration mode kept changing while the session was reopened",
+                    );
                 const wanted = this.host.collaborationMode(session);
                 await this.host.applyCollaborationMode(session, client);
                 applied = wanted;
@@ -659,19 +802,35 @@ export class AppServerRecovery<S extends RecoverableSession> {
      * Unsubscribes a thread that a resume loaded for a session that closed meanwhile. A thread that another open
      * of the session uses stays subscribed: the subscription belongs to the connection, not to one open.
      */
-    private releaseThread(session: S, generation: number, client: CodexAcpClient): void {
+    private releaseThread(
+        session: S,
+        generation: number,
+        client: CodexAcpClient,
+    ): void {
         const sessionId = session.sessionId;
         const installed = this.host.installedSession(sessionId);
-        if (!this.isReady(generation) || this.opens.has(sessionId) || (installed !== undefined && installed !== session)) return;
-        void client.closeSession(sessionId).catch(error => {
-            logger.log("Failed to unsubscribe the thread of a session that closed while it was resumed", {
-                sessionId,
-                error: String(error),
-            });
+        if (
+            !this.isReady(generation) ||
+            this.opens.has(sessionId) ||
+            (installed !== undefined && installed !== session)
+        )
+            return;
+        void client.closeSession(sessionId).catch((error) => {
+            logger.log(
+                "Failed to unsubscribe the thread of a session that closed while it was resumed",
+                {
+                    sessionId,
+                    error: String(error),
+                },
+            );
         });
     }
 
-    private resumeError(sessionId: string, error: unknown, client: CodexAcpClient): unknown {
+    private resumeError(
+        sessionId: string,
+        error: unknown,
+        client: CodexAcpClient,
+    ): unknown {
         if (isAppServerUnavailableError(error)) return error;
         const mapped = this.mapError(error, client);
         if (mapped !== error) return mapped;
@@ -681,7 +840,7 @@ export class AppServerRecovery<S extends RecoverableSession> {
         const message = error instanceof Error ? error.message : String(error);
         return new AppServerUnavailableError(
             `Could not reopen session ${sessionId} after the Codex app-server restarted: ${message}`,
-            {exitCode: null, signal: null, restartable: true},
+            { exitCode: null, signal: null, restartable: true },
         );
     }
 
@@ -691,13 +850,17 @@ export class AppServerRecovery<S extends RecoverableSession> {
         const isInstalled = generation === this.readyGeneration;
         const client = this.generationClients.get(generation);
         this.generationClients.delete(generation);
-        if (!exit.intentional && client?.initialized !== true) this.startupExits.add(generation);
+        if (!exit.intentional && client?.initialized !== true)
+            this.startupExits.add(generation);
         if (isInstalled && this.state === "ready") {
-            this.state = this.host.supervisor.shuttingDown ? "shutdown" : "dead";
+            this.state = this.host.supervisor.shuttingDown
+                ? "shutdown"
+                : "dead";
         }
         if (!exit.intentional) {
             this.crashGuard.record();
-            if (exit.code === MISSING_VC_RUNTIME_EXIT_CODE) this.nonRestartableExit = exit;
+            if (exit.code === MISSING_VC_RUNTIME_EXIT_CODE)
+                this.nonRestartableExit = exit;
             this.attribute(exit, loadsAtDeath);
             try {
                 this.host.crashed(exit);
@@ -710,21 +873,29 @@ export class AppServerRecovery<S extends RecoverableSession> {
 
     private snapshotLoads(generation: number): void {
         if (this.clientGenerations.get(this.liveClient) !== generation) return;
-        this.loadsAtDeath.set(generation, this.liveClient.appServerClient.threadLoadsInFlight());
+        this.loadsAtDeath.set(
+            generation,
+            this.liveClient.appServerClient.threadLoadsInFlight(),
+        );
     }
 
     /** Gives the crash to the thread that the app-server was opening when it died, when it was opening exactly one. */
     private attribute(exit: AppServerExit, loads: string[]): void {
         if (loads.length === 1) {
             this.threadGuard.record(loads[0]!);
-            logger.error(`[APP-SERVER CRASH] The app-server ${describeExit(exit)} while opening session ${loads[0]}`, JSON.stringify({
-                strikes: this.threadGuard.count(loads[0]!),
-                limit: this.limits.threadCrashLimit,
-            }));
+            logger.error(
+                `[APP-SERVER CRASH] The app-server ${describeExit(exit)} while opening session ${loads[0]}`,
+                JSON.stringify({
+                    strikes: this.threadGuard.count(loads[0]!),
+                    limit: this.limits.threadCrashLimit,
+                }),
+            );
         } else if (loads.length > 1) {
             this.serializeLoadsUntil = this.now() + this.limits.crashWindowMs;
-            logger.error("[APP-SERVER CRASH] The app-server died while opening several sessions; opening them one at a time from now on",
-                JSON.stringify({sessions: loads}));
+            logger.error(
+                "[APP-SERVER CRASH] The app-server died while opening several sessions; opening them one at a time from now on",
+                JSON.stringify({ sessions: loads }),
+            );
         }
     }
 
@@ -743,11 +914,14 @@ export class AppServerRecovery<S extends RecoverableSession> {
 
     private exitError(exit: AppServerExit): AppServerUnavailableError {
         if (exit.code === MISSING_VC_RUNTIME_EXIT_CODE) {
-            return new AppServerUnavailableError("VC++ redistributable should be installed", {
-                exitCode: exit.code,
-                signal: exit.signal,
-                restartable: false,
-            });
+            return new AppServerUnavailableError(
+                "VC++ redistributable should be installed",
+                {
+                    exitCode: exit.code,
+                    signal: exit.signal,
+                    restartable: false,
+                },
+            );
         }
         if (this.host.supervisor.shuttingDown) {
             return appServerExitedError(exit, "The agent is shutting down.");
@@ -755,7 +929,7 @@ export class AppServerRecovery<S extends RecoverableSession> {
         if (exit.intentional) {
             return new AppServerUnavailableError(
                 "The Codex app-server was restarted for a provider change while this request ran. Try again.",
-                {exitCode: exit.code, signal: exit.signal, restartable: true},
+                { exitCode: exit.code, signal: exit.signal, restartable: true },
             );
         }
         if (this.crashGuard.tripped()) {
@@ -764,27 +938,41 @@ export class AppServerRecovery<S extends RecoverableSession> {
         if (this.startupExits.has(exit.generation)) {
             return appServerStartupExitError(exit);
         }
-        return appServerExitedError(exit, "The agent starts it again on the next request.");
+        return appServerExitedError(
+            exit,
+            "The agent starts it again on the next request.",
+        );
     }
 
-    private crashLoopError(exit = this.host.supervisor.lastExit): AppServerUnavailableError {
+    private crashLoopError(
+        exit = this.host.supervisor.lastExit,
+    ): AppServerUnavailableError {
         const retryAfterMs = this.crashGuard.retryAfterMs();
-        const last = exit !== undefined ? ` (last: it ${describeExit(exit)})` : "";
+        const last =
+            exit !== undefined ? ` (last: it ${describeExit(exit)})` : "";
         const stderr = exit?.stderrTail.trim() ?? "";
         return new AppServerUnavailableError(
-            `The Codex app-server crashed ${this.crashGuard.count()} times in the last `
-            + `${formatDuration(this.limits.crashWindowMs)}${last}, so the agent stopped restarting it. `
-            + `Restart the agent, or try again in ${formatDuration(retryAfterMs)}.${stderr ? `\n${stderr}` : ""}`,
-            {exitCode: exit?.code ?? null, signal: exit?.signal ?? null, restartable: false, retryAfterMs},
+            `The Codex app-server crashed ${this.crashGuard.count()} times in the last ` +
+                `${formatDuration(this.limits.crashWindowMs)}${last}, so the agent stopped restarting it. ` +
+                `Restart the agent, or try again in ${formatDuration(retryAfterMs)}.${stderr ? `\n${stderr}` : ""}`,
+            {
+                exitCode: exit?.code ?? null,
+                signal: exit?.signal ?? null,
+                restartable: false,
+                retryAfterMs,
+            },
         );
     }
 
     private shuttingDownError(): AppServerUnavailableError {
-        return new AppServerUnavailableError("The Codex app-server is not available: the agent is shutting down.", {
-            exitCode: null,
-            signal: null,
-            restartable: false,
-        });
+        return new AppServerUnavailableError(
+            "The Codex app-server is not available: the agent is shutting down.",
+            {
+                exitCode: null,
+                signal: null,
+                restartable: false,
+            },
+        );
     }
 }
 
@@ -804,9 +992,15 @@ const CONNECTION_DEATH_MESSAGES = [
 function isTypedConnectionDeathError(error: unknown): boolean {
     if (error instanceof AppServerConnectionLostError) return true;
     if (error instanceof ConnectionError) {
-        return error.code === ConnectionErrors.Closed || error.code === ConnectionErrors.Disposed;
+        return (
+            error.code === ConnectionErrors.Closed ||
+            error.code === ConnectionErrors.Disposed
+        );
     }
-    return error instanceof ResponseError && error.code === ErrorCodes.PendingResponseRejected;
+    return (
+        error instanceof ResponseError &&
+        error.code === ErrorCodes.PendingResponseRejected
+    );
 }
 
 /**
@@ -815,6 +1009,9 @@ function isTypedConnectionDeathError(error: unknown): boolean {
  */
 export function isConnectionDeathError(error: unknown): boolean {
     if (isTypedConnectionDeathError(error)) return true;
-    if (error instanceof ResponseError || !(error instanceof Error)) return false;
-    return CONNECTION_DEATH_MESSAGES.some(text => error.message.includes(text));
+    if (error instanceof ResponseError || !(error instanceof Error))
+        return false;
+    return CONNECTION_DEATH_MESSAGES.some((text) =>
+        error.message.includes(text),
+    );
 }

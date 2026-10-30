@@ -1,30 +1,40 @@
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {describe, expect, it} from "vitest";
-import {AcpV2ForegroundState} from "../AcpV2ForegroundState";
+import { describe, expect, it } from "vitest";
+import { AcpV2ForegroundState } from "../AcpV2ForegroundState";
 
 function deferred() {
     let resolve!: () => void;
-    const promise = new Promise<void>(done => { resolve = done; });
-    return {promise, resolve};
+    const promise = new Promise<void>((done) => {
+        resolve = done;
+    });
+    return { promise, resolve };
 }
 
 function fixture() {
     const updates: acpV2.StateUpdate[] = [];
-    const foreground = new AcpV2ForegroundState(async state => { updates.push(state); });
-    return {foreground, updates};
+    const foreground = new AcpV2ForegroundState(async (state) => {
+        updates.push(state);
+    });
+    return { foreground, updates };
 }
 
 describe("ACP v2 aggregate foreground state", () => {
     it("keeps running while another tool can progress, then tracks which waits still block", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         await foreground.start();
         await foreground.startItem("first");
         await foreground.startItem("second");
         const first = deferred();
         const second = deferred();
-        const firstAction = foreground.withUserAction("first", () => first.promise);
+        const firstAction = foreground.withUserAction(
+            "first",
+            () => first.promise,
+        );
         await foreground.snapshot();
-        const secondAction = foreground.withUserAction("second", () => second.promise);
+        const secondAction = foreground.withUserAction(
+            "second",
+            () => second.promise,
+        );
         await foreground.snapshot();
         first.resolve();
         await firstAction;
@@ -32,18 +42,26 @@ describe("ACP v2 aggregate foreground state", () => {
         second.resolve();
         await secondAction;
         await foreground.completeItem("second");
-        await foreground.update({state: "idle", stopReason: "end_turn"});
+        await foreground.update({ state: "idle", stopReason: "end_turn" });
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-parallel-tools.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-parallel-tools.json",
+        );
     });
 
     it("does not resume after one of several uncorrelated waits is answered", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         await foreground.start();
         const first = deferred();
         const second = deferred();
-        const firstAction = foreground.withUserAction(undefined, () => first.promise);
-        const secondAction = foreground.withUserAction(undefined, () => second.promise);
+        const firstAction = foreground.withUserAction(
+            undefined,
+            () => first.promise,
+        );
+        const secondAction = foreground.withUserAction(
+            undefined,
+            () => second.promise,
+        );
         await foreground.snapshot();
         first.resolve();
         await firstAction;
@@ -51,123 +69,162 @@ describe("ACP v2 aggregate foreground state", () => {
         second.resolve();
         await secondAction;
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-overlapping-waits.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-overlapping-waits.json",
+        );
     });
 
     it("reports resumed progress even while an interaction remains pending", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         await foreground.start();
         const waiting = deferred();
-        const action = foreground.withUserAction(undefined, () => waiting.promise);
+        const action = foreground.withUserAction(
+            undefined,
+            () => waiting.promise,
+        );
         await foreground.snapshot();
         await foreground.startItem("model-output");
         await foreground.completeItem("model-output");
         waiting.resolve();
         await action;
-        await foreground.update({state: "idle", stopReason: "end_turn"});
+        await foreground.update({ state: "idle", stopReason: "end_turn" });
         await foreground.startItem("late-output");
         await foreground.snapshot();
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-resumed-progress.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-resumed-progress.json",
+        );
     });
 
     it("does not let a previous turn's late answer change a new turn", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         const oldWait = deferred();
-        const oldAction = foreground.withUserAction(undefined, () => oldWait.promise);
+        const oldAction = foreground.withUserAction(
+            undefined,
+            () => oldWait.promise,
+        );
         await foreground.snapshot();
-        await foreground.update({state: "idle", stopReason: "cancelled"});
+        await foreground.update({ state: "idle", stopReason: "cancelled" });
         await foreground.start();
         const newWait = deferred();
-        const newAction = foreground.withUserAction(undefined, () => newWait.promise);
+        const newAction = foreground.withUserAction(
+            undefined,
+            () => newWait.promise,
+        );
         await foreground.snapshot();
         oldWait.resolve();
         await oldAction;
         await foreground.snapshot();
         newWait.resolve();
         await newAction;
-        await foreground.update({state: "idle", stopReason: "end_turn"});
+        await foreground.update({ state: "idle", stopReason: "end_turn" });
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-late-answer.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-late-answer.json",
+        );
     });
 
     it("does not resume when a pending interaction is withdrawn", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         await foreground.start();
         const waiting = deferred();
         const controller = new AbortController();
-        const action = foreground.withUserAction(undefined, () => waiting.promise, controller.signal);
+        const action = foreground.withUserAction(
+            undefined,
+            () => waiting.promise,
+            controller.signal,
+        );
         await foreground.snapshot();
         controller.abort();
         waiting.resolve();
         await action;
-        await foreground.update({state: "idle", stopReason: "cancelled"});
+        await foreground.update({ state: "idle", stopReason: "cancelled" });
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-withdrawn-wait.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-withdrawn-wait.json",
+        );
     });
 
     it("does not report a wait whose request was already cancelled", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         await foreground.start();
         const controller = new AbortController();
         controller.abort();
-        await foreground.withUserAction(undefined, async () => {}, controller.signal);
-        expect(updates).toEqual([{state: "running"}]);
+        await foreground.withUserAction(
+            undefined,
+            async () => {},
+            controller.signal,
+        );
+        expect(updates).toEqual([{ state: "running" }]);
     });
 
     it("sends snapshots without replaying completion usage or metadata", async () => {
-        const {foreground, updates} = fixture();
+        const { foreground, updates } = fixture();
         await foreground.start();
         await foreground.update({
             state: "idle",
             stopReason: "end_turn",
-            usage: {totalTokens: 3, inputTokens: 1, outputTokens: 2},
-            _meta: {quota: {total: 3}},
+            usage: { totalTokens: 3, inputTokens: 1, outputTokens: 2 },
+            _meta: { quota: { total: 3 } },
         });
         await foreground.snapshot();
         await foreground.snapshot();
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-idle-snapshot.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-idle-snapshot.json",
+        );
     });
 
     it("orders snapshots and later transitions behind a backpressured send", async () => {
         const gate = deferred();
         const updates: acpV2.StateUpdate[] = [];
-        const foreground = new AcpV2ForegroundState(async state => {
+        const foreground = new AcpV2ForegroundState(async (state) => {
             if (state.state === "running") await gate.promise;
             updates.push(state);
         });
         const started = foreground.start();
         const snapshot = foreground.snapshot();
-        const stopped = foreground.update({state: "idle", stopReason: "cancelled"});
+        const stopped = foreground.update({
+            state: "idle",
+            stopReason: "cancelled",
+        });
         gate.resolve();
         await Promise.all([started, snapshot, stopped]);
 
-        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot("data/foreground-v2-send-order.json");
+        await expect(JSON.stringify(updates, null, 2)).toMatchFileSnapshot(
+            "data/foreground-v2-send-order.json",
+        );
     });
 });
 
-it('correlates foreground waits and idle with the owning prompt receipt', async () => {
-    const {foreground, updates} = fixture();
-    await foreground.start('prompt-1');
+it("correlates foreground waits and idle with the owning prompt receipt", async () => {
+    const { foreground, updates } = fixture();
+    await foreground.start("prompt-1");
     await foreground.withUserAction(undefined, async () => {});
-    await foreground.update({state: 'idle', stopReason: 'end_turn'});
-    expect(updates.map(state => state._meta)).toEqual(updates.map(() => ({alwith: {messageId: 'prompt-1'}})));
+    await foreground.update({ state: "idle", stopReason: "end_turn" });
+    expect(updates.map((state) => state._meta)).toEqual(
+        updates.map(() => ({ alwith: { messageId: "prompt-1" } })),
+    );
     await foreground.start();
     expect(updates.at(-1)?._meta).toBeUndefined();
 });
-it('captures receipt ownership before a queued state is sent', async () => {
+it("captures receipt ownership before a queued state is sent", async () => {
     const gate = deferred();
     const updates: acpV2.StateUpdate[] = [];
-    const foreground = new AcpV2ForegroundState(async state => {updates.push(state); if (updates.length === 1) await gate.promise;});
-    const first = foreground.start('first');
-    const idle = foreground.update({state: 'idle', stopReason: 'end_turn'});
-    const second = foreground.start('second');
+    const foreground = new AcpV2ForegroundState(async (state) => {
+        updates.push(state);
+        if (updates.length === 1) await gate.promise;
+    });
+    const first = foreground.start("first");
+    const idle = foreground.update({ state: "idle", stopReason: "end_turn" });
+    const second = foreground.start("second");
     gate.resolve();
     await Promise.all([first, idle, second]);
     await foreground.snapshot();
-    expect(updates.map(state => state._meta)).toEqual([
-        {alwith: {messageId: 'first'}}, {alwith: {messageId: 'first'}},
-        {alwith: {messageId: 'second'}}, {alwith: {messageId: 'second'}},
+    expect(updates.map((state) => state._meta)).toEqual([
+        { alwith: { messageId: "first" } },
+        { alwith: { messageId: "first" } },
+        { alwith: { messageId: "second" } },
+        { alwith: { messageId: "second" } },
     ]);
 });

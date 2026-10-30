@@ -1,8 +1,10 @@
-import {describe, expect, it} from "vitest";
-import type {RateLimitSnapshot} from "../app-server/v2";
-import {createRateLimitsMap, mergeRateLimitSnapshot} from "../RateLimitsMap";
+import { describe, expect, it } from "vitest";
+import type { RateLimitSnapshot } from "../app-server/v2";
+import { createRateLimitsMap, mergeRateLimitSnapshot } from "../RateLimitsMap";
 
-function snapshot(overrides: Partial<RateLimitSnapshot> = {}): RateLimitSnapshot {
+function snapshot(
+    overrides: Partial<RateLimitSnapshot> = {},
+): RateLimitSnapshot {
     return {
         normalModelSlug: null,
         limitId: "codex",
@@ -20,13 +22,13 @@ function snapshot(overrides: Partial<RateLimitSnapshot> = {}): RateLimitSnapshot
 
 describe("RateLimitsMap", () => {
     it("uses every bucket from the complete rate-limit response", () => {
-        const codex = snapshot({limitId: "codex"});
-        const fast = snapshot({limitId: "fast", limitName: "Fast"});
+        const codex = snapshot({ limitId: "codex" });
+        const fast = snapshot({ limitId: "fast", limitName: "Fast" });
 
         const result = createRateLimitsMap({
             ordinaryUsageAllowed: null,
             rateLimits: codex,
-            rateLimitsByLimitId: {codex, fast},
+            rateLimitsByLimitId: { codex, fast },
             rateLimitResetCredits: null,
             accountId: null,
             rateLimitUpsell: null,
@@ -37,16 +39,28 @@ describe("RateLimitsMap", () => {
 
     it("preserves account metadata but replaces usage windows from a sparse update", () => {
         const previous = snapshot({
-            primary: {usedPercent: 15, resetsAt: 100, windowDurationMins: 300},
-            secondary: {usedPercent: 20, resetsAt: 150, windowDurationMins: 10080},
-            credits: {hasCredits: true, unlimited: false, balance: "10"},
+            primary: {
+                usedPercent: 15,
+                resetsAt: 100,
+                windowDurationMins: 300,
+            },
+            secondary: {
+                usedPercent: 20,
+                resetsAt: 150,
+                windowDurationMins: 10080,
+            },
+            credits: { hasCredits: true, unlimited: false, balance: "10" },
             rateLimitReachedType: "rate_limit_reached",
         });
         const update = snapshot({
             limitId: null,
             limitName: null,
             primary: null,
-            secondary: {usedPercent: 25, resetsAt: 200, windowDurationMins: 10080},
+            secondary: {
+                usedPercent: 25,
+                resetsAt: 200,
+                windowDurationMins: 10080,
+            },
             rateLimitReachedType: null,
         });
 

@@ -33,8 +33,10 @@ export type AcpV2ClientConnection = Pick<
  */
 export class AcpV2Connection {
     readonly client: AcpV2ClientConnection;
-    private configRevision: ((sessionId: string) => number) | undefined;
-    setConfigRevisionSource(source: (sessionId: string) => number): void {
+    private configRevision: ((sessionId: string) => number | null) | undefined;
+    setConfigRevisionSource(
+        source: (sessionId: string) => number | null,
+    ): void {
         this.configRevision = source;
     }
     private isTurnRunning: (sessionId: string) => boolean = () => true;
@@ -97,10 +99,11 @@ export class AcpV2Connection {
                     continue;
                 }
             }
-            if (
-                v2Update.sessionUpdate === "config_option_update" &&
-                this.configRevision
-            ) {
+            const configRevision =
+                v2Update.sessionUpdate === "config_option_update"
+                    ? this.configRevision?.(sessionId)
+                    : null;
+            if (configRevision != null) {
                 const meta =
                     v2Update._meta && typeof v2Update._meta === "object"
                         ? (v2Update._meta as Record<string, unknown>)
@@ -114,7 +117,7 @@ export class AcpV2Connection {
                             ...(alwith && typeof alwith === "object"
                                 ? alwith
                                 : {}),
-                            configRevision: this.configRevision(sessionId),
+                            configRevision,
                         },
                     },
                 };
@@ -243,11 +246,23 @@ export class AcpV2Connection {
         );
     }
 
-    /** Request-scoped login elicitations and idle background elicitations never change state. */
+    /**
+     * Sends `elicitation/create`. Request-scoped login elicitations and idle background elicitations never change
+     * the session state.
+     *
+     * @param request The elicitation to show.
+     * @param options Request options, such as the signal that cancels the request.
+     * @param interaction.userAction Whether the agent waits for the answer, `true` by default. While such an
+     *     elicitation is open in a running turn, the session reports `requires_action` whenever none of its items
+     *     is in progress. Pass `false` for a question the agent keeps working through, so the session state is left
+     *     as it is.
+     */
     async createElicitation(
         request: acp.CreateElicitationRequest,
         options?: acp.SendRequestOptions,
+        interaction: { userAction?: boolean } = {},
     ): Promise<acp.CreateElicitationResponse> {
+        const userAction = interaction.userAction ?? true;
         const sendRequest = async () => {
             const response = await this.client.request(
                 acpV2.methods.client.elicitation.create,
@@ -257,7 +272,7 @@ export class AcpV2Connection {
             return toV1CreateElicitationResponse(response);
         };
         const sessionId = elicitationSessionId(request);
-        if (sessionId === undefined) {
+        if (sessionId === undefined || !userAction) {
             return sendRequest();
         }
         const toolCallId =
@@ -389,6 +404,34 @@ export class ACPSessionConnection {
             );
         }
         await this.v2Connection.updateState(this.sessionId, state);
+    }
+
+    async updateSubagentState(
+        childSessionId: string,
+        parentSessionId: string,
+        state: acpV2.StateUpdate,
+    ): Promise<void> {
+        if (this.v2Connection) {
+            await this.v2Connection.client.notify(
+                acpV2.methods.client.session.update,
+                {
+                    sessionId: childSessionId,
+                    update: { sessionUpdate: "state_update", ...state },
+                },
+            );
+        }
+        await this.update(
+            {
+                sessionUpdate: "subagent_update",
+                sessionId: childSessionId,
+                state,
+            },
+            parentSessionId,
+        );
+    }
+
+    forSession(sessionId: string): ACPSessionConnection {
+        return new ACPSessionConnection(this.connection, sessionId);
     }
 
     /** `startReplayMessage`, which only exists on v2 and so needs no v1 shape. */

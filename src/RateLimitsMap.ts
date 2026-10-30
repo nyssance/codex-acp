@@ -1,4 +1,7 @@
-import type {GetAccountRateLimitsResponse, RateLimitSnapshot} from "./app-server/v2";
+import type {
+    GetAccountRateLimitsResponse,
+    RateLimitSnapshot,
+} from "./app-server/v2";
 
 export type RateLimitEntry = {
     limitId: string;
@@ -12,10 +15,13 @@ function rateLimitId(snapshot: RateLimitSnapshot, fallback = "codex"): string {
     return snapshot.limitId ?? fallback;
 }
 
-export function createRateLimitsMap(response: GetAccountRateLimitsResponse): RateLimitsMap {
+export function createRateLimitsMap(
+    response: GetAccountRateLimitsResponse,
+): RateLimitsMap {
     const result: RateLimitsMap = new Map();
-    const snapshots = Object.entries(response.rateLimitsByLimitId ?? {})
-        .filter((entry): entry is [string, RateLimitSnapshot] => entry[1] !== undefined);
+    const snapshots = Object.entries(response.rateLimitsByLimitId ?? {}).filter(
+        (entry): entry is [string, RateLimitSnapshot] => entry[1] !== undefined,
+    );
 
     if (snapshots.length === 0) {
         snapshots.push([rateLimitId(response.rateLimits), response.rateLimits]);
@@ -41,7 +47,8 @@ export function mergeRateLimitSnapshot(
         limitId: update.limitId ?? "codex",
         credits: update.credits ?? previous.credits,
         individualLimit: update.individualLimit ?? previous.individualLimit,
-        spendControlReached: update.spendControlReached ?? previous.spendControlReached,
+        spendControlReached:
+            update.spendControlReached ?? previous.spendControlReached,
         planType: update.planType ?? previous.planType,
     };
 }

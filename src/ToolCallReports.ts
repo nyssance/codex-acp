@@ -1,13 +1,30 @@
-import type {UpdateSessionEvent} from "./ACPSessionConnection";
-import {logger} from "./Logger";
-import {isRecord} from "./permissions/json";
-import {jsonSnapshot, sameJson, type JsonTree} from "./JsonSnapshot";
+import type { UpdateSessionEvent } from "./ACPSessionConnection";
+import { logger } from "./Logger";
+import { isRecord } from "./permissions/json";
+import { jsonSnapshot, sameJson, type JsonTree } from "./JsonSnapshot";
 
-type ToolCallReport = Extract<UpdateSessionEvent, {sessionUpdate: "tool_call" | "tool_call_update"}>;
+type ToolCallReport = Extract<
+    UpdateSessionEvent,
+    { sessionUpdate: "tool_call" | "tool_call_update" }
+>;
 
 /** The client appends these metadata values, so the adapter never compares them with an earlier value. */
-const OUTPUT_DELTA_META_KEYS = new Set(["terminal_output", "terminal_output_delta", "terminal_input", "mcp_output_delta"]);
-const COMPARED_FIELDS = ["title", "kind", "status", "name", "content", "locations", "rawInput", "rawOutput"] as const;
+const OUTPUT_DELTA_META_KEYS = new Set([
+    "terminal_output",
+    "terminal_output_delta",
+    "terminal_input",
+    "mcp_output_delta",
+]);
+const COMPARED_FIELDS = [
+    "title",
+    "kind",
+    "status",
+    "name",
+    "content",
+    "locations",
+    "rawInput",
+    "rawOutput",
+] as const;
 /** The small fields that the adapter keeps for a finished tool call. */
 const FINISHED_FIELDS = new Set<string>(["title", "kind", "status", "name"]);
 const META_FIELD_PREFIX = "_meta.";
@@ -29,7 +46,10 @@ type Snapshot = JsonTree | undefined;
  */
 export class ToolCallReports {
     private readonly openToolCalls = new Map<string, Map<string, Snapshot>>();
-    private readonly finishedToolCalls = new Map<string, Map<string, Snapshot>>();
+    private readonly finishedToolCalls = new Map<
+        string,
+        Map<string, Snapshot>
+    >();
 
     /**
      * Also drop the unchanged `_meta` keys. The adapter sets it for AIR in `initialize`.
@@ -47,16 +67,26 @@ export class ToolCallReports {
      * Returns the update to send, without the fields that did not change.
      * Returns `null` when nothing is left to send.
      */
-    prepare(sessionId: string, update: UpdateSessionEvent): UpdateSessionEvent | null {
-        if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
+    prepare(
+        sessionId: string,
+        update: UpdateSessionEvent,
+    ): UpdateSessionEvent | null {
+        if (
+            update.sessionUpdate !== "tool_call" &&
+            update.sessionUpdate !== "tool_call_update"
+        ) {
             return update;
         }
         const key = `${sessionId}\u0000${update.toolCallId}`;
         this.trackUnfinished(sessionId, update);
-        const prepared = update.sessionUpdate === "tool_call"
-            ? this.recordStart(key, update)
-            : this.recordUpdate(key, update);
-        if (prepared !== null && (prepared.status === "completed" || prepared.status === "failed")) {
+        const prepared =
+            update.sessionUpdate === "tool_call"
+                ? this.recordStart(key, update)
+                : this.recordUpdate(key, update);
+        if (
+            prepared !== null &&
+            (prepared.status === "completed" || prepared.status === "failed")
+        ) {
             this.finish(key);
         }
         return prepared;
@@ -77,7 +107,7 @@ export class ToolCallReports {
 
     /** The ids of the tool calls of `sessionId` that the client shows as pending or running. */
     unfinished(sessionId: string): string[] {
-        return [...this.unfinishedToolCalls.get(sessionId) ?? []];
+        return [...(this.unfinishedToolCalls.get(sessionId) ?? [])];
     }
 
     private trackUnfinished(sessionId: string, update: ToolCallReport): void {
@@ -89,9 +119,17 @@ export class ToolCallReports {
             return;
         }
         // An update without a status of a tool call that the client does not show as running changes nothing.
-        if (update.sessionUpdate !== "tool_call" && status !== "pending" && status !== "in_progress") return;
+        if (
+            update.sessionUpdate !== "tool_call" &&
+            status !== "pending" &&
+            status !== "in_progress"
+        )
+            return;
         if (ids === undefined) {
-            this.unfinishedToolCalls.set(sessionId, new Set([update.toolCallId]));
+            this.unfinishedToolCalls.set(
+                sessionId,
+                new Set([update.toolCallId]),
+            );
         } else {
             ids.add(update.toolCallId);
         }
@@ -107,22 +145,37 @@ export class ToolCallReports {
         const fields = new Map<string, Snapshot>();
         // A start with a terminal status, for example in a history replay, keeps only the small fields.
         // `finish` drops the other fields at once, so the adapter does not snapshot them.
-        const terminal = update.status === "completed" || update.status === "failed";
+        const terminal =
+            update.status === "completed" || update.status === "failed";
         const only = terminal ? FINISHED_FIELDS : undefined;
-        for (const [name, value] of reportedFields(update, this.compareMeta && !terminal, only)) {
+        for (const [name, value] of reportedFields(
+            update,
+            this.compareMeta && !terminal,
+            only,
+        )) {
             fields.set(name, value);
         }
         this.openToolCalls.set(key, fields);
         return update;
     }
 
-    private recordUpdate(key: string, update: ToolCallReport): ToolCallReport | null {
+    private recordUpdate(
+        key: string,
+        update: ToolCallReport,
+    ): ToolCallReport | null {
         const finished = this.finishedToolCalls.get(key);
         if (finished !== undefined) {
             const current = this.withoutLateOutput(update);
-            return current === null ? null : this.withoutUnchangedFields(current, finished, FINISHED_FIELDS);
+            return current === null
+                ? null
+                : this.withoutUnchangedFields(
+                      current,
+                      finished,
+                      FINISHED_FIELDS,
+                  );
         }
-        const fields = this.openToolCalls.get(key) ?? new Map<string, Snapshot>();
+        const fields =
+            this.openToolCalls.get(key) ?? new Map<string, Snapshot>();
         this.openToolCalls.set(key, fields);
         return this.withoutUnchangedFields(update, fields);
     }
@@ -133,11 +186,16 @@ export class ToolCallReports {
         fields: Map<string, Snapshot>,
         recorded?: Set<string>,
     ): ToolCallReport | null {
-        const prepared: Record<string, unknown> = {...update};
-        const meta = isRecord(update._meta) ? {...update._meta} : undefined;
+        const prepared: Record<string, unknown> = { ...update };
+        const meta = isRecord(update._meta) ? { ...update._meta } : undefined;
         // With `recorded`, `fields` holds only the `recorded` fields and no `_meta` key.
         // So no other field can be unchanged, and the adapter does not snapshot it.
-        for (const [name, value] of reportedFields(update, this.compareMeta && recorded === undefined, recorded, fields)) {
+        for (const [name, value] of reportedFields(
+            update,
+            this.compareMeta && recorded === undefined,
+            recorded,
+            fields,
+        )) {
             if (sameJson(fields.get(name), value)) {
                 if (name.startsWith(META_FIELD_PREFIX)) {
                     delete meta?.[name.slice(META_FIELD_PREFIX.length)];
@@ -146,7 +204,8 @@ export class ToolCallReports {
                 }
                 continue;
             }
-            if (recorded === undefined || recorded.has(name)) fields.set(name, value);
+            if (recorded === undefined || recorded.has(name))
+                fields.set(name, value);
         }
         if (meta !== undefined) {
             if (Object.keys(meta).length > 0) {
@@ -155,7 +214,7 @@ export class ToolCallReports {
                 delete prepared["_meta"];
             }
         }
-        return hasPayload(prepared) ? prepared as ToolCallReport : null;
+        return hasPayload(prepared) ? (prepared as ToolCallReport) : null;
     }
 
     private withoutLateOutput(update: ToolCallReport): ToolCallReport | null {
@@ -164,29 +223,40 @@ export class ToolCallReports {
         if (update.status != null || !isRecord(update._meta)) {
             return update;
         }
-        const meta = {...update._meta};
-        const dropped = Object.keys(meta).filter(name => OUTPUT_DELTA_META_KEYS.has(name));
+        const meta = { ...update._meta };
+        const dropped = Object.keys(meta).filter((name) =>
+            OUTPUT_DELTA_META_KEYS.has(name),
+        );
         if (dropped.length === 0) {
             return update;
         }
         for (const name of dropped) {
             delete meta[name];
         }
-        logger.log("Dropped output for a finished tool call", {toolCallId: update.toolCallId, keys: dropped});
-        const prepared: Record<string, unknown> = {...update};
+        logger.log("Dropped output for a finished tool call", {
+            toolCallId: update.toolCallId,
+            keys: dropped,
+        });
+        const prepared: Record<string, unknown> = { ...update };
         if (Object.keys(meta).length > 0) {
             prepared["_meta"] = meta;
         } else {
             delete prepared["_meta"];
         }
-        return hasPayload(prepared) ? prepared as ToolCallReport : null;
+        return hasPayload(prepared) ? (prepared as ToolCallReport) : null;
     }
 
     private finish(key: string): void {
-        const fields = this.openToolCalls.get(key) ?? this.finishedToolCalls.get(key) ?? new Map<string, Snapshot>();
+        const fields =
+            this.openToolCalls.get(key) ??
+            this.finishedToolCalls.get(key) ??
+            new Map<string, Snapshot>();
         this.openToolCalls.delete(key);
         this.finishedToolCalls.delete(key);
-        this.finishedToolCalls.set(key, new Map([...fields].filter(([name]) => FINISHED_FIELDS.has(name))));
+        this.finishedToolCalls.set(
+            key,
+            new Map([...fields].filter(([name]) => FINISHED_FIELDS.has(name))),
+        );
         if (this.finishedToolCalls.size > MAX_FINISHED_TOOL_CALLS) {
             const oldest = this.finishedToolCalls.keys().next().value;
             if (oldest !== undefined) this.finishedToolCalls.delete(oldest);
@@ -206,11 +276,13 @@ function reportedFields(
     for (const name of COMPARED_FIELDS) {
         if (only !== undefined && !only.has(name)) continue;
         const value = record[name];
-        if (value !== undefined) fields.push([name, jsonSnapshot(value, previous?.get(name))]);
+        if (value !== undefined)
+            fields.push([name, jsonSnapshot(value, previous?.get(name))]);
     }
     if (withMeta && isRecord(update._meta)) {
         for (const [name, value] of Object.entries(update._meta)) {
-            if (value === undefined || OUTPUT_DELTA_META_KEYS.has(name)) continue;
+            if (value === undefined || OUTPUT_DELTA_META_KEYS.has(name))
+                continue;
             const field = `${META_FIELD_PREFIX}${name}`;
             fields.push([field, jsonSnapshot(value, previous?.get(field))]);
         }
@@ -219,5 +291,7 @@ function reportedFields(
 }
 
 function hasPayload(update: Record<string, unknown>): boolean {
-    return Object.keys(update).some(name => name !== "sessionUpdate" && name !== "toolCallId");
+    return Object.keys(update).some(
+        (name) => name !== "sessionUpdate" && name !== "toolCallId",
+    );
 }

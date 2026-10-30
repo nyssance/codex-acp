@@ -1,9 +1,11 @@
-import type {MessageConnection} from "vscode-jsonrpc/node";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 
 /** A wait for an app-server notification that ended because the connection to the app-server is gone. */
 export class AppServerConnectionLostError extends Error {
     constructor(what: string) {
-        super(`The connection to the Codex app-server was lost while waiting for ${what}.`);
+        super(
+            `The connection to the Codex app-server was lost while waiting for ${what}.`,
+        );
         this.name = "AppServerConnectionLostError";
     }
 }

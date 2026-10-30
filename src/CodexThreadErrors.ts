@@ -7,7 +7,7 @@
  * predicate keeps the match anchored on the stable part of the phrasing.
  */
 
-import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import { RequestError } from "@agentclientprotocol/sdk/unstable";
 
 function errorText(err: unknown): string {
     if (err instanceof Error) return err.message;
@@ -64,7 +64,10 @@ export function isThreadNotFoundError(err: unknown): boolean {
  */
 export function isInvalidThreadIdError(err: unknown): boolean {
     const text = errorText(err);
-    return text.includes("invalid thread id:") || text.includes("invalid session id:");
+    return (
+        text.includes("invalid thread id:") ||
+        text.includes("invalid session id:")
+    );
 }
 
 /**
@@ -82,9 +85,13 @@ export function isNoActiveTurnError(err: unknown): boolean {
  * most commonly a review's child turn -- registered after the id we sent. The
  * message names the turn Codex considers active, which is the id to retry with.
  */
-export function parseExpectedActiveTurnMismatch(err: unknown): {expected: string, found: string} | null {
-    const match = errorText(err).match(/expected active turn id (\S+) but found (\S+)/);
-    return match ? {expected: match[1]!, found: match[2]!} : null;
+export function parseExpectedActiveTurnMismatch(
+    err: unknown,
+): { expected: string; found: string } | null {
+    const match = errorText(err).match(
+        /expected active turn id (\S+) but found (\S+)/,
+    );
+    return match ? { expected: match[1]!, found: match[2]! } : null;
 }
 
 /**
@@ -93,7 +100,11 @@ export function parseExpectedActiveTurnMismatch(err: unknown): {expected: string
  * materialized.
  */
 export function isUnknownThreadError(err: unknown): boolean {
-    return isMissingRolloutError(err) || isThreadNotLoadedError(err) || isInvalidThreadIdError(err);
+    return (
+        isMissingRolloutError(err) ||
+        isThreadNotLoadedError(err) ||
+        isInvalidThreadIdError(err)
+    );
 }
 
 /**
@@ -112,9 +123,12 @@ export function isThreadActiveWriterError(err: unknown): boolean {
  * `reason` field is stable, so a client can recognise the case without
  * parsing the message.
  */
-export function threadActiveWriterRequestError(threadId: string, err: unknown): RequestError {
+export function threadActiveWriterRequestError(
+    threadId: string,
+    err: unknown,
+): RequestError {
     return RequestError.invalidRequest(
-        {reason: "thread_active_writer", threadId, details: errorText(err)},
+        { reason: "thread_active_writer", threadId, details: errorText(err) },
         "This Codex session is in use by another Codex client (the Codex app, the CLI or an IDE extension). Close the session there or quit that client, then try again.",
     );
 }
@@ -124,7 +138,11 @@ export const RESOURCE_NOT_FOUND_CODE = -32002;
 
 /** The ACP error for a session id that Codex has no thread for. */
 export function sessionNotFoundRequestError(sessionId: string): RequestError {
-    return new RequestError(RESOURCE_NOT_FOUND_CODE, `Session not found: ${sessionId}`, {sessionId});
+    return new RequestError(
+        RESOURCE_NOT_FOUND_CODE,
+        `Session not found: ${sessionId}`,
+        { sessionId },
+    );
 }
 
 /** The `data.reason` of the error for a request that an archived session does not take. */
@@ -133,7 +151,7 @@ export const SESSION_ARCHIVED_REASON = "archived";
 /** The ACP error for a request that Codex refuses because the thread is archived. */
 export function sessionArchivedRequestError(sessionId: string): RequestError {
     return RequestError.invalidRequest(
-        {reason: SESSION_ARCHIVED_REASON, sessionId},
+        { reason: SESSION_ARCHIVED_REASON, sessionId },
         `Session is archived: ${sessionId}`,
     );
 }
@@ -176,11 +194,16 @@ const ACCOUNT_READ_AUTH_FAILURE_MESSAGES = new Set([
 ]);
 
 /** The `account/read` error when another client logged in or out while the read ran (`AccountChanged`). */
-const ACCOUNT_READ_ACCOUNT_CHANGED_MESSAGE = "account changed during workspace routing discovery";
+const ACCOUNT_READ_ACCOUNT_CHANGED_MESSAGE =
+    "account changed during workspace routing discovery";
 
 /** The text of an app-server internal error, or `null` for another error. */
 function internalErrorText(err: unknown): string | null {
-    if (err === null || typeof err !== "object" || (err as {code?: unknown}).code !== INTERNAL_ERROR_CODE) {
+    if (
+        err === null ||
+        typeof err !== "object" ||
+        (err as { code?: unknown }).code !== INTERNAL_ERROR_CODE
+    ) {
         return null;
     }
     return errorText(err);
@@ -195,7 +218,15 @@ function internalErrorText(err: unknown): string | null {
  */
 export function isAccountReadUnavailableError(err: unknown): boolean {
     const text = internalErrorText(err);
-    return text !== null && ACCOUNT_READ_UNAVAILABLE_MESSAGES.has(text);
+    return text !== null && isWorkspaceRoutingUnavailableMessage(text);
+}
+
+/**
+ * True for the whole text of a routing discovery that got no answer from the ChatGPT backend. A turn of a ChatGPT
+ * login runs the same discovery before each model request, and fails with this text as its error.
+ */
+export function isWorkspaceRoutingUnavailableMessage(text: string): boolean {
+    return ACCOUNT_READ_UNAVAILABLE_MESSAGES.has(text);
 }
 
 /**

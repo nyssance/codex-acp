@@ -26,5 +26,11 @@ export type ThreadBackgroundTerminalsTerminateResponse = {
 };
 
 export type ThreadBackgroundTerminalsRequest =
-    | { method: "thread/backgroundTerminals/list"; params: ThreadBackgroundTerminalsListParams }
-    | { method: "thread/backgroundTerminals/terminate"; params: ThreadBackgroundTerminalsTerminateParams };
+    | {
+          method: "thread/backgroundTerminals/list";
+          params: ThreadBackgroundTerminalsListParams;
+      }
+    | {
+          method: "thread/backgroundTerminals/terminate";
+          params: ThreadBackgroundTerminalsTerminateParams;
+      };

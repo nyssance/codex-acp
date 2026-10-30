@@ -1,0 +1,15 @@
+[
+  {
+    "messageId": "call-question",
+    "content": {
+      "text": "Which environment?\n- Staging\n- Production",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "phase": "final_answer"
+      }
+    },
+    "sessionUpdate": "agent_message_chunk"
+  }
+]

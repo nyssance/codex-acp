@@ -1,5 +1,5 @@
-import type {Usage} from "@agentclientprotocol/sdk/unstable";
-import type {TokenUsageBreakdown} from "./app-server/v2";
+import type { Usage } from "@agentclientprotocol/sdk/unstable";
+import type { TokenUsageBreakdown } from "./app-server/v2";
 
 /**
  * Token usage information for a turn.
@@ -33,10 +33,14 @@ export interface TokenCount {
  * from a provider cannot produce a negative count.
  */
 export function toTokenCount(usage: TokenUsageBreakdown): TokenCount {
-
     return {
         totalTokens: usage.totalTokens,
-        inputTokens: Math.max(0, usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteInputTokens),
+        inputTokens: Math.max(
+            0,
+            usage.inputTokens -
+                usage.cachedInputTokens -
+                usage.cacheWriteInputTokens,
+        ),
         cachedInputTokens: usage.cachedInputTokens,
         cacheWriteInputTokens: usage.cacheWriteInputTokens,
         outputTokens: usage.outputTokens,
@@ -78,14 +82,19 @@ const TOKEN_COUNT_FIELDS = [
     "reasoningOutputTokens",
 ] as const satisfies ReadonlyArray<keyof TokenCount>;
 
-function combine(a: TokenCount, b: TokenCount, op: (x: number, y: number) => number): TokenCount {
+function combine(
+    a: TokenCount,
+    b: TokenCount,
+    op: (x: number, y: number) => number,
+): TokenCount {
     const result = {} as TokenCount;
-    for (const field of TOKEN_COUNT_FIELDS) result[field] = op(a[field], b[field]);
+    for (const field of TOKEN_COUNT_FIELDS)
+        result[field] = op(a[field], b[field]);
     return result;
 }
 
 function sameCount(a: TokenCount, b: TokenCount): boolean {
-    return TOKEN_COUNT_FIELDS.every(field => a[field] === b[field]);
+    return TOKEN_COUNT_FIELDS.every((field) => a[field] === b[field]);
 }
 
 /**
@@ -130,10 +139,16 @@ export class PromptTokenUsage {
             this.previousTotal = total;
             return;
         }
-        if (previous !== null && TOKEN_COUNT_FIELDS.some(field => total[field] < previous[field])) {
+        if (
+            previous !== null &&
+            TOKEN_COUNT_FIELDS.some((field) => total[field] < previous[field])
+        ) {
             this.totalWentBack = true;
         }
-        this.summedLast = this.summedLast === null ? {...last} : combine(this.summedLast, last, (x, y) => x + y);
+        this.summedLast =
+            this.summedLast === null
+                ? { ...last }
+                : combine(this.summedLast, last, (x, y) => x + y);
         this.previousTotal = total;
         this.latestTotal = total;
     }

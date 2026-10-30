@@ -1,9 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type {ServerNotification} from "./app-server";
-import {CODEX_PROCESS_EXITED_ERROR_CODE} from "./app-server-recovery/AppServerExit";
-import {readableServiceErrorMessage} from "./ServiceErrorMessage";
-import {ResponseError} from "vscode-jsonrpc";
+import type { ServerNotification } from "./app-server";
+import { CODEX_PROCESS_EXITED_ERROR_CODE } from "./app-server-recovery/AppServerExit";
+import { readableServiceErrorMessage } from "./ServiceErrorMessage";
+import { ResponseError } from "vscode-jsonrpc";
 
 /**
  * Lets a prompt report when Codex records its user message. On v2 that moment, not the turn
@@ -19,7 +19,10 @@ export type UserMessageInsertion = {
      * is echoed back. These turns run inside the original prompt's running…idle pair, so this
      * only emits the chunks: no response is resolved and no `state_update` is sent.
      */
-    onSyntheticInserted: (clientUserMessageId: string, prompt: acp.ContentBlock[]) => Promise<void>;
+    onSyntheticInserted: (
+        clientUserMessageId: string,
+        prompt: acp.ContentBlock[],
+    ) => Promise<void>;
     /**
      * Fired synchronously once, from the turn-start response, when Codex steers this prompt into
      * a turn that was already running and unowned (its `running` went out before this prompt
@@ -31,7 +34,7 @@ export type UserMessageInsertion = {
      * Fired synchronously each time a turn starts (or restarts) for this prompt, with the turn's
      * ids. Lets a pending `$/cancel_request` interrupt the right turn before insertion.
      */
-    onTurnStarted?: (turn: {threadId: string, turnId: string}) => void;
+    onTurnStarted?: (turn: { threadId: string; turnId: string }) => void;
     /** Reports terminal work failure without changing the v1 prompt response or depending on AIR. */
     onFailure?: (error: acpV2.Error) => void;
 };
@@ -47,24 +50,43 @@ export function isInsertedUserMessage(
     threadId: string,
     clientUserMessageId: string,
 ): boolean {
-    return (event.method === "item/started" || event.method === "item/completed")
-        && event.params.threadId === threadId
-        && event.params.item.type === "userMessage"
-        && event.params.item.clientId === clientUserMessageId;
+    return (
+        (event.method === "item/started" ||
+            event.method === "item/completed") &&
+        event.params.threadId === threadId &&
+        event.params.item.type === "userMessage" &&
+        event.params.item.clientId === clientUserMessageId
+    );
 }
 
-const V1_CONTENT_BLOCK_TYPES = new Set(["text", "image", "audio", "resource_link", "resource"]);
+const SUPPORTED_PROMPT_CONTENT_TYPES = new Set([
+    "text",
+    "image",
+    "resource_link",
+    "resource",
+]);
+
+export function assertPromptContentSupported(params: {
+    prompt: Array<{ type: string }>;
+}): void {
+    for (const block of params.prompt) {
+        if (!SUPPORTED_PROMPT_CONTENT_TYPES.has(block.type)) {
+            throw acp.RequestError.invalidParams(
+                undefined,
+                `Unsupported content block type: ${block.type}`,
+            );
+        }
+    }
+}
 
 /**
  * v2 content blocks are the v1 ones plus reserved custom/future types, which codex-acp does not
  * handle and rejects.
  */
-export function toV1PromptRequest(params: acpV2.PromptRequest): acp.PromptRequest {
-    for (const block of params.prompt) {
-        if (!V1_CONTENT_BLOCK_TYPES.has(block.type)) {
-            throw acp.RequestError.invalidParams(undefined, `Unsupported content block type: ${block.type}`);
-        }
-    }
+export function toV1PromptRequest(
+    params: acpV2.PromptRequest,
+): acp.PromptRequest {
+    assertPromptContentSupported(params);
     return params as acp.PromptRequest;
 }
 
@@ -72,24 +94,28 @@ export function toV1PromptRequest(params: acpV2.PromptRequest): acp.PromptReques
  * Carry v1 usage and metadata into v2, but report terminal failures through the standard error
  * stop reason. Cancellation takes precedence over errors raised while aborting work.
  */
-export function toV2IdleState(response: acp.PromptResponse, failure?: acpV2.Error | null): acpV2.StateUpdate {
+export function toV2IdleState(
+    response: acp.PromptResponse,
+    failure?: acpV2.Error | null,
+): acpV2.StateUpdate {
     const state = {
         state: "idle" as const,
-        ...(response.usage != null ? {usage: response.usage} : {}),
-        ...(response._meta != null ? {_meta: response._meta} : {}),
+        ...(response.usage != null ? { usage: response.usage } : {}),
+        ...(response._meta != null ? { _meta: response._meta } : {}),
     };
-    if (failure != null && response.stopReason !== "cancelled") return {...state, stopReason: "error", error: failure};
+    if (failure != null && response.stopReason !== "cancelled")
+        return { ...state, stopReason: "error", error: failure };
     switch (response.stopReason) {
         case "end_turn":
-            return {...state, stopReason: "end_turn"};
+            return { ...state, stopReason: "end_turn" };
         case "max_tokens":
-            return {...state, stopReason: "max_tokens"};
+            return { ...state, stopReason: "max_tokens" };
         case "max_turn_requests":
-            return {...state, stopReason: "max_turn_requests"};
+            return { ...state, stopReason: "max_turn_requests" };
         case "refusal":
-            return {...state, stopReason: "refusal"};
+            return { ...state, stopReason: "refusal" };
         case "cancelled":
-            return {...state, stopReason: "cancelled"};
+            return { ...state, stopReason: "cancelled" };
     }
 }
 
@@ -97,21 +123,35 @@ export function toV2IdleState(response: acp.PromptResponse, failure?: acpV2.Erro
 export function toV2Failure(error: unknown): acpV2.Error {
     if (error instanceof acp.RequestError || error instanceof ResponseError) {
         if (error.code === CODEX_PROCESS_EXITED_ERROR_CODE) {
-            return {code: error.code, message: "Connection to Codex was lost."};
+            return {
+                code: error.code,
+                message: "Connection to Codex was lost.",
+            };
         }
-        return {code: error.code, message: readableServiceErrorMessage(error.message)};
+        return {
+            code: error.code,
+            message: readableServiceErrorMessage(error.message),
+        };
     }
-    return {code: -32603, message: "Codex encountered an internal error."};
+    return { code: -32603, message: "Codex encountered an internal error." };
 }
 
 /**
  * The agent message that tells a v2 client why its prompt failed after it was inserted, when
  * there is no longer a request to answer with an error.
  */
-export function postInsertionFailureText(error: unknown, commandName?: string): string {
-    const message = error instanceof Error && error.message.length > 0 ? error.message : null;
+export function postInsertionFailureText(
+    error: unknown,
+    commandName?: string,
+): string {
+    const message =
+        error instanceof Error && error.message.length > 0
+            ? error.message
+            : null;
     if (commandName !== undefined) {
-        return message === null ? `The '/${commandName}' command failed.` : `The '/${commandName}' command failed: ${message}`;
+        return message === null
+            ? `The '/${commandName}' command failed.`
+            : `The '/${commandName}' command failed: ${message}`;
     }
     return message ?? "The prompt failed.";
 }

@@ -1,6 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import {afterEach, expect, it} from "vitest";
-import {legacySetSessionModel, type LegacyLoadSessionResponse} from "../../../AcpExtensions";
+import { afterEach, expect, it } from "vitest";
+import {
+    legacySetSessionModel,
+    type LegacyLoadSessionResponse,
+} from "../../../AcpExtensions";
 import {
     createAuthenticatedFixture,
     describeE2E,
@@ -22,9 +25,13 @@ describeE2E("E2E session persistence tests", () => {
     // Temporarily disabled as flaky
     it.skip("persists a session across ACP process restart", async () => {
         beforeRestartFixture = await createAuthenticatedFixture();
-        const sessionId = (await beforeRestartFixture.createSession()).sessionId;
+        const sessionId = (await beforeRestartFixture.createSession())
+            .sessionId;
 
-        await legacySetSessionModel(beforeRestartFixture.connection, {sessionId, modelId: OTHER_TEST_MODEL_ID.toString()});
+        await legacySetSessionModel(beforeRestartFixture.connection, {
+            sessionId,
+            modelId: OTHER_TEST_MODEL_ID.toString(),
+        });
         const memorizedToken = "token-for-tests-123";
         await beforeRestartFixture.expectPromptText(
             sessionId,
@@ -34,12 +41,18 @@ describeE2E("E2E session persistence tests", () => {
 
         afterRestartFixture = await beforeRestartFixture.restart();
 
-        const loadSessionResponse = await afterRestartFixture.connection.request(acp.methods.agent.session.load, {
-            sessionId,
-            cwd: afterRestartFixture.workspaceDir,
-            mcpServers: [],
-        }) as LegacyLoadSessionResponse;
-        expect(loadSessionResponse.models?.currentModelId).toBe(OTHER_TEST_MODEL_ID.toString());
+        const loadSessionResponse =
+            (await afterRestartFixture.connection.request(
+                acp.methods.agent.session.load,
+                {
+                    sessionId,
+                    cwd: afterRestartFixture.workspaceDir,
+                    mcpServers: [],
+                },
+            )) as LegacyLoadSessionResponse;
+        expect(loadSessionResponse.models?.currentModelId).toBe(
+            OTHER_TEST_MODEL_ID.toString(),
+        );
 
         await afterRestartFixture.expectPromptText(
             sessionId,

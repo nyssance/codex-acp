@@ -1,42 +1,42 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing release tag to publish
-        required: true
-        type: string
+    release:
+        types: [published]
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: Existing release tag to publish
+                required: true
+                type: string
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: npm-publish
-  cancel-in-progress: false
+    group: npm-publish
+    cancel-in-progress: false
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    environment: npm
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
-        with:
-          bun-version: latest
-      - name: Verify release identity
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: |
-          bun -e 'import p from "./package.json" with {type:"json"}; if (p.private || p.name !== "@nyssance/codex-acp-v2" || process.env.RELEASE_TAG !== `v${p.version}`) throw new Error("Release tag/package identity mismatch or package is private")'
-      - run: bun install --frozen-lockfile
-      - run: bun run check
-      - run: bun run test
-      - run: bun x --bun npm@latest publish --provenance --access public
+    publish:
+        runs-on: ubuntu-latest
+        environment: npm
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ github.event.release.tag_name || inputs.tag }}
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+              with:
+                  bun-version: latest
+            - name: Verify release identity
+              env:
+                  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+              run: |
+                  bun -e 'import p from "./package.json" with {type:"json"}; if (p.private || p.name !== "@nyssance/codex-acp-v2" || process.env.RELEASE_TAG !== `v${p.version}`) throw new Error("Release tag/package identity mismatch or package is private")'
+            - run: bun install --frozen-lockfile
+            - run: bun run check
+            - run: bun run test
+            - run: bun x --bun npm@latest publish --provenance --access public

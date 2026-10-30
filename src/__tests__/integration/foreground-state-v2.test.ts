@@ -220,14 +220,18 @@ describeIntegration("integration: ACP v2 foreground state", () => {
                             "available_commands_update",
                     ),
                 ).toBe(false);
-                expect(
-                    updates
-                        .filter(
-                            ({ update }) =>
-                                update.sessionUpdate === "state_update",
-                        )
-                        .map(({ update }) => update),
-                ).toEqual([{ sessionUpdate: "state_update", state: "idle" }]);
+                await vi.waitFor(() => {
+                    expect(
+                        updates
+                            .filter(
+                                ({ update }) =>
+                                    update.sessionUpdate === "state_update",
+                            )
+                            .map(({ update }) => update),
+                    ).toEqual([
+                        { sessionUpdate: "state_update", state: "idle" },
+                    ]);
+                });
                 const replayedMessages = updates.some(
                     ({ update }) =>
                         update.sessionUpdate === "user_message" ||

@@ -1,5 +1,5 @@
-import type {ServerNotification} from "../app-server";
-import {logger} from "../Logger";
+import type { ServerNotification } from "../app-server";
+import { logger } from "../Logger";
 
 /** The notification field that carries appended text, per delta method. */
 const DELTA_FIELDS: Partial<Record<ServerNotification["method"], string>> = {
@@ -25,21 +25,39 @@ export class PendingNotificationBuffer {
     private bytes = 0;
     private dropped = 0;
 
-    constructor(private readonly threadId: string, private readonly maxBytes = PendingNotificationBuffer.MAX_BYTES) {}
+    constructor(
+        private readonly threadId: string,
+        private readonly maxBytes = PendingNotificationBuffer.MAX_BYTES,
+    ) {}
 
     push(notification: ServerNotification): void {
         const deltaField = DELTA_FIELDS[notification.method];
         const last = this.notifications.at(-1);
-        if (deltaField !== undefined && last !== undefined && sameStream(last, notification, deltaField)) {
-            const delta = String((notification.params as Record<string, unknown>)[deltaField] ?? "");
+        if (
+            deltaField !== undefined &&
+            last !== undefined &&
+            sameStream(last, notification, deltaField)
+        ) {
+            const delta = String(
+                (notification.params as Record<string, unknown>)[deltaField] ??
+                    "",
+            );
             if (!this.reserve(serializedDeltaBytes(delta))) return;
             const params = last.params as Record<string, unknown>;
-            (last as {params: Record<string, unknown>}).params = {...params, [deltaField]: `${params[deltaField]}${delta}`};
+            (last as { params: Record<string, unknown> }).params = {
+                ...params,
+                [deltaField]: `${params[deltaField]}${delta}`,
+            };
             return;
         }
-        if (!this.reserve(Buffer.byteLength(JSON.stringify(notification), "utf8"))) return;
+        if (
+            !this.reserve(
+                Buffer.byteLength(JSON.stringify(notification), "utf8"),
+            )
+        )
+            return;
         // A copy, because a merge replaces the params of the stored notification.
-        this.notifications.push({...notification});
+        this.notifications.push({ ...notification });
     }
 
     take(): ServerNotification[] {
@@ -58,7 +76,9 @@ export class PendingNotificationBuffer {
         }
         this.dropped += 1;
         if (this.dropped === 1) {
-            logger.log(`Pending subagent ${this.threadId} exceeded the notification buffer of ${this.maxBytes} bytes; dropping updates`);
+            logger.log(
+                `Pending subagent ${this.threadId} exceeded the notification buffer of ${this.maxBytes} bytes; dropping updates`,
+            );
         }
         return false;
     }
@@ -72,8 +92,14 @@ function serializedDeltaBytes(delta: string): number {
     return Buffer.byteLength(JSON.stringify(delta), "utf8") - 2;
 }
 
-function sameStream(previous: ServerNotification, next: ServerNotification, deltaField: string): boolean {
+function sameStream(
+    previous: ServerNotification,
+    next: ServerNotification,
+    deltaField: string,
+): boolean {
     if (previous.method !== next.method) return false;
-    return JSON.stringify({...previous.params, [deltaField]: null})
-        === JSON.stringify({...next.params, [deltaField]: null});
+    return (
+        JSON.stringify({ ...previous.params, [deltaField]: null }) ===
+        JSON.stringify({ ...next.params, [deltaField]: null })
+    );
 }

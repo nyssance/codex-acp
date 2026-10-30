@@ -15,7 +15,7 @@ export function toV1ClientCapabilitiesView(
 ): acp.ClientCapabilities {
     const view: acp.ClientCapabilities = {
         plan: {},
-        session: {compaction: {}, notices: {}},
+        session: { compaction: {}, notices: {} },
     };
     if (!capabilities) {
         return view;
@@ -24,10 +24,10 @@ export function toV1ClientCapabilitiesView(
         view.elicitation = capabilities.elicitation;
     }
     if (capabilities.auth) {
-        const {terminal, _meta} = capabilities.auth;
+        const { terminal, _meta } = capabilities.auth;
         view.auth = {
-            ...(terminal != null ? {terminal: true} : {}),
-            ...(_meta != null ? {_meta} : {}),
+            ...(terminal != null ? { terminal: true } : {}),
+            ...(_meta != null ? { _meta } : {}),
         };
     }
     if (capabilities._meta != null) {

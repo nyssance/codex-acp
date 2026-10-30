@@ -2,23 +2,25 @@
 
 The adapter owns ACP client state and protocol handling. Runtime transports remain in @alwith/api.
 
-| Entry | Contents |
-| --- | --- |
-| `@alwith/api/runtime` | The `RuntimeClient` interface and frame protocol types, `WebSocketRuntimeClient` (`alwith-runtime --listen ws://`), and errors |
-| `@nyssance/codex-acp-v2/client` | `Agents` / `Agent` (start, attach, swap engine, exit) and `AgentRequests` (the to-do ledger for permissions and questionnaires) |
+| Entry                           | Contents                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@alwith/api/runtime`           | The `RuntimeClient` interface and frame protocol types, `WebSocketRuntimeClient` (`alwith-runtime --listen ws://`), and errors                               |
+| `@nyssance/codex-acp-v2/client` | `Agents` / `Agent` (start, attach, swap engine, exit) and `AgentRequests` (the to-do ledger for permissions and questionnaires)                              |
 | `@nyssance/codex-acp-v2/client` | Folds `session/update` frames into one renderable session: `applyUpdate`, `SessionStore`, `turns`. See [session-state.md](session-state.md) for the criteria |
-| `@alwith/api/tauri` | `TauriRuntimeClient`: the host's Rust relays the stdio child process through Tauri events |
-| `@alwith/api/node` | `ProcessRuntimeClient`: spawns `alwith-runtime --listen stdio://` itself |
+| `@alwith/api/tauri`             | `TauriRuntimeClient`: the host's Rust relays the stdio child process through Tauri events                                                                    |
+| `@alwith/api/node`              | `ProcessRuntimeClient`: spawns `alwith-runtime --listen stdio://` itself                                                                                     |
 
 All three transports extend `FrameRuntimeClient`; extend it to build your own transport.
 
 ```ts
-import { WebSocketRuntimeClient } from "@alwith/api/runtime"
+import { WebSocketRuntimeClient } from "@alwith/api/runtime";
 
-const port = new WebSocketRuntimeClient(url, token)
-await port.start("codex", { engine: "codex", cwd })
-const { sessionId } = await port.sessionNew("codex", cwd)
-const { stopReason } = await port.prompt("codex", sessionId, [{ type: "text", text: "Hello" }])
+const port = new WebSocketRuntimeClient(url, token);
+await port.start("codex", { engine: "codex", cwd });
+const { sessionId } = await port.sessionNew("codex", cwd);
+const { stopReason } = await port.prompt("codex", sessionId, [
+    { type: "text", text: "Hello" },
+]);
 ```
 
 ## The agents you hold: `Agents`
@@ -52,7 +54,6 @@ and parameter types, as in the SDK. The Runtime still owns transport routing; th
 not create a second SDK connection. The SDK's `cancellationSignal` requests cooperative cancellation: the original
 request remains pending until the agent replies or the transport fails. Even a
 pre-aborted signal sends the request before `$/cancel_request`, matching the SDK.
-
 
 The protocol reference is [PROTOCOL.md](../../PROTOCOL.md) at the repo root; this package is its application side.
 
@@ -107,7 +108,6 @@ operation is not evidence of remote cancellation, and a missing receipt is not
 evidence that a prompt was refused. Callers must fence late receipts against the
 original binding and local insertion before changing session state.
 
-
 `SessionGenerations` provides opaque local attachment identities. Capture at dispatch,
 check before applying asynchronous results, and retire on close, stop or replay.
 Clear on Agent replacement or disconnect. This works even when a session ID and
@@ -122,7 +122,6 @@ Trackers default to 256 pending submissions and 4096 observed message IDs per
 session. Pending overflow refuses dispatch; evidence overflow fails the affected
 session's completion tracking with an explicit unknown outcome. Neither claims
 remote cancellation or retries a potentially accepted submission.
-
 
 ## Coordinated session lifetime
 

@@ -20,6 +20,7 @@ import { expectConformingV2SessionUpdates } from "./v2-session-update-guard";
 
 const image = {
     type: "imageGeneration",
+    generationId: null,
     id: "generated-image",
     status: "completed",
     revisedPrompt: null,
@@ -84,6 +85,7 @@ describe("image generation over ACP v2", () => {
         client.emit(
             itemStarted({
                 type: "imageGeneration",
+                generationId: null,
                 id: image.id,
                 status: "generating",
                 revisedPrompt: null,

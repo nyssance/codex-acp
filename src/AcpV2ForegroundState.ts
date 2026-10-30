@@ -1,7 +1,7 @@
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {logger} from "./Logger";
+import { logger } from "./Logger";
 
-type Activity = "idle" | "running" | "requires_action";
+type Activity = "idle" | "running" | "requires_action" | "unknown";
 
 /** Session state and its wire order are independent of prompt acceptance and individual requests. */
 export class AcpV2ForegroundState {
@@ -14,42 +14,50 @@ export class AcpV2ForegroundState {
 
     constructor(
         private readonly notify: (state: acpV2.StateUpdate) => Promise<void>,
-        running = false,
+        running: boolean | "unknown" = false,
     ) {
-        this.activity = running ? "running" : "idle";
+        this.activity =
+            running === "unknown" ? "unknown" : running ? "running" : "idle";
     }
 
     async update(state: acpV2.StateUpdate): Promise<void> {
-        if (state.state === "idle") {
+        if (state.state === "idle" || state.state === "unknown") {
             this.items.clear();
             this.actions.clear();
-            if (this.activity === "idle") return this.sending;
-            this.activity = "idle";
-        } else if (state.state === "running" || state.state === "requires_action") {
+            if (this.activity === state.state) return this.sending;
+            this.activity = state.state;
+        } else if (
+            state.state === "running" ||
+            state.state === "requires_action"
+        ) {
             if (this.activity === state.state) return this.sending;
             this.activity = state.state;
         }
         const generation = this.generation;
         await this.publish(state);
-        if (state.state === "idle" && this.generation === generation) this.messageId = undefined;
+        if (state.state === "idle" && this.generation === generation)
+            this.messageId = undefined;
     }
 
     /** A newly accepted runtime turn or local command is evidence of foreground work. */
     async start(messageId?: string): Promise<void> {
         this.generation += 1;
         this.messageId = messageId;
-        if (this.activity === "idle" || this.actions.size === 0) await this.update({state: "running"});
+        if (this.activity === "idle" || this.actions.size === 0)
+            await this.update({ state: "running" });
     }
 
     /** Snapshots never repeat completion usage or failure metadata. */
     snapshot(): Promise<void> {
         switch (this.activity) {
             case "idle":
-                return this.publish({state: "idle"});
+                return this.publish({ state: "idle" });
             case "running":
-                return this.publish({state: "running"});
+                return this.publish({ state: "running" });
             case "requires_action":
-                return this.publish({state: "requires_action"});
+                return this.publish({ state: "requires_action" });
+            case "unknown":
+                return this.publish({ state: "unknown" });
         }
     }
 
@@ -61,10 +69,15 @@ export class AcpV2ForegroundState {
 
     async completeItem(itemId: string): Promise<void> {
         this.items.delete(itemId);
-        if (this.activity !== "idle" && this.actions.size > 0) await this.reportActionState();
+        if (this.activity !== "idle" && this.actions.size > 0)
+            await this.reportActionState();
     }
 
-    async withUserAction<T>(itemId: string | undefined, request: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    async withUserAction<T>(
+        itemId: string | undefined,
+        request: () => Promise<T>,
+        signal?: AbortSignal,
+    ): Promise<T> {
         if (signal?.aborted) return request();
         const action = Symbol();
         this.actions.set(action, itemId);
@@ -75,7 +88,8 @@ export class AcpV2ForegroundState {
             return await request();
         } finally {
             // An idle boundary invalidates old waits, even if a new turn has already started.
-            if (this.actions.delete(action) && !signal?.aborted) await this.reportActionStateSafely();
+            if (this.actions.delete(action) && !signal?.aborted)
+                await this.reportActionStateSafely();
         }
     }
 
@@ -87,11 +101,20 @@ export class AcpV2ForegroundState {
         this.actions.clear();
     }
 
+    invalidate(): void {
+        this.activity = "unknown";
+        this.items.clear();
+        this.actions.clear();
+    }
+
     private reportActionState(): Promise<void> {
         const blockedItems = new Set(this.actions.values());
-        const runnable = [...this.items].some(itemId => !blockedItems.has(itemId));
-        if (runnable) return this.update({state: "running"});
-        if (this.actions.size > 0) return this.update({state: "requires_action"});
+        const runnable = [...this.items].some(
+            (itemId) => !blockedItems.has(itemId),
+        );
+        if (runnable) return this.update({ state: "running" });
+        if (this.actions.size > 0)
+            return this.update({ state: "requires_action" });
         // An answer alone does not establish that foreground progress has resumed.
         return this.sending;
     }
@@ -100,17 +123,34 @@ export class AcpV2ForegroundState {
         try {
             await this.reportActionState();
         } catch (error) {
-            logger.error("Failed to report foreground user-action state", error);
+            logger.error(
+                "Failed to report foreground user-action state",
+                error,
+            );
         }
     }
 
     private publish(state: acpV2.StateUpdate): Promise<void> {
         // Capture ownership before queueing; a later prompt cannot relabel an older frame.
         const meta = state._meta as Record<string, unknown> | null | undefined;
-        const correlated = this.messageId === undefined ? state : {...state, _meta: {
-            ...meta, alwith: {...(meta?.["alwith"] as object | undefined), messageId: this.messageId},
-        }};
-        const sent = this.sending.then(() => this.notify(correlated));
+        const correlated =
+            this.messageId === undefined
+                ? state
+                : {
+                      ...state,
+                      _meta: {
+                          ...meta,
+                          alwith: {
+                              ...(meta?.["alwith"] as object | undefined),
+                              messageId: this.messageId,
+                          },
+                      },
+                  };
+        return this.serializePublication(() => this.notify(correlated));
+    }
+
+    serializePublication(publish: () => Promise<void>): Promise<void> {
+        const sent = this.sending.then(publish);
         this.sending = sent.catch(() => {});
         return sent;
     }

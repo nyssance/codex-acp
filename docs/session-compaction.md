@@ -4,11 +4,11 @@ The adapter implements the [ACP session compaction RFD](https://agentclientproto
 
 ```json
 {
-  "clientCapabilities": {
-    "session": {
-      "compaction": {}
+    "clientCapabilities": {
+        "session": {
+            "compaction": {}
+        }
     }
-  }
 }
 ```
 

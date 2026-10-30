@@ -858,7 +858,13 @@ export class SessionClient<State extends ClientState = ClientState> {
                     }));
                 else
                     this.listSession({
-                        ...this.summaryOf({ sessionId: session.id, cwd, ...(response._meta ? { _meta: response._meta } : {}) }),
+                        ...this.summaryOf({
+                            sessionId: session.id,
+                            cwd,
+                            ...(response._meta
+                                ? { _meta: response._meta }
+                                : {}),
+                        }),
                         updatedAt: new Date().toISOString(),
                     });
             },
@@ -1412,7 +1418,9 @@ export class SessionClient<State extends ClientState = ClientState> {
                 sessionId: response.sessionId,
                 cwd,
                 title: forked.title,
-                ...(response._meta === undefined ? {} : { _meta: response._meta }),
+                ...(response._meta === undefined
+                    ? {}
+                    : { _meta: response._meta }),
             }),
             updatedAt: new Date().toISOString(),
         });

@@ -20,9 +20,9 @@ describe("CodexEventHandler - session info updates", () => {
             ],
         });
 
-        await expect(`${mockFixture.getAcpConnectionDump([])}\n`).toMatchFileSnapshot(
-            "data/session-info-update-fallback-title.json"
-        );
+        await expect(
+            `${mockFixture.getAcpConnectionDump([])}\n`,
+        ).toMatchFileSnapshot("data/session-info-update-fallback-title.json");
     });
 
     it("cuts a long fallback session title to the limit", async () => {
@@ -38,7 +38,15 @@ describe("CodexEventHandler - session info updates", () => {
 
         expect(mockFixture.getAcpConnectionEvents([])).toContainEqual({
             method: "sessionUpdate",
-            args: [{ sessionId, update: { sessionUpdate: "session_info_update", title: `${"a".repeat(MAX_SESSION_TITLE_LENGTH - 1)}…` } }],
+            args: [
+                {
+                    sessionId,
+                    update: {
+                        sessionUpdate: "session_info_update",
+                        title: `${"a".repeat(MAX_SESSION_TITLE_LENGTH - 1)}…`,
+                    },
+                },
+            ],
         });
     });
 
@@ -63,7 +71,15 @@ describe("CodexEventHandler - session info updates", () => {
         await vi.waitFor(() => {
             expect(mockFixture.getAcpConnectionEvents([])).toContainEqual({
                 method: "sessionUpdate",
-                args: [{ sessionId, update: { sessionUpdate: "session_info_update", title: `${"b".repeat(MAX_SESSION_TITLE_LENGTH - 1)}…` } }],
+                args: [
+                    {
+                        sessionId,
+                        update: {
+                            sessionUpdate: "session_info_update",
+                            title: `${"b".repeat(MAX_SESSION_TITLE_LENGTH - 1)}…`,
+                        },
+                    },
+                ],
             });
         });
     });
@@ -91,17 +107,35 @@ describe("CodexEventHandler - session info updates", () => {
             sessionIndexExplicitTitle: "Explicit",
             automaticTitleEcho: "Automatic",
         });
-        await mockFixture.getCodexAcpAgent().prompt({ sessionId, prompt: [{ type: "text", text: "test" }] });
+        await mockFixture
+            .getCodexAcpAgent()
+            .prompt({ sessionId, prompt: [{ type: "text", text: "test" }] });
         mockFixture.clearAcpConnectionDump();
 
-        mockFixture.sendServerNotification({ method: "thread/name/updated", params: { threadId: sessionId, threadName: "Automatic" } });
-        mockFixture.sendServerNotification({ method: "thread/name/updated", params: { threadId: sessionId, threadName: "Explicit" } });
+        mockFixture.sendServerNotification({
+            method: "thread/name/updated",
+            params: { threadId: sessionId, threadName: "Automatic" },
+        });
+        mockFixture.sendServerNotification({
+            method: "thread/name/updated",
+            params: { threadId: sessionId, threadName: "Explicit" },
+        });
 
         await vi.waitFor(() => {
-            expect(mockFixture.getAcpConnectionEvents([])).toEqual([{
-                method: "sessionUpdate",
-                args: [{ sessionId, update: { sessionUpdate: "session_info_update", title: "Explicit" } }],
-            }]);
+            expect(mockFixture.getAcpConnectionEvents([])).toEqual([
+                {
+                    method: "sessionUpdate",
+                    args: [
+                        {
+                            sessionId,
+                            update: {
+                                sessionUpdate: "session_info_update",
+                                title: "Explicit",
+                            },
+                        },
+                    ],
+                },
+            ]);
         });
     });
 
@@ -113,16 +147,24 @@ describe("CodexEventHandler - session info updates", () => {
             sessionIndexExplicitTitle: "Explicit",
             automaticTitleEcho: "Automatic",
         });
-        await mockFixture.getCodexAcpAgent().prompt({ sessionId, prompt: [{ type: "text", text: "test" }] });
+        await mockFixture
+            .getCodexAcpAgent()
+            .prompt({ sessionId, prompt: [{ type: "text", text: "test" }] });
         mockFixture.clearAcpConnectionDump();
 
         for (const threadName of ["Explicit", "From the TUI", "Automatic"]) {
-            mockFixture.sendServerNotification({ method: "thread/name/updated", params: { threadId: sessionId, threadName } });
+            mockFixture.sendServerNotification({
+                method: "thread/name/updated",
+                params: { threadId: sessionId, threadName },
+            });
         }
 
         await vi.waitFor(() => {
-            expect(mockFixture.getAcpConnectionEvents([]).map(event => event.args[0].update.title))
-                .toEqual(["Explicit", "From the TUI", "Automatic"]);
+            expect(
+                mockFixture
+                    .getAcpConnectionEvents([])
+                    .map((event) => event.args[0].update.title),
+            ).toEqual(["Explicit", "From the TUI", "Automatic"]);
         });
     });
 
@@ -160,9 +202,9 @@ describe("CodexEventHandler - session info updates", () => {
             expect(mockFixture.getAcpConnectionEvents([])).toHaveLength(2);
         });
 
-        await expect(`${mockFixture.getAcpConnectionDump([])}\n`).toMatchFileSnapshot(
-            "data/session-info-update-title.json"
-        );
+        await expect(
+            `${mockFixture.getAcpConnectionDump([])}\n`,
+        ).toMatchFileSnapshot("data/session-info-update-title.json");
     });
 
     it("maps Codex thread lifecycle metadata to ACP session info updates", async () => {
@@ -214,8 +256,8 @@ describe("CodexEventHandler - session info updates", () => {
             expect(mockFixture.getAcpConnectionEvents([])).toHaveLength(4);
         });
 
-        await expect(`${mockFixture.getAcpConnectionDump([])}\n`).toMatchFileSnapshot(
-            "data/session-info-update-metadata.json"
-        );
+        await expect(
+            `${mockFixture.getAcpConnectionDump([])}\n`,
+        ).toMatchFileSnapshot("data/session-info-update-metadata.json");
     });
 });

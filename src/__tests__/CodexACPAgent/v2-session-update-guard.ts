@@ -1,6 +1,6 @@
-import {expect} from 'vitest';
-import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import {DIFF_GIT_PATCH_META_KEY} from '../../AcpV2SessionUpdate';
+import { expect } from "vitest";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import { DIFF_GIT_PATCH_META_KEY } from "../../AcpV2SessionUpdate";
 
 type Guard = (update: acpV2.SessionUpdate) => boolean;
 
@@ -9,16 +9,28 @@ const knownVariantGuards: Guard[] = Object.entries(acpV2.SessionUpdate)
     .map(([, guard]) => guard as Guard);
 
 /** Private v1 tool call `_meta` keys for command output; v2 sends standard terminal updates instead. */
-const privateTerminalMetaKeys = ["terminal_info", "terminal_output", "terminal_output_delta", "terminal_exit"];
+const privateTerminalMetaKeys = [
+    "terminal_info",
+    "terminal_output",
+    "terminal_output_delta",
+    "terminal_exit",
+];
 
 function isBase64(data: unknown): boolean {
-    return typeof data === "string" && data.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(data);
+    return (
+        typeof data === "string" &&
+        data.length % 4 === 0 &&
+        /^[A-Za-z0-9+/]*={0,2}$/.test(data)
+    );
 }
 
 const messageTags = new Set([
-    "user_message_chunk", "user_message",
-    "agent_message_chunk", "agent_message",
-    "agent_thought_chunk", "agent_thought",
+    "user_message_chunk",
+    "user_message",
+    "agent_message_chunk",
+    "agent_message",
+    "agent_thought_chunk",
+    "agent_thought",
 ]);
 
 /**
@@ -29,23 +41,32 @@ const messageTags = new Set([
  * `_`, and standard ones must match their v2 schema. Terminal bytes must be base64, `cwd` and diff
  * paths absolute, and v1's private terminal and diff `_meta` keys must not reach the client.
  */
-export function v2SessionUpdateViolation(update: acpV2.SessionUpdate): string | null {
+export function v2SessionUpdateViolation(
+    update: acpV2.SessionUpdate,
+): string | null {
     const tag: unknown = update.sessionUpdate;
     if (typeof tag !== "string") {
         return `sessionUpdate is not a string: ${JSON.stringify(update)}`;
     }
     if (acpV2.SessionUpdate.isCustom(update)) {
-        return tag.startsWith("_") ? null : `unknown unprefixed sessionUpdate '${tag}'`;
+        return tag.startsWith("_")
+            ? null
+            : `unknown unprefixed sessionUpdate '${tag}'`;
     }
-    if (!knownVariantGuards.some(guard => guard(update))) {
+    if (!knownVariantGuards.some((guard) => guard(update))) {
         return `'${tag}' does not match its v2 schema: ${JSON.stringify(update)}`;
     }
-    if (messageTags.has(tag) && (update as {messageId?: unknown}).messageId === "") {
+    if (
+        messageTags.has(tag) &&
+        (update as { messageId?: unknown }).messageId === ""
+    ) {
         return `'${tag}' has an empty messageId`;
     }
     if (tag === "tool_call_update") {
         const meta = (update as acpV2.ToolCallUpdate)._meta;
-        const leaked = privateTerminalMetaKeys.filter(key => meta != null && key in meta);
+        const leaked = privateTerminalMetaKeys.filter(
+            (key) => meta != null && key in meta,
+        );
         if (leaked.length > 0) {
             return `'${tag}' carries private terminal _meta keys: ${leaked.join(", ")}`;
         }
@@ -55,15 +76,23 @@ export function v2SessionUpdateViolation(update: acpV2.SessionUpdate): string | 
             if (diff._meta != null && DIFF_GIT_PATCH_META_KEY in diff._meta) {
                 return `'${tag}' diff carries the private '${DIFF_GIT_PATCH_META_KEY}' _meta key`;
             }
-            const relative = diff.changes.flatMap(change => [change.path, (change as {oldPath?: unknown}).oldPath])
-                .filter(changePath => changePath !== undefined && !String(changePath).startsWith("/"));
+            const relative = diff.changes
+                .flatMap((change) => [
+                    change.path,
+                    (change as { oldPath?: unknown }).oldPath,
+                ])
+                .filter(
+                    (changePath) =>
+                        changePath !== undefined &&
+                        !String(changePath).startsWith("/"),
+                );
             if (relative.length > 0) {
                 return `'${tag}' diff has relative paths: ${relative.join(", ")}`;
             }
         }
     }
     if (tag === "terminal_update") {
-        const {cwd, output} = update as acpV2.TerminalUpdate;
+        const { cwd, output } = update as acpV2.TerminalUpdate;
         if (cwd != null && !cwd.startsWith("/")) {
             return `'${tag}' has a relative cwd: ${cwd}`;
         }
@@ -71,7 +100,10 @@ export function v2SessionUpdateViolation(update: acpV2.SessionUpdate): string | 
             return `'${tag}' output is not base64: ${output.data}`;
         }
     }
-    if (tag === "terminal_output_chunk" && !isBase64((update as acpV2.TerminalOutputChunk).data)) {
+    if (
+        tag === "terminal_output_chunk" &&
+        !isBase64((update as acpV2.TerminalOutputChunk).data)
+    ) {
         return `'${tag}' data is not base64: ${(update as acpV2.TerminalOutputChunk).data}`;
     }
     return null;

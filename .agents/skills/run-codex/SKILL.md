@@ -27,13 +27,13 @@ npm run codex-test -- -p "Your prompt here"
 
 ### Options
 
-| Option | Short | Description | Default |
-|--------|-------|-------------|---------|
-| `--prompt` | `-p` | Prompt to send to Codex (required) | - |
-| `--cwd` | `-c` | Working directory for the session | Current dir |
-| `--output` | `-o` | Output format: `all`, `codex`, `acp`, `summary` | `all` |
-| `--json` | - | Output events as JSON | false |
-| `--help` | `-h` | Show help message | - |
+| Option     | Short | Description                                     | Default     |
+| ---------- | ----- | ----------------------------------------------- | ----------- |
+| `--prompt` | `-p`  | Prompt to send to Codex (required)              | -           |
+| `--cwd`    | `-c`  | Working directory for the session               | Current dir |
+| `--output` | `-o`  | Output format: `all`, `codex`, `acp`, `summary` | `all`       |
+| `--json`   | -     | Output events as JSON                           | false       |
+| `--help`   | `-h`  | Show help message                               | -           |
 
 ### Examples
 
@@ -59,16 +59,16 @@ npm run codex-test -- -p "Hello" --json | jq '.method'
 The script outputs events in real-time as they arrive:
 
 1. **Codex Events** (`[CODEX]`): Raw events from Codex app server
-   - `thread/started`, `turn/started`, `turn/completed`
-   - `item/started`, `item/completed`, `item/agentMessage/delta`
-   - `thread/tokenUsage/updated`, `account/rateLimits/updated`
+    - `thread/started`, `turn/started`, `turn/completed`
+    - `item/started`, `item/completed`, `item/agentMessage/delta`
+    - `thread/tokenUsage/updated`, `account/rateLimits/updated`
 
 2. **ACP Events** (`[ACP]`): Events sent to ACP connection
-   - `sessionUpdate` with various update types
+    - `sessionUpdate` with various update types
 
 3. **Summary**: Aggregated statistics
-   - Stop reason, duration, event counts
-   - Token usage breakdown (input, cached, output, reasoning, total)
-   - Event type frequency
+    - Stop reason, duration, event counts
+    - Token usage breakdown (input, cached, output, reasoning, total)
+    - Event type frequency
 
 4. **PromptResponse**: Full response object including `_meta.quota.token_count`

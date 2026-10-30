@@ -188,7 +188,6 @@ export function withFeatureChanges(
 ): RecordedMessage[] {
     const baselineMcp = JSON.stringify(canonical(BASELINE_MCP_COMMAND));
     return messages.map((message) => {
-
         if (
             message.direction === "response" &&
             message.method === "initialize"
@@ -216,8 +215,17 @@ export function withFeatureChanges(
         }
         const update = sessionUpdate(message);
         // Generated artifacts now carry the same identity in live and replayed events.
-        if (update?.["sessionUpdate"] === "tool_call" && update["title"] === "Image generation") {
-            return {...message, params: {...(message.params as Json), update: {...update, name: "image_generation"}}};
+        if (
+            update?.["sessionUpdate"] === "tool_call" &&
+            update["title"] === "Image generation"
+        ) {
+            return {
+                ...message,
+                params: {
+                    ...(message.params as Json),
+                    update: { ...update, name: "image_generation" },
+                },
+            };
         }
         if (update?.["sessionUpdate"] !== "available_commands_update")
             return message;
@@ -327,12 +335,27 @@ export function expectedFromBaseline(
     scenario: string,
     baseline: RecordedMessage[],
 ): RecordedMessage[] {
-    const messages = withFeatureChanges(withBugFixes(scenario, withoutAirOnlyMessages(baseline)));
+    const messages = withFeatureChanges(
+        withBugFixes(scenario, withoutAirOnlyMessages(baseline)),
+    );
     if (scenario !== "history-replay") return messages;
-    return messages.map(message => {
-        if (message.direction !== "response" || message.method !== "session/load") return message;
+    return messages.map((message) => {
+        if (
+            message.direction !== "response" ||
+            message.method !== "session/load"
+        )
+            return message;
         const params = message.params as Json;
-        return {...message, params: {...params, _meta: {...(params["_meta"] as Json ?? {}), codex: {projectId: null}}}};
+        return {
+            ...message,
+            params: {
+                ...params,
+                _meta: {
+                    ...((params["_meta"] as Json) ?? {}),
+                    codex: { projectId: null },
+                },
+            },
+        };
     });
 }
 

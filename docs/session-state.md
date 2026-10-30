@@ -10,17 +10,17 @@ tool status moving backwards, garbled boxes in the terminal.
 Not in here: what a bubble looks like, the composer, tool renderers, themes. That is each WorkBuddy's own face.
 
 ```ts
-import { createSession, SessionStore } from "@nyssance/codex-acp-v2/client"
+import { createSession, SessionStore } from "@nyssance/codex-acp-v2/client";
 
-const store = new SessionStore()
-store.set(createSession(sessionId, cwd))
+const store = new SessionStore();
+store.set(createSession(sessionId, cwd));
 
 // Feed each session/update from the agent in and get back the session's new shape
 port.onAcpNotification(({ method, params }) => {
-  if (method !== "session/update") return
-  const next = store.accept(params.sessionId, params.update)
-  render(next)
-})
+    if (method !== "session/update") return;
+    const next = store.accept(params.sessionId, params.update);
+    render(next);
+});
 ```
 
 `Session` is immutable: every update returns a new object, so the rendering layer can decide whether to redraw with a plain reference-equality check.
@@ -33,9 +33,9 @@ UIs are mostly laid out as question and answer, so the package also provides a g
 
 ```ts
 for (const turn of store.turns(sessionId)) {
-  render(turn.prompt)            // the user message that started this turn; the first turn of the history may have none
-  for (const entry of turn.entries) render(entry)   // this turn's answer, thinking and tools
-  showCost(turn.usage)           // this turn's usage, delivered by the closing idle frame
+    render(turn.prompt); // the user message that started this turn; the first turn of the history may have none
+    for (const entry of turn.entries) render(entry); // this turn's answer, thinking and tools
+    showCost(turn.usage); // this turn's usage, delivered by the closing idle frame
 }
 ```
 
@@ -59,13 +59,14 @@ and identical content or concurrent requests must not be resolved by guessing fr
 The connection layer uses `PromptTracker` to separate the insertion receipt from generation completion:
 
 ```ts
-const prompts = new PromptTracker()
+const prompts = new PromptTracker();
 // Send live session/update to both prompts.accept(sessionId, update) and store.accept.
 const completion = await prompts.run(
-  sessionId,
-  () => agent.request("session/prompt", { sessionId, prompt: content }),
-  response => store.acknowledgePrompt(sessionId, localId, response.messageId)
-)
+    sessionId,
+    () => agent.request("session/prompt", { sessionId, prompt: content }),
+    (response) =>
+        store.acknowledgePrompt(sessionId, localId, response.messageId),
+);
 // The matching idle has been received by now; read stopReason, usage and the end-of-turn _meta from completion.
 // On disconnect, abandoned connection or process replacement, call prompts.fail(error) to reject waits that have not completed.
 ```
@@ -83,12 +84,16 @@ and is replayed as a zombie dialog on the next attach); requests the agent withd
 hands over on attach is treated as just received; when you let go (hand over to another window, or the process is gone), none of them is answered.
 
 ```ts
-const requests = new AgentRequests((id, result, error) => agent.respond(id, result, error))
-agent.onAgentRequest(request => requests.receive(request))
-agent.onNotification((method, params) => requests.onNotification(method, params))
-requests.onChange(pending => render(pending))      // what dialog to show is up to you
-requests.answerPermission(toolCallId, { outcome: "selected", optionId })
-requests.cancelSession(sessionId)                  // Stop
+const requests = new AgentRequests((id, result, error) =>
+    agent.respond(id, result, error),
+);
+agent.onAgentRequest((request) => requests.receive(request));
+agent.onNotification((method, params) =>
+    requests.onNotification(method, params),
+);
+requests.onChange((pending) => render(pending)); // what dialog to show is up to you
+requests.answerPermission(toolCallId, { outcome: "selected", optionId });
+requests.cancelSession(sessionId); // Stop
 ```
 
 ## `_meta` accumulates across frames
@@ -120,9 +125,10 @@ subagent for display. ACP v2's `ToolCallUpdate` has no parent/child field; alwit
 
 ```ts
 const store = new SessionStore({
-  outlivesTurn: tool => tool._meta?.alwith?.runInBackground === true || tool.name === "Monitor",
-  parentOf: tool => tool._meta?.claudeCode?.parentToolUseId ?? null
-})
+    outlivesTurn: (tool) =>
+        tool._meta?.alwith?.runInBackground === true || tool.name === "Monitor",
+    parentOf: (tool) => tool._meta?.claudeCode?.parentToolUseId ?? null,
+});
 ```
 
 **Is tool output incremental or full.** For `tool_call_update.content` the protocol says only "the content produced by the tool",

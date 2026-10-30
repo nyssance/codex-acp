@@ -2,9 +2,9 @@
 // Read-only mode makes Codex ask for permission before writing.
 import fs from "node:fs";
 import path from "node:path";
-import {afterEach, beforeEach, expect, it} from "vitest";
-import {ApprovalOptionId} from "../../permissions/option-ids";
-import type {SpawnedAgentFixture} from "../CodexACPAgent/e2e/spawned-agent-fixture";
+import { afterEach, beforeEach, expect, it } from "vitest";
+import { ApprovalOptionId } from "../../permissions/option-ids";
+import type { SpawnedAgentFixture } from "../CodexACPAgent/e2e/spawned-agent-fixture";
 import {
     answerPermissions,
     connectAndLogin,
@@ -17,10 +17,16 @@ import {
     stopAll,
     toolCallUpdates,
 } from "./integration-fixture";
-import {applyPatchResponse, type MockResponsesServer, startMockResponsesServer, textResponse} from "./mock-responses-server";
+import {
+    applyPatchResponse,
+    type MockResponsesServer,
+    startMockResponsesServer,
+    textResponse,
+} from "./mock-responses-server";
 
 const CALL_ID = "call_patch";
-const ADD_HELLO_PATCH = "*** Begin Patch\n*** Add File: hello.txt\n+edit-ok\n*** End Patch\n";
+const ADD_HELLO_PATCH =
+    "*** Begin Patch\n*** Add File: hello.txt\n+edit-ok\n*** End Patch\n";
 
 describeIntegration("integration: file edit approval", () => {
     let mock: MockResponsesServer;
@@ -52,12 +58,17 @@ describeIntegration("integration: file edit approval", () => {
         const requests = agent.readPermissionRequests(sessionId, "edit");
         expect(requests).toHaveLength(1);
         const toolCall = requests[0]?.toolCall;
-        expect(toolCall?.locations?.some((l) => l.path.endsWith(fileName))).toBe(true);
+        expect(
+            toolCall?.locations?.some((l) => l.path.endsWith(fileName)),
+        ).toBe(true);
         return toolCall?.toolCallId;
     }
 
     /** The client was shown a diff of `fileName` on that tool call (permission requests carry only paths). */
-    function expectDiffShown(toolCallId: string | undefined, fileName: string): void {
+    function expectDiffShown(
+        toolCallId: string | undefined,
+        fileName: string,
+    ): void {
         const diffs = toolCallUpdates(agent, sessionId)
             .filter((u) => u.toolCallId === toolCallId)
             .flatMap((u) => u.content ?? [])
@@ -68,7 +79,13 @@ describeIntegration("integration: file edit approval", () => {
     /** Codex sent the patch result back to the model in its 2nd request. */
     function expectPatchResultSentToModel(): void {
         expect(mock.requests).toHaveLength(2);
-        expect(modelRequestInput(mock, 1).some((i) => i.type === "custom_tool_call_output" && i.call_id === CALL_ID)).toBe(true);
+        expect(
+            modelRequestInput(mock, 1).some(
+                (i) =>
+                    i.type === "custom_tool_call_output" &&
+                    i.call_id === CALL_ID,
+            ),
+        ).toBe(true);
     }
 
     /**
@@ -87,7 +104,10 @@ describeIntegration("integration: file edit approval", () => {
      */
     it("writes the file when the user allows the edit", async () => {
         // Script the model (send the patch, then "done") and the user (allow once).
-        mock.enqueue(applyPatchResponse(CALL_ID, ADD_HELLO_PATCH), textResponse("done"));
+        mock.enqueue(
+            applyPatchResponse(CALL_ID, ADD_HELLO_PATCH),
+            textResponse("done"),
+        );
         answerPermissions(agent, "edit", ApprovalOptionId.AllowOnce);
 
         // Send the prompt and wait for the turn to end.

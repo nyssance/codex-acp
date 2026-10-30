@@ -1,5 +1,5 @@
-import type {ReasoningEffort} from "./app-server";
-import type {Model} from "./app-server/v2";
+import type { ReasoningEffort } from "./app-server";
+import type { Model } from "./app-server/v2";
 
 /**
  * ACP Model ID, combining the base model ID and its reasoning effort level.
@@ -9,7 +9,7 @@ import type {Model} from "./app-server/v2";
 export class ModelId {
     private constructor(
         public readonly model: string,
-        public readonly effort: string
+        public readonly effort: string,
     ) {}
 
     static fromComponents(model: Model, effort: ReasoningEffort): ModelId {
@@ -21,12 +21,16 @@ export class ModelId {
     }
 
     static fromString(modelId: string): ModelId {
-        const bracketMatch = modelId.match(/^(?<model>[^\[]+?)(?:\[(?<effort>[^\]]+)\])?$/);
+        const bracketMatch = modelId.match(
+            /^(?<model>[^\[]+?)(?:\[(?<effort>[^\]]+)\])?$/,
+        );
         const model = bracketMatch?.groups?.["model"];
         const effort = bracketMatch?.groups?.["effort"];
 
         if (!model || !effort) {
-            throw new Error(`Unsupported format of modelId: ${modelId}. Expected: modelId[effort].`);
+            throw new Error(
+                `Unsupported format of modelId: ${modelId}. Expected: modelId[effort].`,
+            );
         }
 
         if (model) {

@@ -1,7 +1,7 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type {CompletedPlan} from "../../CodexEventHandler";
-import type {AcpToolCallRenderer} from "../AcpToolCallRenderer";
-import type {ToolFacts} from "../ToolFacts";
+import type { CompletedPlan } from "../../CodexEventHandler";
+import type { AcpToolCallRenderer } from "../AcpToolCallRenderer";
+import type { ToolFacts } from "../ToolFacts";
 
 const IMPLEMENT_PLAN_OPTION_ID = "implement_plan";
 const REVISE_PLAN_OPTION_ID = "revise_plan";
@@ -24,10 +24,14 @@ export class PlanReviewReporter {
                 title: "Implement this plan?",
                 kind: "switch_mode",
                 status: "pending",
-                input: {plan: plan.text},
+                input: { plan: plan.text },
             }),
             options: [
-                {optionId: IMPLEMENT_PLAN_OPTION_ID, name: "Yes, implement this plan", kind: "allow_once"},
+                {
+                    optionId: IMPLEMENT_PLAN_OPTION_ID,
+                    name: "Yes, implement this plan",
+                    kind: "allow_once",
+                },
                 {
                     optionId: REVISE_PLAN_OPTION_ID,
                     name: "No, and tell Codex what to do differently",
@@ -38,7 +42,10 @@ export class PlanReviewReporter {
     }
 
     static approved(response: acp.RequestPermissionResponse): boolean {
-        return response.outcome.outcome === "selected" && response.outcome.optionId === IMPLEMENT_PLAN_OPTION_ID;
+        return (
+            response.outcome.outcome === "selected" &&
+            response.outcome.optionId === IMPLEMENT_PLAN_OPTION_ID
+        );
     }
 
     static decided(plan: CompletedPlan, approved: boolean): ToolFacts {
@@ -46,7 +53,9 @@ export class PlanReviewReporter {
             toolCallId: planReviewToolCallId(plan),
             report: "update",
             status: "completed",
-            opaqueResult: approved ? "User approved the plan." : "User kept the session in plan mode.",
+            opaqueResult: approved
+                ? "User approved the plan."
+                : "User kept the session in plan mode.",
         };
     }
 }

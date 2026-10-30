@@ -403,13 +403,27 @@ export function createCodexMockTestFixture(
         response: { action: "cancel" },
     };
 
-    const mockProjects: Array<{ id: string; name: string; roots: unknown[] }> = [];
+    const mockProjects: Array<{ id: string; name: string; roots: unknown[] }> =
+        [];
     const mockCodexConnection = {
         sendRequest: (method: string, params?: any) => {
-            if (method === "project/list") return Promise.resolve({ data: mockProjects, nextCursor: null });
-            if (method === "project/read") return Promise.resolve({ project: mockProjects.find(project => project.id === params.projectId) });
+            if (method === "project/list")
+                return Promise.resolve({
+                    data: mockProjects,
+                    nextCursor: null,
+                });
+            if (method === "project/read")
+                return Promise.resolve({
+                    project: mockProjects.find(
+                        (project) => project.id === params.projectId,
+                    ),
+                });
             if (method === "project/create") {
-                const project = { id: `mock-project-${mockProjects.length + 1}`, name: params.name, roots: params.roots };
+                const project = {
+                    id: `mock-project-${mockProjects.length + 1}`,
+                    name: params.name,
+                    roots: params.roots,
+                };
                 mockProjects.push(project);
                 return Promise.resolve({ project });
             }
@@ -638,6 +652,7 @@ export function createTestSessionState(
                 sessionId,
             ),
             () => {},
+            () => ({ currentModel: null, availableModels: [] }),
         ),
         asyncTasks: new CodexBackgroundTerminalTasks(
             false,

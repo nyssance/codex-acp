@@ -187,12 +187,10 @@ describe("Gateway model discovery (providers/set)", () => {
         ).toBe("gpt-5.4[medium]");
 
         const turnStart = mockPromptTurn(fixture, response.sessionId);
-        await fixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId: response.sessionId,
-                prompt: [{ type: "text", text: "hi" }],
-            });
+        await fixture.getCodexAcpAgent().prompt({
+            sessionId: response.sessionId,
+            prompt: [{ type: "text", text: "hi" }],
+        });
         expect(turnStart).toHaveBeenCalledWith(
             expect.objectContaining({ model: "gpt-5.4", effort: "medium" }),
         );

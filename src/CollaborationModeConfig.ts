@@ -1,13 +1,15 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type {ReasoningEffort} from "./app-server";
-import type {ModeKind} from "./app-server/ModeKind";
-import {ModelId} from "./ModelId";
+import type { ReasoningEffort } from "./app-server";
+import type { ModeKind } from "./app-server/ModeKind";
+import { ModelId } from "./ModelId";
 
 export const COLLABORATION_MODE_CONFIG_ID = "collaboration_mode";
 export const DEFAULT_COLLABORATION_MODE: ModeKind = "default";
 export const PLAN_COLLABORATION_MODE: ModeKind = "plan";
 
-export function createCollaborationModeConfigOption(currentValue: ModeKind): acp.SessionConfigOption {
+export function createCollaborationModeConfigOption(
+    currentValue: ModeKind,
+): acp.SessionConfigOption {
     return {
         id: COLLABORATION_MODE_CONFIG_ID,
         name: "Collaboration mode",
@@ -16,8 +18,12 @@ export function createCollaborationModeConfigOption(currentValue: ModeKind): acp
         type: "select",
         currentValue,
         options: [
-            {value: DEFAULT_COLLABORATION_MODE, name: "Default"},
-            {value: PLAN_COLLABORATION_MODE, name: "Plan", description: "Plan before making changes"},
+            { value: DEFAULT_COLLABORATION_MODE, name: "Default" },
+            {
+                value: PLAN_COLLABORATION_MODE,
+                name: "Plan",
+                description: "Plan before making changes",
+            },
         ],
     };
 }
@@ -28,7 +34,10 @@ export function parseCollaborationMode(value: unknown): ModeKind | null {
     return null;
 }
 
-export function createCodexCollaborationMode(mode: ModeKind, currentModelId: string) {
+export function createCodexCollaborationMode(
+    mode: ModeKind,
+    currentModelId: string,
+) {
     const modelId = ModelId.fromString(currentModelId);
     return {
         mode,

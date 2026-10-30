@@ -1,4 +1,7 @@
-import type {SessionSteerRequest, SessionSteeringResponse} from "./AcpExtensions";
+import type {
+    SessionSteerRequest,
+    SessionSteeringResponse,
+} from "./AcpExtensions";
 
 interface QueuedSteering {
     params: SessionSteerRequest;
@@ -16,12 +19,14 @@ export class SteeringQueue {
     private processing = false;
 
     constructor(
-        private readonly handle: (params: SessionSteerRequest) => Promise<SessionSteeringResponse>,
+        private readonly handle: (
+            params: SessionSteerRequest,
+        ) => Promise<SessionSteeringResponse>,
     ) {}
 
     enqueue(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
         return new Promise<SessionSteeringResponse>((resolve, reject) => {
-            this.pending.push({params, resolve, reject});
+            this.pending.push({ params, resolve, reject });
             this.startConsumer();
         });
     }

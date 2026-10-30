@@ -1,8 +1,8 @@
-import { vi, expect, afterEach } from 'vitest';
-import {mkdtempSync, rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
-import type { CodexAcpServer } from '../../CodexAcpServer';
+import { vi, expect, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { CodexAcpServer } from "../../CodexAcpServer";
 
 export interface MockConnections {
     mockAcpConnection: any;
@@ -20,7 +20,7 @@ export function createMockConnections(): MockConnections {
 
     const mockAcpConnection = {
         sessionUpdate: vi.fn().mockResolvedValue(undefined),
-        readTextFile: vi.fn().mockResolvedValue({ content: 'file content' }),
+        readTextFile: vi.fn().mockResolvedValue({ content: "file content" }),
     };
 
     const mockCodexConnection = {
@@ -31,7 +31,7 @@ export function createMockConnections(): MockConnections {
         onNotification: vi.fn((method: string, handler: Function) => {
             notificationHandlers.set(method, handler);
         }),
-        onRequest: vi.fn((type: {method: string}, handler: Function) => {
+        onRequest: vi.fn((type: { method: string }, handler: Function) => {
             requestHandlers.set(type.method, handler);
         }),
         end: vi.fn(),
@@ -42,40 +42,51 @@ export function createMockConnections(): MockConnections {
         mockCodexConnection,
         notificationHandlers,
         getUnhandledNotificationHandler: () => unhandledNotificationHandler,
-        getRequestHandler: (method: string) => requestHandlers.get(method) ?? null,
+        getRequestHandler: (method: string) =>
+            requestHandlers.get(method) ?? null,
     };
 }
 
 export async function startPromptForEventHandlers(
     agent: CodexAcpServer,
     sessionId: string,
-    mocks: MockConnections
+    mocks: MockConnections,
 ): Promise<() => Promise<void>> {
     mocks.mockCodexConnection.sendRequest.mockResolvedValue(undefined);
 
     const promptPromise = agent.prompt({
         sessionId,
-        prompt: [{ type: 'text', text: 'test' }],
+        prompt: [{ type: "text", text: "test" }],
     });
 
     // wait for handlers to be registered
-    await vi.waitFor(() => {
-        expect(mocks.getUnhandledNotificationHandler()).not.toBeNull();
-    }, { timeout: 1000 });
+    await vi.waitFor(
+        () => {
+            expect(mocks.getUnhandledNotificationHandler()).not.toBeNull();
+        },
+        { timeout: 1000 },
+    );
 
     return async () => {
-        const taskCompleteHandler = mocks.notificationHandlers.get('codex/event/task_complete');
+        const taskCompleteHandler = mocks.notificationHandlers.get(
+            "codex/event/task_complete",
+        );
         if (taskCompleteHandler) {
-            taskCompleteHandler({ type: 'task_complete' });
+            taskCompleteHandler({ type: "task_complete" });
         }
         await promptPromise;
     };
 }
 
-export async function triggerEvent(mocks: MockConnections, event: any): Promise<void> {
+export async function triggerEvent(
+    mocks: MockConnections,
+    event: any,
+): Promise<void> {
     const handler = mocks.getUnhandledNotificationHandler();
     if (!handler) {
-        throw new Error('No unhandled notification handler registered. Did you call startPromptForEventHandlers?');
+        throw new Error(
+            "No unhandled notification handler registered. Did you call startPromptForEventHandlers?",
+        );
     }
     await handler({ params: { msg: event } });
 }
@@ -84,9 +95,13 @@ export async function testEventHandling(
     agent: CodexAcpServer,
     sessionId: string,
     mocks: MockConnections,
-    events: any | any[]
+    events: any | any[],
 ): Promise<void> {
-    const completePrompt = await startPromptForEventHandlers(agent, sessionId, mocks);
+    const completePrompt = await startPromptForEventHandlers(
+        agent,
+        sessionId,
+        mocks,
+    );
 
     const eventArray = Array.isArray(events) ? events : [events];
     for (const event of eventArray) {
@@ -97,9 +112,17 @@ export async function testEventHandling(
 }
 
 const testHomes: string[] = [];
-afterEach(() => { for (const home of testHomes.splice(0)) rmSync(home, {recursive: true, force: true}); });
+afterEach(() => {
+    for (const home of testHomes.splice(0))
+        rmSync(home, { recursive: true, force: true });
+});
 export function mockInitializeResponse() {
     const codexHome = mkdtempSync(join(tmpdir(), "acp-mock-home-"));
     testHomes.push(codexHome);
-    return {userAgent: "codex-test", codexHome, platformFamily: "unix", platformOs: "macos"};
+    return {
+        userAgent: "codex-test",
+        codexHome,
+        platformFamily: "unix",
+        platformOs: "macos",
+    };
 }

@@ -135,20 +135,25 @@ describeIntegration(
                         prompt: [{ type: "text", text }],
                     });
                     if (version === 2) {
+                        // Resume also sends an idle snapshot, which may arrive after its response.
+                        // Only a terminal update with a stop reason completes this prompt.
                         await vi.waitFor(
                             () => {
+                                const completed = updates
+                                    .slice(updateStart)
+                                    .find(
+                                        (entry) =>
+                                            entry.sessionId === sessionId &&
+                                            entry.update.sessionUpdate ===
+                                                "state_update" &&
+                                            entry.update.state === "idle" &&
+                                            entry.update.stopReason !==
+                                                undefined,
+                                    );
                                 expect(
-                                    updates
-                                        .slice(updateStart)
-                                        .some(
-                                            (entry) =>
-                                                entry.sessionId === sessionId &&
-                                                entry.update.sessionUpdate ===
-                                                    "state_update" &&
-                                                entry.update.state === "idle",
-                                        ),
+                                    completed?.update.stopReason,
                                     stderr,
-                                ).toBe(true);
+                                ).toBe("end_turn");
                             },
                             { timeout: 10_000 },
                         );

@@ -1,5 +1,5 @@
-import {describe, expect, it} from "vitest";
-import {ToolCallReports} from "../ToolCallReports";
+import { describe, expect, it } from "vitest";
+import { ToolCallReports } from "../ToolCallReports";
 
 describe("ToolCallReports", () => {
     it("removes fields that did not change since the start", () => {
@@ -10,18 +10,20 @@ describe("ToolCallReports", () => {
             kind: "search",
             title: "Web search: acp",
             status: "in_progress",
-            rawInput: {query: "acp"},
-            _meta: {codex: {tool: "web"}},
+            rawInput: { query: "acp" },
+            _meta: { codex: { tool: "web" } },
         });
 
-        expect(reports.prepare("s", {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "web-1",
-            title: "Web search: acp",
-            status: "completed",
-            rawInput: {query: "acp"},
-            _meta: {codex: {tool: "web"}},
-        })).toEqual({
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "web-1",
+                title: "Web search: acp",
+                status: "completed",
+                rawInput: { query: "acp" },
+                _meta: { codex: { tool: "web" } },
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "web-1",
             status: "completed",
@@ -36,26 +38,43 @@ describe("ToolCallReports", () => {
             toolCallId: "cmd-1",
             title: "npm test",
             status: "in_progress",
-            _meta: {terminal_info: {cwd: "/w", terminal_id: "cmd-1"}, codex: {tool: "exec"}},
+            _meta: {
+                terminal_info: { cwd: "/w", terminal_id: "cmd-1" },
+                codex: { tool: "exec" },
+            },
         });
 
-        expect(reports.prepare("s", {
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "cmd-1",
+                title: "npm test",
+                status: "completed",
+                _meta: {
+                    terminal_info: { cwd: "/w", terminal_id: "cmd-1" },
+                    codex: { tool: "exec" },
+                },
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
-            title: "npm test",
             status: "completed",
-            _meta: {terminal_info: {cwd: "/w", terminal_id: "cmd-1"}, codex: {tool: "exec"}},
-        })).toEqual({
-            sessionUpdate: "tool_call_update",
-            toolCallId: "cmd-1",
-            status: "completed",
-            _meta: {terminal_info: {cwd: "/w", terminal_id: "cmd-1"}, codex: {tool: "exec"}},
+            _meta: {
+                terminal_info: { cwd: "/w", terminal_id: "cmd-1" },
+                codex: { tool: "exec" },
+            },
         });
-        expect(reports.prepare("s", {
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "cmd-1",
+                _meta: { codex: { tool: "exec" } },
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
-            _meta: {codex: {tool: "exec"}},
-        })).toEqual({sessionUpdate: "tool_call_update", toolCallId: "cmd-1", _meta: {codex: {tool: "exec"}}});
+            _meta: { codex: { tool: "exec" } },
+        });
     });
 
     it("keeps fields that changed since the start", () => {
@@ -65,24 +84,26 @@ describe("ToolCallReports", () => {
             toolCallId: "web-1",
             title: "Web search",
             status: "in_progress",
-            rawInput: {query: ""},
-            _meta: {codex: {tool: "web"}, other: 1},
+            rawInput: { query: "" },
+            _meta: { codex: { tool: "web" }, other: 1 },
         });
 
-        expect(reports.prepare("s", {
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "web-1",
+                title: "Web search: acp",
+                status: "completed",
+                rawInput: { query: "acp" },
+                _meta: { codex: { tool: "web" }, other: 2 },
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "web-1",
             title: "Web search: acp",
             status: "completed",
-            rawInput: {query: "acp"},
-            _meta: {codex: {tool: "web"}, other: 2},
-        })).toEqual({
-            sessionUpdate: "tool_call_update",
-            toolCallId: "web-1",
-            title: "Web search: acp",
-            status: "completed",
-            rawInput: {query: "acp"},
-            _meta: {other: 2},
+            rawInput: { query: "acp" },
+            _meta: { other: 2 },
         });
     });
 
@@ -93,25 +114,34 @@ describe("ToolCallReports", () => {
             toolCallId: "search-1",
             title: "Search",
             status: "in_progress",
-            locations: [{path: "/a"}],
+            locations: [{ path: "/a" }],
         });
 
-        expect(reports.prepare("s", {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "search-1",
-            title: "Search",
-            status: "in_progress",
-            locations: [{path: "/a"}],
-        })).toBeNull();
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "search-1",
+                title: "Search",
+                status: "in_progress",
+                locations: [{ path: "/a" }],
+            }),
+        ).toBeNull();
     });
 
     it("never compares appended output chunks", () => {
         const reports = new ToolCallReports();
-        reports.prepare("s", {sessionUpdate: "tool_call", toolCallId: "cmd-1", title: "ls", status: "in_progress"});
+        reports.prepare("s", {
+            sessionUpdate: "tool_call",
+            toolCallId: "cmd-1",
+            title: "ls",
+            status: "in_progress",
+        });
         const chunk = {
             sessionUpdate: "tool_call_update" as const,
             toolCallId: "cmd-1",
-            _meta: {terminal_output_delta: {data: "same\n", terminal_id: "cmd-1"}},
+            _meta: {
+                terminal_output_delta: { data: "same\n", terminal_id: "cmd-1" },
+            },
         };
 
         expect(reports.prepare("s", chunk)).toEqual(chunk);
@@ -137,16 +167,34 @@ describe("ToolCallReports", () => {
             toolCallId: "t",
             title: "A",
             status: "in_progress" as const,
-            rawInput: {command: "ls"},
+            rawInput: { command: "ls" },
         };
         reports.prepare("s", start);
-        reports.prepare("s", {sessionUpdate: "tool_call_update", toolCallId: "t", status: "completed"});
+        reports.prepare("s", {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "t",
+            status: "completed",
+        });
 
-        expect(reports.prepare("s", {sessionUpdate: "tool_call_update", toolCallId: "t", title: "A"})).toBeNull();
-        const input = {sessionUpdate: "tool_call_update" as const, toolCallId: "t", rawInput: {command: "ls"}};
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "t",
+                title: "A",
+            }),
+        ).toBeNull();
+        const input = {
+            sessionUpdate: "tool_call_update" as const,
+            toolCallId: "t",
+            rawInput: { command: "ls" },
+        };
         expect(reports.prepare("s", input)).toEqual(input);
         reports.prepare("s", start);
-        const repeated = {sessionUpdate: "tool_call_update" as const, toolCallId: "t", title: "A"};
+        const repeated = {
+            sessionUpdate: "tool_call_update" as const,
+            toolCallId: "t",
+            title: "A",
+        };
         expect(reports.prepare("other", repeated)).toEqual(repeated);
     });
 });
@@ -154,23 +202,29 @@ describe("ToolCallReports", () => {
 describe("ToolCallReports turn end", () => {
     it("forgets open tool calls of the ended session only", () => {
         const reports = new ToolCallReports();
-        const start = (sessionId: string) => reports.prepare(sessionId, {
-            sessionUpdate: "tool_call",
-            toolCallId: "tool-1",
-            title: "Run",
-            status: "in_progress",
-        });
-        const repeat = (sessionId: string) => reports.prepare(sessionId, {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "tool-1",
-            title: "Run",
-        });
+        const start = (sessionId: string) =>
+            reports.prepare(sessionId, {
+                sessionUpdate: "tool_call",
+                toolCallId: "tool-1",
+                title: "Run",
+                status: "in_progress",
+            });
+        const repeat = (sessionId: string) =>
+            reports.prepare(sessionId, {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "tool-1",
+                title: "Run",
+            });
         start("ended");
         start("other");
 
         reports.releaseOpen("ended");
 
-        expect(repeat("ended")).toEqual({sessionUpdate: "tool_call_update", toolCallId: "tool-1", title: "Run"});
+        expect(repeat("ended")).toEqual({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tool-1",
+            title: "Run",
+        });
         expect(repeat("other")).toBeNull();
     });
 });
@@ -178,32 +232,63 @@ describe("ToolCallReports turn end", () => {
 describe("ToolCallReports late output", () => {
     it("drops output chunks that arrive after the tool call finished", () => {
         const reports = new ToolCallReports();
-        reports.prepare("s", {sessionUpdate: "tool_call", toolCallId: "cmd-1", title: "ls", status: "in_progress"});
-        reports.prepare("s", {sessionUpdate: "tool_call_update", toolCallId: "cmd-1", status: "completed"});
+        reports.prepare("s", {
+            sessionUpdate: "tool_call",
+            toolCallId: "cmd-1",
+            title: "ls",
+            status: "in_progress",
+        });
+        reports.prepare("s", {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "cmd-1",
+            status: "completed",
+        });
 
-        expect(reports.prepare("s", {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "cmd-1",
-            _meta: {terminal_output_delta: {data: "late\n", terminal_id: "cmd-1"}},
-        })).toBeNull();
-        expect(reports.prepare("s", {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "cmd-1",
-            _meta: {mcp_output_delta: {data: "late"}},
-        })).toBeNull();
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "cmd-1",
+                _meta: {
+                    terminal_output_delta: {
+                        data: "late\n",
+                        terminal_id: "cmd-1",
+                    },
+                },
+            }),
+        ).toBeNull();
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "cmd-1",
+                _meta: { mcp_output_delta: { data: "late" } },
+            }),
+        ).toBeNull();
     });
 
     it("keeps the output of a completion report after a start with the final status, without the status", () => {
         const reports = new ToolCallReports();
-        reports.prepare("s", {sessionUpdate: "tool_call", toolCallId: "cmd-1", title: "ls", status: "completed"});
-        const output = {terminal_output_delta: {data: "a.txt\n", terminal_id: "cmd-1"}};
+        reports.prepare("s", {
+            sessionUpdate: "tool_call",
+            toolCallId: "cmd-1",
+            title: "ls",
+            status: "completed",
+        });
+        const output = {
+            terminal_output_delta: { data: "a.txt\n", terminal_id: "cmd-1" },
+        };
 
-        expect(reports.prepare("s", {
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "cmd-1",
+                status: "completed",
+                _meta: output,
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
-            status: "completed",
             _meta: output,
-        })).toEqual({sessionUpdate: "tool_call_update", toolCallId: "cmd-1", _meta: output});
+        });
     });
 
     it("keeps the large fields of a repeated report after a start with the final status, and drops the small ones", () => {
@@ -214,31 +299,55 @@ describe("ToolCallReports late output", () => {
             title: "ls",
             kind: "execute" as const,
             status: "completed" as const,
-            rawInput: {command: "ls"},
-            rawOutput: {stdout: "a.txt\n"},
-            content: [{type: "content" as const, content: {type: "text" as const, text: "a.txt"}}],
-            _meta: {codex: {tool: "exec"}},
+            rawInput: { command: "ls" },
+            rawOutput: { stdout: "a.txt\n" },
+            content: [
+                {
+                    type: "content" as const,
+                    content: { type: "text" as const, text: "a.txt" },
+                },
+            ],
+            _meta: { codex: { tool: "exec" } },
         };
         expect(reports.prepare("s", start)).toEqual(start);
 
-        expect(reports.prepare("s", {...start, sessionUpdate: "tool_call_update"})).toEqual({
+        expect(
+            reports.prepare("s", {
+                ...start,
+                sessionUpdate: "tool_call_update",
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "cmd-1",
-            rawInput: {command: "ls"},
-            rawOutput: {stdout: "a.txt\n"},
-            content: [{type: "content", content: {type: "text", text: "a.txt"}}],
-            _meta: {codex: {tool: "exec"}},
+            rawInput: { command: "ls" },
+            rawOutput: { stdout: "a.txt\n" },
+            content: [
+                { type: "content", content: { type: "text", text: "a.txt" } },
+            ],
+            _meta: { codex: { tool: "exec" } },
         });
     });
 
     it("accepts output again when the tool call id starts a new tool call", () => {
         const reports = new ToolCallReports();
-        reports.prepare("s", {sessionUpdate: "tool_call", toolCallId: "cmd-1", title: "ls", status: "completed"});
-        reports.prepare("s", {sessionUpdate: "tool_call", toolCallId: "cmd-1", title: "ls", status: "in_progress"});
+        reports.prepare("s", {
+            sessionUpdate: "tool_call",
+            toolCallId: "cmd-1",
+            title: "ls",
+            status: "completed",
+        });
+        reports.prepare("s", {
+            sessionUpdate: "tool_call",
+            toolCallId: "cmd-1",
+            title: "ls",
+            status: "in_progress",
+        });
         const chunk = {
             sessionUpdate: "tool_call_update" as const,
             toolCallId: "cmd-1",
-            _meta: {terminal_output_delta: {data: "new\n", terminal_id: "cmd-1"}},
+            _meta: {
+                terminal_output_delta: { data: "new\n", terminal_id: "cmd-1" },
+            },
         };
 
         expect(reports.prepare("s", chunk)).toEqual(chunk);
@@ -246,7 +355,9 @@ describe("ToolCallReports late output", () => {
 });
 
 describe("ToolCallReports large fields", () => {
-    const diff = (newText: string) => [{type: "diff" as const, path: "/w/a.ts", oldText: null, newText}];
+    const diff = (newText: string) => [
+        { type: "diff" as const, path: "/w/a.ts", oldText: null, newText },
+    ];
     const start = (newText: string) => ({
         sessionUpdate: "tool_call" as const,
         toolCallId: "patch-1",
@@ -254,7 +365,7 @@ describe("ToolCallReports large fields", () => {
         kind: "edit" as const,
         status: "in_progress" as const,
         content: diff(newText),
-        _meta: {codex: {changes: [{path: "/w/a.ts", diff: newText}]}},
+        _meta: { codex: { changes: [{ path: "/w/a.ts", diff: newText }] } },
     });
 
     it("drops large content that did not change, and keeps a change that keeps the length", () => {
@@ -266,24 +377,32 @@ describe("ToolCallReports large fields", () => {
         const reports = new ToolCallReports();
         reports.prepare("s", start(text));
 
-        expect(reports.prepare("s", {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "patch-1",
-            content: diff(copy),
-            _meta: {codex: {changes: [{path: "/w/a.ts", diff: copy}]}},
-        })).toBeNull();
-        expect(reports.prepare("s", {
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "patch-1",
+                content: diff(copy),
+                _meta: {
+                    codex: { changes: [{ path: "/w/a.ts", diff: copy }] },
+                },
+            }),
+        ).toBeNull();
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "patch-1",
+                status: "completed",
+                content: diff(changed),
+                _meta: {
+                    codex: { changes: [{ path: "/w/a.ts", diff: changed }] },
+                },
+            }),
+        ).toEqual({
             sessionUpdate: "tool_call_update",
             toolCallId: "patch-1",
             status: "completed",
             content: diff(changed),
-            _meta: {codex: {changes: [{path: "/w/a.ts", diff: changed}]}},
-        })).toEqual({
-            sessionUpdate: "tool_call_update",
-            toolCallId: "patch-1",
-            status: "completed",
-            content: diff(changed),
-            _meta: {codex: {changes: [{path: "/w/a.ts", diff: changed}]}},
+            _meta: { codex: { changes: [{ path: "/w/a.ts", diff: changed }] } },
         });
     });
 
@@ -293,17 +412,45 @@ describe("ToolCallReports large fields", () => {
         reports.prepare("s", update);
         update.content[0]!.newText = "b";
 
-        expect(reports.prepare("s", {sessionUpdate: "tool_call_update", toolCallId: "patch-1", content: update.content}))
-            .toEqual({sessionUpdate: "tool_call_update", toolCallId: "patch-1", content: diff("b")});
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "patch-1",
+                content: update.content,
+            }),
+        ).toEqual({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "patch-1",
+            content: diff("b"),
+        });
     });
 
     it("sends input whose keys changed order, because its serialized text changed", () => {
         const reports = new ToolCallReports();
-        reports.prepare("s", {sessionUpdate: "tool_call", toolCallId: "t", title: "A", rawInput: {a: 1, b: 2}});
+        reports.prepare("s", {
+            sessionUpdate: "tool_call",
+            toolCallId: "t",
+            title: "A",
+            rawInput: { a: 1, b: 2 },
+        });
 
-        expect(reports.prepare("s", {sessionUpdate: "tool_call_update", toolCallId: "t", rawInput: {b: 2, a: 1}}))
-            .toEqual({sessionUpdate: "tool_call_update", toolCallId: "t", rawInput: {b: 2, a: 1}});
-        expect(reports.prepare("s", {sessionUpdate: "tool_call_update", toolCallId: "t", rawInput: {b: 2, a: 1, c: undefined}}))
-            .toBeNull();
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "t",
+                rawInput: { b: 2, a: 1 },
+            }),
+        ).toEqual({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "t",
+            rawInput: { b: 2, a: 1 },
+        });
+        expect(
+            reports.prepare("s", {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "t",
+                rawInput: { b: 2, a: 1, c: undefined },
+            }),
+        ).toBeNull();
     });
 });

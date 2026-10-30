@@ -1,9 +1,9 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
-import type {ServerNotification} from "../../app-server";
-import {AgentMode} from "../../AgentMode";
-import type {SessionState} from "../../CodexAcpServer";
-import type {AcpClientConnection} from "../../ACPSessionConnection";
-import {ClientCapabilities} from "../../tool-calls/ClientCapabilities";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ServerNotification } from "../../app-server";
+import { AgentMode } from "../../AgentMode";
+import type { SessionState } from "../../CodexAcpServer";
+import type { AcpClientConnection } from "../../ACPSessionConnection";
+import { ClientCapabilities } from "../../tool-calls/ClientCapabilities";
 import {
     createCodexMockTestFixture,
     createTestEventHandler,
@@ -79,7 +79,12 @@ describe("CodexEventHandler - plan events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
             "data/plan-deltas.json",
@@ -121,7 +126,12 @@ describe("CodexEventHandler - plan events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
             "data/plan-delta-fallback.json",
@@ -145,7 +155,12 @@ describe("CodexEventHandler - plan events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
             "data/plan-completed-fallback.json",
@@ -174,7 +189,12 @@ describe("CodexEventHandler - plan events", () => {
             },
         ];
 
-        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, notifications);
+        await setupPromptAndSendNotifications(
+            mockFixture,
+            sessionId,
+            sessionState,
+            notifications,
+        );
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
             "data/plan-checklist-update.json",
@@ -182,7 +202,9 @@ describe("CodexEventHandler - plan events", () => {
     });
 
     describe("plan update coalescing", () => {
-        function createHandler(notify = vi.fn(async (_method: unknown, _params: unknown) => {})) {
+        function createHandler(
+            notify = vi.fn(async (_method: unknown, _params: unknown) => {}),
+        ) {
             const connection = {
                 notify,
                 request: vi.fn(),
@@ -191,41 +213,67 @@ describe("CodexEventHandler - plan events", () => {
                 ...sessionState,
                 clientCapabilities: ClientCapabilities.from({
                     plan: {},
-                    _meta: {terminal_output_delta: true, jetbrains: {air: {version: 1}}},
+                    _meta: {
+                        terminal_output_delta: true,
+                        jetbrains: { air: { version: 1 } },
+                    },
                 }),
             });
-            const planUpdates = () => notify.mock.calls
-                .map(call => call[1] as {update?: {sessionUpdate?: string, plan?: {planId: string, content: string}}})
-                .filter(params => params.update?.sessionUpdate === "plan_update")
-                .map(params => params.update!.plan!);
-            return {handler, planUpdates};
+            const planUpdates = () =>
+                notify.mock.calls
+                    .map(
+                        (call) =>
+                            call[1] as {
+                                update?: {
+                                    sessionUpdate?: string;
+                                    plan?: { planId: string; content: string };
+                                };
+                            },
+                    )
+                    .filter(
+                        (params) =>
+                            params.update?.sessionUpdate === "plan_update",
+                    )
+                    .map((params) => params.update!.plan!);
+            return { handler, planUpdates };
         }
 
         function planDelta(itemId: string, delta: string): ServerNotification {
             return {
                 method: "item/plan/delta",
-                params: {threadId: sessionId, turnId: "turn-1", itemId, delta},
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    itemId,
+                    delta,
+                },
             };
         }
 
-        function completedPlan(itemId: string, text: string): ServerNotification {
+        function completedPlan(
+            itemId: string,
+            text: string,
+        ): ServerNotification {
             return {
                 method: "item/completed",
                 params: {
                     threadId: sessionId,
                     turnId: "turn-1",
                     completedAtMs: 0,
-                    item: {type: "plan", id: itemId, text},
+                    item: { type: "plan", id: itemId, text },
                 },
             };
         }
 
-        function completedTurn(status: "completed" | "interrupted"): ServerNotification {
+        function completedTurn(
+            status: "completed" | "interrupted",
+        ): ServerNotification {
             return {
                 method: "turn/completed",
                 params: {
                     threadId: sessionId,
-                    turn: {rootTurnId: null,
+                    turn: {
+                        rootTurnId: null,
                         id: "turn-1",
                         items: [],
                         itemsView: "notLoaded",
@@ -241,7 +289,7 @@ describe("CodexEventHandler - plan events", () => {
 
         it("coalesces many small deltas and emits the complete final snapshot", async () => {
             vi.useFakeTimers();
-            const {handler, planUpdates} = createHandler();
+            const { handler, planUpdates } = createHandler();
             let fullText = "";
 
             for (let index = 0; index < 200; index += 1) {
@@ -252,36 +300,59 @@ describe("CodexEventHandler - plan events", () => {
                     await vi.advanceTimersByTimeAsync(25);
                 }
             }
-            await handler.handleNotification(completedPlan("plan-many", fullText));
+            await handler.handleNotification(
+                completedPlan("plan-many", fullText),
+            );
 
             expect(planUpdates().length).toBeLessThan(20);
             expect(planUpdates().length).toBeGreaterThan(1);
-            expect(planUpdates().at(-1)).toEqual({type: "markdown", planId: "plan-many", content: fullText});
+            expect(planUpdates().at(-1)).toEqual({
+                type: "markdown",
+                planId: "plan-many",
+                content: fullText,
+            });
             await handler.dispose();
         });
 
-        it.each(["completed", "interrupted"] as const)("flushes a pending snapshot when the turn is %s", async status => {
-            vi.useFakeTimers();
-            const {handler, planUpdates} = createHandler();
-            await handler.handleNotification(planDelta("plan-boundary", "full pending plan"));
+        it.each(["completed", "interrupted"] as const)(
+            "flushes a pending snapshot when the turn is %s",
+            async (status) => {
+                vi.useFakeTimers();
+                const { handler, planUpdates } = createHandler();
+                await handler.handleNotification(
+                    planDelta("plan-boundary", "full pending plan"),
+                );
 
-            await handler.handleNotification(completedTurn(status));
+                await handler.handleNotification(completedTurn(status));
 
-            expect(planUpdates()).toEqual([{type: "markdown", planId: "plan-boundary", content: "full pending plan"}]);
-            await vi.advanceTimersByTimeAsync(1_000);
-            expect(planUpdates()).toHaveLength(1);
-            await handler.dispose();
-        });
+                expect(planUpdates()).toEqual([
+                    {
+                        type: "markdown",
+                        planId: "plan-boundary",
+                        content: "full pending plan",
+                    },
+                ]);
+                await vi.advanceTimersByTimeAsync(1_000);
+                expect(planUpdates()).toHaveLength(1);
+                await handler.dispose();
+            },
+        );
 
         it("does not duplicate an identical completed snapshot", async () => {
             vi.useFakeTimers();
-            const {handler, planUpdates} = createHandler();
-            await handler.handleNotification(planDelta("plan-same", "same text"));
+            const { handler, planUpdates } = createHandler();
+            await handler.handleNotification(
+                planDelta("plan-same", "same text"),
+            );
             await vi.advanceTimersByTimeAsync(150);
 
-            await handler.handleNotification(completedPlan("plan-same", "same text"));
+            await handler.handleNotification(
+                completedPlan("plan-same", "same text"),
+            );
 
-            expect(planUpdates()).toEqual([{type: "markdown", planId: "plan-same", content: "same text"}]);
+            expect(planUpdates()).toEqual([
+                { type: "markdown", planId: "plan-same", content: "same text" },
+            ]);
             await handler.dispose();
         });
 
@@ -289,10 +360,10 @@ describe("CodexEventHandler - plan events", () => {
             vi.useFakeTimers();
             let releaseFirstSend!: () => void;
             let markFirstSendStarted!: () => void;
-            const firstSendStarted = new Promise<void>(resolve => {
+            const firstSendStarted = new Promise<void>((resolve) => {
                 markFirstSendStarted = resolve;
             });
-            const firstSendReleased = new Promise<void>(resolve => {
+            const firstSendReleased = new Promise<void>((resolve) => {
                 releaseFirstSend = resolve;
             });
             let firstSend = true;
@@ -302,35 +373,46 @@ describe("CodexEventHandler - plan events", () => {
                 markFirstSendStarted();
                 await firstSendReleased;
             });
-            const {handler, planUpdates} = createHandler(notify);
+            const { handler, planUpdates } = createHandler(notify);
             await handler.handleNotification(planDelta("plan-race", "partial"));
 
             await vi.advanceTimersByTimeAsync(150);
             await firstSendStarted;
-            const completion = handler.handleNotification(completedPlan("plan-race", "partial and final"));
+            const completion = handler.handleNotification(
+                completedPlan("plan-race", "partial and final"),
+            );
             releaseFirstSend();
             await completion;
 
-            expect(planUpdates().map(plan => plan.content)).toEqual(["partial", "partial and final"]);
+            expect(planUpdates().map((plan) => plan.content)).toEqual([
+                "partial",
+                "partial and final",
+            ]);
             await handler.dispose();
         });
 
         it("flushes and cancels pending work when disposed", async () => {
             vi.useFakeTimers();
-            const {handler, planUpdates} = createHandler();
-            await handler.handleNotification(planDelta("plan-dispose", "last session snapshot"));
+            const { handler, planUpdates } = createHandler();
+            await handler.handleNotification(
+                planDelta("plan-dispose", "last session snapshot"),
+            );
 
             await handler.dispose();
             await vi.advanceTimersByTimeAsync(1_000);
 
             expect(planUpdates()).toEqual([
-                {type: "markdown", planId: "plan-dispose", content: "last session snapshot"},
+                {
+                    type: "markdown",
+                    planId: "plan-dispose",
+                    content: "last session snapshot",
+                },
             ]);
         });
 
         it("keeps independently streamed plans separate", async () => {
             vi.useFakeTimers();
-            const {handler, planUpdates} = createHandler();
+            const { handler, planUpdates } = createHandler();
             await handler.handleNotification(planDelta("plan-a", "A1"));
             await handler.handleNotification(planDelta("plan-b", "B1"));
             await handler.handleNotification(planDelta("plan-a", "A2"));
@@ -339,8 +421,8 @@ describe("CodexEventHandler - plan events", () => {
             await handler.handleNotification(completedTurn("completed"));
 
             expect(planUpdates()).toEqual([
-                {type: "markdown", planId: "plan-a", content: "A1A2"},
-                {type: "markdown", planId: "plan-b", content: "B1B2"},
+                { type: "markdown", planId: "plan-a", content: "A1A2" },
+                { type: "markdown", planId: "plan-b", content: "B1B2" },
             ]);
             await handler.dispose();
         });

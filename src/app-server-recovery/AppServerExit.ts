@@ -1,4 +1,4 @@
-import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import { RequestError } from "@agentclientprotocol/sdk/unstable";
 
 /** The JSON-RPC error code of every request that failed because the Codex app-server is gone. */
 export const CODEX_PROCESS_EXITED_ERROR_CODE = 1001;
@@ -19,16 +19,24 @@ export interface AppServerExit {
 }
 
 /** `true` for an exit that the kernel's OOM killer causes: SIGKILL, or the shell form 128 + 9. */
-export function likelyOutOfMemory(exit: Pick<AppServerExit, "code" | "signal">): boolean {
+export function likelyOutOfMemory(
+    exit: Pick<AppServerExit, "code" | "signal">,
+): boolean {
     return exit.signal === "SIGKILL" || exit.code === 137;
 }
 
 /** "exited with code 1", "was killed by SIGKILL, which usually means it ran out of memory", ... */
-export function describeExit(exit: Pick<AppServerExit, "code" | "signal" | "error" | "pid">): string {
+export function describeExit(
+    exit: Pick<AppServerExit, "code" | "signal" | "error" | "pid">,
+): string {
     if (exit.error !== undefined) {
-        return exit.pid === undefined ? `could not be started (${exit.error})` : `stopped responding (${exit.error})`;
+        return exit.pid === undefined
+            ? `could not be started (${exit.error})`
+            : `stopped responding (${exit.error})`;
     }
-    const oom = likelyOutOfMemory(exit) ? ", which usually means it ran out of memory" : "";
+    const oom = likelyOutOfMemory(exit)
+        ? ", which usually means it ran out of memory"
+        : "";
     if (exit.signal !== null) return `was killed by ${exit.signal}${oom}`;
     return `exited with code ${exit.code ?? "unknown"}${oom}`;
 }
@@ -62,7 +70,7 @@ export class SessionReplacedError extends AppServerUnavailableError {
     constructor(sessionId: string) {
         super(
             `Session ${sessionId} was closed or opened again while the agent reopened it after an app-server restart.`,
-            {exitCode: null, signal: null, restartable: true},
+            { exitCode: null, signal: null, restartable: true },
         );
         this.name = "SessionReplacedError";
     }
@@ -77,18 +85,26 @@ export class UnpersistedSessionLostError extends AppServerUnavailableError {
     constructor(sessionId: string) {
         super(
             `Session ${sessionId} had no messages yet and was lost when the Codex app-server restarted. Start a new session.`,
-            {exitCode: null, signal: null, restartable: false},
+            { exitCode: null, signal: null, restartable: false },
         );
         this.name = "UnpersistedSessionLostError";
     }
 }
 
-export function isAppServerUnavailableError(error: unknown): error is AppServerUnavailableError {
-    return error instanceof RequestError && error.code === CODEX_PROCESS_EXITED_ERROR_CODE;
+export function isAppServerUnavailableError(
+    error: unknown,
+): error is AppServerUnavailableError {
+    return (
+        error instanceof RequestError &&
+        error.code === CODEX_PROCESS_EXITED_ERROR_CODE
+    );
 }
 
 /** The error of a request that ran on a child that ended. */
-export function appServerExitedError(exit: AppServerExit, restartHint: string): AppServerUnavailableError {
+export function appServerExitedError(
+    exit: AppServerExit,
+    restartHint: string,
+): AppServerUnavailableError {
     const stderr = exit.stderrTail.trim();
     const message = `The Codex app-server ${describeExit(exit)}. ${restartHint}${stderr ? `\n${stderr}` : ""}`;
     return new AppServerUnavailableError(message, {
@@ -103,14 +119,22 @@ export function appServerExitedError(exit: AppServerExit, restartHint: string): 
  * rejected its startup config. It promises no restart, since a new app-server would read the same config, and it
  * keeps the wording of the adapter before the recovery: "Codex process has exited with code 1:" and the stderr tail.
  */
-export function appServerStartupExitError(exit: AppServerExit): AppServerUnavailableError {
+export function appServerStartupExitError(
+    exit: AppServerExit,
+): AppServerUnavailableError {
     const stderr = exit.stderrTail.trim();
-    const described = exit.error === undefined && exit.signal === null ? `has ${describeExit(exit)}` : describeExit(exit);
-    return new AppServerUnavailableError(`Codex process ${described}${stderr ? `:\n${stderr}` : ""}`, {
-        exitCode: exit.code,
-        signal: exit.signal,
-        restartable: true,
-    });
+    const described =
+        exit.error === undefined && exit.signal === null
+            ? `has ${describeExit(exit)}`
+            : describeExit(exit);
+    return new AppServerUnavailableError(
+        `Codex process ${described}${stderr ? `:\n${stderr}` : ""}`,
+        {
+            exitCode: exit.code,
+            signal: exit.signal,
+            restartable: true,
+        },
+    );
 }
 
 export function formatDuration(ms: number): string {

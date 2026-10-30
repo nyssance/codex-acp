@@ -1,9 +1,9 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type {ThreadItem} from "../../app-server/v2";
-import {textContent} from "../AcpToolCallRenderer";
-import type {StandardToolCallFields, ToolFacts} from "../ToolFacts";
+import type { ThreadItem } from "../../app-server/v2";
+import { textContent } from "../AcpToolCallRenderer";
+import type { StandardToolCallFields, ToolFacts } from "../ToolFacts";
 
-type ImageGenerationItem = ThreadItem & {type: "imageGeneration"};
+type ImageGenerationItem = ThreadItem & { type: "imageGeneration" };
 
 const TITLE = "Image generation";
 
@@ -20,7 +20,7 @@ export class ImageGenerationReporter {
             kind: "other",
             title: TITLE,
             status: "in_progress",
-            standard: {rawInput: {id: item.id}},
+            standard: { rawInput: { id: item.id } },
         };
     }
 
@@ -60,12 +60,17 @@ function standardResult(item: ImageGenerationItem): StandardToolCallFields {
     const rawOutput: Record<string, string | null> = {
         status: item.status,
         revisedPrompt: item.revisedPrompt,
-        ...("result" in item ? {result: item.result} : {fileId: item.fileId}),
+        ...("result" in item
+            ? { result: item.result }
+            : { fileId: item.fileId }),
     };
     if ("savedPath" in item) rawOutput["savedPath"] = item.savedPath ?? null;
     return {
-        content: imageResult(item)
-            .filter(content => content.type !== "content" || content.content.type !== "resource_link"),
+        content: imageResult(item).filter(
+            (content) =>
+                content.type !== "content" ||
+                content.content.type !== "resource_link",
+        ),
         rawOutput,
     };
 }
@@ -75,7 +80,10 @@ function imageResult(item: ImageGenerationItem): acp.ToolCallContent[] {
     if (item.revisedPrompt && item.revisedPrompt.trim() !== "") {
         result.push(textContent(`Revised prompt: ${item.revisedPrompt}`));
     }
-    const savedPath = item.savedPath && item.savedPath.trim() !== "" ? item.savedPath : undefined;
+    const savedPath =
+        item.savedPath && item.savedPath.trim() !== ""
+            ? item.savedPath
+            : undefined;
     if ("result" in item && item.result.trim() !== "") {
         result.push({
             type: "content",
@@ -83,13 +91,17 @@ function imageResult(item: ImageGenerationItem): acp.ToolCallContent[] {
                 type: "image",
                 data: item.result,
                 mimeType: "image/png",
-                ...(savedPath === undefined ? {} : {uri: savedPath}),
+                ...(savedPath === undefined ? {} : { uri: savedPath }),
             },
         });
     } else if (savedPath !== undefined) {
-        result.push({type: "content", content: {type: "resource_link", name: savedPath, uri: savedPath}});
+        result.push({
+            type: "content",
+            content: { type: "resource_link", name: savedPath, uri: savedPath },
+        });
     }
-    if ("fileId" in item && savedPath === undefined) result.push(textContent(`Generated image attachment: ${item.fileId}`));
+    if ("fileId" in item && savedPath === undefined)
+        result.push(textContent(`Generated image attachment: ${item.fileId}`));
     return result;
 }
 

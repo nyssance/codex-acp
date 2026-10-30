@@ -1,8 +1,8 @@
-import type {ThreadItem} from "../../app-server/v2";
-import type {ToolFacts} from "../ToolFacts";
-import {toTerminalToolStatus, toToolStatus} from "./ToolStatus";
+import type { ThreadItem } from "../../app-server/v2";
+import type { ToolFacts } from "../ToolFacts";
+import { toTerminalToolStatus, toToolStatus } from "./ToolStatus";
 
-type McpToolCallItem = ThreadItem & {type: "mcpToolCall"};
+type McpToolCallItem = ThreadItem & { type: "mcpToolCall" };
 
 /**
  * Reports a Codex MCP tool call.
@@ -35,14 +35,20 @@ export class McpToolReporter {
 
     /** MCP progress text, trimmed, for a client that is not AIR. The event handler sends no progress to AIR. */
     static progress(itemId: string, message: string): ToolFacts {
-        return {toolCallId: itemId, report: "update", standard: {mcpProgress: message.trim()}};
+        return {
+            toolCallId: itemId,
+            report: "update",
+            standard: { mcpProgress: message.trim() },
+        };
     }
 }
 
 function mcpInput(item: McpToolCallItem): Record<string, unknown> {
-    return {server: item.server, tool: item.tool, arguments: item.arguments};
+    return { server: item.server, tool: item.tool, arguments: item.arguments };
 }
 
 function resultFacts(item: McpToolCallItem): Pick<ToolFacts, "opaqueResult"> {
-    return item.result === null && item.error === null ? {} : {opaqueResult: {result: item.result, error: item.error}};
+    return item.result === null && item.error === null
+        ? {}
+        : { opaqueResult: { result: item.result, error: item.error } };
 }

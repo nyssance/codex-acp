@@ -5,59 +5,68 @@ Use this checklist when Codex version bumps cause compile/test breakage.
 ## Common Type Breakages
 
 1. New required model fields.
-Symptoms:
+   Symptoms:
+
 - `Property 'hidden' is missing in type ...`
-Fix:
+  Fix:
 - Add `hidden: false` (or expected value) in all `Model` fixtures.
 
 2. Thread shape expansion.
-Symptoms:
+   Symptoms:
+
 - Missing `status`, `agentNickname`, `agentRole`, `name` in `Thread`.
-Fix:
+  Fix:
 - Add these fields in test fixtures and mocks.
 
 3. Thread item schema changes.
-Symptoms:
+   Symptoms:
+
 - `agentMessage` missing `phase`.
-Fix:
+  Fix:
 - Add `phase: null` unless specific phase is required by test.
 
 4. Rate limits payload changes.
-Symptoms:
+   Symptoms:
+
 - Missing `limitId` / `limitName` in `RateLimitSnapshot`.
-Fix:
+  Fix:
 - Include `limitId` and `limitName` under `rateLimits` snapshot object.
 - If notification wrapper changed, map from new shape in handler.
 
 5. Sandbox policy contract changes.
-Symptoms:
+   Symptoms:
+
 - Missing `access` for read-only or `readOnlyAccess` for workspace-write policy.
-Fix:
+  Fix:
 - Provide required nested objects in policy fixtures and runtime mapping.
 
 6. Thread start/resume required flags.
-Symptoms:
+   Symptoms:
+
 - Missing `persistExtendedHistory`.
-Fix:
+  Fix:
 - Set explicitly in `threadStart` and `threadResume` params.
 - Keep `false` unless user confirms enabling experimental behavior.
 
 ## Event Compatibility Patterns
 
 1. New tool-like items/events.
-Approach:
+   Approach:
+
 - Add mapper function in `CodexToolCallMapper.ts`.
 - Emit `tool_call` on start and `tool_call_update` on completion.
 - Include meaningful `kind`, `title`, and `rawInput`.
 
 2. Streaming/progressive session events.
-Approach:
+   Approach:
+
 - Keep stable `toolCallId`.
 - First event: `tool_call`, subsequent events: `tool_call_update`.
 - Completion event should set `status: completed` or `failed`.
 
 3. Informational infra events (e.g., model reroute).
-Approach:
+   Approach:
+
 - Emit `agent_thought_chunk` with concise user-readable text.
 
 ## Test Strategy
@@ -71,5 +80,6 @@ Approach:
 ## Known Env-Dependent Failures
 
 Authentication integration tests may fail on CI/local machines due OS keychain restrictions:
+
 - examples: `failed to save api key`, `logout failed`, `Operation not permitted`.
-Treat separately from migration regressions.
+  Treat separately from migration regressions.
