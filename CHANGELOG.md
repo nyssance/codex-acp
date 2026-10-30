@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.45 (2026-10-30)
 
 - Sync upstream through `ac8d925`, including standard subagent sessions, async question elicitations, prompt suggestions, file citations, and session lookup improvements.
 - Upgrade Codex to 0.166.0 and regenerate experimental app-server bindings.
