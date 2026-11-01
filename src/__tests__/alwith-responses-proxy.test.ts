@@ -644,3 +644,58 @@ it("reports a truncated upstream stream as failure without injecting error text 
         status: 200,
     });
 });
+
+it("isolates gateway credentials from native HTTP authentication", async () => {
+    let headers: Record<string, unknown> = {};
+    const upstream = createServer((request, response) => {
+        headers = request.headers;
+        response.end("ok");
+    });
+    const value = proxy();
+    const base = await listen(upstream);
+    const route = await value.route(base, {
+        authorization: "Bearer gateway-key",
+    });
+    const other = await value.route(base, {
+        authorization: "Bearer another-key",
+    });
+    expect(other).not.toBe(route);
+    const result = await fetch(`${route}/responses`, {
+        method: "POST",
+        body: "{}",
+        headers: {
+            "content-type": "application/json",
+            authorization: "Bearer native-private-key",
+            "chatgpt-account-id": "native-account",
+            "x-native-secret": "private",
+        },
+    });
+    expect(await result.text()).toBe("ok");
+    expect(headers["authorization"]).toBe("Bearer gateway-key");
+    expect(headers["chatgpt-account-id"]).toBeUndefined();
+    expect(headers["x-native-secret"]).toBeUndefined();
+});
+
+it("isolates gateway credentials on websocket upgrades", async () => {
+    const server = createServer();
+    const websocket = new WebSocketServer({ server });
+    cleanup.push(() => websocket.close());
+    let headers: Record<string, unknown> = {};
+    websocket.on("connection", (socket, request) => {
+        headers = request.headers;
+        socket.send("ready");
+    });
+    const route = await proxy().route(await listen(server), {
+        authorization: "Bearer gateway-key",
+    });
+    const socket = new WebSocket(`${route.replace("http:", "ws:")}/responses`, {
+        headers: {
+            authorization: "Bearer native-key",
+            "chatgpt-account-id": "private-account",
+        },
+    });
+    cleanup.push(() => socket.terminate());
+    expect(await receive(socket)).toBe("ready");
+    expect(headers["authorization"]).toBe("Bearer gateway-key");
+    expect(headers["chatgpt-account-id"]).toBeUndefined();
+});

@@ -102,3 +102,34 @@ describe("native Responses history compatibility", () => {
         expect(() => compatibleResponsesRequest("not json")).toThrow();
     });
 });
+
+it("decodes the persisted gateway model selection only at the upstream Responses boundary", () => {
+    const body = {
+        model: "gateway:two:shared%2Fmodel",
+        input: [{ type: "message", role: "user", content: [] }],
+        stream: true,
+    };
+    expect(
+        JSON.parse(
+            compatibleResponsesRequest(JSON.stringify(body), "external"),
+        ),
+    ).toEqual({ ...body, model: "shared/model" });
+});
+
+it("decodes native models in websocket continuations without an input array", () => {
+    expect(
+        JSON.parse(
+            compatibleResponsesRequest(
+                JSON.stringify({
+                    type: "response.create",
+                    model: "native:gpt-test",
+                    previous_response_id: "p",
+                }),
+            ),
+        ),
+    ).toEqual({
+        type: "response.create",
+        model: "gpt-test",
+        previous_response_id: "p",
+    });
+});

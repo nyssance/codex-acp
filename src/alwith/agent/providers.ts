@@ -75,8 +75,8 @@ export interface Gateway {
 /**
  * Client-configured routing for Codex's OpenAI slot (ACP `providers/*`).
  *
- * A gateway is applied per thread through Codex's `model_providers` config
- * override plus `modelProvider`, so switching never restarts the app-server.
+ * Gateway credentials are applied per thread through `model_providers` and `modelProvider`.
+ * The native connection layer keeps a separate app-server for each provider identity.
  * Route mode holds one gateway; catalog mode holds any number, each under its own id.
  */
 export class ProviderRouting {
@@ -247,11 +247,47 @@ export class ProviderRouting {
         modelId: string | null,
         provider: string | null,
     ): string | null {
-        return modelId !== null &&
-            this.mode === "catalog" &&
-            this.hasGateway(provider)
+        if (modelId === null) return modelId;
+        if (modelId.startsWith("native:"))
+            return decodeURIComponent(modelId.slice("native:".length));
+        if (modelId.startsWith("gateway:") || this.mode !== "catalog")
+            return modelId;
+        return this.hasGateway(provider)
             ? gatewayModelId(provider!, modelId)
             : modelId;
+    }
+
+    nativeModel(selection: string, catalog = this.mode === "catalog"): string {
+        return !catalog
+            ? this.upstreamModel(selection)!
+            : selection.startsWith("gateway:")
+              ? selection
+              : `native:${encodeURIComponent(selection)}`;
+    }
+
+    selectionProvider(selection: string): string | null {
+        if (!selection.startsWith("gateway:")) return null;
+        const match = /^gateway:([^:]+):[^:]+$/.exec(selection);
+        const provider = match ? decodeURIComponent(match[1]!) : null;
+        if (provider === null || !this.hasGateway(provider))
+            throw acp.RequestError.invalidParams(
+                undefined,
+                "The selected provider connection or model is unavailable",
+            );
+        return provider;
+    }
+
+    modelAliases(): Array<{ id: string; upstream: string; catalog?: string }> {
+        if (this.mode !== "catalog") return [];
+        return [...this.gateways.values()].flatMap((gateway) =>
+            gateway.models.map((model) => ({
+                id: gatewayModelId(gateway.id, model.id),
+                upstream: model.id,
+                ...(typeof gateway.config["model_catalog_json"] === "string"
+                    ? { catalog: gateway.config["model_catalog_json"] }
+                    : {}),
+            })),
+        );
     }
 
     /** Unknown gateway IDs must never fall through to native billing. */

@@ -87,6 +87,7 @@ export class ResponsesProxy {
         string,
         string | (() => Promise<string>)
     >();
+    private readonly routeHeaders = new Map<string, Record<string, string>>();
     private readonly sockets = new Set<Socket>();
     private readonly peers = new Set<WebSocket>();
     private readonly aborts = new Set<AbortController>();
@@ -175,7 +176,10 @@ export class ResponsesProxy {
         });
     }
 
-    async route(upstream: string | (() => Promise<string>)): Promise<string> {
+    async route(
+        upstream: string | (() => Promise<string>),
+        headers?: Record<string, string>,
+    ): Promise<string> {
         if (this.closed)
             throw new Error("Responses compatibility proxy is closed");
         const canonical =
@@ -194,12 +198,25 @@ export class ResponsesProxy {
         await this.starting;
         if (this.closed)
             throw new Error("Responses compatibility proxy is closed");
+        const normalized =
+            headers === undefined
+                ? undefined
+                : Object.fromEntries(
+                      Object.entries(headers)
+                          .map(([name, value]) => [name.toLowerCase(), value])
+                          .sort(([a], [b]) => a!.localeCompare(b!)),
+                  );
         let token = [...this.routes].find(
-            ([, value]) => value === canonical,
+            ([key, value]) =>
+                value === canonical &&
+                JSON.stringify(this.routeHeaders.get(key)) ===
+                    JSON.stringify(normalized),
         )?.[0];
         if (!token) {
             token = randomBytes(24).toString("hex");
             this.routes.set(token, canonical);
+            if (normalized !== undefined)
+                this.routeHeaders.set(token, normalized);
         }
         const address = this.server.address();
         if (!address || typeof address === "string")
@@ -216,6 +233,31 @@ export class ResponsesProxy {
         this.websocket.close();
         this.server.close();
         this.routes.clear();
+        this.routeHeaders.clear();
+    }
+
+    private requestHeaders(
+        request: IncomingMessage,
+        websocket: boolean,
+    ): IncomingHttpHeaders {
+        const token = /^\/([a-f0-9]{48})\//.exec(request.url ?? "")?.[1];
+        const override =
+            token === undefined ? undefined : this.routeHeaders.get(token);
+        if (override === undefined)
+            return forwardingHeaders(request.headers, websocket);
+        // A gateway owns authentication; native account and private headers must never escape.
+        const safe = new Set([
+            "accept",
+            "accept-encoding",
+            "content-type",
+            "content-encoding",
+            "user-agent",
+            "openai-beta",
+        ]);
+        const headers = Object.fromEntries(
+            Object.entries(request.headers).filter(([name]) => safe.has(name)),
+        );
+        return forwardingHeaders({ ...headers, ...override }, websocket);
     }
 
     private validateBase(base: string): string {
@@ -293,7 +335,7 @@ export class ResponsesProxy {
             return;
         }
         let body: Buffer;
-        const headers = forwardingHeaders(request.headers, false);
+        const headers = this.requestHeaders(request, false);
         if (!transformResponses) {
             body = bytes;
             // Codex selects API multipart from the local URL. ChatGPT's backend requires the
@@ -431,7 +473,7 @@ export class ResponsesProxy {
         diagnostic.stage("connect_upstream");
         target.protocol = target.protocol === "https:" ? "wss:" : "ws:";
         const upstream = new WebSocket(target, {
-            headers: forwardingHeaders(request.headers, true),
+            headers: this.requestHeaders(request, true),
             followRedirects: false,
             handshakeTimeout: 15_000,
             maxPayload: MAX_BODY_BYTES,

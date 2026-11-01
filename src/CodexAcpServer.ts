@@ -4073,6 +4073,7 @@ export class CodexAcpServer {
                 );
             }
             let unloaded = false;
+            const [unloadedReady, markUnloaded] = createDeferred<void>();
             const release = client.appServerClient.onClientTransportEvent(
                 (event) => {
                     if (
@@ -4080,14 +4081,30 @@ export class CodexAcpServer {
                         event.method === "thread/status/changed" &&
                         event.params.threadId === session.sessionId &&
                         event.params.status.type === "notLoaded"
-                    )
+                    ) {
                         unloaded = true;
+                        markUnloaded(undefined);
+                    }
                 },
             );
             try {
                 const detached = await client.appServerClient.threadUnsubscribe(
                     { threadId: session.sessionId },
                 );
+                if (
+                    detached.status === "unsubscribed" &&
+                    !unloaded &&
+                    client.providerCatalog.mode === "catalog"
+                ) {
+                    if (
+                        (await settledWithin(unloadedReady, 10_000)) ===
+                        "pending"
+                    )
+                        throw RequestError.invalidRequest(
+                            undefined,
+                            "Timed out waiting for the previous thread writer to unload",
+                        );
+                }
                 const metadata = await resume(model);
                 const expectedProvider =
                     target ??
@@ -4095,6 +4112,8 @@ export class CodexAcpServer {
                     "openai";
                 const ignoredOverrides =
                     metadata.modelProvider !== expectedProvider ||
+                    ModelId.fromString(metadata.currentModelId).model !==
+                        model ||
                     (detached.status !== "notLoaded" &&
                         !unloaded &&
                         (

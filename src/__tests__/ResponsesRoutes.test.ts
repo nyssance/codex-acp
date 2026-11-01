@@ -2,7 +2,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import { ResponsesRoutes } from "../alwith/codex/responsesRoutes";
 import { ResponsesProxy } from "../alwith/codex/responsesProxy";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+});
 it("reuses workspace routes and replaces their readers after app-server recovery without eager authentication", async () => {
     const route = vi
         .spyOn(ResponsesProxy.prototype, "route")
@@ -67,4 +70,132 @@ it("routes external endpoints through compatibility without changing credentials
     expect(config.model_providers.kimi.base_url).toBe("https://api.example/v1");
     expect(context.readAccount).not.toHaveBeenCalled();
     routes.close();
+});
+
+it("moves a gateway route onto the retained native provider without retaining source credentials", async () => {
+    vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue(
+        "http://127.0.0.1/target",
+    );
+    const routes = new ResponsesRoutes();
+    try {
+        const result = await routes.config(
+            {
+                model_providers: {
+                    deepseek: {
+                        name: "DeepSeek",
+                        base_url: "https://deepseek.example/v1",
+                        experimental_bearer_token: "target-key",
+                    },
+                },
+            },
+            "deepseek",
+            { cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn() },
+            "litellm",
+        );
+        expect(result["model_providers"]).toEqual({
+            litellm: {
+                name: "DeepSeek",
+                base_url: "http://127.0.0.1/target",
+                experimental_bearer_token: "target-key",
+                requires_openai_auth: false,
+            },
+        });
+    } finally {
+        routes.close();
+    }
+});
+
+it("routes a gateway through the reserved openai transport without overriding its definition", async () => {
+    const route = vi
+        .spyOn(ResponsesProxy.prototype, "route")
+        .mockResolvedValue("http://127.0.0.1/gateway");
+    const routes = new ResponsesRoutes();
+    try {
+        const output = await routes.config(
+            {
+                model_providers: {
+                    deepseek: {
+                        name: "DeepSeek",
+                        base_url: "https://gateway.test/v1",
+                        experimental_bearer_token: "target-key",
+                    },
+                },
+            },
+            "deepseek",
+            { cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn() },
+            "openai",
+        );
+        expect(output).toEqual({
+            model_providers: {},
+            openai_base_url: "http://127.0.0.1/gateway",
+        });
+        expect(route).toHaveBeenCalledWith("https://gateway.test/v1", {
+            authorization: "Bearer target-key",
+        });
+    } finally {
+        routes.close();
+    }
+});
+
+it("preserves provider environment authentication when a native custom provider uses an openai history", async () => {
+    vi.stubEnv("PROVIDER_REVIEW_KEY", "provider-key");
+    vi.stubEnv("PROVIDER_REVIEW_ORG", "provider-org");
+    const route = vi
+        .spyOn(ResponsesProxy.prototype, "route")
+        .mockResolvedValue("http://127.0.0.1/provider");
+    const routes = new ResponsesRoutes();
+    try {
+        await routes.config(
+            {
+                model_providers: {
+                    corp: {
+                        name: "Corp",
+                        base_url: "https://corp.example/v1",
+                        env_key: "PROVIDER_REVIEW_KEY",
+                        env_http_headers: { "x-org": "PROVIDER_REVIEW_ORG" },
+                    },
+                },
+            },
+            "corp",
+            { cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn() },
+            "openai",
+        );
+        expect(route).toHaveBeenCalledWith("https://corp.example/v1", {
+            authorization: "Bearer provider-key",
+            "x-org": "provider-org",
+        });
+    } finally {
+        routes.close();
+    }
+});
+
+it("rejects a missing provider key before opening an upstream route", async () => {
+    vi.stubEnv("PROVIDER_REVIEW_KEY", "");
+    const route = vi.spyOn(ResponsesProxy.prototype, "route");
+    const routes = new ResponsesRoutes();
+    try {
+        await expect(
+            routes.config(
+                {
+                    model_providers: {
+                        corp: {
+                            name: "Corp",
+                            base_url: "https://corp.example/v1",
+                            env_key: "PROVIDER_REVIEW_KEY",
+                        },
+                    },
+                },
+                "corp",
+                {
+                    cwd: "/workspace",
+                    readConfig: vi.fn(),
+                    readAccount: vi.fn(),
+                },
+                "openai",
+            ),
+        ).rejects.toThrow("PROVIDER_REVIEW_KEY");
+        expect(route).not.toHaveBeenCalled();
+    } finally {
+        routes.close();
+    }
 });

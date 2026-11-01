@@ -1,3 +1,10 @@
+## 0.7.50 (2026-11-02)
+
+- Keep per-session model routing compatible with Codex's immutable provider identity, including native history restored after unused gateways are removed.
+- Preserve native model metadata and decode logical model aliases before forwarding Responses requests.
+- Drain final provider-process messages before recovery and reload MCP configuration across all provider processes.
+- Preserve configured environment credentials when routing custom providers through native history without forwarding unrelated native credentials.
+
 ## 0.7.49
 
 - Update ACP SDK to 2.2.0 and merge upstream session setup, shutdown, configuration, and replay fixes through 927c480.

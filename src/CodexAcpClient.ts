@@ -40,6 +40,7 @@ import { AgentMode } from "./AgentMode";
 import path from "node:path";
 import { logger } from "./Logger";
 import {
+    isModelProviderRouteError,
     isAccountReadAuthFailureError,
     isAccountReadUnavailableError,
 } from "./CodexThreadErrors";
@@ -220,6 +221,7 @@ export class CodexAcpClient {
     private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null =
         null;
     private readonly readOnlySessions = new Set<string>();
+    private readonly catalogSessions = new Set<string>();
     private readonly sessionNotificationQueues = new Map<
         string,
         Promise<void>
@@ -913,6 +915,22 @@ export class CodexAcpClient {
         previousInstructions?: SessionInstructions,
         allowReadOnly = false,
     ): Promise<SessionMetadata> {
+        return this.restoreCatalogRoute(request.sessionId, () =>
+            this.resumeSessionWithRoute(
+                request,
+                onSubscribed,
+                previousInstructions,
+                allowReadOnly,
+            ),
+        );
+    }
+
+    private async resumeSessionWithRoute(
+        request: WithAcpMcpServers<acp.ResumeSessionRequest>,
+        onSubscribed?: () => void,
+        previousInstructions?: SessionInstructions,
+        allowReadOnly = false,
+    ): Promise<SessionMetadata> {
         const instructions = await this.resolveSessionInstructions(
             request,
             previousInstructions,
@@ -930,6 +948,8 @@ export class CodexAcpClient {
             additionalDirectories,
             request.mcpServers ?? [],
             route.gatewayId,
+            route.modelProvider,
+            route.catalog === true,
         );
         const response = await this.resumeThreadWithInstructions(
             {
@@ -952,6 +972,7 @@ export class CodexAcpClient {
             allowReadOnly,
         );
         if (!response.readOnly) onSubscribed?.();
+        if (route.catalog) this.catalogSessions.add(response.thread.id);
         const codexModels = await this.fetchAvailableModels();
         const currentModelId = this.createModelId(
             codexModels,
@@ -979,7 +1000,10 @@ export class CodexAcpClient {
             sessionTitle: normalizeSessionTitle(
                 listedSessionTitle(response.thread),
             ),
-            modelProvider: response.modelProvider,
+            modelProvider:
+                route.gatewayId ??
+                (await this.getResumeModelProvider()) ??
+                "openai",
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
             approvalsReviewer: response.approvalsReviewer,
@@ -996,6 +1020,23 @@ export class CodexAcpClient {
         forkCreated: (threadId: string) => void = () => {},
         previousInstructions?: SessionInstructions,
     ): Promise<SessionMetadata> {
+        return this.restoreCatalogRoute(request.sessionId, () =>
+            this.forkSessionWithRoute(
+                request,
+                releaseFailedFork,
+                forkCreated,
+                previousInstructions,
+            ),
+        );
+    }
+
+    private async forkSessionWithRoute(
+        request: WithAcpMcpServers<acp.ForkSessionRequest>,
+        releaseFailedFork: (threadId: string) => Promise<void> = (threadId) =>
+            this.closeSession(threadId),
+        forkCreated: (threadId: string) => void = () => {},
+        previousInstructions?: SessionInstructions,
+    ): Promise<SessionMetadata> {
         const instructions = await this.resolveSessionInstructions(
             request,
             previousInstructions,
@@ -1006,7 +1047,7 @@ export class CodexAcpClient {
             request._meta,
         );
         const route = await this.sessionRoute(request);
-        return await runForkSession(
+        const forked = await runForkSession(
             request,
             additionalDirectories,
             {
@@ -1019,6 +1060,8 @@ export class CodexAcpClient {
                         directories,
                         mcpServers,
                         route.gatewayId,
+                        route.modelProvider,
+                        route.catalog === true,
                     ),
                 getResumeModelProvider: async () =>
                     route.modelProvider ??
@@ -1041,9 +1084,33 @@ export class CodexAcpClient {
             },
             instructions,
         );
+        if (route.catalog) this.catalogSessions.add(forked.sessionId);
+        return {
+            ...forked,
+            modelProvider:
+                route.gatewayId ??
+                (await this.getResumeModelProvider()) ??
+                "openai",
+        };
     }
 
     async loadSession(
+        request: WithAcpMcpServers<acp.LoadSessionRequest>,
+        onSubscribed?: () => void,
+        previousInstructions?: SessionInstructions,
+        allowReadOnly = false,
+    ): Promise<SessionMetadataWithThread> {
+        return this.restoreCatalogRoute(request.sessionId, () =>
+            this.loadSessionWithRoute(
+                request,
+                onSubscribed,
+                previousInstructions,
+                allowReadOnly,
+            ),
+        );
+    }
+
+    private async loadSessionWithRoute(
         request: WithAcpMcpServers<acp.LoadSessionRequest>,
         onSubscribed?: () => void,
         previousInstructions?: SessionInstructions,
@@ -1066,6 +1133,8 @@ export class CodexAcpClient {
             additionalDirectories,
             request.mcpServers ?? [],
             route.gatewayId,
+            route.modelProvider,
+            route.catalog === true,
         );
         const response = await this.resumeThreadWithInstructions(
             {
@@ -1141,6 +1210,7 @@ export class CodexAcpClient {
                 ),
             );
         }
+        if (route.catalog) this.catalogSessions.add(response.thread.id);
         const codexModels = await this.fetchAvailableModels();
         const currentModelId = this.createModelId(
             codexModels,
@@ -1164,7 +1234,10 @@ export class CodexAcpClient {
             collaborationMode:
                 response.collaborationMode ??
                 this.getCollaborationMode(response.thread.id),
-            modelProvider: response.modelProvider,
+            modelProvider:
+                route.gatewayId ??
+                (await this.getResumeModelProvider()) ??
+                "openai",
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
             approvalsReviewer: response.approvalsReviewer,
@@ -1324,6 +1397,8 @@ export class CodexAcpClient {
             additionalDirectories,
             request.mcpServers ?? [],
             route.gatewayId,
+            route.modelProvider,
+            route.catalog === true,
         );
         const projectId = await projectsFor(this.codexClient).resolve(
             request.cwd,
@@ -1356,6 +1431,7 @@ export class CodexAcpClient {
                 throw error;
             }
         }
+        if (route.catalog) this.catalogSessions.add(response.thread.id);
         const codexModels = await this.fetchAvailableModels();
         if (codexModels.length === 0 && !this.isNarrowedByGateway()) {
             throw new Error("Codex did not return any models");
@@ -1377,7 +1453,10 @@ export class CodexAcpClient {
                 response.thread,
             ),
             collaborationMode: this.getCollaborationMode(response.thread.id),
-            modelProvider: response.modelProvider,
+            modelProvider:
+                route.gatewayId ??
+                (await this.getResumeModelProvider()) ??
+                "openai",
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.activePermissionProfile?.id,
             approvalsReviewer: response.approvalsReviewer,
@@ -1524,6 +1603,7 @@ export class CodexAcpClient {
     }
 
     async closeSession(sessionId: string): Promise<void> {
+        this.catalogSessions.delete(sessionId);
         if (this.readOnlySessions.delete(sessionId)) {
             this.codexClient.clearThreadHandlers(sessionId);
             return;
@@ -1745,6 +1825,8 @@ export class CodexAcpClient {
         additionalDirectories: string[],
         mcpServers: Array<AcpMcpServer>,
         gatewayId: string | null = null,
+        transportProvider: string | null = null,
+        catalog = this.providerCatalog.mode === "catalog",
     ): Promise<SessionConfig> {
         const sessionRoots = [projectPath, ...additionalDirectories];
         const activeProvider = this.gatewayConfig
@@ -1761,6 +1843,7 @@ export class CodexAcpClient {
             baseUrl: activeProvider.baseUrl,
         });
         const mergedConfig = {
+            ...(catalog ? { thread_unload_delay_secs: 0 } : {}),
             ...disableUnsupportedSkills(
                 forceGitRootTurnDiffPaths(
                     this.providerCatalog.active
@@ -1785,9 +1868,11 @@ export class CodexAcpClient {
                 ]),
             ),
         };
+        const logicalProvider =
+            gatewayId ?? (await this.getResumeModelProvider());
         const transportConfig = await this.responsesRoutes.config(
             mergedConfig,
-            gatewayId ?? this.getModelProvider() ?? "openai",
+            logicalProvider,
             {
                 cwd: projectPath,
                 readConfig: () =>
@@ -1797,6 +1882,8 @@ export class CodexAcpClient {
                     }),
                 readAccount: () => this.getAccount(),
             },
+            transportProvider ?? logicalProvider,
+            catalog ? this.providerCatalog.modelAliases() : undefined,
         );
         const configWithWorkspaceRoots = mergeSandboxWorkspaceWriteRoots(
             transportConfig,
@@ -2116,7 +2203,7 @@ export class CodexAcpClient {
                     : { permissions: agentMode.permissionProfile }),
                 summary: disableSummary ? "none" : "auto",
                 effort,
-                model: this.providerCatalog.upstreamModel(modelId.model),
+                model: this.nativeModel(modelId.model, request.sessionId),
                 serviceTier,
                 ...(clientUserMessageId !== undefined
                     ? { clientUserMessageId }
@@ -2151,15 +2238,55 @@ export class CodexAcpClient {
             threadId: sessionId,
             collaborationMode: createCodexCollaborationMode(
                 mode,
-                this.upstreamModelId(currentModelId),
+                this.upstreamModelId(currentModelId, sessionId),
             ),
         });
     }
 
-    private upstreamModelId(value: string): string {
+    private async restoreCatalogRoute<T>(
+        sessionId: string,
+        operation: () => Promise<T>,
+    ): Promise<T> {
+        try {
+            return await operation();
+        } catch (error) {
+            if (
+                this.catalogSessions.has(sessionId) ||
+                !isModelProviderRouteError(error)
+            ) {
+                throw error;
+            }
+            let model: string | null | undefined;
+            try {
+                model = (
+                    await this.codexClient.threadRead({ threadId: sessionId })
+                ).thread.model;
+            } catch (readError) {
+                logger.error(
+                    `Could not inspect historical provider route for ${sessionId}`,
+                    readError,
+                );
+                throw error;
+            }
+            if (!model?.startsWith("native:") && !model?.startsWith("gateway:"))
+                throw error;
+            this.catalogSessions.add(sessionId);
+            return operation();
+        }
+    }
+
+    private nativeModel(selection: string, sessionId: string): string {
+        return this.providerCatalog.nativeModel(
+            selection,
+            this.providerCatalog.mode === "catalog" ||
+                this.catalogSessions.has(sessionId),
+        );
+    }
+
+    private upstreamModelId(value: string, sessionId: string): string {
         const model = ModelId.fromString(value);
         return ModelId.create(
-            this.providerCatalog.upstreamModel(model.model)!,
+            this.nativeModel(model.model, sessionId),
             model.effort as ReasoningEffort,
         ).toString();
     }
@@ -2171,6 +2298,7 @@ export class CodexAcpClient {
         model?: string;
         modelProvider: string | null;
         gatewayId: string | null;
+        catalog?: true;
     }> {
         const meta = isRecord(request._meta) ? request._meta : {};
         const alwith = isRecord(meta["alwith"]) ? meta["alwith"] : {};
@@ -2184,6 +2312,47 @@ export class CodexAcpClient {
                 "Expected a non-empty initial model",
             );
         }
+        const catalog =
+            this.providerCatalog.mode === "catalog" ||
+            (request.sessionId !== undefined &&
+                this.catalogSessions.has(request.sessionId));
+        const persisted =
+            request.sessionId && (catalog || this.providerCatalog.active)
+                ? (
+                      await this.codexClient.threadRead({
+                          threadId: request.sessionId,
+                      })
+                  ).thread
+                : null;
+        // Catalog history retains its wire identity after unused gateways are removed.
+        if (catalog) {
+            const model =
+                typeof selection === "string"
+                    ? selection
+                    : persisted
+                      ? this.providerCatalog.selectionId(
+                            persisted.model,
+                            persisted.modelProvider,
+                        )
+                      : null;
+            if (typeof selection === "string")
+                this.providerCatalog.upstreamModel(selection);
+            const gatewayId =
+                model === null
+                    ? null
+                    : this.providerCatalog.selectionProvider(model);
+            return {
+                catalog: true,
+                ...(model !== null
+                    ? { model: this.providerCatalog.nativeModel(model, true) }
+                    : {}),
+                gatewayId,
+                modelProvider:
+                    persisted?.modelProvider ??
+                    gatewayId ??
+                    (await this.getResumeModelProvider()),
+            };
+        }
         if (typeof selection === "string") {
             const model = this.providerCatalog.upstreamModel(selection)!;
             const gatewayId = this.providerCatalog.gatewayIdFor(selection);
@@ -2194,10 +2363,8 @@ export class CodexAcpClient {
                     gatewayId ?? (await this.getResumeModelProvider()),
             };
         }
-        if (request.sessionId && this.providerCatalog.active) {
-            const { thread } = await this.codexClient.threadRead({
-                threadId: request.sessionId,
-            });
+        if (persisted && this.providerCatalog.active) {
+            const thread = persisted;
             if (this.providerCatalog.hasGateway(thread.modelProvider)) {
                 return {
                     ...(thread.model ? { model: thread.model } : {}),

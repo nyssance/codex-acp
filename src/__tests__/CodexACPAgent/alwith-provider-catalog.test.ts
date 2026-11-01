@@ -4,6 +4,11 @@ import {
     codexResponse,
     sessionId,
     type PromptSession,
+    createTurn,
+    turnId,
+    userMessageItem,
+    itemStarted,
+    itemCompleted,
 } from "./v2-prompt-harness";
 const clients: PromptSession[] = [];
 afterEach(() => {
@@ -18,8 +23,8 @@ const provider = (id: string, model: string) => ({
         alwith: { models: [{ id: model, label: model }] },
     },
 });
-async function connect() {
-    const client = await connectSession();
+async function connect(protocolVersion: 1 | 2 = 2) {
+    const client = await connectSession(protocolVersion);
     clients.push(client);
     const resumes = vi.fn(async (raw: unknown) => {
         const params = raw as Record<string, unknown>;
@@ -62,7 +67,10 @@ describe("ALwith session-scoped provider catalog", () => {
             mcpServers: [],
         });
         expect(resumes).toHaveBeenLastCalledWith(
-            expect.objectContaining({ modelProvider: "one", model: "model-a" }),
+            expect.objectContaining({
+                modelProvider: "one",
+                model: "gateway:one:model-a",
+            }),
         );
     });
     it("passes the persisted native model when restoring a catalog session", async () => {
@@ -86,7 +94,7 @@ describe("ALwith session-scoped provider catalog", () => {
         expect(resumes).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 modelProvider: "openai",
-                model: "gpt-5",
+                model: "native:gpt-5",
             }),
         );
     });
@@ -107,7 +115,7 @@ describe("ALwith session-scoped provider catalog", () => {
         ).toEqual(["gpt-5", "gateway:one:model-a", "gateway:two:model-b"]);
         expect(resumes).not.toHaveBeenCalled();
     });
-    it("moves only the selected session and sends the upstream model ID", async () => {
+    it("moves only the logical route and persists the full selection with a fixed native provider", async () => {
         const { client, resumes } = await connect();
         await client.request("providers/set", provider("one", "model-a"));
         await client.request("session/set_config_option", {
@@ -119,16 +127,13 @@ describe("ALwith session-scoped provider catalog", () => {
         expect(resumes).toHaveBeenCalledExactlyOnceWith(
             expect.objectContaining({
                 threadId: sessionId,
-                model: "model-a",
-                modelProvider: "one",
+                model: "gateway:one:model-a",
+                modelProvider: "openai",
                 config: expect.objectContaining({
-                    model_providers: expect.objectContaining({
-                        one: expect.objectContaining({
-                            base_url: expect.stringMatching(
-                                /^http:\/\/127\.0\.0\.1:/,
-                            ),
-                        }),
-                    }),
+                    model_providers: {},
+                    openai_base_url: expect.stringMatching(
+                        /^http:\/\/127\.0\.0\.1:/,
+                    ),
                 }),
             }),
         );
@@ -143,7 +148,7 @@ describe("ALwith session-scoped provider catalog", () => {
         });
         expect(resumes).toHaveBeenLastCalledWith(
             expect.objectContaining({
-                model: "gpt-5",
+                model: "native:gpt-5",
                 modelProvider: "openai",
             }),
         );
@@ -176,8 +181,8 @@ describe("ALwith session-scoped provider catalog", () => {
         });
         expect(resumes).toHaveBeenCalledExactlyOnceWith(
             expect.objectContaining({
-                model: "gpt-5",
-                modelProvider: "openai",
+                model: "native:gpt-5",
+                modelProvider: "one",
             }),
         );
     });
@@ -221,7 +226,7 @@ describe("ALwith session-scoped provider catalog", () => {
         expect(resumes).toHaveBeenCalledTimes(2);
         expect(resumes).toHaveBeenLastCalledWith(
             expect.objectContaining({
-                model: "gpt-5",
+                model: "native:gpt-5",
                 modelProvider: "openai",
             }),
         );
@@ -230,3 +235,145 @@ describe("ALwith session-scoped provider catalog", () => {
         );
     });
 });
+
+it("switches the logical gateway while retaining the Codex thread provider and session id", async () => {
+    const { client, resumes } = await connect();
+    await client.request("providers/set", provider("one", "model-a"));
+    await client.request("providers/set", provider("two", "model-b"));
+    const original = codexResponse("thread/resume") as {
+        thread: Record<string, unknown>;
+    };
+    client.setCodexResponse("thread/read", async () => ({
+        thread: {
+            ...original.thread,
+            modelProvider: "one",
+            model: "model-a",
+            status: { type: "idle" },
+        },
+    }));
+    await client.agent.loadSession({
+        sessionId,
+        cwd: "/workspace",
+        mcpServers: [],
+    });
+    await client.request("session/set_config_option", {
+        sessionId,
+        configId: "model",
+        type: "id",
+        value: "gateway:two:model-b",
+    });
+    expect(resumes).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            threadId: sessionId,
+            modelProvider: "one",
+            model: "gateway:two:model-b",
+        }),
+    );
+    expect(client.agent.getSessionState(sessionId).currentModelId).toBe(
+        "gateway:two:model-b[medium]",
+    );
+});
+
+it.each([1, 2] as const)(
+    "restores and sends native catalog history after removing the last unused gateway (v%s)",
+    async (protocol) => {
+        const { client, resumes } = await connect(protocol);
+        await client.request("providers/set", provider("one", "model-a"));
+        const original = codexResponse("thread/resume") as {
+            thread: Record<string, unknown>;
+        };
+        client.setCodexResponse("thread/read", async () => ({
+            thread: {
+                ...original.thread,
+                model: "native:gpt-5",
+                modelProvider: "one",
+            },
+        }));
+        await client.agent.loadSession({
+            sessionId,
+            cwd: "/workspace",
+            mcpServers: [],
+        });
+        await client.request("providers/disable", { providerId: "openai" });
+        await client.agent.loadSession({
+            sessionId,
+            cwd: "/workspace",
+            mcpServers: [],
+        });
+        expect(resumes).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                modelProvider: "one",
+                model: "native:gpt-5",
+                config: expect.objectContaining({
+                    model_catalog_json: expect.any(String),
+                    model_providers: expect.objectContaining({
+                        one: expect.objectContaining({
+                            requires_openai_auth: true,
+                        }),
+                    }),
+                }),
+            }),
+        );
+        const prompt = client.sendPrompt([{ type: "text", text: "Continue" }]);
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+        expect(client.turnStartParams[0]?.["model"]).toBe("native:gpt-5");
+        const clientId = client.turnStartParams[0]?.["clientUserMessageId"];
+        const item = userMessageItem(
+            typeof clientId === "string" ? clientId : null,
+            "Continue",
+        );
+        client.emit(itemStarted(item));
+        client.emit(itemCompleted(item));
+        client.emit({
+            method: "turn/completed",
+            params: {
+                threadId: sessionId,
+                turn: createTurn("completed", turnId),
+            },
+        });
+        await prompt;
+        await client.promptRunFinished();
+    },
+);
+
+it.each([1, 2] as const)(
+    "recovers catalog history in a fresh adapter without registered gateways (v%s)",
+    async (protocol) => {
+        const { client, resumes } = await connect(protocol);
+        const original = codexResponse("thread/resume") as {
+            thread: Record<string, unknown>;
+        };
+        client.setCodexResponse("thread/read", async () => ({
+            thread: {
+                ...original.thread,
+                model: "native:gpt-5",
+                modelProvider: "one",
+            },
+        }));
+        resumes.mockImplementation(async (raw) => {
+            const params = raw as Record<string, unknown>;
+            if (params["modelProvider"] !== "one") {
+                throw new Error(
+                    "This chat uses model provider “one”, which is no longer configured. Restore this provider configuration to continue.",
+                );
+            }
+            return {
+                ...(codexResponse("thread/resume") as object),
+                model: params["model"] ?? "gpt-5",
+                modelProvider: "one",
+            };
+        });
+        await client.agent.loadSession({
+            sessionId,
+            cwd: "/workspace",
+            mcpServers: [],
+        });
+        expect(resumes).toHaveBeenCalledTimes(2);
+        expect(resumes).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                modelProvider: "one",
+                model: "native:gpt-5",
+            }),
+        );
+    },
+);
