@@ -10,6 +10,7 @@ import { AIR_NATIVE_SUBAGENT_SESSIONS_KEY } from "../../AirExtension";
 import type { Thread } from "../../app-server/v2";
 import { createCodexMockTestFixture, createTestModel } from "../acp-test-utils";
 import { createMockConnections } from "./test-utils";
+import { commandExecutionItem, createTurn } from "./v2-prompt-harness";
 import {
     checkV2SessionUpdate,
     expectConformingV2SessionUpdates,
@@ -365,7 +366,7 @@ const wholeMessageKindByChunk: Record<
 /**
  * Every replayed chunk with an id must be preceded (anywhere earlier in
  * the same session's update stream) by a whole-message update of the matching kind and id with
- * `content: []`, sent exactly once per id.
+ * `content: []` and `_meta: null`, sent exactly once per id.
  */
 function assertPrimerBeforeEveryChunk(
     updates: acpV2.UpdateSessionNotification[],
@@ -389,7 +390,8 @@ function assertPrimerBeforeEveryChunk(
                         (prior.update as { content?: unknown[] }).content,
                     ) &&
                     (prior.update as { content: unknown[] }).content.length ===
-                        0,
+                        0 &&
+                    prior.update._meta === null,
             );
         expect(
             hasPrimer,
@@ -441,6 +443,13 @@ describe("ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
                 update.sessionUpdate === "agent_thought",
         );
         for (const { update } of messages) {
+            if (update._meta === null) {
+                expect(["agent_message", "agent_thought"]).toContain(
+                    update.sessionUpdate,
+                );
+                expect("content" in update && update.content).toEqual([]);
+                continue;
+            }
             const meta = update._meta as Record<string, unknown>;
             const originalTurn = reviewReplayTurns.find((turn) =>
                 turn.items.some(
@@ -509,6 +518,128 @@ describe("ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
                 },
             });
             assertPrimerBeforeEveryChunk(updates);
+        },
+    );
+
+    it.each([
+        { native: false, paginated: false },
+        { native: false, paginated: true },
+        { native: true, paginated: false },
+        { native: true, paginated: true },
+    ])(
+        "resynchronizes entity metadata on every replay (AIR: $native, paginated: $paginated)",
+        async ({ native, paginated }) => {
+            const replayTurns: Thread["turns"] = [
+                {
+                    ...createTurn("completed"),
+                    itemsView: "full",
+                    items: [
+                        {
+                            ...commandExecutionItem("command", "completed"),
+                            aggregatedOutput: "Recorded output",
+                        },
+                        {
+                            type: "mcpToolCall",
+                            id: "mcp",
+                            server: "docs",
+                            tool: "lookup",
+                            status: "completed",
+                            arguments: {},
+                            appContext: null,
+                            mcpAppUi: null,
+                            pluginId: null,
+                            readOnlyHint: null,
+                            result: null,
+                            error: null,
+                            durationMs: null,
+                        },
+                        { type: "contextCompaction", id: "compaction" },
+                    ],
+                },
+            ];
+            const { connection, updates } = await connectV2Client({
+                replayTurns,
+                paginated,
+                capabilities: {
+                    ...(native
+                        ? {
+                              _meta: {
+                                  jetbrains: {
+                                      air: {
+                                          version: 1,
+                                          capabilities: [
+                                              AIR_NATIVE_SUBAGENT_SESSIONS_KEY,
+                                          ],
+                                      },
+                                  },
+                              },
+                          }
+                        : {}),
+                },
+            });
+            closeClient = () => connection.close();
+            for (let replay = 0; replay < 2; replay++) {
+                const start = updates.length;
+                await connection.agent.request(
+                    acpV2.methods.agent.session.resume,
+                    { sessionId, cwd, replayFrom: { type: "start" } },
+                );
+                const current = updates
+                    .slice(start)
+                    .map(({ update }) => update);
+                const metadata = (
+                    match: (update: acpV2.SessionUpdate) => boolean,
+                ) =>
+                    current
+                        .filter(match)
+                        .map((update) => update._meta)
+                        .filter((meta) => meta !== undefined)
+                        .map((meta) => {
+                            if (meta === null) return null;
+                            const { codex, ...rest } = meta as Record<
+                                string,
+                                unknown
+                            >;
+                            if (codex !== undefined)
+                                expect(codex).toMatchObject({
+                                    historyReplay: true,
+                                    turnId: "turn-1",
+                                });
+                            return rest;
+                        })
+                        .filter(
+                            (meta) =>
+                                meta === null || Object.keys(meta).length > 0,
+                        );
+                expect(
+                    metadata(
+                        (update) =>
+                            acpV2.SessionUpdate.isTerminalUpdate(update) &&
+                            update.terminalId === "command",
+                    ),
+                ).toEqual([null]);
+                expect(
+                    metadata(
+                        (update) =>
+                            acpV2.SessionUpdate.isToolCallUpdate(update) &&
+                            update.toolCallId === "command",
+                    ),
+                ).toEqual([null]);
+                expect(
+                    metadata(
+                        (update) =>
+                            acpV2.SessionUpdate.isToolCallUpdate(update) &&
+                            update.toolCallId === "mcp",
+                    ),
+                ).toEqual([null, { is_mcp_tool_call: true }]);
+                expect(
+                    metadata(
+                        (update) =>
+                            acpV2.SessionUpdate.isCompactionUpdate(update) &&
+                            update.compactionId === "compaction",
+                    ),
+                ).toEqual([null]);
+            }
         },
     );
 

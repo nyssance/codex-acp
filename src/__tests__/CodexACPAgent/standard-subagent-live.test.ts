@@ -725,43 +725,31 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", (version) => {
         ).toEqual([]);
     });
 
-    it.skipIf(version !== 2)(
-        "finishes two same-parent setups in one batch without deadlock",
-        async () => {
-            await connect();
-            h.emit(itemStarted(activityItem()));
-            h.emit(onWorker(turnStarted("child-turn")));
-            await flush(h);
-            history(h, [activityItem()]);
-            await h.requestBatch([
-                {
-                    method: "session/resume",
-                    params: { sessionId, cwd, replayFrom: { type: "start" } },
-                },
-                {
-                    method: "session/resume",
-                    params: { sessionId, cwd, replayFrom: { type: "start" } },
-                },
-            ]);
-            h.emit(
-                onWorker(
-                    agentMessageDelta(
-                        "Across batch",
-                        "child-turn",
-                        "batch-output",
-                    ),
+    it("finishes concurrent same-parent setups without deadlock", async () => {
+        await connect();
+        h.emit(itemStarted(activityItem()));
+        h.emit(onWorker(turnStarted("child-turn")));
+        await flush(h);
+        history(h, [activityItem()]);
+        await Promise.all([load(), load()]);
+        h.emit(
+            onWorker(
+                agentMessageDelta(
+                    "After setup",
+                    "child-turn",
+                    "concurrent-output",
                 ),
-            );
-            await flush(h);
-            expect(
-                childUpdates().filter(
-                    (entry) =>
-                        entry.update.sessionUpdate === "agent_message_chunk" &&
-                        entry.update.messageId === "batch-output",
-                ),
-            ).toHaveLength(1);
-        },
-    );
+            ),
+        );
+        await flush(h);
+        expect(
+            childUpdates().filter(
+                (entry) =>
+                    entry.update.sessionUpdate === "agent_message_chunk" &&
+                    entry.update.messageId === "concurrent-output",
+            ),
+        ).toHaveLength(1);
+    });
 
     it("does not let a queued attachment reopen a parent closed during replay", async () => {
         await connect();
@@ -798,13 +786,13 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", (version) => {
     });
 
     it.skipIf(version !== 2)(
-        "holds current snapshots until the complete response batch is written",
+        "publishes snapshots after the setup response without waiting for unrelated requests",
         async () => {
             await connect();
             h.emit(itemStarted(activityItem()));
             h.emit(onWorker(turnStarted("child-turn")));
             await flush(h);
-            history(h);
+            history(h, [activityItem()]);
             let release!: () => void;
             const held = new Promise<void>((resolve) => {
                 release = resolve;
@@ -818,42 +806,32 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", (version) => {
             const resume = vi.spyOn(h.agent, "resumeSessionV2");
             const start = h.wireMessages.length;
             const before = childUpdates().length;
-            const batch = h.requestBatch([
-                {
-                    method: "session/resume",
-                    params: { sessionId, cwd, replayFrom: { type: "start" } },
-                },
-                { method: "session/list", params: {} },
-            ]);
-            void batch.catch(() => {});
+            const pendingList = h.request("session/list", {});
             try {
-                await vi.waitFor(() =>
-                    expect(resume.mock.results).toHaveLength(1),
-                );
-                await resume.mock.results[0]!.value;
+                await load();
+                expect(resume).toHaveBeenCalledOnce();
                 expect(list).toHaveBeenCalled();
                 await flush(h);
-                expect(h.wireMessages.slice(start).some(Array.isArray)).toBe(
-                    false,
+                await vi.waitFor(() =>
+                    expect(
+                        childUpdates()
+                            .slice(before)
+                            .some(
+                                (entry) =>
+                                    entry.update.sessionUpdate ===
+                                    "state_update",
+                            ),
+                    ).toBe(true),
                 );
-                expect(
-                    childUpdates()
-                        .slice(before)
-                        .some(
-                            (entry) =>
-                                entry.update.sessionUpdate === "state_update",
-                        ),
-                ).toBe(false);
             } finally {
                 release();
             }
-            await batch;
+            await pendingList;
             await flush(h);
             const frames = h.wireMessages.slice(start);
-            const response = frames.findIndex(Array.isArray);
+            const response = frames.findIndex((frame) => "result" in frame);
             const state = frames.findIndex(
                 (frame) =>
-                    !Array.isArray(frame) &&
                     "method" in frame &&
                     frame.method === "session/update" &&
                     (

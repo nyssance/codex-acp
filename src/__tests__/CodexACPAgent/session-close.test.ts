@@ -123,7 +123,10 @@ describe("ACP session close", () => {
             .flatMap((event) =>
                 event.eventType === "request" ? [event.method] : [],
             );
-        expect(requestMethods).toEqual(["thread/unsubscribe"]);
+        expect(requestMethods).toEqual([
+            "thread/backgroundTerminals/list",
+            "thread/unsubscribe",
+        ]);
         expect(() => codexAcpAgent.getSessionState(sessionId)).toThrow(
             `Session ${sessionId} not found`,
         );
@@ -388,7 +391,7 @@ describe("ACP session close", () => {
 
         expect(
             fixture.getAcpConnectionEvents([]).map((event) => event.method),
-        ).toEqual(["createElicitation", "completeElicitation"]);
+        ).toEqual(["createElicitation"]);
     });
 
     it("rejects an in-flight resume that completes after close", async () => {

@@ -163,8 +163,13 @@ describe("image generation over ACP v2", () => {
             replayFrom: { type: "start" },
         });
         const updates = toolUpdates(client);
-        expect(updates).toHaveLength(1);
-        expect(updates[0]).toMatchObject({
+        expect(updates).toHaveLength(2);
+        expect(updates[0]).toEqual({
+            sessionUpdate: "tool_call_update",
+            toolCallId: image.id,
+            _meta: null,
+        });
+        expect(updates[1]).toMatchObject({
             sessionUpdate: "tool_call_update",
             toolCallId: image.id,
             name: "image_generation",

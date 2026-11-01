@@ -165,7 +165,7 @@ export class AgentMode {
     }
 
     private availableModes(): AgentMode[] {
-        return AgentMode.find(this.id)
+        return AgentMode.all().some(mode => mode.id === this.id)
             ? AgentMode.all()
             : [...AgentMode.all(), this];
     }

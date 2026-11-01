@@ -30,6 +30,7 @@ export type SessionMetadata = {
     additionalDirectories: string[];
     skippedMcpServers?: string[];
     instructions?: SessionInstructions;
+    sessionTitle?: string | null;
 };
 
 export type SessionMetadataWithThread = SessionMetadata & {

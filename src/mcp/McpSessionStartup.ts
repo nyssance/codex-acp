@@ -56,6 +56,10 @@ export class McpSessionStartup {
         signIn: McpServerSignIn,
         capabilities: () => ClientCapabilities,
         isSessionOpen: (sessionId: string) => boolean,
+        private readonly waitForSessionSetup: (
+            sessionId: string,
+            signal: AbortSignal,
+        ) => Promise<void> | null = () => null,
     ) {
         this.connection = connection;
         this.codexAcpClient = codexAcpClient;
@@ -111,6 +115,11 @@ export class McpSessionStartup {
     close(sessionId: string): void {
         this.pendingSessions.get(sessionId)?.abort.abort();
         this.pendingSessions.delete(sessionId);
+    }
+
+    dispose(): void {
+        for (const sessionId of this.pendingSessions.keys())
+            this.close(sessionId);
     }
 
     isPending(sessionId: string): boolean {
@@ -174,6 +183,11 @@ export class McpSessionStartup {
 
         try {
             const mcpStartup = await pendingStartup.startup;
+            const setup = this.waitForSessionSetup(
+                sessionId,
+                pendingStartup.abort.signal,
+            );
+            if (setup) await setup;
             if (
                 !this.isSessionOpen(sessionId) ||
                 this.pendingSessions.get(sessionId) !== pendingStartup

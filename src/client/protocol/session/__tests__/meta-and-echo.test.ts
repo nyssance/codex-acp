@@ -494,3 +494,21 @@ for (const sessionUpdate of [
         ]);
     });
 }
+
+test("usage cost persists when omitted, replaces when present, and clears on null", () => {
+    let session = createSession("s", "/tmp");
+    const usage = (cost: object) => ({
+        sessionUpdate: "usage_update",
+        used: 10,
+        size: 100,
+        ...cost,
+    });
+    session = apply(session, usage({ cost: { amount: 1, currency: "USD" } }));
+    session = apply(session, usage({}));
+    expect(session.usage?.cost).toEqual({ amount: 1, currency: "USD" });
+    session = apply(session, usage({ cost: { amount: 2, currency: "USD" } }));
+    expect(session.usage?.cost).toEqual({ amount: 2, currency: "USD" });
+    session = apply(session, usage({ cost: null }));
+    session = apply(session, usage({}));
+    expect(session.usage?.cost).toBeNull();
+});

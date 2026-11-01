@@ -504,7 +504,7 @@ describe.each([1, 2] as const)(
         });
 
         it.skipIf(version !== 2)(
-            "waits for the entire replay response batch before granting cancellation",
+            "grants cancellation after replay without waiting for unrelated requests",
             async () => {
                 await connect();
                 await start();
@@ -520,37 +520,21 @@ describe.each([1, 2] as const)(
                         return { sessions: [] };
                     },
                 );
-                const resume = vi.spyOn(h.agent, "resumeSessionV2");
-                const pending = h.requestBatch([
-                    {
-                        method: "session/resume",
-                        params: {
-                            sessionId,
-                            cwd,
-                            replayFrom: { type: "start" },
-                        },
-                    },
-                    { method: "session/list", params: {} },
-                ]);
+                const pending = h.request("session/list", {});
                 void pending.catch(() => {});
                 try {
+                    await load();
                     await vi.waitFor(() =>
-                        expect(resume.mock.results).toHaveLength(1),
+                        expect(grants()).toBe(beforeGrants + 1),
                     );
-                    await resume.mock.results[0]!.value;
                     await h.cancel(id("worker"));
-                    await flush(h);
-                    expect(h.turnInterruptCalls()).toEqual([]);
-                    expect(grants()).toBe(beforeGrants);
+                    await vi.waitFor(() =>
+                        expect(h.turnInterruptCalls()).toHaveLength(1),
+                    );
                 } finally {
                     release();
                 }
                 await pending;
-                await vi.waitFor(() => expect(grants()).toBe(beforeGrants + 1));
-                await h.cancel(id("worker"));
-                await vi.waitFor(() =>
-                    expect(h.turnInterruptCalls()).toHaveLength(1),
-                );
             },
         );
     },

@@ -4,13 +4,7 @@
     "update": {
       "messageId": "reviewer-reasoning",
       "content": [],
-      "_meta": {
-        "codex": {
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000002",
-          "historyInterrupted": true
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_thought"
     }
   },
@@ -37,12 +31,7 @@
     "update": {
       "messageId": "review-entered",
       "content": [],
-      "_meta": {
-        "codex": {
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000001"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
@@ -68,12 +57,7 @@
     "update": {
       "messageId": "review-exited",
       "content": [],
-      "_meta": {
-        "codex": {
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000001"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
@@ -99,15 +83,7 @@
     "update": {
       "messageId": "review-summary",
       "content": [],
-      "_meta": {
-        "codex": {
-          "phase": null,
-          "delivery": null,
-          "questions": null,
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000001"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
@@ -153,15 +129,7 @@
     "update": {
       "messageId": "ordinary-reply",
       "content": [],
-      "_meta": {
-        "codex": {
-          "phase": null,
-          "delivery": null,
-          "questions": null,
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000003"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
@@ -190,12 +158,7 @@
     "update": {
       "messageId": "review2-entered",
       "content": [],
-      "_meta": {
-        "codex": {
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000004"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
@@ -221,12 +184,7 @@
     "update": {
       "messageId": "review2-exited",
       "content": [],
-      "_meta": {
-        "codex": {
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000004"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
@@ -252,15 +210,7 @@
     "update": {
       "messageId": "review2-summary",
       "content": [],
-      "_meta": {
-        "codex": {
-          "phase": null,
-          "delivery": null,
-          "questions": null,
-          "historyReplay": true,
-          "turnId": "01990000-0000-7000-8000-000000000004"
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },

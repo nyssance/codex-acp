@@ -1,6 +1,11 @@
 [
   {
     "toolCallId": "generated-image",
+    "_meta": null,
+    "sessionUpdate": "tool_call_update"
+  },
+  {
+    "toolCallId": "generated-image",
     "name": "image_generation",
     "title": "Image generation",
     "kind": "other",

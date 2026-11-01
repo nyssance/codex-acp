@@ -30,6 +30,7 @@ type Subscription = {
 type SessionSubscription = {
     current: Subscription;
     children: Set<string>;
+    childParents: Map<string, string>;
 };
 
 /** Discovers child threads and keeps their output/interaction boundary negotiated. */
@@ -45,7 +46,11 @@ export class CodexSubagentSubscriptions {
             return;
         }
 
-        const session = { current: subscription, children: new Set<string>() };
+        const session = {
+            current: subscription,
+            children: new Set<string>(),
+            childParents: new Map<string, string>(),
+        };
         this.sessions.set(subscription.rootSessionId, session);
         this.client.onServerNotification(
             subscription.rootSessionId,
@@ -84,6 +89,44 @@ export class CodexSubagentSubscriptions {
         );
     }
 
+    childThreadIds(rootSessionId: string): string[] {
+        return [...(this.sessions.get(rootSessionId)?.children ?? [])];
+    }
+
+    async readChildThread(threadId: string): Promise<Thread | null> {
+        const session = [...this.sessions.values()].find((session) =>
+            session.children.has(threadId),
+        );
+        const { thread } = await this.client.threadRead({ threadId });
+        if (thread?.id !== threadId) return null;
+        if (
+            session &&
+            this.sessions.get(session.current.rootSessionId) === session
+        )
+            this.rememberParent(session, thread);
+        return thread;
+    }
+
+    /** Use observed ownership, without waiting on unrelated metadata reads during close. */
+    verifiedChildThreadIds(rootSessionId: string): string[] {
+        const parents =
+            this.sessions.get(rootSessionId)?.childParents ??
+            new Map<string, string>();
+        const owned = new Set([rootSessionId]);
+        let changed: boolean;
+        do {
+            changed = false;
+            for (const [threadId, parentId] of parents) {
+                if (!owned.has(threadId) && owned.has(parentId)) {
+                    owned.add(threadId);
+                    changed = true;
+                }
+            }
+        } while (changed);
+        owned.delete(rootSessionId);
+        return [...owned];
+    }
+
     async restoreChild(
         rootSessionId: string,
         parentThreadId: string,
@@ -99,6 +142,7 @@ export class CodexSubagentSubscriptions {
         )
             return null;
         if (!this.attachChild(session, thread.id)) return null;
+        this.rememberParent(session, thread);
         if (thread.status.type === "notLoaded") return null;
         try {
             const response = await this.client.threadResume({
@@ -124,6 +168,11 @@ export class CodexSubagentSubscriptions {
         session: SessionSubscription,
         event: ServerNotification,
     ): void {
+        if (event.method === "thread/started") {
+            if (session.children.has(event.params.thread.id))
+                this.rememberParent(session, event.params.thread);
+            return;
+        }
         if (
             event.method !== "item/started" &&
             event.method !== "item/completed"
@@ -194,8 +243,18 @@ export class CodexSubagentSubscriptions {
             !session.children.delete(childSessionId)
         )
             return;
+        session.childParents.delete(childSessionId);
         if (!this.sessions.has(childSessionId))
             this.client.clearThreadHandlers(childSessionId);
+    }
+
+    private rememberParent(session: SessionSubscription, thread: Thread): void {
+        if (
+            thread.status.type === "notLoaded" ||
+            thread.parentThreadId === null
+        )
+            session.childParents.delete(thread.id);
+        else session.childParents.set(thread.id, thread.parentThreadId);
     }
 
     private registerInteractiveHandlers(

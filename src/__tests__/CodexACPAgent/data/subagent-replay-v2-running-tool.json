@@ -5,7 +5,16 @@
       "terminalId": "command",
       "command": "sleep 12",
       "cwd": "/workspace",
+      "_meta": null,
       "sessionUpdate": "terminal_update"
+    }
+  },
+  {
+    "sessionId": "thread-1:subagent:worker",
+    "update": {
+      "toolCallId": "command",
+      "_meta": null,
+      "sessionUpdate": "tool_call_update"
     }
   },
   {

@@ -1794,12 +1794,10 @@ describe("_session/list/subscribe", () => {
             nextCursor: null,
             backwardsCursor: null,
         }));
-        const threadRead = vi
-            .spyOn(appServer, "threadRead")
-            .mockResolvedValue({
-                readState: null,
-                thread: { ...listed, forkedFromId: parent },
-            });
+        const threadRead = vi.spyOn(appServer, "threadRead").mockResolvedValue({
+            readState: null,
+            thread: { ...listed, forkedFromId: parent },
+        });
         const { subscriptionId } = await agent.sessionIndex.subscribeList({
             cwd: "/repo/project",
         });
@@ -2525,6 +2523,12 @@ describe("_session/archive and _session/unarchive", () => {
         expect(() => agent.getSessionState(threadId)).toThrow(
             `Session ${threadId} not found`,
         );
+        expect(infoUpdates()).toEqual([]);
+        // @ts-expect-error - a stale producer must not publish after the outer archive operation ended
+        await agent.connection.notify("session/update", {
+            sessionId: threadId,
+            update: { sessionUpdate: "session_info_update", title: "Late" },
+        });
         expect(infoUpdates()).toEqual([]);
     });
 

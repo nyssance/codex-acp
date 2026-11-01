@@ -102,7 +102,10 @@ export function codexResponse(method: string): unknown {
         case "thread/goal/get":
             return { goal: null };
         case "thread/list":
+        case "thread/backgroundTerminals/list":
             return { data: [], nextCursor: null };
+        case "thread/read":
+            return { thread: createThread() };
         default:
             return {};
     }
@@ -121,10 +124,7 @@ export type TranscriptEntry =
     | { elicitationComplete: acpV2.CompleteElicitationNotification };
 
 export type PromptSession = {
-    wireMessages: acpV2.AnyWireMessage[];
-    requestBatch(
-        requests: Array<{ method: string; params: unknown }>,
-    ): Promise<unknown>;
+    wireMessages: acpV2.AnyMessage[];
     scopedUpdates: Array<{
         sessionId: string;
         update: acpV2.SessionUpdate | acp.SessionUpdate;
@@ -208,12 +208,14 @@ export async function connectSession(
          * (e.g. MCP OAuth re-auth) sends before the caller gets a chance to call `setCodexResponse`.
          */
         codexResponses?: Record<string, (params: unknown) => Promise<unknown>>;
+        beforeSetupResponseWrite?: () => Promise<void>;
+        onAgent?: (agent: CodexAcpServer) => void;
     } = {},
 ): Promise<PromptSession> {
     const codexHome = mkdtempSync(join(tmpdir(), "codex-acp-wire-"));
     const mocks = createMockConnections();
     const transcript: TranscriptEntry[] = [];
-    const wireMessages: acpV2.AnyWireMessage[] = [];
+    const wireMessages: acpV2.AnyMessage[] = [];
     const scopedUpdates: PromptSession["scopedUpdates"] = [];
     const turnStartParams: Array<Record<string, unknown>> = [];
     const codexResponseOverrides = new Map<
@@ -283,12 +285,38 @@ export async function connectSession(
             undefined,
             options.exitCode,
         );
+        options.onAgent?.(agent);
         return agent;
     });
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
+    const serverStream = acp.ndJsonStream(
+        agentToClient.writable,
+        clientToAgent.readable,
+    );
     router.connect(
-        acp.ndJsonStream(agentToClient.writable, clientToAgent.readable),
+        options.beforeSetupResponseWrite
+            ? {
+                  readable: serverStream.readable,
+                  writable: new WritableStream<acpV2.AnyMessage>({
+                      async write(message) {
+                          if (
+                              "result" in message &&
+                              message.result !== null &&
+                              typeof message.result === "object" &&
+                              "sessionId" in message.result
+                          )
+                              await options.beforeSetupResponseWrite?.();
+                          const writer = serverStream.writable.getWriter();
+                          try {
+                              await writer.write(message);
+                          } finally {
+                              writer.releaseLock();
+                          }
+                      },
+                  }),
+              }
+            : serverStream,
     );
 
     let recordUpdates = false;
@@ -314,7 +342,7 @@ export async function connectSession(
     const clientStream = {
         writable: stream.writable,
         readable: stream.readable.pipeThrough(
-            new TransformStream<acpV2.AnyWireMessage, acpV2.AnyWireMessage>({
+            new TransformStream<acpV2.AnyMessage, acpV2.AnyMessage>({
                 transform(message, controller) {
                     wireMessages.push(message);
                     controller.enqueue(message);
@@ -329,9 +357,6 @@ export async function connectSession(
         signal?: AbortSignal,
     ) => Promise<any>;
     let notifyCancel: (targetSessionId: string) => Promise<void>;
-    let requestBatch: PromptSession["requestBatch"] = async () => {
-        throw new Error("Batches require ACP v2");
-    };
     if (protocolVersion === 2) {
         const v2Connection = acpV2
             .client({ name: "test-client" })
@@ -393,16 +418,6 @@ export async function connectSession(
                 : {}),
         });
         connection = v2Connection;
-        requestBatch = async (requests) => {
-            const [first, ...rest] = requests.map(({ method, params }) =>
-                acpV2.batchRequest(
-                    method as typeof acpV2.methods.agent.session.resume,
-                    params as acpV2.ResumeSessionRequest,
-                ),
-            );
-            if (!first) throw new Error("Empty request batch");
-            return v2Connection.agent.batch([first, ...rest]);
-        };
         request = (method, params, signal) =>
             v2Connection.agent.request(
                 method as typeof acpV2.methods.agent.session.prompt,
@@ -460,7 +475,7 @@ export async function connectSession(
         });
         await v1Connection.agent.request(acp.methods.agent.session.new, {
             cwd,
-            mcpServers: [],
+            mcpServers: options.mcpServers ?? [],
             ...(options.newSessionMeta
                 ? { _meta: options.newSessionMeta }
                 : {}),
@@ -528,7 +543,6 @@ export async function connectSession(
         },
         wireMessages,
         scopedUpdates,
-        requestBatch,
         transcript,
         setupUpdates,
         turnStartParams,

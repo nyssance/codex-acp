@@ -214,6 +214,9 @@
       "update": {
         "_meta": {
           "codex": {
+            "threadStatus": {
+              "type": "idle"
+            },
             "goal": null
           }
         },
@@ -232,12 +235,7 @@
       "update": {
         "messageId": "client-user-1",
         "content": [],
-        "_meta": {
-          "codex": {
-            "historyReplay": true,
-            "turnId": "turn-1"
-          }
-        },
+        "_meta": null,
         "sessionUpdate": "user_message"
       }
     },
@@ -263,12 +261,7 @@
       "update": {
         "messageId": "item-user-2",
         "content": [],
-        "_meta": {
-          "codex": {
-            "historyReplay": true,
-            "turnId": "turn-1"
-          }
-        },
+        "_meta": null,
         "sessionUpdate": "user_message"
       }
     },
@@ -294,15 +287,7 @@
       "update": {
         "messageId": "item-agent-1",
         "content": [],
-        "_meta": {
-          "codex": {
-            "phase": null,
-            "delivery": null,
-            "questions": null,
-            "historyReplay": true,
-            "turnId": "turn-1"
-          }
-        },
+        "_meta": null,
         "sessionUpdate": "agent_message"
       }
     },
@@ -332,7 +317,16 @@
         "terminalId": "item-cmd-1",
         "command": "ls",
         "cwd": "/workspace",
+        "_meta": null,
         "sessionUpdate": "terminal_update"
+      }
+    },
+    {
+      "sessionId": "thread-1",
+      "update": {
+        "toolCallId": "item-cmd-1",
+        "_meta": null,
+        "sessionUpdate": "tool_call_update"
       }
     },
     {
@@ -386,6 +380,28 @@
           }
         },
         "sessionUpdate": "tool_call_update"
+      }
+    },
+    {
+      "sessionId": "thread-1",
+      "update": {
+        "title": "Inserted via session/prompt",
+        "_meta": null,
+        "sessionUpdate": "session_info_update"
+      }
+    },
+    {
+      "sessionId": "thread-1",
+      "update": {
+        "_meta": {
+          "codex": {
+            "threadStatus": {
+              "type": "idle"
+            },
+            "goal": null
+          }
+        },
+        "sessionUpdate": "session_info_update"
       }
     },
     {

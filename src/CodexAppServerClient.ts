@@ -111,6 +111,7 @@ import type {
     TurnError,
 } from "./app-server/v2";
 import type {
+    ThreadBackgroundTerminal,
     ThreadBackgroundTerminalsRequest,
     ThreadBackgroundTerminalsTerminateParams,
     ThreadBackgroundTerminalsTerminateResponse,
@@ -1141,6 +1142,28 @@ export class CodexAppServerClient {
             method: "thread/backgroundTerminals/terminate",
             params,
         });
+    }
+
+    async *backgroundTerminalPages(
+        threadId: string,
+    ): AsyncGenerator<ThreadBackgroundTerminal[]> {
+        const seen = new Set<string>();
+        let cursor: string | null = null;
+        do {
+            const response = await this.threadBackgroundTerminalsList({
+                threadId,
+                cursor,
+            });
+            yield response.data;
+            cursor = response.nextCursor;
+            if (cursor !== null) {
+                if (seen.has(cursor))
+                    throw new Error(
+                        "Codex returned a repeated background terminal cursor",
+                    );
+                seen.add(cursor);
+            }
+        } while (cursor !== null);
     }
 
     async threadGoalSet(

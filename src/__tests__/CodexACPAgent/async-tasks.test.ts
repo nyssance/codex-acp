@@ -5,7 +5,7 @@ import {
     ACPSessionConnection,
     type UpdateSessionEvent,
 } from "../../ACPSessionConnection";
-import type { CodexAppServerClient } from "../../CodexAppServerClient";
+import { CodexAppServerClient } from "../../CodexAppServerClient";
 import type { CodexConnection } from "../../CodexJsonRpcConnection";
 import { CodexBackgroundTerminalTasks } from "../../async-tasks/CodexBackgroundTerminalTasks";
 import { ASYNC_TASK_STOP_METHOD } from "../../async-tasks/AsyncTaskExtension";
@@ -312,6 +312,8 @@ describe("Codex background terminal tasks", () => {
             .fn()
             .mockResolvedValue({ terminated: true });
         fixture.tasks.setAppServer({
+            backgroundTerminalPages:
+                CodexAppServerClient.prototype.backgroundTerminalPages,
             threadBackgroundTerminalsTerminate: replacementTerminate,
         } as unknown as CodexAppServerClient);
 
@@ -588,6 +590,8 @@ describe("Codex background terminal tasks", () => {
                 page([terminal({ itemId: "command-2", processId: "84" })]),
             );
         const replacement = {
+            backgroundTerminalPages:
+                CodexAppServerClient.prototype.backgroundTerminalPages,
             threadBackgroundTerminalsList: replacementList,
             threadBackgroundTerminalsTerminate: vi.fn(),
         } as unknown as CodexAppServerClient;
@@ -790,6 +794,8 @@ function createFixture(
     const list = vi.fn<() => Promise<ThreadBackgroundTerminalsListResponse>>();
     const terminate = vi.fn();
     const appServer = {
+        backgroundTerminalPages:
+            CodexAppServerClient.prototype.backgroundTerminalPages,
         threadBackgroundTerminalsList: list,
         threadBackgroundTerminalsTerminate: terminate,
     } as unknown as CodexAppServerClient;

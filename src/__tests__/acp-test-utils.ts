@@ -407,6 +407,8 @@ export function createCodexMockTestFixture(
         [];
     const mockCodexConnection = {
         sendRequest: (method: string, params?: any) => {
+            if (method === "thread/backgroundTerminals/list")
+                return Promise.resolve({ data: [], nextCursor: null });
             if (method === "project/list")
                 return Promise.resolve({
                     data: mockProjects,

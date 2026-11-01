@@ -1054,8 +1054,19 @@ function fold(
                 _meta: patchMeta(session._meta, frame._meta),
             };
         }
-        case "usage_update":
-            return { ...session, usage: update as acp.UsageUpdate };
+        case "usage_update": {
+            const usage = update as acp.UsageUpdate;
+            return {
+                ...session,
+                usage: {
+                    ...usage,
+                    ...(usage.cost === undefined &&
+                    session.usage?.cost !== undefined
+                        ? { cost: session.usage.cost }
+                        : {}),
+                },
+            };
+        }
         case "available_commands_update":
             return {
                 ...session,

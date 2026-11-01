@@ -25,12 +25,10 @@ describe("TitleGenerator.waitForIdle", () => {
         }>();
         const threadSetName = vi.fn().mockResolvedValue({});
         const generator = createGenerator({
-            threadStart: vi
-                .fn()
-                .mockResolvedValue({
-                    readState: null,
-                    thread: { id: "ephemeral" },
-                }),
+            threadStart: vi.fn().mockResolvedValue({
+                readState: null,
+                thread: { id: "ephemeral" },
+            }),
             runTurn: vi.fn().mockReturnValue(turn.promise),
             threadSetName,
         } as unknown as Partial<CodexAppServerClient>);
@@ -69,12 +67,10 @@ describe("TitleGenerator.waitForIdle", () => {
 
     it("gives up after the timeout rather than holding the caller open", async () => {
         const generator = createGenerator({
-            threadStart: vi
-                .fn()
-                .mockResolvedValue({
-                    readState: null,
-                    thread: { id: "ephemeral" },
-                }),
+            threadStart: vi.fn().mockResolvedValue({
+                readState: null,
+                thread: { id: "ephemeral" },
+            }),
             runTurn: vi.fn().mockReturnValue(new Promise(() => {})),
             threadSetName: vi.fn(),
         } as unknown as Partial<CodexAppServerClient>);
@@ -103,12 +99,10 @@ describe("TitleGenerator prompt", () => {
     it("sends only the start of a long first message to the title model", async () => {
         const runTurn = vi.fn().mockResolvedValue({ turn: { items: [] } });
         const generator = createGenerator({
-            threadStart: vi
-                .fn()
-                .mockResolvedValue({
-                    readState: null,
-                    thread: { id: "ephemeral" },
-                }),
+            threadStart: vi.fn().mockResolvedValue({
+                readState: null,
+                thread: { id: "ephemeral" },
+            }),
             runTurn,
         } as unknown as Partial<CodexAppServerClient>);
 

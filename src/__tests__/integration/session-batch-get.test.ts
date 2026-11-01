@@ -110,21 +110,17 @@ describeIntegration("integration: session batch metadata", () => {
                 },
             });
             // Populate the backend index as its normal discovery does; batchGet itself never lists.
-            await fixture
-                .getCodexAppServerClient()
-                .threadList({
-                    limit: 100,
-                    sourceKinds: [],
-                    modelProviders: [],
-                });
-            await fixture
-                .getCodexAppServerClient()
-                .threadList({
-                    limit: 100,
-                    archived: true,
-                    sourceKinds: [],
-                    modelProviders: [],
-                });
+            await fixture.getCodexAppServerClient().threadList({
+                limit: 100,
+                sourceKinds: [],
+                modelProviders: [],
+            });
+            await fixture.getCodexAppServerClient().threadList({
+                limit: 100,
+                archived: true,
+                sourceKinds: [],
+                modelProviders: [],
+            });
             const recent = await index.list({});
             expect(recent.sessions).toHaveLength(50);
             expect(recent.sessions.map((row) => row.sessionId)).not.toContain(

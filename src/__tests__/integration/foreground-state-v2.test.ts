@@ -238,6 +238,26 @@ describeIntegration("integration: ACP v2 foreground state", () => {
                         update.sessionUpdate === "user_message_chunk",
                 );
                 expect(replayedMessages).toBe(replayFrom != null);
+                const info = updates
+                    .findLast(
+                        ({ update }) =>
+                            update.sessionUpdate === "session_info_update" &&
+                            "title" in update,
+                    );
+                expect(info?.update).toHaveProperty("title");
+                const lastMessage = updates
+                    .map(({ update }) => update.sessionUpdate)
+                    .lastIndexOf("agent_message_chunk");
+                expect(updates.indexOf(info!)).toBeGreaterThan(lastMessage);
+                for (const { update } of updates) {
+                    if (
+                        update.sessionUpdate === "user_message" ||
+                        update.sessionUpdate === "agent_message" ||
+                        update.sessionUpdate === "agent_thought"
+                    ) {
+                        expect(update._meta).toBeNull();
+                    }
+                }
             }
             updates.splice(0);
             const fork = await connection.agent.request(

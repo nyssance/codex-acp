@@ -70,12 +70,10 @@ async function start(options: Parameters<typeof connectSession>[1] = {}) {
 }
 describe("ALwith host tools over the upstream ACP router", () => {
     it("deduplicates writes and rejects altered call IDs and stale turns", async () => {
-        const host = vi
-            .fn()
-            .mockResolvedValue({
-                success: true,
-                contentItems: [{ type: "text", text: "written" }],
-            });
+        const host = vi.fn().mockResolvedValue({
+            success: true,
+            contentItems: [{ type: "text", text: "written" }],
+        });
         const { client, finish } = await start({ onToolCall: host });
         const first = client.triggerApproval("item/tool/call", call);
         expect(await client.triggerApproval("item/tool/call", call)).toEqual(

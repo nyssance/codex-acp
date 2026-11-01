@@ -75,7 +75,9 @@ it("invalidates queued setup on cancellation and allows a fresh resume afterward
     const rejected = expect(first).rejects.toMatchObject({ code: -32800 });
     await vi.waitFor(() => expect(native).toHaveBeenCalledTimes(1));
     const second = client.request("session/resume", { sessionId, cwd });
-    const queuedRejected = expect(second).rejects.toMatchObject({code: -32600});
+    const queuedRejected = expect(second).rejects.toMatchObject({
+        code: -32600,
+    });
     await settle();
     expect(native).toHaveBeenCalledTimes(1);
     controller.abort();
@@ -86,7 +88,7 @@ it("invalidates queued setup on cancellation and allows a fresh resume afterward
     await queuedRejected;
     expect(native).toHaveBeenCalledTimes(1);
     expect(unsubscribe).toHaveBeenCalled();
-    await client.request("session/resume", {sessionId, cwd});
+    await client.request("session/resume", { sessionId, cwd });
     expect(native).toHaveBeenCalledTimes(2);
     const unsubscribeCount = unsubscribe.mock.calls.length;
     const owner = client.agent.getSessionState(sessionId);

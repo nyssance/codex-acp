@@ -128,12 +128,10 @@ describe("session compaction", () => {
             compactionCompleted(),
         ]);
         const firstCompaction = fixture.getAcpConnectionEvents([]);
-        await fixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId,
-                prompt: [{ type: "text", text: "Continue again." }],
-            });
+        await fixture.getCodexAcpAgent().prompt({
+            sessionId,
+            prompt: [{ type: "text", text: "Continue again." }],
+        });
         fixture.clearAcpConnectionDump();
         await sendNotifications(fixture, [
             compactionStarted(),
@@ -157,12 +155,10 @@ describe("session compaction", () => {
             fixture.getCodexAppServerClient(),
             "threadCompactStart",
         );
-        const prompt = fixture
-            .getCodexAcpAgent()
-            .prompt({
-                sessionId,
-                prompt: [{ type: "text", text: "/compact" }],
-            });
+        const prompt = fixture.getCodexAcpAgent().prompt({
+            sessionId,
+            prompt: [{ type: "text", text: "/compact" }],
+        });
         await vi.waitFor(() =>
             expect(compactStart).toHaveBeenCalledWith({ threadId: sessionId }),
         );

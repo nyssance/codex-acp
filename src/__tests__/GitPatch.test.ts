@@ -3,11 +3,49 @@ import { parsePatch } from "diff";
 import {
     createAddedFileGitPatch,
     createDeletedFileGitPatch,
+    createEmptyFileGitPatch,
+    createRenameGitPatch,
     createUpdateGitPatch,
     DIFF_PATCH_MAX_BYTES,
 } from "../GitPatch";
 
 describe("GitPatch", () => {
+    it.each(["/repo/a.txt", String.raw`C:\repo\a.txt`, String.raw`\\server\share\a.txt`])(
+        "keeps native absolute paths in ACP v2 patches: %s",
+        (filePath) => {
+            const quoted = filePath.includes("\\")
+                ? JSON.stringify(filePath)
+                : filePath;
+            const target = filePath.replace("a.txt", "b.txt");
+            const quotedTarget = target.includes("\\")
+                ? JSON.stringify(target)
+                : target;
+            expect(
+                createUpdateGitPatch(
+                    filePath,
+                    target,
+                    "@@ -1 +1 @@\n-old\n+new\n",
+                    "absolute",
+                ),
+            ).toBe(
+                `diff --git ${quoted} ${quotedTarget}\nrename from ${quoted}\nrename to ${quotedTarget}\n` +
+                    `--- ${quoted}\n+++ ${quotedTarget}\n@@ -1 +1 @@\n-old\n+new\n`,
+            );
+            expect(
+                createAddedFileGitPatch(filePath, "new\n", "absolute"),
+            ).toContain(`--- /dev/null\n+++ ${quoted}\n`);
+            expect(
+                createDeletedFileGitPatch(filePath, "old\n", "absolute"),
+            ).toContain(`--- ${quoted}\n+++ /dev/null\n`);
+            expect(
+                createRenameGitPatch(filePath, target, "absolute"),
+            ).toContain(`rename from ${quoted}\nrename to ${quotedTarget}\n`);
+            expect(createEmptyFileGitPatch(filePath, "added", "absolute")).toBe(
+                `diff --git ${quoted} ${quoted}\nnew file mode 100644\n`,
+            );
+        },
+    );
+
     it("strips the leading slash of an absolute path in every header", () => {
         expect(
             createUpdateGitPatch(

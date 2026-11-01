@@ -43,13 +43,11 @@ import {
     isAccountReadAuthFailureError,
     isAccountReadUnavailableError,
 } from "./CodexThreadErrors";
-import { sanitizeMcpServerName } from "./McpServerName";
-import { listedSessionTitle } from "./SessionTitle";
+import { listedSessionTitle, normalizeSessionTitle } from "./SessionTitle";
 import {
     type AcpMcpServer,
     type WithAcpMcpServers,
-    getMcpServerName,
-    normalizeMcpServer,
+    normalizeMcpServers,
     toCodexMcpServerConfig,
 } from "./McpServerConfig";
 import type {
@@ -87,6 +85,7 @@ import {
     arePathBasenamesEqual,
     arePathsEqual,
     isAbsolutePathLike,
+    isAbsoluteProtocolPath,
 } from "./PathUtils";
 import { CodexSubagentSubscriptions } from "./subagents/CodexSubagentSubscriptions";
 import { forkSession as runForkSession } from "./SessionFork";
@@ -98,6 +97,8 @@ import {
     isMissingRolloutError,
     isThreadNotMaterializedError,
     isThreadActiveWriterError,
+    isThreadNotFoundError,
+    isThreadNotLoadedError,
     isUnknownThreadError,
     threadActiveWriterRequestError,
 } from "./CodexThreadErrors";
@@ -293,6 +294,8 @@ export class CodexAcpClient {
     async initialize(
         request: Pick<acp.InitializeRequest, "clientInfo">,
     ): Promise<void> {
+        // ACP can repeat initialize, but a Codex app-server connection handshakes only once.
+        if (this.isInitialized) return;
         const response = await this.codexClient.initialize({
             capabilities: {
                 experimentalApi: true,
@@ -973,6 +976,9 @@ export class CodexAcpClient {
                 response.collaborationMode ??
                 this.getCollaborationMode(response.thread.id),
             threadStatus: response.thread.status,
+            sessionTitle: normalizeSessionTitle(
+                listedSessionTitle(response.thread),
+            ),
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
@@ -1286,6 +1292,14 @@ export class CodexAcpClient {
         return this.subagents.isChildThread(threadId);
     }
 
+    subagentThreadIds(rootSessionId: string): string[] {
+        return this.subagents.childThreadIds(rootSessionId);
+    }
+
+    readSubagentThread(threadId: string): Promise<Thread | null> {
+        return this.subagents.readChildThread(threadId);
+    }
+
     async newSession(
         request: WithAcpMcpServers<acp.NewSessionRequest>,
     ): Promise<SessionMetadata> {
@@ -1514,11 +1528,52 @@ export class CodexAcpClient {
             this.codexClient.clearThreadHandlers(sessionId);
             return;
         }
+        const children = this.subagents.verifiedChildThreadIds(sessionId);
+        // Unsubscribe only detaches. Codex can keep the runtime and its processes alive until a later unload.
+        for (const threadId of [...children, sessionId]) {
+            await this.stopBackgroundTerminals(threadId);
+        }
+        await this.codexClient.threadUnsubscribe({ threadId: sessionId });
+        this.codexClient.clearThreadHandlers(sessionId);
+        this.subagents.clear(sessionId);
+    }
+
+    private async stopBackgroundTerminals(threadId: string): Promise<void> {
         try {
-            await this.codexClient.threadUnsubscribe({ threadId: sessionId });
-        } finally {
-            this.codexClient.clearThreadHandlers(sessionId);
-            this.subagents.clear(sessionId);
+            // Read all pages before removing processes so cleanup cannot disturb pagination.
+            const terminals = [];
+            for await (const page of this.codexClient.backgroundTerminalPages(
+                threadId,
+            ))
+                terminals.push(...page);
+            for (const terminal of terminals) {
+                const result =
+                    await this.codexClient.threadBackgroundTerminalsTerminate({
+                        threadId,
+                        processId: terminal.processId,
+                    });
+                if (!result.terminated) {
+                    // False can mean either "already gone" or a failed stop. Verify which before closing.
+                    for await (const page of this.codexClient.backgroundTerminalPages(
+                        threadId,
+                    )) {
+                        if (
+                            page.some(
+                                (current) =>
+                                    current.processId === terminal.processId,
+                            )
+                        ) {
+                            throw new Error(
+                                `Codex could not stop background terminal ${terminal.processId}`,
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // An already-unloaded runtime has no processes left to stop.
+            if (!isThreadNotFoundError(error) && !isThreadNotLoadedError(error))
+                throw error;
         }
     }
 
@@ -1751,10 +1806,9 @@ export class CodexAcpClient {
             return { config: configWithWorkspaceRoots, skippedMcpServers: [] };
         }
 
-        const requestedServers = mcpServers.map((mcp) => ({
-            name: sanitizeMcpServerName(getMcpServerName(mcp)),
-            server: normalizeMcpServer(mcp),
-        }));
+        const requestedServers = normalizeMcpServers(mcpServers).map(
+            (server) => ({ name: server.name, server }),
+        );
         let serversToConfigure = requestedServers;
         if (shouldDeduplicateMcpConflicts()) {
             // Prevents Codex from deep-merging incompatible field types, such as url and stdio schemas.
@@ -2605,7 +2659,7 @@ function readAdditionalDirectories(
                 "additionalDirectories entries must not be empty",
             );
         }
-        if (!path.isAbsolute(directory)) {
+        if (!isAbsoluteProtocolPath(directory)) {
             throw RequestError.invalidParams(
                 undefined,
                 "additionalDirectories entries must be absolute paths",

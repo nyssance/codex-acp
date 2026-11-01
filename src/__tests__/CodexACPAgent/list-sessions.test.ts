@@ -83,20 +83,16 @@ describe("CodexACPAgent - list sessions", () => {
             turns: [],
         };
 
-        codexAppServerClient.threadList = vi
-            .fn()
-            .mockResolvedValue({
-                readStates: null,
-                data: [threadA, threadB],
-                nextCursor: "next-cursor",
-            });
-        codexAppServerClient.threadLoadedList = vi
-            .fn()
-            .mockResolvedValue({
-                readStates: null,
-                data: [],
-                nextCursor: null,
-            });
+        codexAppServerClient.threadList = vi.fn().mockResolvedValue({
+            readStates: null,
+            data: [threadA, threadB],
+            nextCursor: "next-cursor",
+        });
+        codexAppServerClient.threadLoadedList = vi.fn().mockResolvedValue({
+            readStates: null,
+            data: [],
+            nextCursor: null,
+        });
         codexAppServerClient.threadRead = vi.fn();
 
         const params: acp.ListSessionsRequest = {
@@ -123,20 +119,16 @@ describe("CodexACPAgent - list sessions", () => {
         fixture.getCodexAcpClient().readAuthRequirement = vi
             .fn()
             .mockResolvedValue({ required: false, account: null });
-        codexAppServerClient.threadList = vi
-            .fn()
-            .mockResolvedValue({
-                readStates: null,
-                data: [],
-                nextCursor: null,
-            });
-        codexAppServerClient.threadLoadedList = vi
-            .fn()
-            .mockResolvedValue({
-                readStates: null,
-                data: [],
-                nextCursor: null,
-            });
+        codexAppServerClient.threadList = vi.fn().mockResolvedValue({
+            readStates: null,
+            data: [],
+            nextCursor: null,
+        });
+        codexAppServerClient.threadLoadedList = vi.fn().mockResolvedValue({
+            readStates: null,
+            data: [],
+            nextCursor: null,
+        });
 
         const response = await fixture
             .getCodexAcpAgent()
@@ -198,13 +190,11 @@ describe("CodexACPAgent - list sessions", () => {
             cwd: "D:\\workspace\\other-project",
         };
 
-        codexAppServerClient.threadList = vi
-            .fn()
-            .mockResolvedValue({
-                readStates: null,
-                data: [matchingThread, otherThread],
-                nextCursor: null,
-            });
+        codexAppServerClient.threadList = vi.fn().mockResolvedValue({
+            readStates: null,
+            data: [matchingThread, otherThread],
+            nextCursor: null,
+        });
 
         const response = await codexAcpAgent.listSessions({
             cwd: "d:/workspace/sample-project",
@@ -276,13 +266,11 @@ describe("CodexACPAgent - list sessions", () => {
             turns: [],
         };
 
-        codexAppServerClient.threadList = vi
-            .fn()
-            .mockResolvedValue({
-                readStates: null,
-                data: [thread],
-                nextCursor: null,
-            });
+        codexAppServerClient.threadList = vi.fn().mockResolvedValue({
+            readStates: null,
+            data: [thread],
+            nextCursor: null,
+        });
 
         const response = await codexAcpAgent.listSessions({
             cwd: null,

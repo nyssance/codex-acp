@@ -10,6 +10,7 @@ import {
 } from "./ACPSessionConnection";
 import packageJson from "../package.json";
 import { AcpResponseDelivery } from "./AcpResponseDelivery";
+import { isAbsoluteProtocolPath } from "./PathUtils";
 import {
     GOAL_CONTROL_METHOD,
     LEGACY_SET_SESSION_MODEL_METHOD,
@@ -125,6 +126,29 @@ function createRouter(
             codexAcpServer.assertSessionMutationAllowed(params.sessionId);
         return codexAcpServer;
     };
+    const getAgentForPaths = (params: {
+        sessionId?: string;
+        cwd?: string | null;
+        additionalDirectories?: string[] | null;
+    }): CodexAcpServer => {
+        if (params.cwd != null && !isAbsoluteProtocolPath(params.cwd)) {
+            throw acp.RequestError.invalidParams(
+                undefined,
+                "cwd must be an absolute path",
+            );
+        }
+        if (
+            params.additionalDirectories?.some(
+                (directory) => !isAbsoluteProtocolPath(directory),
+            )
+        ) {
+            throw acp.RequestError.invalidParams(
+                undefined,
+                "additionalDirectories entries must be absolute paths",
+            );
+        }
+        return getAgent(params);
+    };
     type SetupState = {
         tail: Promise<void>;
         publication: Promise<void>;
@@ -139,7 +163,15 @@ function createRouter(
         signal: AbortSignal,
     ): Promise<T> => {
         const agent = getAgent({ sessionId });
-        if (!agent.usesStandardSubagents()) return operation();
+        if (!agent.usesStandardSubagents()) {
+            return operation().then((result) => {
+                const publish = agent.captureSessionSetupPublication(sessionId);
+                responses.afterWrite(requestId, (successful) => {
+                    if (successful) void publish();
+                });
+                return result;
+            });
+        }
         const assertCurrent = agent.captureSessionSetup(sessionId);
         const state = setups.get(sessionId) ?? {
             tail: Promise.resolve(),
@@ -165,7 +197,7 @@ function createRouter(
             .catch(() => {})
             .then(async () => {
                 let registered = false;
-                let succeeded = false;
+                let publish: (() => Promise<void>) | null = null;
                 try {
                     for (;;) {
                         const publication = state.publication;
@@ -178,10 +210,9 @@ function createRouter(
                             "Session setup was cancelled",
                         );
                     assertCurrent();
-                    responses.afterWrite(requestId, () => {
-                        if (epoch === state.epoch && succeeded)
-                            state.publication =
-                                agent.afterSessionSetupResponse(sessionId);
+                    responses.afterWrite(requestId, (successful) => {
+                        if (successful && epoch === state.epoch && publish)
+                            state.publication = publish();
                         void state.publication.then(finish, finish);
                     });
                     registered = true;
@@ -191,20 +222,36 @@ function createRouter(
                             -32800,
                             "Session setup was cancelled",
                         );
-                    succeeded = true;
+                    publish = agent.captureSessionSetupPublication(sessionId);
                     resolve(result);
                 } catch (error) {
                     reject(error);
                     if (!registered) finish();
                 }
             });
-        // Waiting for delivery here would deadlock two setup requests in the same batch.
+        // The next setup waits for delivery, not the request handler that produces the response.
         return response;
+    };
+    const createdSetup = async <T extends { sessionId: string }>(
+        requestId: acpV2.JsonRpcId,
+        operation: () => Promise<T>,
+    ): Promise<T> => {
+        const agent = getAgent();
+        const result = await operation();
+        const publish = agent.captureSessionCreationPublication(
+            result.sessionId,
+        );
+        responses.afterWrite(requestId, (successful) => {
+            if (successful) publish();
+        });
+        return result;
     };
     const attachAgent = (agent: CodexAcpServer, signal: AbortSignal) => {
         codexAcpServer = agent;
+        const stopSetupPublication = agent.observeSessionSetupResponses();
         signal.addEventListener("abort", () => {
             setups.clear();
+            stopSetupPublication();
             agent.sessionIndex.dispose();
             if (codexAcpServer === agent) {
                 codexAcpServer = null;
@@ -221,21 +268,27 @@ function createRouter(
             getAgent().initialize(ctx.params),
         )
         .onRequest(acp.methods.agent.session.new, (ctx) =>
-            getAgent().newSession(ctx.params),
+            createdSetup(ctx.requestId, () =>
+                getAgentForPaths(ctx.params).newSession(ctx.params),
+            ),
         )
         .onRequest(acp.methods.agent.session.load, (ctx) =>
             setup(
                 ctx.params.sessionId,
                 ctx.requestId,
-                () => getAgent(ctx.params).loadSession(ctx.params),
+                () => getAgentForPaths(ctx.params).loadSession(ctx.params),
                 ctx.signal,
             ),
         )
         .onRequest(acp.methods.agent.session.fork, (ctx) =>
-            getAgent(ctx.params).forkSession(ctx.params),
+            createdSetup(ctx.requestId, () =>
+                getAgentForPaths(ctx.params).forkSession(ctx.params),
+            ),
         )
         .onRequest(acp.methods.agent.session.list, (ctx) =>
-            getAgent().listSessions(ctx.params),
+            getAgentForPaths({ cwd: ctx.params.cwd ?? null }).listSessions(
+                ctx.params,
+            ),
         )
         .onRequest(acp.methods.agent.session.delete, (ctx) =>
             getAgent(ctx.params).deleteSession(ctx.params),
@@ -244,7 +297,7 @@ function createRouter(
             setup(
                 ctx.params.sessionId,
                 ctx.requestId,
-                () => getAgent(ctx.params).resumeSession(ctx.params),
+                () => getAgentForPaths(ctx.params).resumeSession(ctx.params),
                 ctx.signal,
             ),
         )
@@ -352,12 +405,16 @@ function createRouter(
         )
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
         .onRequest(acpV2.methods.agent.session.new, (ctx) =>
-            getAgent().runSessionOpen(ctx.signal, () =>
-                getAgent().newSessionV2(ctx.params),
+            createdSetup(ctx.requestId, () =>
+                getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () =>
+                    getAgentForPaths(ctx.params).newSessionV2(ctx.params),
+                ),
             ),
         )
         .onRequest(acpV2.methods.agent.session.list, (ctx) =>
-            getAgent().listSessions(ctx.params),
+            getAgentForPaths({ cwd: ctx.params.cwd ?? null }).listSessions(
+                ctx.params,
+            ),
         )
         .onRequest(acpV2.methods.agent.session.delete, (ctx) =>
             getAgent(ctx.params).deleteSession(ctx.params),
@@ -367,15 +424,21 @@ function createRouter(
                 ctx.params.sessionId,
                 ctx.requestId,
                 () =>
-                    getAgent(ctx.params).runSessionOpen(ctx.signal, () =>
-                        getAgent(ctx.params).resumeSessionV2(ctx.params),
+                    getAgentForPaths(ctx.params).runSessionOpen(
+                        ctx.signal,
+                        () =>
+                            getAgentForPaths(ctx.params).resumeSessionV2(
+                                ctx.params,
+                            ),
                     ),
                 ctx.signal,
             ),
         )
         .onRequest(acpV2.methods.agent.session.fork, (ctx) =>
-            getAgent(ctx.params).runSessionOpen(ctx.signal, () =>
-                getAgent(ctx.params).forkSessionV2(ctx.params),
+            createdSetup(ctx.requestId, () =>
+                getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () =>
+                    getAgentForPaths(ctx.params).forkSessionV2(ctx.params),
+                ),
             ),
         )
         .onRequest(acpV2.methods.agent.session.close, (ctx) =>

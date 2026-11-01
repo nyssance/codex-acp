@@ -1,3 +1,9 @@
+## 0.7.49
+
+- Update ACP SDK to 2.2.0 and merge upstream session setup, shutdown, configuration, and replay fixes through 927c480.
+- Preserve ALwith goal and thread metadata together when resynchronizing sessions; use upstream replay initialization to clear stale entity metadata.
+- Apply ACP v2 usage cost patch semantics in the exported client: omitted retains, null clears, and a value replaces.
+
 # Changelog
 
 ## 0.7.48 (2026-10-30)

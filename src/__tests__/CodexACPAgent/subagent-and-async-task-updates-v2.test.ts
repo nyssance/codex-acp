@@ -6,7 +6,7 @@ import {
 } from "../../ACPSessionConnection";
 import { CodexSubagentEventRouter } from "../../subagents/CodexSubagentEventRouter";
 import { CodexBackgroundTerminalTasks } from "../../async-tasks/CodexBackgroundTerminalTasks";
-import type { CodexAppServerClient } from "../../CodexAppServerClient";
+import { CodexAppServerClient } from "../../CodexAppServerClient";
 import type { ThreadBackgroundTerminalsListResponse } from "../../async-tasks/BackgroundTerminalApi";
 import {
     checkV2SessionUpdate,
@@ -215,6 +215,8 @@ describe("subagent and async task updates on ACP v2", () => {
             vi.fn<() => Promise<ThreadBackgroundTerminalsListResponse>>();
         const appServer = {
             threadBackgroundTerminalsList: list,
+            backgroundTerminalPages:
+                CodexAppServerClient.prototype.backgroundTerminalPages,
         } as unknown as CodexAppServerClient;
         const tasks = new CodexBackgroundTerminalTasks(
             enabled,

@@ -57,21 +57,17 @@ function createFixture() {
     client.readAuthRequirement = vi
         .fn()
         .mockResolvedValue({ required: false, account: null });
-    client.getAccount = vi
-        .fn()
-        .mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+    client.getAccount = vi.fn().mockResolvedValue({
+        workspaceRouting: null,
+        account: null,
+        requiresOpenaiAuth: false,
+    });
     client.listSkills = vi.fn().mockResolvedValue({ data: [] });
-    appServer.listModels = vi
-        .fn()
-        .mockResolvedValue({
-            readStates: null,
-            data: [createTestModel()],
-            nextCursor: null,
-        });
+    appServer.listModels = vi.fn().mockResolvedValue({
+        readStates: null,
+        data: [createTestModel()],
+        nextCursor: null,
+    });
     return { fixture, client, appServer };
 }
 

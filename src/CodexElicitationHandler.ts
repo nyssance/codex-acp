@@ -1,4 +1,5 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type { ElicitationHandler } from "./CodexAppServerClient";
 import type { ServerNotification } from "./app-server";
 import type { JsonValue } from "./app-server/serde_json/JsonValue";
@@ -9,7 +10,11 @@ import type {
     ToolRequestUserInputResponse,
 } from "./app-server/v2";
 import { logger } from "./Logger";
-import type { AcpClientConnection } from "./ACPSessionConnection";
+import {
+    type AcpClientConnection,
+    AcpV2Connection,
+} from "./ACPSessionConnection";
+import { toV2CreateElicitationResponse } from "./AcpV2Elicitation";
 import {
     clientSupportsFormElicitation,
     clientSupportsUrlElicitation,
@@ -105,17 +110,11 @@ function normalizeElicitationSchemaValue(value: unknown): unknown {
     return result;
 }
 
-function contentRecord(
-    content: unknown,
-): Record<string, acp.ElicitationContentValue> {
-    return isRecord(content)
-        ? (content as Record<string, acp.ElicitationContentValue>)
-        : {};
+function contentRecord(content: unknown): Record<string, unknown> {
+    return isRecord(content) ? content : {};
 }
 
-function jsonObjectOrNull(
-    content: Record<string, acp.ElicitationContentValue>,
-): JsonValue | null {
+function jsonObjectOrNull(content: Record<string, unknown>): JsonValue | null {
     const entries = Object.entries(content);
     if (entries.length === 0) {
         return null;
@@ -156,7 +155,7 @@ function userInputNoteFieldId(
 
 /** The text that AIR sends in a choice field when the user types an own answer instead of choosing an option. */
 function typedChoiceAnswer(
-    value: acp.ElicitationContentValue | undefined,
+    value: unknown,
     question: UserInputQuestion,
 ): string | undefined {
     if (typeof value !== "string" || value === USER_INPUT_OTHER_OPTION) {
@@ -168,17 +167,21 @@ function typedChoiceAnswer(
 }
 
 function userInputResponseValue(
-    content: Record<string, acp.ElicitationContentValue>,
+    content: Record<string, unknown>,
     fieldId: string,
-): acp.ElicitationContentValue | undefined {
+): string | string[] | undefined {
     const value = content[fieldId];
-    if (typeof value === "string" && value.trim() === "") {
-        return undefined;
+    if (typeof value === "string") {
+        return value.trim() === "" ? undefined : value;
     }
-    if (Array.isArray(value) && value.length === 0) {
-        return undefined;
+    if (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every((item) => typeof item === "string")
+    ) {
+        return value;
     }
-    return value;
+    return undefined;
 }
 
 type UserInputQuestion = ToolRequestUserInputParams["questions"][number];
@@ -302,11 +305,13 @@ function buildUserInputRequest(
  * a chosen option, "None of the above" for an own answer, and notes prefixed with `user_note: `.
  */
 export function userInputAnswers(
-    response: acp.CreateElicitationResponse,
+    rawResponse: acp.CreateElicitationResponse,
     questions: readonly UserInputQuestion[],
     clientCapabilities: acp.ClientCapabilities | null,
 ): ToolRequestUserInputResponse["answers"] {
-    if (!acp.CreateElicitationResponse.isAccept(response)) {
+    const response = toV2CreateElicitationResponse(rawResponse);
+    // v2 allows arbitrary JSON values. Validate answers per property, not with the narrower v1 union.
+    if (!acpV2.CreateElicitationResponse.isAccept(response)) {
         return {};
     }
 
@@ -723,10 +728,19 @@ export class CodexElicitationHandler implements ElicitationHandler {
     }
 
     private convertElicitationResponse(
-        response: acp.CreateElicitationResponse,
+        rawResponse: acp.CreateElicitationResponse,
         context: McpElicitationContext,
     ): McpServerElicitationRequestResponse {
-        if (acp.CreateElicitationResponse.isAccept(response)) {
+        // v1 still rejects content outside its narrower wire union.
+        if (
+            AcpV2Connection.of(this.connection) === null &&
+            rawResponse.action === "accept" &&
+            !acp.CreateElicitationResponse.isAccept(rawResponse)
+        ) {
+            return { action: "cancel", content: null, _meta: null };
+        }
+        const response = toV2CreateElicitationResponse(rawResponse);
+        if (acpV2.CreateElicitationResponse.isAccept(response)) {
             const content = contentRecord(response.content);
             const persist = context.isToolApproval
                 ? content["persist"]
@@ -754,7 +768,7 @@ export class CodexElicitationHandler implements ElicitationHandler {
             };
         }
 
-        if (acp.CreateElicitationResponse.isDecline(response)) {
+        if (acpV2.CreateElicitationResponse.isDecline(response)) {
             return context.isToolApproval
                 ? {
                       action: "cancel",
@@ -768,7 +782,7 @@ export class CodexElicitationHandler implements ElicitationHandler {
                   };
         }
 
-        if (acp.CreateElicitationResponse.isCancel(response)) {
+        if (acpV2.CreateElicitationResponse.isCancel(response)) {
             return {
                 action: "cancel",
                 content: null,
@@ -776,7 +790,7 @@ export class CodexElicitationHandler implements ElicitationHandler {
             };
         }
 
-        if (acp.CreateElicitationResponse.isCustom(response)) {
+        if (acpV2.CreateElicitationResponse.isCustom(response)) {
             return { action: "cancel", content: null, _meta: null };
         }
 
@@ -785,7 +799,7 @@ export class CodexElicitationHandler implements ElicitationHandler {
     }
 
     private isAllowedToolApprovalPersist(
-        persist: acp.ElicitationContentValue | undefined,
+        persist: unknown,
         persistOptions: ReadonlySet<PersistValue>,
     ): boolean {
         return (

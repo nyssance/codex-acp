@@ -100,6 +100,8 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
                 nextCursor: null,
                 backwardsCursor: null,
             };
+        case "thread/backgroundTerminals/list":
+            return { data: [], nextCursor: null };
         case "model/list":
             return {
                 data: [createTestModel({ id: "gpt-5" })],

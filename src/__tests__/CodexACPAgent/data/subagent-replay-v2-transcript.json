@@ -4,14 +4,7 @@
     "update": {
       "messageId": "saved",
       "content": [],
-      "_meta": {
-        "codex": {
-          "phase": null,
-          "delivery": null,
-          "questions": null,
-          "historyReplay": true
-        }
-      },
+      "_meta": null,
       "sessionUpdate": "agent_message"
     }
   },
