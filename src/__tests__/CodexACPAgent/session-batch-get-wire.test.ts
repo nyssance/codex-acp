@@ -35,6 +35,14 @@ async function connect(version: 1 | 2, capabilities: string[]) {
         required: false,
         account: null,
     });
+    vi.spyOn(client, "getAgentConfiguredModelProvider").mockResolvedValue(
+        "openai",
+    );
+    vi.spyOn(client, "getAccount").mockResolvedValue({
+        account: null,
+        requiresOpenaiAuth: false,
+        workspaceRouting: null,
+    });
     const router = createAcpAgentRouter(
         (connection) => new CodexAcpServer(connection, client),
     );

@@ -391,10 +391,9 @@ describe("ACP server test", { timeout: 40_000 }, () => {
                     42,
                 ),
             ).rejects.toMatchObject({
-                code: -32800,
-                message:
-                    "Request cancelled: ChatGPT device code sign-in was cancelled",
-                data: { methodId: "chat-gpt-device-code", action },
+                code: -32000,
+                message: "Authentication required: Sign-in did not complete",
+                data: { methodId: "chat-gpt-device-code" },
             });
             expect(cancelSpy).toHaveBeenCalledWith({ loginId: "login-1" });
             expect(
@@ -5373,6 +5372,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
         expect(authenticateSpy).toHaveBeenCalledWith(
             { methodId: "api-key" },
             undefined,
+            undefined,
         );
         expect(getAccountSpy).toHaveBeenCalledTimes(4);
         expect(codexAcpAgent.getSessionState(session1.sessionId)).toMatchObject(
@@ -5448,6 +5448,7 @@ describe("ACP server test", { timeout: 40_000 }, () => {
 
         expect(authenticateSpy).toHaveBeenCalledWith(
             gatewayAuthRequest,
+            undefined,
             undefined,
         );
         expect(getAccountSpy).toHaveBeenCalledTimes(1);

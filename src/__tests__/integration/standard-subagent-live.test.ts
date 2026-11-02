@@ -276,6 +276,14 @@ describeIntegration("integration: live standard subagents", () => {
                             entry.update.sessionId === childId &&
                             entry.update.capabilities?.cancel != null,
                     );
+                const directoryReported = (entries: typeof updates) =>
+                    entries.some(
+                        (entry) =>
+                            entry.sessionId === sessionId &&
+                            entry.update.sessionUpdate === "subagent_update" &&
+                            entry.update.sessionId === childId &&
+                            entry.update.cwd === cwd,
+                    );
                 await vi.waitFor(() =>
                     expect(
                         updates.some(
@@ -285,6 +293,9 @@ describeIntegration("integration: live standard subagents", () => {
                 );
                 await vi.waitFor(() =>
                     expect(updates.some(configuration)).toBe(true),
+                );
+                await vi.waitFor(() =>
+                    expect(directoryReported(updates)).toBe(true),
                 );
                 await vi.waitFor(() =>
                     expect(cancelGranted(updates)).toBe(true),
@@ -319,6 +330,9 @@ describeIntegration("integration: live standard subagents", () => {
                 );
                 await vi.waitFor(() =>
                     expect(effortReported(updates.slice(before))).toBe(true),
+                );
+                await vi.waitFor(() =>
+                    expect(directoryReported(updates.slice(before))).toBe(true),
                 );
                 await vi.waitFor(() =>
                     expect(cancelGranted(updates.slice(before))).toBe(true),

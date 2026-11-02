@@ -35,6 +35,7 @@ import { type SubagentAssociation } from "./SubagentAssociations";
 import type { SubagentEventRouter } from "./SubagentEventRouter";
 import { runSubagentInteraction } from "./SubagentInteraction";
 import { logger } from "../Logger";
+import { isAbsoluteProtocolPath } from "../PathUtils";
 
 type Child = SubagentAssociation & {
     path?: string;
@@ -62,6 +63,8 @@ type Pending = {
 type Configuration = {
     model?: ChildModel;
     effort?: { value: ReasoningEffort | null; source: ChildModel["source"] };
+    cwd?: { value: string; source: ChildModel["source"] };
+    publishedCwd?: string;
     published?: string;
 };
 
@@ -136,7 +139,13 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             const settings = notification.params.threadSettings;
             await this.observeConfiguration(
                 threadId,
-                { model: settings.model, effort: settings.effort },
+                {
+                    model: settings.model,
+                    effort: settings.effort,
+                    ...(this.children.has(threadId)
+                        ? { cwd: settings.cwd }
+                        : {}),
+                },
                 "settings",
             );
         }
@@ -615,11 +624,16 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
         source: ChildModel["source"],
     ): Promise<void> {
         const previous = this.configurations.get(threadId);
+        const cwd =
+            observed.cwd !== undefined && isAbsoluteProtocolPath(observed.cwd)
+                ? observed.cwd
+                : null;
         if (
             this.retired ||
             (!previous &&
                 !observed.model &&
                 observed.effort === null &&
+                cwd === null &&
                 source !== "settings")
         )
             return;
@@ -630,6 +644,14 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                 model: observed.model,
                 source,
             });
+        if (
+            cwd !== null &&
+            (!previous?.cwd ||
+                MODEL_SOURCE_RANK[source] >=
+                    MODEL_SOURCE_RANK[previous.cwd.source])
+        ) {
+            next.cwd = { value: cwd, source };
+        }
         const changedModel = next.model?.model !== previous?.model?.model;
         // A new model cannot retain the old model's effort; null removes an unset or unavailable effort.
         if (
@@ -653,6 +675,20 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
         await this.ensureAnnounced(child);
         const configuration = this.configurations.get(child.threadId);
         if (!configuration || this.retired) return;
+        if (
+            configuration.cwd &&
+            configuration.cwd.value !== configuration.publishedCwd
+        ) {
+            await this.session.update(
+                {
+                    sessionUpdate: "subagent_update",
+                    sessionId: child.sessionId,
+                    cwd: configuration.cwd.value,
+                },
+                child.parentSessionId,
+            );
+            configuration.publishedCwd = configuration.cwd.value;
+        }
         const options = subagentConfigurationOptions(this.rootModels(), {
             model: configuration.model?.model ?? null,
             effort: configuration.effort?.value ?? null,

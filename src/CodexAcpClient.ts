@@ -10,6 +10,7 @@ import { clientToolsOf, dynamicTools } from "./alwith/agent/clientTools";
 import {
     type ApiKeyAuthRequest,
     CODEX_API_KEY_ENV_VAR,
+    type CodexAuthRequest,
     GatewayAuthMethod,
     type GatewayAuthRequest,
     isCodexAuthRequest,
@@ -52,7 +53,6 @@ import {
     toCodexMcpServerConfig,
 } from "./McpServerConfig";
 import type {
-    AccountLoginCompletedNotification,
     AccountUpdatedNotification,
     GetAccountRateLimitsResponse,
     GetAccountResponse,
@@ -94,6 +94,11 @@ import type {
     SessionMetadata,
     SessionMetadataWithThread,
 } from "./SessionMetadata";
+import { runAccountLogin } from "./CodexAccountLogin";
+import {
+    throwIfRequestCancelled,
+    withRequestCancellation,
+} from "./RequestCancellation";
 import {
     isMissingRolloutError,
     isThreadNotMaterializedError,
@@ -216,8 +221,7 @@ export class CodexAcpClient {
      * routing). `authStatus` reports only the agent-owned one.
      */
     private gatewayConfigSource: GatewayConfigSource | null;
-    private pendingLoginCompleted: Promise<AccountLoginCompletedNotification> | null =
-        null;
+    private authenticationTail = Promise.resolve();
     private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null =
         null;
     private readonly readOnlySessions = new Set<string>();
@@ -327,23 +331,41 @@ export class CodexAcpClient {
         return this.configPath;
     }
 
-    async authenticate(
+    authenticate(
         authRequest: acp.AuthenticateRequest,
         urlElicitationRequester?: UrlElicitationRequester,
+        signal?: AbortSignal,
     ): Promise<boolean> {
         if (!isCodexAuthRequest(authRequest)) {
-            throw RequestError.invalidParams();
+            return Promise.reject(RequestError.invalidParams());
         }
+        const run = this.authenticationTail.then(() =>
+            this.authenticateOnce(authRequest, urlElicitationRequester, signal),
+        );
+        this.authenticationTail = run.then(
+            () => {},
+            () => {},
+        );
+        return withRequestCancellation(run, signal);
+    }
+
+    private async authenticateOnce(
+        authRequest: CodexAuthRequest,
+        urlElicitationRequester?: UrlElicitationRequester,
+        signal?: AbortSignal,
+    ): Promise<boolean> {
+        throwIfRequestCancelled(signal);
         this.gatewayConfig = null;
         this.gatewayConfigSource = null;
         switch (authRequest.methodId) {
             case "api-key":
-                return await this.authenticateWithApiKey(authRequest);
+                return await this.authenticateWithApiKey(authRequest, signal);
             case "chat-gpt":
-                return await this.authenticateWithChatGpt();
+                return await this.authenticateWithChatGpt(signal);
             case "chat-gpt-device-code":
                 return await this.authenticateWithChatGptDeviceCode(
                     urlElicitationRequester,
+                    signal,
                 );
             case "gateway":
                 return this.authenticateWithGateway(authRequest);
@@ -352,33 +374,36 @@ export class CodexAcpClient {
 
     private async authenticateWithApiKey(
         authRequest: ApiKeyAuthRequest,
+        signal?: AbortSignal,
     ): Promise<boolean> {
         const apiKey =
             authRequest._meta?.["api-key"]?.apiKey ?? this.readApiKeyFromEnv();
-        const loginCompletedPromise = this.awaitNextLoginCompleted();
-        loginCompletedPromise.catch(() => {});
-        await this.codexClient.accountLogin({
-            type: "apiKey",
-            apiKey,
-        });
-        const result = await loginCompletedPromise;
-        return result.success;
+        return runAccountLogin(
+            this.codexClient,
+            { type: "apiKey", apiKey },
+            async () => true,
+            signal,
+        );
     }
 
-    private async authenticateWithChatGpt(): Promise<boolean> {
+    private async authenticateWithChatGpt(
+        signal?: AbortSignal,
+    ): Promise<boolean> {
         if (await this.hasWorkingChatGptLogin()) {
+            throwIfRequestCancelled(signal);
             return true;
         }
-        const loginCompletedPromise = this.awaitNextLoginCompleted();
-        loginCompletedPromise.catch(() => {});
-        const loginResponse = await this.codexClient.accountLogin({
-            type: "chatgpt",
-        });
-        if (loginResponse.type == "chatgpt") {
-            await open(loginResponse.authUrl);
-        }
-        const result = await loginCompletedPromise;
-        return result.success;
+        return runAccountLogin(
+            this.codexClient,
+            { type: "chatgpt" },
+            async (response) => {
+                if (response.type !== "chatgpt") return false;
+                throwIfRequestCancelled(signal);
+                await open(response.authUrl);
+                return true;
+            },
+            signal,
+        );
     }
 
     /**
@@ -416,8 +441,10 @@ export class CodexAcpClient {
 
     private async authenticateWithChatGptDeviceCode(
         urlElicitationRequester?: UrlElicitationRequester,
+        signal?: AbortSignal,
     ): Promise<boolean> {
         if (await this.hasWorkingChatGptLogin()) {
+            throwIfRequestCancelled(signal);
             return true;
         }
         if (!urlElicitationRequester) {
@@ -426,62 +453,23 @@ export class CodexAcpClient {
                 "Device code authentication requires URL elicitation support",
             );
         }
-        const loginCompletedPromise = this.awaitNextLoginCompleted();
-        loginCompletedPromise.catch(() => {});
-        const loginResponse = await this.codexClient.accountLogin({
-            type: "chatgptDeviceCode",
-        });
-        if (loginResponse.type !== "chatgptDeviceCode") {
-            return false;
-        }
-        const elicitationResponsePromise = Promise.resolve(
-            urlElicitationRequester.elicitUrl({
-                url: loginResponse.verificationUrl,
-                message: `Sign in to ChatGPT and enter this code: ${loginResponse.userCode}`,
-                elicitationId: loginResponse.loginId,
-            }),
-        );
         try {
-            const first = await Promise.race([
-                loginCompletedPromise.then((result) => ({
-                    type: "loginCompleted" as const,
-                    result,
-                })),
-                elicitationResponsePromise.then((response) => ({
-                    type: "elicitationResponse" as const,
-                    response,
-                })),
-            ]);
-
-            if (first.type === "loginCompleted") {
-                await urlElicitationRequester.completeElicitation();
-                return first.result.success;
-            }
-
-            if (!acp.CreateElicitationResponse.isAccept(first.response)) {
-                await this.codexClient.accountLoginCancel({
-                    loginId: loginResponse.loginId,
-                });
-                throw RequestError.requestCancelled(
-                    {
-                        methodId: "chat-gpt-device-code",
-                        action: first.response.action,
-                    },
-                    "ChatGPT device code sign-in was cancelled",
-                );
-            }
-
-            const result = await loginCompletedPromise;
-            await urlElicitationRequester.completeElicitation();
-            return result.success;
-        } catch (error) {
-            // A lost app-server ends the login: the open URL elicitation must not stay open in the client.
-            if (this.codexClient.connectionLoss.lost) {
-                await Promise.resolve(
-                    urlElicitationRequester.completeElicitation(),
-                ).catch(() => {});
-            }
-            throw error;
+            return await runAccountLogin(
+                this.codexClient,
+                { type: "chatgptDeviceCode" },
+                async (response) => {
+                    if (response.type !== "chatgptDeviceCode") return false;
+                    const answer = await urlElicitationRequester.elicitUrl({
+                        url: response.verificationUrl,
+                        message: `Sign in to ChatGPT and enter this code: ${response.userCode}`,
+                        elicitationId: response.loginId,
+                    });
+                    return acp.CreateElicitationResponse.isAccept(answer);
+                },
+                signal,
+            );
+        } finally {
+            await urlElicitationRequester.completeElicitation().catch(() => {});
         }
     }
 
@@ -2405,21 +2393,6 @@ export class CodexAcpClient {
         return withoutUnsupportedSkills(
             await this.codexClient.listSkills(params ?? {}),
         );
-    }
-
-    private async awaitNextLoginCompleted(): Promise<AccountLoginCompletedNotification> {
-        if (this.pendingLoginCompleted !== null) {
-            return await this.pendingLoginCompleted;
-        }
-        this.pendingLoginCompleted = this.awaitSingleNotification(
-            "account/login/completed",
-            (event: AccountLoginCompletedNotification) => event,
-        );
-        try {
-            return await this.pendingLoginCompleted;
-        } finally {
-            this.pendingLoginCompleted = null;
-        }
     }
 
     private async awaitNextAccountUpdated(): Promise<AccountUpdatedNotification> {

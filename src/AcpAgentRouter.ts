@@ -248,6 +248,7 @@ function createRouter(
     };
     const attachAgent = (agent: CodexAcpServer, signal: AbortSignal) => {
         codexAcpServer = agent;
+        agent.observeInitializeResponse();
         const stopSetupPublication = agent.observeSessionSetupResponses();
         signal.addEventListener("abort", () => {
             setups.clear();
@@ -259,13 +260,25 @@ function createRouter(
         });
     };
 
+    const initialize = async <T>(
+        requestId: acp.JsonRpcId,
+        operation: () => Promise<T>,
+    ): Promise<T> => {
+        const agent = getAgent();
+        const result = await operation();
+        responses.afterWrite(requestId, (successful) => {
+            if (successful) agent.afterInitializeResponse();
+        });
+        return result;
+    };
+
     let v1Agent = acp
         .agent({ name: packageJson.name })
         .onConnect((connection) =>
             attachAgent(createAgent(connection.client), connection.signal),
         )
         .onRequest(acp.methods.agent.initialize, (ctx) =>
-            getAgent().initialize(ctx.params),
+            initialize(ctx.requestId, () => getAgent().initialize(ctx.params)),
         )
         .onRequest(acp.methods.agent.session.new, (ctx) =>
             createdSetup(ctx.requestId, () =>
@@ -311,7 +324,7 @@ function createRouter(
             getAgent(ctx.params).setSessionConfigOption(ctx.params),
         )
         .onRequest(acp.methods.agent.authenticate, (ctx) =>
-            getAgent().authenticate(ctx.params, ctx.requestId),
+            getAgent().authenticate(ctx.params, ctx.requestId, ctx.signal),
         )
         .onRequest(acp.methods.agent.logout, (ctx) =>
             getAgent().logout(ctx.params),
@@ -401,7 +414,9 @@ function createRouter(
             ),
         )
         .onRequest(acpV2.methods.agent.initialize, (ctx) =>
-            getAgent().initializeV2(ctx.params),
+            initialize(ctx.requestId, () =>
+                getAgent().initializeV2(ctx.params),
+            ),
         )
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
         .onRequest(acpV2.methods.agent.session.new, (ctx) =>
@@ -450,7 +465,7 @@ function createRouter(
         )
         // The v1-only `authentication/status|logout` extensions are not registered on v2.
         .onRequest(acpV2.methods.agent.auth.login, (ctx) =>
-            getAgent().authenticateV2(ctx.params, ctx.requestId),
+            getAgent().authenticateV2(ctx.params, ctx.requestId, ctx.signal),
         )
         .onRequest(acpV2.methods.agent.auth.logout, (ctx) =>
             getAgent().logoutV2(ctx.params),

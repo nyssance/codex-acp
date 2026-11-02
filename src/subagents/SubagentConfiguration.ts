@@ -9,6 +9,7 @@ import type { SubagentModels } from "./CodexSubagentEventRouter";
 export type ObservedSubagentConfiguration = {
     model: string | null;
     effort: ReasoningEffort | null;
+    cwd?: string;
 };
 
 /** Complete reported snapshots contain only observed child values and singleton choices. */

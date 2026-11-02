@@ -180,6 +180,10 @@ import { settledWithin } from "./StdUtils";
 import type { ToolCallReports } from "./ToolCallReports";
 import { AcpClientDelivery } from "./AcpClientDelivery";
 import {
+    throwIfRequestCancelled,
+    withRequestCancellation,
+} from "./RequestCancellation";
+import {
     type AcpMcpServer,
     getMcpServerName,
     type WithAcpMcpServers,
@@ -243,7 +247,7 @@ import {
     createUserMessageChunk,
 } from "./ContentChunks";
 import {
-    goalSessionInfoUpdate,
+    publishGoalSessionInfo,
     sameThreadGoalSnapshot,
     type ThreadGoalSnapshot,
     toThreadGoalSnapshot,
@@ -306,6 +310,7 @@ import {
     AIR_SESSION_FAILURE_KEY,
     clientSupportsAirCapability,
     JETBRAINS_META_KEY,
+    publishAirSessionMetadata,
 } from "./AirExtension";
 import { SessionIndexService } from "./SessionIndexService";
 import type { SessionIndexTitleState } from "./SessionIndexTitles";
@@ -669,6 +674,8 @@ export class CodexAcpServer {
     private readonly mcpServerSignIn: McpServerSignIn;
     private readonly clientDelivery: AcpClientDelivery;
     private setupResponseOrdering = false;
+    private initializeResponseDelivery: "direct" | "pending" | "written" =
+        "direct";
     /** ACP protocol version of the connection this agent serves, fixed by the protocol router. */
     readonly protocolVersion: 1 | 2;
     /** The v2 client handle; `null` on a v1 connection. */
@@ -962,7 +969,11 @@ export class CodexAcpServer {
             thread.status.type === "notLoaded"
         )
             return null;
-        return { model: thread.model, effort: thread.reasoningEffort };
+        return {
+            model: thread.model,
+            effort: thread.reasoningEffort,
+            cwd: thread.cwd,
+        };
     }
 
     private getSubagentInteractionHandlers(
@@ -2279,7 +2290,7 @@ export class CodexAcpServer {
         const fence = this.closingSessions.get(sessionId);
         if (!fence || --fence.count > 0) return;
         for (const closed of fence.closedSessions)
-            this.clientDelivery.closeSession(closed);
+            this.sealSessionDelivery(closed);
         this.closingSessions.delete(sessionId);
     }
 
@@ -2291,8 +2302,13 @@ export class CodexAcpServer {
         const fence = this.closingSessions.get(sessionId);
         for (const closed of [sessionId, ...children]) {
             if (fence) fence.closedSessions.add(closed);
-            else this.clientDelivery.closeSession(closed);
+            else this.sealSessionDelivery(closed);
         }
+    }
+
+    private sealSessionDelivery(sessionId: string): void {
+        this.clientDelivery.closeSession(sessionId);
+        AcpV2Connection.of(this.connection)?.forgetSession(sessionId);
     }
 
     private getSessionGeneration(sessionId: string): number {
@@ -3580,7 +3596,7 @@ export class CodexAcpServer {
                     this.sessionOpenOwners.delete(params.sessionId);
                 this.asyncQuestions.get(params.sessionId)?.dispose();
                 this.asyncQuestions.delete(params.sessionId);
-                AcpV2Connection.of(this.connection)?.forgetSession(
+                AcpV2Connection.of(this.connection)?.forgetForegroundState(
                     params.sessionId,
                 );
                 this.mcpSessionStartup.close(params.sessionId);
@@ -3713,31 +3729,48 @@ export class CodexAcpServer {
     async authenticate(
         _params: acp.AuthenticateRequest,
         requestId?: acp.JsonRpcId,
+        signal?: AbortSignal,
     ): Promise<acp.AuthenticateResponse> {
         logger.log("Authenticate request received");
+        throwIfRequestCancelled(signal);
         const appServer = this.ensureAppServer();
-        if (appServer) await appServer;
-        const elicitationRequester =
-            this.createUrlElicitationRequester(requestId);
-        const isAuthenticated = await this.runWithProcessCheck(() =>
-            this.codexAcpClient.authenticate(_params, elicitationRequester),
+        if (appServer) await withRequestCancellation(appServer, signal);
+        const elicitationRequester = this.createUrlElicitationRequester(
+            requestId,
+            signal,
         );
-        if (!isAuthenticated) {
-            logger.log("Authenticate request failed");
-            throw RequestError.authRequired(
-                { methodId: _params.methodId },
-                "Sign-in did not complete",
+        try {
+            const isAuthenticated = await this.runWithProcessCheck(() =>
+                this.codexAcpClient.authenticate(
+                    _params,
+                    elicitationRequester,
+                    signal,
+                ),
             );
+            throwIfRequestCancelled(signal);
+            if (!isAuthenticated) {
+                logger.log("Authenticate request failed");
+                throw RequestError.authRequired(
+                    { methodId: _params.methodId },
+                    "Sign-in did not complete",
+                );
+            }
+            await withRequestCancellation(
+                this.refreshAuthState(
+                    this.getAuthProviderForAuthenticateRequest(_params),
+                ),
+                signal,
+            );
+            logger.log("Authenticate request completed");
+            return {};
+        } finally {
+            await elicitationRequester?.completeElicitation().catch(() => {});
         }
-        await this.refreshAuthState(
-            this.getAuthProviderForAuthenticateRequest(_params),
-        );
-        logger.log("Authenticate request completed");
-        return {};
     }
 
     private createUrlElicitationRequester(
         requestId?: acp.JsonRpcId,
+        signal?: AbortSignal,
     ): UrlElicitationRequester | undefined {
         if (
             requestId == null ||
@@ -3745,28 +3778,37 @@ export class CodexAcpServer {
         ) {
             return undefined;
         }
+        const lifetime = new AbortController();
+        const cancellationSignal = signal
+            ? AbortSignal.any([signal, lifetime.signal])
+            : lifetime.signal;
         let elicitationId: string | null = null;
         return {
-            elicitUrl: (request) => {
+            elicitUrl: async (request) => {
                 elicitationId = request.elicitationId;
-                return this.connection.request(
+                const response = await this.connection.request(
                     acp.methods.client.elicitation.create,
                     {
                         mode: "url",
                         requestId,
                         ...request,
                     },
+                    { cancellationSignal },
                 );
+                if (!acp.CreateElicitationResponse.isAccept(response))
+                    elicitationId = null;
+                return response;
             },
             completeElicitation: async () => {
                 if (elicitationId === null) {
                     return;
                 }
+                const completedId = elicitationId;
+                elicitationId = null;
+                lifetime.abort();
                 await this.connection.notify(
                     acp.methods.client.elicitation.complete,
-                    {
-                        elicitationId,
-                    },
+                    { elicitationId: completedId },
                 );
             },
         };
@@ -3785,6 +3827,7 @@ export class CodexAcpServer {
     async authenticateV2(
         params: acpV2.LoginAuthRequest,
         requestId?: acpV2.JsonRpcId,
+        signal?: AbortSignal,
     ): Promise<acpV2.LoginAuthResponse> {
         if (
             !getCodexAuthMethodsV2(this.clientCapabilities).some(
@@ -3796,7 +3839,7 @@ export class CodexAcpServer {
                 `Unsupported authentication method: ${params.methodId}`,
             );
         }
-        return await this.authenticate(params, requestId);
+        return await this.authenticate(params, requestId, signal);
     }
 
     /** v2 `auth/logout`: same params as v1 `logout`, only the method name changed. */
@@ -4652,16 +4695,25 @@ export class CodexAcpServer {
      * Schedules the connection's first `_auth/status_update`: one account read,
      * pushed whatever it says, including `none`.
      *
-     * The push must not overtake the `initialize` response. The JSON-RPC layer
-     * writes that response in the microtask that resolves {@link initialize}, so
-     * the read starts from a check-phase callback, which always runs after it.
-     * `initialize` itself never waits for the read.
+     * Routed connections publish at the response-write boundary. Direct callers
+     * have no transport boundary, so they retain the asynchronous fallback.
      *
      * "Unconditional" costs nothing extra here: nothing has been pushed yet on
      * this connection, so {@link setAuthStatus} cannot suppress this one.
      */
     private publishFirstAuthStatusAfterResponse(): void {
-        setImmediate(() => void this.publishAuthStatusRead());
+        if (this.initializeResponseDelivery === "direct") {
+            setImmediate(() => void this.publishAuthStatusRead());
+        }
+    }
+
+    observeInitializeResponse(): void {
+        this.initializeResponseDelivery = "pending";
+    }
+
+    afterInitializeResponse(): void {
+        this.initializeResponseDelivery = "written";
+        void this.publishAuthStatusRead();
     }
 
     /**
@@ -4773,6 +4825,7 @@ export class CodexAcpServer {
             notification,
             this.lastReadAccount,
         );
+        if (this.initializeResponseDelivery === "pending") return;
         try {
             if (this.codexAcpClient.getAuthGatewayProviderName() !== null) {
                 return;
@@ -4810,6 +4863,7 @@ export class CodexAcpServer {
      */
     private async setAuthStatus(next: AuthStatus): Promise<void> {
         this.authStatusVersion += 1;
+        if (this.initializeResponseDelivery === "pending") return;
         if (sameAuthStatus(this.currentAuthStatus, next)) {
             return;
         }
@@ -5907,16 +5961,11 @@ export class CodexAcpServer {
             return;
         }
         sessionState.currentGoal = snapshot;
-        const update = goalSessionInfoUpdate(
+        await publishGoalSessionInfo(
+            new ACPSessionConnection(this.connection, sessionState.sessionId),
             snapshot,
             sessionState.clientCapabilities.airClient,
-            this.protocolVersion === 2,
         );
-        if (update === null) return;
-        await new ACPSessionConnection(
-            this.connection,
-            sessionState.sessionId,
-        ).update(update);
     }
 
     /** The models of a root session, for the configuration of its native subagent sessions. */
@@ -6822,17 +6871,11 @@ export class CodexAcpServer {
                 this.connection,
                 sessionState.sessionId,
             );
-            await session.update({
-                sessionUpdate: "session_info_update",
-                _meta: {
-                    [JETBRAINS_META_KEY]: {
-                        [AIR_META_KEY]: {
-                            [AIR_EXTENSION_VERSION_KEY]: AIR_EXTENSION_VERSION,
-                            [AIR_AGENT_FILE_CHANGE_REPORT_KEY]: report,
-                        },
-                    },
-                },
-            });
+            await publishAirSessionMetadata(
+                session,
+                AIR_AGENT_FILE_CHANGE_REPORT_KEY,
+                report,
+            );
         } catch (error) {
             logger.error("Failed to publish agent file-change report", error);
         }
@@ -7372,12 +7415,15 @@ export class CodexAcpServer {
         turn: { threadId: string; turnId: string },
         requestName: "Cancel" | "Close",
     ): Promise<void> {
+        const activePrompt = this.activePrompts.get(sessionState.sessionId);
         this.codexAcpClient.markTurnStale({
             threadId: turn.threadId,
             turnId: turn.turnId,
         });
         try {
             await this.interruptStandardChildren(sessionState);
+            if (this.activePrompts.get(sessionState.sessionId) !== activePrompt)
+                return;
             await this.requestTurnInterrupt(
                 sessionState,
                 turn.threadId,
@@ -7398,6 +7444,7 @@ export class CodexAcpServer {
      * interrupt", and once it registers a later turn under a different id, "expected active turn
      * id <completionTurnId> but found <Y>". Both are retried, with the id recomputed on every
      * attempt so a `turn/started` that arrives between retries is picked up.
+     * Retries belong to that prompt, not to a newer prompt that starts while a reply is pending.
      */
     private async requestTurnInterrupt(
         sessionState: SessionState,
@@ -7413,7 +7460,17 @@ export class CodexAcpServer {
             );
             return;
         }
-        let turnId = codexRunningTurnId(sessionState, completionTurnId);
+        const activePrompt = this.activePrompts.get(sessionState.sessionId);
+        const ownsRegisteredTurn =
+            activePrompt?.currentTurn?.threadId === threadId &&
+            activePrompt.currentTurn.turnId === completionTurnId;
+        const stillOwnsPrompt = () =>
+            ownsRegisteredTurn &&
+            activePrompt !== undefined &&
+            this.activePrompts.get(sessionState.sessionId) === activePrompt;
+        let turnId = ownsRegisteredTurn
+            ? codexRunningTurnId(sessionState, completionTurnId)
+            : completionTurnId;
         for (let attempt = 0; ; attempt++) {
             try {
                 await this.runWithProcessCheck(() =>
@@ -7428,14 +7485,13 @@ export class CodexAcpServer {
                 });
                 return;
             } catch (err) {
-                const promptStillActive = this.activePrompts.has(threadId);
                 const mismatch = parseExpectedActiveTurnMismatch(err);
                 const isMismatch =
                     mismatch !== null &&
                     mismatch.expected === sessionState.currentTurnId &&
                     mismatch.found !== "";
                 const retryable =
-                    promptStillActive &&
+                    stillOwnsPrompt() &&
                     (isNoActiveTurnError(err) || isMismatch) &&
                     attempt < NO_ACTIVE_TURN_RETRY_DELAYS_MS.length;
                 if (!retryable) {
@@ -7453,6 +7509,7 @@ export class CodexAcpServer {
                         NO_ACTIVE_TURN_RETRY_DELAYS_MS[attempt]!,
                     ),
                 );
+                if (!stillOwnsPrompt()) return;
                 // Recompute after the wait: a `turn/started` may have landed in the meantime, and
                 // `interruptTurnId` always wins once it is set. Otherwise fall back to the id Codex
                 // just reported as active, or to the id we started with.
@@ -7502,12 +7559,18 @@ export class CodexAcpServer {
         requestName: "Cancel" | "Close",
         resolveInterruptedTurn: boolean,
     ): Promise<void> {
+        const activePrompt = this.activePrompts.get(sessionState.sessionId);
         await this.interruptStandardChildren(sessionState);
+        if (this.activePrompts.get(sessionState.sessionId) !== activePrompt)
+            return;
         const turnId = await this.getInterruptibleTurnId(
             sessionState,
             requestName,
         );
-        if (!turnId) {
+        if (
+            !turnId ||
+            this.activePrompts.get(sessionState.sessionId) !== activePrompt
+        ) {
             return;
         }
 
@@ -7961,9 +8024,9 @@ export class CodexAcpServer {
                     signal?.removeEventListener("abort", dropPendingRequest);
                     reservation.release();
                     if (!this.sessions.has(sessionId))
-                        AcpV2Connection.of(this.connection)?.forgetSession(
-                            sessionId,
-                        );
+                        AcpV2Connection.of(
+                            this.connection,
+                        )?.forgetForegroundState(sessionId);
                 });
         });
     }

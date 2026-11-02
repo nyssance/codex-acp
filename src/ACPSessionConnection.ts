@@ -24,6 +24,7 @@ import {
 import { AcpV2ForegroundState } from "./AcpV2ForegroundState";
 import {
     AcpV2SessionInfo,
+    type SessionInfoFields,
     type SessionMetadataPatch,
 } from "./AcpV2SessionInfo";
 import {
@@ -267,8 +268,9 @@ export class AcpV2Connection {
     patchSessionMetadata(
         sessionId: string,
         change: SessionMetadataPatch,
+        fields: SessionInfoFields = {},
     ): Promise<void> {
-        return this.sessionInfoFor(sessionId).patchMetadata(change);
+        return this.sessionInfoFor(sessionId).patchMetadata(change, fields);
     }
 
     startForegroundItem(sessionId: string, itemId: string): Promise<void> {
@@ -284,10 +286,14 @@ export class AcpV2Connection {
     }
 
     forgetSession(sessionId: string): void {
-        this.foreground.get(sessionId)?.dispose();
-        this.foreground.delete(sessionId);
+        this.forgetForegroundState(sessionId);
         this.sessionInfo.get(sessionId)?.dispose();
         this.sessionInfo.delete(sessionId);
+    }
+
+    forgetForegroundState(sessionId: string): void {
+        this.foreground.get(sessionId)?.dispose();
+        this.foreground.delete(sessionId);
     }
 
     private sessionInfoFor(
@@ -605,10 +611,16 @@ export class ACPSessionConnection {
     }
 
     /** Domain writers can rebuild an owned metadata value without changing v2's shallow patch semantics. */
-    patchSessionMetadata(change: SessionMetadataPatch): Promise<void> {
+    patchSessionMetadata(
+        change: SessionMetadataPatch,
+        fields: SessionInfoFields = {},
+    ): Promise<void> {
         return (
-            this.v2Connection?.patchSessionMetadata(this.sessionId, change) ??
-            Promise.resolve()
+            this.v2Connection?.patchSessionMetadata(
+                this.sessionId,
+                change,
+                fields,
+            ) ?? Promise.resolve()
         );
     }
 

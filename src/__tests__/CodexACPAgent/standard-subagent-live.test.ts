@@ -150,7 +150,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", (version) => {
     async function snapshot(name: string) {
         await flush(h);
         await expect(
-            JSON.stringify(childUpdates(), null, 2),
+            JSON.stringify(childUpdates(), null, 2) + "\n",
         ).toMatchFileSnapshot(`data/live-core-v${version}-${name}.json`);
     }
     const approval = (itemId: string, turnId = "child-turn") =>
