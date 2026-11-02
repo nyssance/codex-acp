@@ -50,3 +50,7 @@ it from paginated `thread/turns/list` summaries, including after the child has
 continued and both processes have restarted. It does not store a second copy of
 conversation provenance. History failures are propagated rather than reported
 as an empty boundary.
+
+## Waiting on upstream
+
+- Standard subagent directories (upstream #722, merged in `a073db6`) do not take effect on Codex 0.166. On 0.166, `thread/read` of a live child returns `status: notLoaded`, and an early read can fail because the child rollout is not written yet. The adapter accepts readback only from a loaded child, so it never publishes the child `cwd`. Upstream targets Codex 0.165, where the check passes. The ten `src/__tests__/integration/standard-subagent-live.test.ts` cases fail for this reason (found 2026-11-02). Follow upstream's fix when it moves to Codex 0.166 rather than relaxing the loaded-state check here.
