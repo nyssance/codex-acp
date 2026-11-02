@@ -1,3 +1,4 @@
+import { nativeFetch } from "./nativeFetch";
 import type { AppServerClient } from "./AppServerClient";
 
 /** Remote enablement belongs to plugin-service; local config is ignored for remote installs. */
@@ -36,7 +37,7 @@ export async function setRemotePluginEnabled(
                 "ChatGPT credentials are unavailable; sign in again to change remote plugins",
             );
         }
-        const response = await fetch(url, {
+        const response = await nativeFetch(url, {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${auth.authToken}`,

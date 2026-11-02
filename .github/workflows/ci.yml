@@ -27,3 +27,20 @@ jobs:
               run: bun run test
             - name: Bundle binaries
               run: bun run bundle:all
+
+    native-network-proxy:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [macos-latest, windows-2025]
+        runs-on: ${{ matrix.os }}
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v7
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+              with:
+                  bun-version: 1.4.4
+            - run: bun install --frozen-lockfile
+            - run: bun node_modules/vitest/vitest.mjs run src/__tests__/native-network-proxy.test.ts src/__tests__/alwith-responses-proxy.test.ts --maxWorkers=1
+            - run: bun run build

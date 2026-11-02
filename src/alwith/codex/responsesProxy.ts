@@ -16,7 +16,12 @@ import {
 } from "node:stream";
 import { zstdDecompressSync } from "node:zlib";
 
-import WebSocket, { type RawData, WebSocketServer } from "ws";
+import WebSocket, { type RawData, WebSocketServer } from "ws-transport";
+
+import {
+    NativeNetworkTransport,
+    nativeNetworkError,
+} from "./nativeNetworkTransport";
 
 import { ProxyDiagnostics } from "./proxyDiagnostics";
 
@@ -79,6 +84,7 @@ function messageBytes(data: RawData): Buffer {
 /** A process-local transport boundary; it never stores credentials or conversation history. */
 export class ResponsesProxy {
     private readonly server: Server;
+    private readonly nativeNetwork = NativeNetworkTransport.fromEnvironment();
     private readonly websocket = new WebSocketServer({
         noServer: true,
         maxPayload: MAX_BODY_BYTES,
@@ -390,10 +396,16 @@ export class ResponsesProxy {
         response.once("close", () => abort.abort());
         diagnostic.sent(body.length);
         diagnostic.stage("connect_upstream");
+        const native = this.nativeNetwork?.route(
+            target,
+            false,
+            diagnostic.requestId,
+        );
+        if (native) diagnostic.nativeNetwork();
         try {
             // Bun's native fetch preserves streaming and cancellation without its node:http proxy incompatibility.
             // Node uses raw HTTP below because its fetch always decompresses upstream response bodies.
-            if ("Bun" in globalThis) {
+            if ("Bun" in globalThis && !native) {
                 const options: RequestInit & { decompress: boolean } = {
                     method: request.method,
                     headers: headers as Record<string, string>,
@@ -432,11 +444,30 @@ export class ResponsesProxy {
             }
             await new Promise<void>((resolve, reject) => {
                 const send =
-                    target.protocol === "https:" ? httpsRequest : httpRequest;
+                    target.protocol === "https:" && !native
+                        ? httpsRequest
+                        : httpRequest;
                 const upstream = send(
-                    target,
-                    { method: request.method, headers, signal: abort.signal },
+                    native?.url ?? target,
+                    {
+                        method: request.method,
+                        headers: native
+                            ? { ...headers, ...native.headers }
+                            : headers,
+                        signal: abort.signal,
+                        ...(native ? { agent: false } : {}),
+                    },
                     (incoming) => {
+                        const nativeError =
+                            native &&
+                            nativeNetworkError(
+                                incoming.headers["x-alwith-native-error"],
+                            );
+                        if (nativeError) {
+                            incoming.resume();
+                            reject(nativeError);
+                            return;
+                        }
                         const requestId = incoming.headers["x-request-id"];
                         diagnostic.headers(
                             incoming.statusCode ?? 502,
@@ -471,11 +502,23 @@ export class ResponsesProxy {
         diagnostic: ProxyDiagnostics,
     ): void {
         diagnostic.stage("connect_upstream");
-        target.protocol = target.protocol === "https:" ? "wss:" : "ws:";
-        const upstream = new WebSocket(target, {
-            headers: this.requestHeaders(request, true),
+        const native = this.nativeNetwork?.route(
+            target,
+            true,
+            diagnostic.requestId,
+        );
+        if (native) diagnostic.nativeNetwork();
+        const upstreamTarget = native?.url ?? new URL(target);
+        upstreamTarget.protocol =
+            upstreamTarget.protocol === "https:" ? "wss:" : "ws:";
+        const upstream = new WebSocket(upstreamTarget, {
+            ...(native ? { agent: false } : {}),
+            headers: {
+                ...this.requestHeaders(request, true),
+                ...(native ? native.headers : {}),
+            },
             followRedirects: false,
-            handshakeTimeout: 15_000,
+            handshakeTimeout: native ? 40_000 : 15_000,
             maxPayload: MAX_BODY_BYTES,
         });
         this.peers.add(upstream);
@@ -493,6 +536,10 @@ export class ResponsesProxy {
         // Preserve auth recovery, rate limits and Codex's HTTP fallback before committing a 101.
         upstream.once("unexpected-response", (_sent, incoming) => {
             rejected = true;
+            const nativeError =
+                native &&
+                nativeNetworkError(incoming.headers["x-alwith-native-error"]);
+            if (nativeError) diagnostic.end("failed", nativeError);
             const requestId = incoming.headers["x-request-id"];
             diagnostic.headers(
                 incoming.statusCode ?? 502,

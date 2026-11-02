@@ -393,3 +393,26 @@ persisted results, and never treat disconnect as successful completion.
 ### Test isolation
 
 `bun run test` runs mocks, including mock executable lifecycle tests. Tests that start the real Codex app-server are separate: after explicit authorization, use `RUN_APP_SERVER_TESTS=1 bun run test:app-server`. They retain their isolated temporary Codex homes. Live model E2E tests remain manual.
+
+### Native network transport
+
+`CODEX_ACP_NATIVE_NETWORK_ENDPOINT` optionally supplies the shared chat host's
+HTTP/WebSocket service as JSON `{version:1,host:"127.0.0.1",port,token}`. The
+adapter sends authenticated loopback requests to `/v1/http` or `/v1/websocket`,
+with the original HTTP(S) URL in `x-alwith-native-target`. The native host owns
+HTTP, TLS, streaming, WebSocket upgrades and frame transport. On Windows the
+same WinHTTP per-URL system-proxy decision is applied to both protocols, including
+manual mappings, bypass rules, PAC and automatic discovery. TLS uses Schannel.
+The adapter retains model request transformations. Endpoint credentials are not
+logged or persisted, and control headers never reach upstream servers. Proxy or
+network errors are not retried directly or through Bun. Closing the local request
+cancels upstream work; stopping the host closes all connections. Environment
+proxy variables do not override the Windows system-proxy decision.
+
+The same service handles gateway model discovery and remote plugin enablement.
+Redirects of auxiliary requests remain on the native path; cross-origin redirects
+remove credential headers. Native `[alwith-native-network]` records correlate with
+adapter records through a 24-character request ID. Records contain only bounded
+metadata: proxy source and endpoint, target hostname, TLS backend, request stage,
+status/close codes, timings, payload byte counts and numeric OS/WinHTTP errors.
+They never include request/response content, credentials, full URLs or raw errors.

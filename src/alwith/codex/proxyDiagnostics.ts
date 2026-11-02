@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 export const PROXY_DIAGNOSTIC_PREFIX = "[alwith-model-proxy] ";
 
 const ERROR_CODES = new Set([
+    "NATIVE_NETWORK_CONNECT_FAILED",
+    "NATIVE_PROXY_RESOLUTION_FAILED",
+    "NATIVE_NETWORK_AUTH_FAILED",
+    "NATIVE_NETWORK_PROTOCOL_ERROR",
+    "NATIVE_NETWORK_CANCELLED",
     "ECONNRESET",
     "ECONNREFUSED",
     "ETIMEDOUT",
@@ -88,6 +93,14 @@ export class ProxyDiagnostics {
         this.data.destination = destination;
         if (transport === "websocket") this.data.runtime = "node-websocket";
         this.emit("started");
+    }
+
+    get requestId(): string {
+        return this.data.requestId;
+    }
+
+    nativeNetwork(): void {
+        this.data.runtime = "rust-native";
     }
 
     target(target: URL): void {

@@ -1,3 +1,4 @@
+import { nativeFetch } from "./alwith/codex/nativeFetch";
 import type { Model } from "./app-server/v2";
 import { logger } from "./Logger";
 
@@ -60,7 +61,7 @@ export async function listGatewayModels(
     let response: Response;
     let body: string;
     try {
-        response = await fetch(url, {
+        response = await nativeFetch(url, {
             method: "GET",
             headers: requestHeaders,
             signal: AbortSignal.timeout(LIST_TIMEOUT_MS),

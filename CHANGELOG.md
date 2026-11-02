@@ -1,3 +1,10 @@
+## 0.7.51 (2026-11-02)
+
+- Route Responses HTTP/SSE and WebSocket traffic through an authenticated native network host when configured, allowing Windows clients to use native TLS and system proxy resolution.
+- Route gateway model discovery and remote plugin enablement through the same host, preserving native routing across redirects and stripping credentials on cross-origin redirects.
+- Correlate native transport failures with bounded, credential-free proxy diagnostics without retrying through Bun or bypassing the selected proxy.
+- Add macOS and Windows transport coverage for streaming, cancellation, WebSocket lifecycle, authentication failures, and auxiliary requests.
+
 ## 0.7.50 (2026-11-02)
 
 - Keep per-session model routing compatible with Codex's immutable provider identity, including native history restored after unused gateways are removed.
