@@ -81,7 +81,7 @@ export async function createSpawnedAgentFixture(
     );
 
     const resolvedClient = client ?? new RecordingClient();
-    const agentProcess = spawn("npm", ["run", "--silent", "start"], {
+    const agentProcess = spawn("bun", ["src/index.ts"], {
         cwd: process.cwd(),
         env: {
             ...process.env,

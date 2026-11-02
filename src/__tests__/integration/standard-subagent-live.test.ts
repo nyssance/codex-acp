@@ -117,25 +117,20 @@ describeIntegration("integration: live standard subagents", () => {
                 join(codexHome, "config.toml"),
                 "\nfeatures.multi_agent = true\nfeatures.multi_agent_v2 = true\n",
             );
-            const processHandle = spawn(
-                process.execPath,
-                ["--import", "tsx", "src/index.ts"],
-                {
-                    cwd: process.cwd(),
-                    env: {
-                        ...process.env,
-                        CODEX_HOME: codexHome,
-                        // Only the fixed local fixture script bypasses host sandbox restrictions.
-                        ...(ending === "terminal"
-                            ? {
-                                  INITIAL_AGENT_MODE:
-                                      AgentMode.AgentFullAccess.id,
-                              }
-                            : {}),
-                    },
-                    stdio: ["pipe", "pipe", "pipe"],
+            const processHandle = spawn("bun", ["src/index.ts"], {
+                cwd: process.cwd(),
+                env: {
+                    ...process.env,
+                    CODEX_HOME: codexHome,
+                    // Only the fixed local fixture script bypasses host sandbox restrictions.
+                    ...(ending === "terminal"
+                        ? {
+                              INITIAL_AGENT_MODE: AgentMode.AgentFullAccess.id,
+                          }
+                        : {}),
                 },
-            );
+                stdio: ["pipe", "pipe", "pipe"],
+            });
             let stderr = "";
             processHandle.stderr.on("data", (chunk) => {
                 stderr += chunk.toString();
