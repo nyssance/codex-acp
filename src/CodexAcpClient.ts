@@ -2,7 +2,11 @@ import { projectsFor } from "./projects/registry";
 import type { ApprovalsReviewer } from "./app-server/v2/ApprovalsReviewer";
 import { readSessionLineage } from "./alwith/sessionLineage";
 import { replayEntriesOfTurn, withReplayTurnMetadata } from "./ReplayHistory";
-import { hostThreadOptions, seedHistory } from "./alwith/hostSession";
+import {
+    hostThreadOptions,
+    hostThreadSource,
+    seedHistory,
+} from "./alwith/hostSession";
 import { ResponsesRoutes } from "./alwith/codex/responsesRoutes";
 import { ProviderRouting } from "./alwith/agent/providers";
 import { isRecord } from "./alwith/permissions/json";
@@ -1392,7 +1396,9 @@ export class CodexAcpClient {
             request.cwd,
             request._meta,
         );
+        const threadSource = hostThreadSource(request._meta);
         const response = await this.codexClient.threadStart({
+            ...(threadSource !== undefined ? { threadSource } : {}),
             ...hostThreadOptions(
                 request._meta,
                 AgentMode.getInitialAgentMode(),

@@ -227,3 +227,24 @@ describe("session/load and a title generation left over from an earlier turn", (
         expect(settled).toBe(true);
     });
 });
+
+describe("native source over ACP v1", () => {
+    it("returns the source from a resumed Codex thread", async () => {
+        const { fixture, appServer } = createFixture();
+        const thread = { ...createLiveThread(), threadSource: "alwith-images" };
+        appServer.threadResume = vi
+            .fn()
+            .mockRejectedValue(NO_ROLLOUT(threadId));
+        appServer.threadRead = vi
+            .fn()
+            .mockResolvedValue({ readState: null, thread });
+        const response = await fixture.getCodexAcpAgent().loadSession({
+            sessionId: threadId,
+            cwd: thread.cwd,
+            mcpServers: [],
+        });
+        expect(response._meta).toMatchObject({
+            codex: { threadSource: "alwith-images" },
+        });
+    });
+});

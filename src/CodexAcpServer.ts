@@ -5765,6 +5765,13 @@ export class CodexAcpServer {
                       _meta: {
                           codex: {
                               projectId: sessionState.lineage.projectId ?? null,
+                              ...(sessionState.lineage.threadSource !==
+                              undefined
+                                  ? {
+                                        threadSource:
+                                            sessionState.lineage.threadSource,
+                                    }
+                                  : {}),
                               ...(sessionState.lineage.forkedAtTurnId !==
                               undefined
                                   ? sessionState.lineage

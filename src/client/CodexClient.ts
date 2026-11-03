@@ -368,8 +368,15 @@ export class CodexClient<
             typeof projectId !== "string"
         )
             throw new Error("Invalid Codex project ID");
+        const threadSource =
+            typeof codex === "object" && codex !== null
+                ? (codex as { threadSource?: unknown }).threadSource
+                : undefined;
+        if (threadSource != null && typeof threadSource !== "string")
+            throw new Error("Invalid Codex thread source");
         return {
             ...super.summaryOf(info),
+            ...(threadSource != null ? { threadSource } : {}),
             archived,
             projectId: projectId ?? null,
         };
@@ -542,9 +549,21 @@ export class CodexClient<
                 (option) =>
                     option.category === "mode" && isSelectOption(option),
             );
-        return mode && isSelectOption(mode)
-            ? { codex: { mode: mode.currentValue } }
-            : undefined;
+        const threadSource =
+            operation.kind === "fork"
+                ? [
+                      ...this.state.sessionList,
+                      ...this.state.archivedSessions,
+                  ].find((item) => item.sessionId === sourceId)?.threadSource
+                : undefined;
+        return mergeMeta(
+            mode && isSelectOption(mode)
+                ? { codex: { mode: mode.currentValue } }
+                : undefined,
+            threadSource !== undefined
+                ? { codex: { threadSource } }
+                : undefined,
+        );
     }
 
     protected override promptMeta(
@@ -1066,6 +1085,32 @@ export class CodexClient<
                 [...current, ...archived].map((item) => [item.sessionId, item]),
             ).values(),
         ];
+    }
+
+    /** Bounded transcript browsing never acquires a writer or opens another conversation. */
+    async readSessionHistory(
+        threadId: string,
+        cwd: string,
+        cursor: string | null = null,
+    ): Promise<{ session: Session; cursor: string | null }> {
+        if (!this.historyCapability("browse"))
+            throw new Error("Session history browsing is unavailable");
+        const agent = this.live();
+        const page = await readHistoryPage(threadId, cwd, cursor, (params) =>
+            agent.request("_codex/session_history", params),
+        );
+        if (this.agent !== agent)
+            throw new Error("Codex disconnected during history load");
+        return { session: page.session, cursor: page.cursor };
+    }
+
+    /** Child transcripts use the same read-only history projection. */
+    async readSubagentHistory(
+        threadId: string,
+        cwd: string,
+        cursor: string | null = null,
+    ): Promise<{ session: Session; cursor: string | null }> {
+        return this.readSessionHistory(threadId, cwd, cursor);
     }
 
     async exportHistory(

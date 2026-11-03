@@ -46,6 +46,8 @@ export type Launch = { engine: string; [key: string]: unknown };
 /** One row of the session list: what `session/list` says about a session, before it is opened. */
 export type SessionSummary = {
     projectId?: string | null;
+    /** Native source classification, retained when a session is rediscovered. */
+    threadSource?: string;
     sessionId: string;
     cwd: string;
     title: string | null;
@@ -266,6 +268,8 @@ export class SessionClient<State extends ClientState = ClientState> {
     private stopGap: (() => void) | undefined;
     private readonly openPort: () => Promise<RuntimeClient<Launch>>;
     private readonly contextRevisions = new Map<string, string | undefined>();
+    /** Retain native response metadata until a draft enters the catalog. */
+    private readonly draftMetadata = new Map<string, Record<string, unknown>>();
     private listRequest: Promise<void> | null = null;
     private listGeneration = 0;
     private readonly retiredChildren = new Set<string>();
@@ -873,11 +877,13 @@ export class SessionClient<State extends ClientState = ClientState> {
                     configRevision: configRevisionOf(response),
                 };
                 this.publishSession(session);
-                if (options.draft)
+                if (options.draft) {
+                    if (response._meta)
+                        this.draftMetadata.set(session.id, response._meta);
                     this.patch((state) => ({
                         drafts: { ...state.drafts, [session.id]: true },
                     }));
-                else
+                } else
                     this.listSession({
                         ...this.summaryOf({
                             sessionId: session.id,
@@ -916,6 +922,8 @@ export class SessionClient<State extends ClientState = ClientState> {
     /** A draft that carried its first message enters the list for good. */
     protected materializeDraft(id: string): void {
         if (!this.state.drafts[id]) return;
+        const meta = this.draftMetadata.get(id);
+        this.draftMetadata.delete(id);
         this.patch((state) => {
             const { [id]: _draft, ...drafts } = state.drafts;
             return { drafts };
@@ -926,6 +934,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 sessionId: id,
                 cwd: session.cwd,
                 title: session.title,
+                ...(meta ? { _meta: meta } : {}),
             }),
             updatedAt: new Date().toISOString(),
         });
@@ -1525,6 +1534,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         this.dropChildren(id);
         this.lifecycle.retire(id);
         this.contextRevisions.delete(id);
+        this.draftMetadata.delete(id);
         this.updates.remove(id);
         this.requests.cancelSession(id);
         if (this.sessions.sessions.get(id)?.subagent)

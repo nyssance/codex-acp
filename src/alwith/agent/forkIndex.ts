@@ -10,16 +10,15 @@ const SOURCES = new Set(["cli", "vscode", "exec", "appServer", "unknown"]);
 const missing = (error: unknown): boolean =>
     (error as NodeJS.ErrnoException)?.code === "ENOENT";
 
-/** Codex 0.156 omits empty-preview forks from thread/list, even after continuation.
- * Read only native rollout headers to discover IDs, then ask thread/read for authoritative
- * summaries. Never write Codex files or maintain a separate conversation index.
+/** Native listings omit empty forks and can omit persisted thread sources.
+ * Read the existing rollout headers once for both, without writing an index.
  */
-export async function nativeForks(
+export async function nativeHistoryMetadata(
     codexHome: string,
     archived: boolean,
     cwd: string | null,
     read: (id: string) => Promise<Thread>,
-): Promise<Thread[]> {
+): Promise<{ forks: Thread[]; sources: Map<string, string> }> {
     const root = path.join(
         codexHome,
         archived ? "archived_sessions" : "sessions",
@@ -32,35 +31,28 @@ export async function nativeForks(
                   throw error;
               });
     const result: Thread[] = [];
+    const sources = new Map<string, string>();
     for await (const file of rolloutFiles(root)) {
-        const header = await firstLine(file);
-        if (header === null) continue; // Deletion/archive may race a list.
-        let value: unknown;
-        try {
-            value = JSON.parse(header);
-        } catch {
-            continue;
-        } // A partially written rollout has no committed metadata yet.
-        if (
-            !value ||
-            typeof value !== "object" ||
-            !("type" in value) ||
-            value.type !== "session_meta" ||
-            !("payload" in value)
-        )
-            continue;
-        const meta = value.payload as Record<string, unknown> | null;
+        const meta = await nativeHeader(file);
         if (
             !meta ||
             typeof meta["id"] !== "string" ||
             !UUID.test(meta["id"]) ||
-            typeof meta["forked_from_id"] !== "string" ||
-            !UUID.test(meta["forked_from_id"]) ||
             typeof meta["source"] !== "string" ||
             !SOURCES.has(meta["source"]) ||
             (wantedCwd !== null &&
                 meta["cwd"] !== wantedCwd &&
                 meta["cwd"] !== cwd)
+        )
+            continue;
+        if (
+            typeof meta["thread_source"] === "string" &&
+            meta["thread_source"].length > 0
+        )
+            sources.set(meta["id"], meta["thread_source"]);
+        if (
+            typeof meta["forked_from_id"] !== "string" ||
+            !UUID.test(meta["forked_from_id"])
         )
             continue;
         // Ensure the file still belongs to this active/archive collection before surfacing it.
@@ -82,7 +74,7 @@ export async function nativeForks(
             result.push(cwd === null ? thread : { ...thread, cwd });
         }
     }
-    return result;
+    return { forks: result, sources };
 }
 
 async function* rolloutFiles(directory: string): AsyncGenerator<string> {
@@ -115,4 +107,42 @@ async function firstLine(file: string): Promise<string | null> {
         lines.close();
         stream.destroy();
     }
+}
+
+/** Resume responses can omit the source even when Codex saved it in the rollout. */
+export async function nativeThreadSource(
+    file: string,
+    threadId: string,
+): Promise<string | null> {
+    const meta = await nativeHeader(file);
+    return meta?.["id"] === threadId &&
+        typeof meta["thread_source"] === "string" &&
+        meta["thread_source"].length > 0
+        ? meta["thread_source"]
+        : null;
+}
+
+async function nativeHeader(
+    file: string,
+): Promise<Record<string, unknown> | null> {
+    const line = await firstLine(file);
+    if (line === null) return null;
+    let value: unknown;
+    try {
+        value = JSON.parse(line);
+    } catch {
+        return null;
+    }
+    if (
+        !value ||
+        typeof value !== "object" ||
+        !("type" in value) ||
+        value.type !== "session_meta" ||
+        !("payload" in value)
+    )
+        return null;
+    const meta = value.payload;
+    return meta !== null && typeof meta === "object" && !Array.isArray(meta)
+        ? (meta as Record<string, unknown>)
+        : null;
 }

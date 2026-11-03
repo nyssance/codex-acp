@@ -119,3 +119,15 @@ test("history failures are not misreported as a fork with no inherited turns", a
         ),
     ).rejects.toThrow("History unavailable");
 });
+
+test("recovers the native source without relying on a creation-time registry", async () => {
+    const thread = {
+        id: "images",
+        sessionId: "native-images",
+        forkedFromId: null,
+        threadSource: "alwith-images",
+    };
+    expect(await readSessionLineage(history({}), thread)).toMatchObject({
+        threadSource: "alwith-images",
+    });
+});

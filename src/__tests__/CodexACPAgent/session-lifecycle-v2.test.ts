@@ -275,6 +275,37 @@ describe("Session lifecycle over ACP v2", () => {
         ).toMatchFileSnapshot("data/session-lifecycle-v2-new.json");
     });
 
+    it("returns the persisted native source on creation and resume", async () => {
+        const { connection, codexRequests } = await connectV2Client({
+            thread: { threadSource: "alwith-images" },
+        });
+        closeClient = () => connection.close();
+        const created = await connection.agent.request(
+            acpV2.methods.agent.session.new,
+            {
+                cwd,
+                _meta: { codex: { threadSource: "alwith-images" } },
+            },
+        );
+        expect(
+            codexRequests.find((request) => request.method === "thread/start")
+                ?.params,
+        ).toMatchObject({ threadSource: "alwith-images" });
+        expect(created._meta).toMatchObject({
+            codex: { threadSource: "alwith-images" },
+        });
+        await connection.agent.request(acpV2.methods.agent.session.close, {
+            sessionId,
+        });
+        const resumed = await connection.agent.request(
+            acpV2.methods.agent.session.resume,
+            { sessionId, cwd },
+        );
+        expect(resumed._meta).toMatchObject({
+            codex: { threadSource: "alwith-images" },
+        });
+    });
+
     it("creates a session with v2 mcpServers", async () => {
         const { connection, codexRequests } = await connectV2Client();
         closeClient = () => connection.close();

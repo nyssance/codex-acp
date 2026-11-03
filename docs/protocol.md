@@ -64,3 +64,17 @@ WebSocket transports. An empty or unknown error code is recorded as `UNKNOWN`.
 The host must validate the schema before including these events in diagnostic exports.
 These observations locate the failed stage but cannot identify which remote network
 component reset a connection without additional network or server evidence.
+
+### Native session source
+
+`session/new` accepts optional `_meta.codex.threadSource`, a non-empty string
+passed to Codex `thread/start`. Omitted or null leaves the source unset; invalid
+values return an invalid-parameters error. Codex persists this classification with
+the conversation. Both ACP versions return a non-null native source in
+`_meta.codex.threadSource` on creation, resume, fork and session listing. Sources
+do not change conversation ownership, archive state or history storage. Clients
+may use the field to choose the surface where a conversation is listed.
+
+Native listing and resume responses in some Codex versions omit the source after
+unloading a thread. The adapter reads Codex's existing rollout header in that
+case; it does not create a source registry or modify native history.

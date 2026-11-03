@@ -187,3 +187,14 @@ Child streams need no open/resume call. Prompt, configuration, fork, close and
 delete are rejected on children. `cancel(childId)` sends only `session/cancel`,
 and only when the child is attached and advertises cancellation. Cancelling a
 parent answers pending requests throughout its subtree before cancelling it.
+
+`readSubagentHistory(threadId, cwd, cursor?)` returns a bounded, read-only session
+projection and the next history cursor through the existing agent connection. It
+does not open, attach, select or register the child as a top-level conversation.
+The client rejects a result if that connection was replaced while reading.
+
+`SessionSummary.threadSource` exposes Codex's native source classification. The
+client preserves a listed source when forking, so product-specific conversations
+remain on their originating surface. `readSessionHistory(id, cwd, cursor?)` reads
+one bounded history page without attaching a writer or changing the selected
+conversation. `readSubagentHistory` delegates to the same projection.

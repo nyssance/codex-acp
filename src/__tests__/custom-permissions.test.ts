@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentMode } from "../AgentMode";
-import { hostThreadOptions } from "../alwith/hostSession";
+import { hostThreadOptions, hostThreadSource } from "../alwith/hostSession";
 import type { SandboxPolicy } from "../app-server/v2";
 
 describe("restored custom permissions", () => {
@@ -42,4 +42,29 @@ describe("restored custom permissions", () => {
             }),
         ).toBe(mode);
     });
+});
+
+describe("native session source", () => {
+    it.each([
+        undefined,
+        null,
+        {},
+        { codex: null },
+        { codex: { threadSource: null } },
+    ])("preserves existing requests without a source: %s", (meta) => {
+        expect(hostThreadSource(meta)).toBeUndefined();
+    });
+    it("passes through the explicit source", () => {
+        expect(
+            hostThreadSource({ codex: { threadSource: "alwith-images" } }),
+        ).toBe("alwith-images");
+    });
+    it.each([true, 12, {}, [], "", "  "])(
+        "rejects invalid source values: %s",
+        (threadSource) => {
+            expect(() => hostThreadSource({ codex: { threadSource } })).toThrow(
+                "threadSource must be a non-empty string",
+            );
+        },
+    );
 });
