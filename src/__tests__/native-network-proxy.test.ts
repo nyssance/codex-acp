@@ -13,6 +13,7 @@ const cleanup: Array<() => void> = [];
 afterEach(() => {
     for (const close of cleanup.splice(0).reverse()) close();
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
 });
 async function listen(server: Server) {
     server.listen(0, "127.0.0.1");
@@ -211,6 +212,89 @@ it("forwards native network failures without leaking the endpoint token", async 
     const body = await response.text();
     expect(body).toContain("NATIVE_NETWORK_CONNECT_FAILED");
     expect(body).not.toContain("a".repeat(64));
+});
+it.each(["http", "websocket"])(
+    "identifies a reset before the native %s bridge responds",
+    async (transport) => {
+        const events: Array<Record<string, unknown>> = [];
+        vi.spyOn(console, "error").mockImplementation((line) => {
+            const prefix = "[alwith-model-proxy] ";
+            if (typeof line === "string" && line.startsWith(prefix))
+                events.push(JSON.parse(line.slice(prefix.length)));
+        });
+        const server = createServer();
+        server.on("connection", (socket) => socket.destroy());
+        const port = await listen(server);
+        vi.stubEnv(
+            "CODEX_ACP_NATIVE_NETWORK_ENDPOINT",
+            JSON.stringify({
+                version: 1,
+                host: "127.0.0.1",
+                port,
+                token: "a".repeat(64),
+            }),
+        );
+        const route = await proxy().route("https://example.test/v1");
+        if (transport === "http") {
+            const response = await fetch(route + "/responses", {
+                method: "POST",
+                body: '{"input":[]}',
+            });
+            expect(response.status).toBe(502);
+            expect(await response.text()).toContain("ECONNRESET");
+        } else {
+            const client = new WebSocket(
+                route.replace("http:", "ws:") + "/responses",
+            );
+            cleanup.push(() => client.terminate());
+            client.on("error", () => {});
+            await expect(once(client, "open")).rejects.toThrow();
+        }
+        expect(
+            events.find((event) => event["phase"] === "failed"),
+        ).toMatchObject({
+            runtime: "rust-native",
+            stage: "connect_native",
+            errors: ["ECONNRESET"],
+        });
+    },
+);
+it("keeps Bun native HTTP forwarding on the loopback fetch transport", async () => {
+    if (!("Bun" in globalThis)) {
+        vi.stubGlobal("Bun", {});
+        cleanup.push(() => vi.unstubAllGlobals());
+    }
+    await bridge((socket) => {
+        socket.end(
+            "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 28\r\nx-alwith-native-error: NATIVE_NETWORK_CONNECT_FAILED\r\nConnection: close\r\n\r\nNATIVE_NETWORK_CONNECT_FAILED",
+        );
+        return false;
+    });
+    const localFetch = globalThis.fetch;
+    const calls: Array<{
+        url: URL;
+        options: RequestInit;
+    }> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation((url, options) => {
+        if (options && "proxy" in options)
+            calls.push({ url: new URL(String(url)), options });
+        return localFetch(url, options);
+    });
+    const route = await proxy().route("https://example.test/v1");
+    const response = await fetch(route + "/responses", {
+        method: "POST",
+        body: '{"input":[]}',
+    });
+    expect(response.status).toBe(502);
+    expect(await response.text()).toContain("NATIVE_NETWORK_CONNECT_FAILED");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.hostname).toBe("127.0.0.1");
+    expect(calls[0]!.url.pathname).toBe("/v1/http");
+    expect(calls[0]!.options).toMatchObject({
+        proxy: false,
+        decompress: false,
+        redirect: "manual",
+    });
 });
 it("preserves WebSocket messages, close codes and reconnects over the native channel", async () => {
     const server = createServer();

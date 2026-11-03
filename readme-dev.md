@@ -416,3 +416,10 @@ adapter records through a 24-character request ID. Records contain only bounded
 metadata: proxy source and endpoint, target hostname, TLS backend, request stage,
 status/close codes, timings, payload byte counts and numeric OS/WinHTTP errors.
 They never include request/response content, credentials, full URLs or raw errors.
+
+Bun forwards native HTTP requests with its streaming fetch client, explicitly
+bypassing environment proxies for the loopback hop and preserving compressed
+responses. Adapter diagnostics use `connect_native` until the local host responds;
+a structured host connection error uses `connect_upstream`. Native HTTP parser
+errors and connection-task failures are recorded against the loopback endpoint,
+without unvalidated request bytes or panic messages.
