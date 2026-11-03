@@ -1124,7 +1124,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         prompt: acp.ContentBlock[],
         checkpoint: () => void,
     ): Promise<void> {
-        let session = this.sessions.get(id);
+        const session = this.sessions.get(id);
         if (!session.attached)
             throw new Error("Open the session before sending");
         if (prompt.length === 0) throw new Error("Enter a message");
@@ -1144,28 +1144,18 @@ export class SessionClient<State extends ClientState = ClientState> {
             this.publishSession({ ...this.sessions.get(id), attached: false });
             checkpoint();
             await this.replay(id, session.cwd);
-            session = this.sessions.get(id);
         }
         checkpoint();
         if (this.options.prepareSessionTools) {
             const run = this.state.runStates[id]?.state;
             if (run !== "running" && run !== "requires_action") {
+                // A tool failure must not unload an unsent thread: it has no durable history to resume.
+                // Keep the attachment and original error so an explicit retry can use the same conversation.
                 try {
                     await this.options.prepareSessionTools(id);
-                } catch {
+                } catch (error) {
                     checkpoint();
-                    await this.live().request("session/close", {
-                        sessionId: id,
-                    });
-                    checkpoint();
-                    this.updates.remove(id);
-                    this.publishSession({
-                        ...this.sessions.get(id),
-                        attached: false,
-                    });
-                    checkpoint();
-                    await this.replay(id, session.cwd);
-                    await this.options.prepareSessionTools(id);
+                    throw error;
                 }
             }
         }

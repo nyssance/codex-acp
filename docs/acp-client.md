@@ -101,6 +101,11 @@ waiting for a receipt or a whole turn. Use `continueAfterFailure: false` (the th
 argument to `enqueue`) when work depends on a preceding configuration change.
 Cancellation and permission responses do not enter this queue.
 
+A rejected `prepareSessionTools` callback leaves the conversation attached and the
+message unsent. Its original error reaches the caller. Retrying runs preparation
+again for the same session; preparation failures never close or resume the thread.
+This also preserves unsent threads whose history has not been persisted yet.
+
 Each coordinator accepts `maxPendingPerSession` (default 256) as an explicit
 operational ceiling. Overflow rejects the new operation; it never drops accepted
 mutations. Tune this ceiling to the application's measured workload. Closing an

@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
 
 import { type ClientOptions, SessionClient } from "../session-client";
 import { createFakeAgent } from "./fake-agent";
@@ -414,6 +414,55 @@ test("host context rides on session set-up: MCP servers, system prompt and bind"
     });
     expect(bound).toEqual([id, id]);
 });
+
+test.each([true, false])(
+    "tool preparation failures preserve the attachment and allow an explicit retry (draft: %s)",
+    async (draft) => {
+        const failure = new Error("Computer MCP initialization timed out");
+        let unavailable = false;
+        const { client, port } = await make(undefined, {
+            prepareSessionTools: async () => {
+                if (unavailable) throw failure;
+            },
+        });
+        const id = await client.newSession("/tmp/tool-retry", { draft });
+        if (!draft) {
+            await client.prompt(id, [
+                { type: "text", text: "existing history" },
+            ]);
+            await until(() => client.session(id).state === "idle");
+        }
+        const sibling = await client.newSession("/tmp/sibling");
+        const before = [...client.session(id).items];
+        const request = spyOn(port, "acpRequest");
+        unavailable = true;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            await expect(
+                client.prompt(id, [
+                    { type: "text", text: "retry this message" },
+                ]),
+            ).rejects.toBe(failure);
+            expect(client.session(id)).toMatchObject({
+                attached: true,
+                restoring: false,
+            });
+            expect(client.session(id).items).toEqual(before);
+            expect(client.session(sibling).attached).toBe(true);
+        }
+        expect(request.mock.calls).toHaveLength(0);
+        expect(Boolean(client.state.drafts[id])).toBe(draft);
+        unavailable = false;
+        await client.prompt(id, [{ type: "text", text: "retry this message" }]);
+        expect(request.mock.calls.map((call) => call[1])).toEqual([
+            "session/prompt",
+        ]);
+        expect(
+            client.session(id).items.filter((item) => item.kind === "user"),
+        ).toHaveLength(draft ? 1 : 2);
+        expect(client.session(id).attached).toBe(true);
+        request.mockRestore();
+    },
+);
 
 test("close during tool preparation retires the prompt without waiting on a nested replay", async () => {
     const entered = Promise.withResolvers<void>();
