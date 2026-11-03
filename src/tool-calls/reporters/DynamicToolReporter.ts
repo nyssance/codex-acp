@@ -45,14 +45,21 @@ function resultFacts(item: DynamicToolCallItem): Pick<ToolFacts, "result"> {
     };
 }
 
-function displayBlock(
+export function displayBlock(
     item: DynamicToolCallOutputContentItem,
 ): acp.ContentBlock {
     switch (item.type) {
         case "inputText":
             return { type: "text", text: item.text };
-        case "inputImage":
-            return { type: "resource_link", uri: item.imageUrl, name: "image" };
+        case "inputImage": {
+            const match =
+                /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(
+                    item.imageUrl,
+                );
+            return match
+                ? { type: "image", mimeType: match[1]!, data: match[2]! }
+                : { type: "resource_link", uri: item.imageUrl, name: "image" };
+        }
         case "inputAudio":
             return { type: "resource_link", uri: item.audioUrl, name: "audio" };
     }

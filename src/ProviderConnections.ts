@@ -43,14 +43,25 @@ export function providerConnections(
 
     function observe(connection: MessageConnection): void {
         connection.onUnhandledNotification((notification) => {
-            if (
-                notification["method"] !== "thread/started" ||
-                !isRecord(notification.params)
-            )
+            if (!isRecord(notification.params)) return;
+            const method = notification["method"];
+            if (method === "thread/started") {
+                const thread = notification.params["thread"];
+                if (isRecord(thread) && typeof thread["id"] === "string")
+                    owners.set(thread["id"], connection);
                 return;
-            const thread = notification.params["thread"];
-            if (isRecord(thread) && typeof thread["id"] === "string")
-                owners.set(thread["id"], connection);
+            }
+            const threadId = notification.params["threadId"];
+            const status = notification.params["status"];
+            if (
+                typeof threadId === "string" &&
+                owners.get(threadId) === connection &&
+                (method === "thread/closed" ||
+                    (method === "thread/status/changed" &&
+                        isRecord(status) &&
+                        status["type"] === "notLoaded"))
+            )
+                owners.delete(threadId);
         });
     }
     observe(primary);
@@ -117,7 +128,15 @@ export function providerConnections(
         const params = isRecord(args[1]) ? args[1] : {};
         if (method === "initialize") initialization = args;
         let target = primary;
-        if (
+        const owner =
+            typeof params["threadId"] === "string"
+                ? owners.get(params["threadId"])
+                : undefined;
+        // A webview reload resumes an existing writer, even if its catalog or provider definition changed.
+        // Moving a loaded thread to another process competes with our own writer lock.
+        if (method === "thread/resume" && owner !== undefined) {
+            target = owner;
+        } else if (
             typeof method === "string" &&
             opening.has(method) &&
             typeof params["modelProvider"] === "string"
@@ -229,6 +248,14 @@ export function providerConnections(
         ) {
             owners.set(result["thread"]["id"], target);
         }
+        if (
+            method === "thread/unsubscribe" &&
+            isRecord(result) &&
+            result["status"] === "notLoaded" &&
+            typeof params["threadId"] === "string" &&
+            owners.get(params["threadId"]) === target
+        )
+            owners.delete(params["threadId"]);
         return result;
     }
 

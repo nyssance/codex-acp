@@ -41,6 +41,12 @@ export interface CodexCapabilitiesConnection {
 
 /** Shared by U and TV. All session routing is explicit and subscriptions belong to this connection. */
 export class CodexCapabilitiesClient {
+    generateImage(params: {
+        prompt: string;
+        images?: string[];
+    }): Promise<{ images: { mimeType: string; data: string }[] }> {
+        return this.request("_codex/images/generate", params);
+    }
     executeShell(
         sessionId: string,
         command: string,

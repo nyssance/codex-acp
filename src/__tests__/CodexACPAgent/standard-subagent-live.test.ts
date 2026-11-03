@@ -11,6 +11,7 @@ import {
     cwd,
     itemStarted,
     sessionId,
+    turnId,
     turnStarted,
     turnCompleted,
     userMessageItem,
@@ -187,6 +188,21 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", (version) => {
         );
         h.emit(onWorker(turnCompleted("next-turn")));
         await snapshot("identity");
+        expect(h.wireMessages).toContainEqual(
+            expect.objectContaining({
+                method: "session/update",
+                params: expect.objectContaining({
+                    sessionId,
+                    update: expect.objectContaining({
+                        sessionUpdate: "subagent_update",
+                        sessionId: childId,
+                        _meta: expect.objectContaining({
+                            codex: { threadId: worker, parentTurnId: turnId },
+                        }),
+                    }),
+                }),
+            }),
+        );
         expect(
             childUpdates().filter(
                 (entry) =>

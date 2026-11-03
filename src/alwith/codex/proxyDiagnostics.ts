@@ -126,6 +126,7 @@ export class ProxyDiagnostics {
         stage:
             | "read_request"
             | "prepare_request"
+            | "connect_native"
             | "connect_upstream"
             | "read_response",
     ): void {

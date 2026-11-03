@@ -101,6 +101,11 @@ waiting for a receipt or a whole turn. Use `continueAfterFailure: false` (the th
 argument to `enqueue`) when work depends on a preceding configuration change.
 Cancellation and permission responses do not enter this queue.
 
+A rejected `prepareSessionTools` callback leaves the conversation attached and the
+message unsent. Its original error reaches the caller. Retrying runs preparation
+again for the same session; preparation failures never close or resume the thread.
+This also preserves unsent threads whose history has not been persisted yet.
+
 Each coordinator accepts `maxPendingPerSession` (default 256) as an explicit
 operational ceiling. Overflow rejects the new operation; it never drops accepted
 mutations. Tune this ceiling to the application's measured workload. Closing an
@@ -187,3 +192,22 @@ Child streams need no open/resume call. Prompt, configuration, fork, close and
 delete are rejected on children. `cancel(childId)` sends only `session/cancel`,
 and only when the child is attached and advertises cancellation. Cancelling a
 parent answers pending requests throughout its subtree before cancelling it.
+
+Child metadata includes `_meta.codex.threadId` and, when native delegation
+provides it, `_meta.codex.parentTurnId`. The client retains this metadata on
+`Session.subagent._meta`. The origin is the parent native turn, including when
+later steering messages share that turn. Clients can place child activity beside
+the originating request instead of collecting historical children under the
+latest turn. Recorded collaboration items provide the same association
+when no live child stream exists.
+
+`readSubagentHistory(threadId, cwd, cursor?)` returns a bounded, read-only session
+projection and the next history cursor through the existing agent connection. It
+does not open, attach, select or register the child as a top-level conversation.
+The client rejects a result if that connection was replaced while reading.
+
+`SessionSummary.threadSource` exposes Codex's native source classification. The
+client preserves a listed source when forking, so product-specific conversations
+remain on their originating surface. `readSessionHistory(id, cwd, cursor?)` reads
+one bounded history page without attaching a writer or changing the selected
+conversation. `readSubagentHistory` delegates to the same projection.

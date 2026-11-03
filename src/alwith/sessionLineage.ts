@@ -1,3 +1,4 @@
+import { nativeThreadSource } from "./agent/forkIndex";
 import type { CodexAppServerClient } from "../CodexAppServerClient";
 import type { Thread, Turn } from "../app-server/v2";
 import type { SessionMetadata } from "../SessionMetadata";
@@ -7,10 +8,16 @@ export async function readSessionLineage(
     client: Pick<CodexAppServerClient, "threadTurnsList">,
     thread: Pick<Thread, "id" | "sessionId" | "forkedFromId"> & {
         projectId?: string | null;
+        threadSource?: string | null;
+        path?: string | null;
     },
 ): Promise<NonNullable<SessionMetadata["lineage"]>> {
+    const threadSource =
+        thread.threadSource ??
+        (thread.path ? await nativeThreadSource(thread.path, thread.id) : null);
     const lineage = {
         projectId: thread.projectId ?? null,
+        ...(threadSource != null ? { threadSource } : {}),
         nativeSessionId: thread.sessionId,
         forkedFromId: thread.forkedFromId,
     };

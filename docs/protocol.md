@@ -86,3 +86,52 @@ loaded thread ID and retain the native server's authentication, tool policy and
 error handling. `CodexClient.callMcpTool()` exposes the latter without creating a
 model turn. These operations do not change account configuration or retry failed
 calls. Applications must obtain user intent before issuing mutating tools.
+
+## ChatGPT image generation
+
+`_codex/images/generate` accepts `{ prompt: string, images?: string[] }` and
+returns `{ images: Array<{ mimeType: string, data: string }> }`, with base64 media.
+References must be inline PNG, JPEG or WebP data URLs. The adapter validates the
+prompt, reference count and media budget before contacting the image service.
+Without references it uses Wham generations; with references it uses edits.
+
+The existing Codex ChatGPT account owns authentication and workspace routing.
+Clients never supply or receive account tokens. A 401 permits one token refresh;
+ambiguous provider failures are not retried automatically. Account changes and
+connection cancellation invalidate pending results. API-key accounts are rejected.
+
+The host may expose image generation through its versioned client tool set and
+handle `_alwith/tool/call` on the same ACP connection. Tool results use standard
+image content blocks, including during history replay. Dynamic tool image data
+URLs are converted into inline ACP images, while other URLs remain resource links.
+Codex retains conversation and media history; the extension creates no image store.
+
+### Native session source
+
+`session/new` accepts optional `_meta.codex.threadSource`, a non-empty string
+passed to Codex `thread/start`. Omitted or null leaves the source unset; invalid
+values return an invalid-parameters error. Codex persists this classification with
+the conversation. Both ACP versions return a non-null native source in
+`_meta.codex.threadSource` on creation, resume, fork and session listing. Sources
+do not change conversation ownership, archive state or history storage. Clients
+may use the field to choose the surface where a conversation is listed.
+
+## Subagent turn origins and reload routing
+
+Standard ACP `subagent_update` carries `_meta.codex.threadId` and the originating
+`_meta.codex.parentTurnId` when native delegation provides them. Late origin
+information patches the complete `codex` metadata entry so its thread ID is
+preserved. Omitted metadata is unchanged; null clears it, following ACP metadata
+patch semantics. The association survives child-router replacement during replay. Native
+collaboration items remain available in history for clients browsing children
+without attaching them.
+
+When a frontend reconnects, `thread/resume` first reuses the connection that
+already owns that thread. A changed model catalog must not route the resume to
+a second native process and collide with the original writer. Native unload,
+close and successful unloading unsubscribe responses release only that
+connection's ownership; a later resume can then select the current catalog.
+
+Native listing and resume responses in some Codex versions omit the source after
+unloading a thread. The adapter reads Codex's existing rollout header in that
+case; it does not create a source registry or modify native history.

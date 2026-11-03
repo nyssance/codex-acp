@@ -395,20 +395,26 @@ export class ResponsesProxy {
         this.aborts.add(abort);
         response.once("close", () => abort.abort());
         diagnostic.sent(body.length);
-        diagnostic.stage("connect_upstream");
         const native = this.nativeNetwork?.route(
             target,
             false,
             diagnostic.requestId,
         );
         if (native) diagnostic.nativeNetwork();
+        diagnostic.stage(native ? "connect_native" : "connect_upstream");
         try {
-            // Bun's native fetch preserves streaming and cancellation without its node:http proxy incompatibility.
+            // Use Bun's native HTTP client for loopback too; node:http compatibility is not a transport boundary.
             // Node uses raw HTTP below because its fetch always decompresses upstream response bodies.
-            if ("Bun" in globalThis && !native) {
-                const options: RequestInit & { decompress: boolean } = {
+            if ("Bun" in globalThis) {
+                const options: RequestInit & {
+                    decompress: boolean;
+                    proxy?: false;
+                } = {
                     method: request.method,
-                    headers: headers as Record<string, string>,
+                    headers: (native
+                        ? { ...headers, ...native.headers }
+                        : headers) as Record<string, string>,
+                    ...(native ? { proxy: false as const } : {}),
                     ...(request.method === "GET"
                         ? {}
                         : { body: new Uint8Array(body) }),
@@ -416,7 +422,17 @@ export class ResponsesProxy {
                     redirect: "manual",
                     decompress: false,
                 };
-                const incoming = await fetch(target, options);
+                const incoming = await fetch(native?.url ?? target, options);
+                const nativeError =
+                    native &&
+                    nativeNetworkError(
+                        incoming.headers.get("x-alwith-native-error"),
+                    );
+                if (nativeError) {
+                    diagnostic.stage("connect_upstream");
+                    await incoming.body?.cancel();
+                    throw nativeError;
+                }
                 diagnostic.headers(
                     incoming.status,
                     incoming.headers.get("x-request-id"),
@@ -464,6 +480,7 @@ export class ResponsesProxy {
                                 incoming.headers["x-alwith-native-error"],
                             );
                         if (nativeError) {
+                            diagnostic.stage("connect_upstream");
                             incoming.resume();
                             reject(nativeError);
                             return;
@@ -501,13 +518,13 @@ export class ResponsesProxy {
         target: URL,
         diagnostic: ProxyDiagnostics,
     ): void {
-        diagnostic.stage("connect_upstream");
         const native = this.nativeNetwork?.route(
             target,
             true,
             diagnostic.requestId,
         );
         if (native) diagnostic.nativeNetwork();
+        diagnostic.stage(native ? "connect_native" : "connect_upstream");
         const upstreamTarget = native?.url ?? new URL(target);
         upstreamTarget.protocol =
             upstreamTarget.protocol === "https:" ? "wss:" : "ws:";
@@ -539,7 +556,10 @@ export class ResponsesProxy {
             const nativeError =
                 native &&
                 nativeNetworkError(incoming.headers["x-alwith-native-error"]);
-            if (nativeError) diagnostic.end("failed", nativeError);
+            if (nativeError) {
+                diagnostic.stage("connect_upstream");
+                diagnostic.end("failed", nativeError);
+            }
             const requestId = incoming.headers["x-request-id"];
             diagnostic.headers(
                 incoming.statusCode ?? 502,

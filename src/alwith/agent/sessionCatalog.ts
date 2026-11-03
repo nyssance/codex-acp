@@ -1,6 +1,6 @@
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type { CodexAppServerClient } from "../../CodexAppServerClient";
-import { nativeForks } from "./forkIndex";
+import { nativeHistoryMetadata } from "./forkIndex";
 import { listedSessionTitle } from "../../SessionTitle";
 import { historyTitle } from "./historyTitle";
 const run = <T>(operation: () => Promise<T>): Promise<T> => operation();
@@ -65,8 +65,8 @@ export async function readSessionList(
             undefined,
             "Codex home is unavailable after initialize",
         );
-    const forks = await run(() =>
-        nativeForks(
+    const { forks, sources } = await run(() =>
+        nativeHistoryMetadata(
             home,
             archived,
             cwd,
@@ -137,6 +137,14 @@ export async function readSessionList(
                         _meta: {
                             codex: {
                                 projectId: thread.projectId ?? null,
+                                ...((thread.threadSource ??
+                                    sources.get(thread.id)) != null
+                                    ? {
+                                          threadSource:
+                                              thread.threadSource ??
+                                              sources.get(thread.id)!,
+                                      }
+                                    : {}),
                                 archived,
                                 nativeSessionId: thread.sessionId,
                                 forkedFromId: thread.forkedFromId,
