@@ -501,3 +501,11 @@ export function composerPrediction(
         };
     throw new Error("Invalid composer prediction result");
 }
+
+/** Effective application availability from Codex, without credentials. */
+export type InstalledApp = { id: string; runtimeName: string | null; enabled: boolean; callable: boolean };
+export type AppsInstalledParams = { threadId?: string | null; forceRefresh?: boolean };
+export type AppsInstalledResponse = { apps: InstalledApp[] };
+
+export type McpToolCallParams = { threadId: string; server: string; tool: string; arguments?: Record<string, unknown> };
+export type McpToolCallResult = { content: unknown[]; structuredContent?: unknown; isError?: boolean };

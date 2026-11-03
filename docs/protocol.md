@@ -64,3 +64,25 @@ WebSocket transports. An empty or unknown error code is recorded as `UNKNOWN`.
 The host must validate the schema before including these events in diagnostic exports.
 These observations locate the failed stage but cannot identify which remote network
 component reset a connection without additional network or server evidence.
+
+## Application connectors
+
+`_codex/apps_installed`, `_codex/apps_list`, and `_codex/apps_read` forward to
+Codex `app/installed`, `app/list`, and `app/read` respectively, with the same
+parameters, results and errors. They are advertised through the existing
+extension-method catalog. `CodexClient.installedApps()` returns effective
+`enabled` and `callable` state; clients must not treat catalog presence as
+permission to call an app. These methods do not change configuration or install
+apps. A rejected request is surfaced without automatic retry.
+
+For both ACP protocol versions, an explicit `resource_link` with URI
+`app://<id>` becomes a native Codex `mention` input with the link's name and URI.
+Ordinary resource links retain their existing text representation. The adapter
+does not infer application mentions from ordinary prompt text or enable apps.
+
+`_codex/mcp_status` and `_codex/mcp_tool_call` forward the native
+`mcpServerStatus/list` and `mcpServer/tool/call` contracts. Tool calls require a
+loaded thread ID and retain the native server's authentication, tool policy and
+error handling. `CodexClient.callMcpTool()` exposes the latter without creating a
+model turn. These operations do not change account configuration or retry failed
+calls. Applications must obtain user intent before issuing mutating tools.

@@ -21,6 +21,11 @@ import {
 } from "./agent/sessionHistory";
 
 export const CATALOG_METHODS = {
+    "_codex/mcp_status": "mcpServerStatus/list",
+    "_codex/mcp_tool_call": "mcpServer/tool/call",
+    "_codex/apps_installed": "app/installed",
+    "_codex/apps_list": "app/list",
+    "_codex/apps_read": "app/read",
     "_codex/skills_list": "skills/list",
     "_codex/skills_config_write": "skills/config/write",
     "_codex/plugin_list": "plugin/list",

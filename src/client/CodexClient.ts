@@ -1,3 +1,4 @@
+import type { McpToolCallParams, McpToolCallResult, AppsInstalledParams, AppsInstalledResponse } from "./codex-extensions";
 import {
     sessionGroup,
     type ProjectContext,
@@ -1351,6 +1352,14 @@ export class CodexClient<
             "_codex/skills_config_write",
             params,
         );
+    }
+
+    callMcpTool(params: McpToolCallParams): Promise<McpToolCallResult> {
+        return this.live().request<McpToolCallResult>("_codex/mcp_tool_call", params);
+    }
+
+    installedApps(params: AppsInstalledParams = {}): Promise<AppsInstalledResponse> {
+        return this.live().request<AppsInstalledResponse>("_codex/apps_installed", params);
     }
 
     listPlugins(params: PluginListParams = {}): Promise<PluginListResponse> {

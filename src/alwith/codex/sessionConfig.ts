@@ -151,6 +151,10 @@ export function toUserInput(prompt: readonly acp.ContentBlock[]): UserInput[] {
                 : `data:${block.mimeType};base64,${block.data}`;
             input.push({ type: "image", url });
         } else if (acp.ContentBlock.isResourceLink(block)) {
+            if (/^app:\/\/[^/?#\s]+$/.test(block.uri)) {
+                input.push({ type: "mention", name: block.name, path: block.uri });
+                continue;
+            }
             input.push({
                 type: "text",
                 text: formatUriAsLink(block.name, block.uri),

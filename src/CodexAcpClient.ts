@@ -2597,6 +2597,9 @@ function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
                     return { type: "image", url };
                 }
                 case "resource_link":
+                if (/^app:\/\/[^/?#\s]+$/.test(block.uri)) {
+                    return { type: "mention", name: block.name, path: block.uri };
+                }
                     return {
                         type: "text",
                         text: formatUriAsLink(block.name, block.uri),
