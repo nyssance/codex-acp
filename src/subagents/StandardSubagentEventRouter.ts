@@ -52,9 +52,11 @@ type Child = SubagentAssociation & {
     endedTurns: Set<string>;
     live: boolean;
     cancelAdvertised: boolean;
+    parentTurnId?: string;
     cancellingTurn?: string;
 };
 type Pending = {
+    parentTurnId?: string;
     parentThreadId?: string;
     path?: string;
     description?: string;
@@ -220,6 +222,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                         continue;
                     const pending = this.pendingFor(id);
                     pending.parentThreadId = item.senderThreadId;
+                    pending.parentTurnId ??= notification.params.turnId;
                     if (item.prompt) pending.description = item.prompt;
                 }
                 await this.materializePending();
@@ -229,6 +232,14 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                 if (isRootAgentPath(item.agentPath)) return true;
                 const child = this.children.get(item.agentThreadId);
                 if (child) {
+                    await this.announce(
+                        child.threadId,
+                        child.parentSessionId,
+                        undefined,
+                        undefined,
+                        false,
+                        notification.params.turnId,
+                    );
                     await this.ensureAnnounced(child);
                     child.path = normalizeAgentPath(item.agentPath);
                     const title = nameFromAgentPath(
@@ -246,9 +257,11 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                             child.parentSessionId,
                         );
                     }
-                } else
-                    this.pendingFor(item.agentThreadId).path =
-                        normalizeAgentPath(item.agentPath);
+                } else {
+                    const pending = this.pendingFor(item.agentThreadId);
+                    pending.path = normalizeAgentPath(item.agentPath);
+                    pending.parentTurnId ??= notification.params.turnId;
+                }
                 await this.observeConfiguration(
                     item.agentThreadId,
                     { model: item.model, effort: item.reasoningEffort },
@@ -480,6 +493,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                     pending.path,
                     pending.description,
                     true,
+                    pending.parentTurnId,
                 );
                 this.pending.delete(threadId);
                 this.replayQueue.push(...pending.notifications.take());
@@ -514,6 +528,14 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             {
                 sessionUpdate: "subagent_update",
                 sessionId: child.sessionId,
+                _meta: {
+                    codex: {
+                        threadId: child.threadId,
+                        ...(child.parentTurnId
+                            ? { parentTurnId: child.parentTurnId }
+                            : {}),
+                    },
+                },
                 capabilities: {},
                 ...(child.title !== undefined ? { title: child.title } : {}),
                 ...(child.description !== undefined
@@ -536,10 +558,24 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
         path?: string,
         description?: string,
         live = false,
+        parentTurnId?: string,
     ): Promise<string> {
         const existing = this.children.get(threadId);
         if (existing) {
             existing.live ||= live;
+            if (parentTurnId && !existing.parentTurnId) {
+                existing.parentTurnId = parentTurnId;
+                this.associations.get(existing.sessionId)!.parentTurnId =
+                    parentTurnId;
+                await this.session.update(
+                    {
+                        sessionUpdate: "subagent_update",
+                        sessionId: existing.sessionId,
+                        _meta: { codex: { threadId, parentTurnId } },
+                    },
+                    existing.parentSessionId,
+                );
+            }
             await this.ensureAnnounced(existing);
             return existing.sessionId;
         }
@@ -548,6 +584,8 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             parentSessionId,
             threadId,
         );
+        if (parentTurnId !== undefined)
+            association.parentTurnId ??= parentTurnId;
         const child: Child = {
             ...association,
             turnId: null,
@@ -602,12 +640,20 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
     async announceHistory(
         threadId: string,
         path: string,
+        parentTurnId?: string,
     ): Promise<string | null> {
         if (threadId === this.rootSessionId) return null;
         if (await this.restoreKnown(threadId)) {
             const child = this.children.get(threadId)!;
             child.path ??= normalizeAgentPath(path);
-            return child.sessionId;
+            return this.announce(
+                threadId,
+                child.parentSessionId,
+                path,
+                undefined,
+                false,
+                parentTurnId,
+            );
         }
         const parent = this.parentFor({
             path: normalizeAgentPath(path),
@@ -615,7 +661,14 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
         });
         return parent === undefined
             ? null
-            : this.announce(threadId, parent, path);
+            : this.announce(
+                  threadId,
+                  parent,
+                  path,
+                  undefined,
+                  false,
+                  parentTurnId,
+              );
     }
 
     private async observeConfiguration(

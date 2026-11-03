@@ -204,6 +204,21 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", (version) => {
             const boundary = h.scopedUpdates.length;
             await flush(h);
             expect(text("Saved child answer")).toBe(true);
+            expect(h.scopedUpdates).toContainEqual(
+                expect.objectContaining({
+                    sessionId,
+                    update: expect.objectContaining({
+                        sessionUpdate: "subagent_update",
+                        sessionId: childId,
+                        _meta: {
+                            codex: {
+                                threadId: worker,
+                                parentTurnId: "child-turn",
+                            },
+                        },
+                    }),
+                }),
+            );
             expect(text("Parent history")).toBe(true);
             expect(resumes).toEqual([sessionId]);
             expect(
@@ -373,6 +388,17 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", (version) => {
         await load();
         await flush(h);
         expect(text("Deep answer")).toBe(true);
+        expect(h.scopedUpdates).toContainEqual(
+            expect.objectContaining({
+                update: expect.objectContaining({
+                    sessionUpdate: "subagent_update",
+                    sessionId: childId,
+                    _meta: {
+                        codex: { threadId: worker, parentTurnId: "child-turn" },
+                    },
+                }),
+            }),
+        );
         expect(gap()).toEqual([]);
     });
 

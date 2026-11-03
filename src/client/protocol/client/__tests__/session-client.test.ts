@@ -477,7 +477,7 @@ test("disconnect marks every held session disconnected and releases the agent fo
     expect(client.state.connection).toBe("ready");
 });
 
-test("standard child sessions stream independently, patch metadata, and retire with their parent", async () => {
+test("standard child sessions stream independently, patch associations, and retire with their parent", async () => {
     const { client, fake } = await make();
     const root = await client.newSession("/tmp/parent");
     await fake.pushUpdate(root, {
@@ -487,7 +487,18 @@ test("standard child sessions stream independently, patch metadata, and retire w
         description: "Read sources",
         capabilities: { cancel: {} },
         state: { state: "running" },
-        _meta: { role: "research", remove: true },
+        _meta: {
+            role: "research",
+            remove: true,
+            codex: { threadId: "native-worker" },
+        },
+    });
+    await fake.pushUpdate(root, {
+        sessionUpdate: "subagent_update",
+        sessionId: "worker",
+        _meta: {
+            codex: { threadId: "native-worker", parentTurnId: "origin-turn" },
+        },
     });
     await fake.pushUpdate("worker", {
         sessionUpdate: "subagent_update",
@@ -512,7 +523,10 @@ test("standard child sessions stream independently, patch metadata, and retire w
         parentId: root,
         description: null,
         capabilities: { cancel: {} },
-        _meta: { role: "research" },
+        _meta: {
+            role: "research",
+            codex: { threadId: "native-worker", parentTurnId: "origin-turn" },
+        },
     });
     expect(client.session("worker").title).toBe("Research");
     expect(client.session("nested").subagent?.parentId).toBe("worker");
@@ -523,11 +537,15 @@ test("standard child sessions stream independently, patch metadata, and retire w
         sessionUpdate: "subagent_update",
         sessionId: "worker",
         state: null,
+        _meta: { codex: null },
         capabilities: null,
         title: null,
     });
     await until(() => client.session("worker").state === "unknown");
     expect(client.session("worker").title).toBeNull();
+    expect(client.session("worker").subagent?._meta).toEqual({
+        role: "research",
+    });
     await expect(client.cancel("worker")).rejects.toThrow(
         "does not allow cancellation",
     );

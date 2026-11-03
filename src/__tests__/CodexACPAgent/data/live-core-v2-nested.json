@@ -5,6 +5,12 @@
       "sessionId": "thread-1:subagent:coordinator",
       "title": "Coordinator",
       "capabilities": {},
+      "_meta": {
+        "codex": {
+          "threadId": "coordinator",
+          "parentTurnId": "turn-1"
+        }
+      },
       "sessionUpdate": "subagent_update"
     }
   },
@@ -14,6 +20,12 @@
       "sessionId": "thread-1:subagent:worker",
       "title": "Worker",
       "capabilities": {},
+      "_meta": {
+        "codex": {
+          "threadId": "worker",
+          "parentTurnId": "turn-1"
+        }
+      },
       "sessionUpdate": "subagent_update"
     }
   },

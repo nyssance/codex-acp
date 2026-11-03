@@ -75,6 +75,16 @@ the conversation. Both ACP versions return a non-null native source in
 do not change conversation ownership, archive state or history storage. Clients
 may use the field to choose the surface where a conversation is listed.
 
+## Subagent turn origins and reload routing
+
+Standard ACP `subagent_update` carries `_meta.codex.threadId` and the originating
+`_meta.codex.parentTurnId` when native delegation provides them. Late origin
+information patches the complete `codex` metadata entry so its thread ID is
+preserved. Omitted metadata is unchanged; null clears it, following ACP metadata
+patch semantics. The association survives child-router replacement during replay. Native
+collaboration items remain available in history for clients browsing children
+without attaching them.
+
 Native listing and resume responses in some Codex versions omit the source after
 unloading a thread. The adapter reads Codex's existing rollout header in that
 case; it does not create a source registry or modify native history.

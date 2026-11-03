@@ -188,6 +188,14 @@ delete are rejected on children. `cancel(childId)` sends only `session/cancel`,
 and only when the child is attached and advertises cancellation. Cancelling a
 parent answers pending requests throughout its subtree before cancelling it.
 
+Child metadata includes `_meta.codex.threadId` and, when native delegation
+provides it, `_meta.codex.parentTurnId`. The client retains this metadata on
+`Session.subagent._meta`. The origin is the parent native turn, including when
+later steering messages share that turn. Clients can place child activity beside
+the originating request instead of collecting historical children under the
+latest turn. Recorded collaboration items provide the same association
+when no live child stream exists.
+
 `readSubagentHistory(threadId, cwd, cursor?)` returns a bounded, read-only session
 projection and the next history cursor through the existing agent connection. It
 does not open, attach, select or register the child as a top-level conversation.

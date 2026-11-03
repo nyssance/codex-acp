@@ -6316,7 +6316,7 @@ export class CodexAcpServer {
         if (this.usesStandardSubagents()) {
             await this.streamStandardHistory(
                 sessionId,
-                standardHistoryItems(itemPages),
+                standardHistoryItems(itemPages, this.replayEntries),
                 sessionState,
                 isOpen,
             );
@@ -6629,10 +6629,12 @@ export class CodexAcpServer {
         };
         const replayActivity = async (
             item: ThreadItem & { type: "subAgentActivity" },
+            parentTurnId: string | undefined,
         ): Promise<boolean> => {
             const childId = await router.announceHistory(
                 item.agentThreadId,
                 item.agentPath,
+                parentTurnId,
             );
             if (childId === null) return false;
             const configOptions = subagentConfigurationOptions(
@@ -6658,7 +6660,10 @@ export class CodexAcpServer {
             await replayChild(item.agentThreadId, childId);
             return true;
         };
-        let unresolved: Array<ThreadItem & { type: "subAgentActivity" }> = [];
+        let unresolved: Array<{
+            item: ThreadItem & { type: "subAgentActivity" };
+            turnId: string | undefined;
+        }> = [];
         for await (const items of pages) {
             for (const entry of items) {
                 if (!isOpen()) throw new SessionClosedDuringLoadError();
@@ -6675,7 +6680,8 @@ export class CodexAcpServer {
                         gaps.add(item.agentThreadId);
                         continue;
                     }
-                    if (!(await replayActivity(item))) unresolved.push(item);
+                    if (!(await replayActivity(item, turnId)))
+                        unresolved.push({ item, turnId });
                     continue;
                 }
                 if (
@@ -6695,6 +6701,8 @@ export class CodexAcpServer {
                                     sessionId,
                                     undefined,
                                     item.prompt ?? undefined,
+                                    false,
+                                    turnId,
                                 ),
                             );
                         }
@@ -6733,10 +6741,11 @@ export class CodexAcpServer {
         }
         while (unresolved.length > 0) {
             const pending: typeof unresolved = [];
-            for (const item of unresolved)
-                if (!(await replayActivity(item))) pending.push(item);
+            for (const entry of unresolved)
+                if (!(await replayActivity(entry.item, entry.turnId)))
+                    pending.push(entry);
             if (pending.length === unresolved.length) {
-                for (const item of pending) gaps.add(item.agentThreadId);
+                for (const { item } of pending) gaps.add(item.agentThreadId);
                 break;
             }
             unresolved = pending;
@@ -9390,10 +9399,12 @@ async function* itemsOfEntries(
 
 async function* standardHistoryItems(
     pages: AsyncIterable<ThreadItem[]>,
+    entries: WeakMap<ThreadItem, ReplayEntry>,
 ): AsyncGenerator<RecordedSubagentEntry[]> {
     for await (const page of pages) {
         yield page.map((item) => ({
             item,
+            turnId: entries.get(item)!.turnId,
             completed: !("status" in item) || item.status !== "inProgress",
         }));
     }

@@ -5,6 +5,7 @@ export type SubagentAssociation = {
     parentSessionId: string;
     threadId: string;
     sessionId: string;
+    parentTurnId?: string;
 };
 
 /** Connection-owned identities and restrictions survive handler replacement and idle work. */
