@@ -85,6 +85,12 @@ patch semantics. The association survives child-router replacement during replay
 collaboration items remain available in history for clients browsing children
 without attaching them.
 
+When a frontend reconnects, `thread/resume` first reuses the connection that
+already owns that thread. A changed model catalog must not route the resume to
+a second native process and collide with the original writer. Native unload,
+close and successful unloading unsubscribe responses release only that
+connection's ownership; a later resume can then select the current catalog.
+
 Native listing and resume responses in some Codex versions omit the source after
 unloading a thread. The adapter reads Codex's existing rollout header in that
 case; it does not create a source registry or modify native history.

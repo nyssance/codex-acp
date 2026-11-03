@@ -55,6 +55,18 @@ function server(
             return { thread: { id }, modelProvider: params.modelProvider };
         },
     );
+    host.onRequest("test/unload", async (params: { threadId: string }) => {
+        threads.delete(params.threadId);
+        await host.sendNotification("thread/status/changed", {
+            threadId: params.threadId,
+            status: { type: "notLoaded" },
+        });
+        return {};
+    });
+    host.onRequest("thread/unsubscribe", (params: { threadId: string }) => {
+        threads.delete(params.threadId);
+        return { status: "notLoaded" };
+    });
     host.onRequest("thread/loaded/list", () => ({
         data: [...threads],
         nextCursor: null,
@@ -276,3 +288,73 @@ test("MCP reconnect completes other refreshes before propagating a failure", asy
     expect(gatewayRefreshed).toBe(true);
     connection.dispose();
 });
+
+test.each([undefined, "/original-catalog"])(
+    "reload resumes the existing writer after catalog changes from %s",
+    async (catalog) => {
+        const spawned: unknown[][] = [];
+        const connection = providerConnections(
+            server("openai"),
+            (id, path, defined) => {
+                spawned.push([id, path, defined]);
+                return server(id);
+            },
+        );
+        await connection.sendRequest("initialize", {});
+        const original = await connection.sendRequest<{
+            thread: { id: string };
+        }>("thread/start", {
+            modelProvider: "openai",
+            ...(catalog ? { config: { model_catalog_json: catalog } } : {}),
+        });
+        const previousSpawns = spawned.length;
+        for (const modelProvider of [
+            "openai",
+            "different-requested-provider",
+        ]) {
+            await connection.sendRequest("thread/resume", {
+                threadId: original.thread.id,
+                modelProvider,
+                config: {
+                    model_catalog_json: "/updated-catalog",
+                    model_providers: {
+                        [modelProvider]: { base_url: "http://127.0.0.1" },
+                    },
+                },
+            });
+            expect(
+                await connection.sendRequest("turn/start", {
+                    threadId: original.thread.id,
+                }),
+            ).toEqual({ turn: { id: `${original.thread.id}-turn` } });
+        }
+        expect(spawned).toHaveLength(previousSpawns);
+        connection.dispose();
+    },
+);
+
+test.each(["test/unload", "thread/unsubscribe"])(
+    "a released writer can resume on the current catalog after %s",
+    async (release) => {
+        const paths: (string | undefined)[] = [];
+        const connection = providerConnections(server("openai"), (id, path) => {
+            paths.push(path);
+            return server(id);
+        });
+        await connection.sendRequest("initialize", {});
+        const { thread } = await connection.sendRequest<{
+            thread: { id: string };
+        }>("thread/start", {
+            modelProvider: "openai",
+            config: { model_catalog_json: "/before" },
+        });
+        await connection.sendRequest(release, { threadId: thread.id });
+        await connection.sendRequest("thread/resume", {
+            threadId: thread.id,
+            modelProvider: "openai",
+            config: { model_catalog_json: "/after" },
+        });
+        expect(paths).toEqual(["/before", "/after"]);
+        connection.dispose();
+    },
+);
