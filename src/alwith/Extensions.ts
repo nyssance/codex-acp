@@ -1,3 +1,4 @@
+import { generateImage } from "./codex/images";
 import { projectsFor } from "../projects/registry";
 import { ComposerPredictions } from "./agent/composerPredictions";
 import { readSessionList } from "./agent/sessionCatalog";
@@ -37,6 +38,7 @@ export const CATALOG_METHODS = {
 } as const;
 export const ALWITH_METHODS = [
     "_codex/project_context",
+    "_codex/images/generate",
     ...Object.keys(CATALOG_METHODS),
     "_codex/plugin_set_enabled",
     "_codex/session_history",
@@ -126,6 +128,8 @@ export class AlwithExtensions {
         signal?: AbortSignal,
     ): Promise<unknown> {
         signal?.throwIfAborted();
+        if (method === "_codex/images/generate")
+            return generateImage(this.codex, params, signal);
         if (method === "_codex/project_context")
             return projectsFor(this.current()).context(
                 params["createChatDirectory"] === true,

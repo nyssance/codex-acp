@@ -65,6 +65,25 @@ The host must validate the schema before including these events in diagnostic ex
 These observations locate the failed stage but cannot identify which remote network
 component reset a connection without additional network or server evidence.
 
+## ChatGPT image generation
+
+`_codex/images/generate` accepts `{ prompt: string, images?: string[] }` and
+returns `{ images: Array<{ mimeType: string, data: string }> }`, with base64 media.
+References must be inline PNG, JPEG or WebP data URLs. The adapter validates the
+prompt, reference count and media budget before contacting the image service.
+Without references it uses Wham generations; with references it uses edits.
+
+The existing Codex ChatGPT account owns authentication and workspace routing.
+Clients never supply or receive account tokens. A 401 permits one token refresh;
+ambiguous provider failures are not retried automatically. Account changes and
+connection cancellation invalidate pending results. API-key accounts are rejected.
+
+The host may expose image generation through its versioned client tool set and
+handle `_alwith/tool/call` on the same ACP connection. Tool results use standard
+image content blocks, including during history replay. Dynamic tool image data
+URLs are converted into inline ACP images, while other URLs remain resource links.
+Codex retains conversation and media history; the extension creates no image store.
+
 ### Native session source
 
 `session/new` accepts optional `_meta.codex.threadSource`, a non-empty string

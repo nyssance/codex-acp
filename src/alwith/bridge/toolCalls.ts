@@ -1,3 +1,4 @@
+import { displayBlock } from "../../tool-calls/reporters/DynamicToolReporter";
 import path from "node:path";
 
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
@@ -341,9 +342,12 @@ export function dynamicToolCallCompleted(
         status: toAcpStatus(item.status),
         rawOutput: {
             success: item.success,
-            contentItems: item.contentItems,
             durationMs: item.durationMs,
         },
+        content: (item.contentItems ?? []).map((item) => ({
+            type: "content",
+            content: displayBlock(item),
+        })),
     });
 }
 
