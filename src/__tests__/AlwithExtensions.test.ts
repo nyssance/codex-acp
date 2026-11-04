@@ -11,6 +11,9 @@ function peer() {
     const sendRequest = vi.fn().mockResolvedValue({ data: [] });
     const client = {
         connection: { sendRequest },
+        threadRead: (params: unknown) => sendRequest("thread/read", params),
+        threadTurnsList: (params: unknown) =>
+            sendRequest("thread/turns/list", params),
         connectionLoss: {
             onLost: (fn: () => void) => {
                 lost.add(fn);
@@ -75,6 +78,74 @@ describe("ALwith extensions on the upstream connection", () => {
             data: { reason: "history_busy", retryable: true },
         });
         expect(upstream.sendRequest).not.toHaveBeenCalled();
+    });
+
+    it("reads a smaller page from the same position when a page exceeds maxBytes", async () => {
+        const upstream = peer();
+        const thread = {
+            id: "one",
+            cwd: "/work",
+            name: "Title",
+            preview: "",
+            createdAt: 1,
+            updatedAt: 2,
+            forkedFromId: null,
+            status: { type: "idle" },
+        };
+        const turn = (id: string, message = "x".repeat(40)) => ({
+            id,
+            status: "failed",
+            error: {
+                message,
+                codexErrorInfo: null,
+                additionalDetails: null,
+            },
+            startedAt: 1,
+            completedAt: 2,
+            durationMs: 1,
+            itemsView: "summary",
+            items: [],
+        });
+        const limits: number[] = [];
+        upstream.sendRequest.mockImplementation(
+            async (method: string, params: { limit: number }) => {
+                if (method === "thread/read") return { thread };
+                limits.push(params.limit);
+                return {
+                    data: Array.from({ length: params.limit }, (_, i) =>
+                        turn(`t${i}`),
+                    ),
+                    nextCursor: "next",
+                };
+            },
+        );
+        const extensions = new AlwithExtensions(
+            () => upstream.client,
+            vi.fn(),
+            () => false,
+        );
+        const page = (await extensions.request("_codex/session_history", {
+            sessionId: "one",
+            limit: 8,
+            maxBytes: 1700,
+        })) as { turns: unknown[]; nextCursor: string | null };
+        expect(limits).toEqual([8, 4, 2]);
+        expect(page.turns).toHaveLength(2);
+        expect(page.nextCursor).not.toBeNull();
+        upstream.sendRequest.mockImplementation(async (method: string) =>
+            method === "thread/read"
+                ? { thread }
+                : { data: [turn("t0", "x".repeat(1024))], nextCursor: null },
+        );
+        await expect(
+            extensions.request("_codex/session_history", {
+                sessionId: "one",
+                limit: 8,
+                maxBytes: 1024,
+            }),
+        ).rejects.toMatchObject({
+            data: { reason: "history_page_too_large", retryable: false },
+        });
     });
 
     it("does not report a plugin write as success when configuration overrides it", async () => {

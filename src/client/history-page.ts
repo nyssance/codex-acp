@@ -30,38 +30,15 @@ export async function readHistoryPage(
     cursor: string | null,
     request: (params: BrowseHistoryRequest) => Promise<unknown>,
 ): Promise<{ session: Session; cursor: string | null; turnIds: string[] }> {
-    let limit = 5;
-    let raw: unknown;
-    while (true) {
-        try {
-            raw = await request({
-                sessionId,
-                mode: "browse",
-                sortDirection: "desc",
-                itemsView: "full",
-                limit,
-                maxBytes: 16 * 1024 * 1024,
-                ...(cursor === null ? {} : { cursor }),
-            });
-            break;
-        } catch (error) {
-            const data =
-                error && typeof error === "object" && "data" in error
-                    ? error.data
-                    : null;
-            if (
-                data &&
-                typeof data === "object" &&
-                "reason" in data &&
-                data.reason === "history_page_too_large" &&
-                limit > 1
-            ) {
-                limit = Math.max(1, Math.floor(limit / 2));
-                continue;
-            }
-            throw error;
-        }
-    }
+    const raw = await request({
+        sessionId,
+        mode: "browse",
+        sortDirection: "desc",
+        itemsView: "full",
+        limit: 5,
+        maxBytes: 16 * 1024 * 1024,
+        ...(cursor === null ? {} : { cursor }),
+    });
     const page = object(raw);
     if (
         page.sessionId !== sessionId ||

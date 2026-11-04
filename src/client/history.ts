@@ -36,40 +36,16 @@ export async function exportConversation(
     let cursor: string | undefined;
     let revision: string | undefined;
     let bytes = 0;
-    let limit = 50;
     while (true) {
         check();
-        let raw: unknown;
-        try {
-            raw = await request({
-                sessionId,
-                mode: "export",
-                sortDirection: "asc",
-                cursor,
-                limit,
-                maxBytes: 16 * 1024 * 1024,
-            });
-        } catch (error) {
-            const data =
-                error && typeof error === "object" && "data" in error
-                    ? error.data
-                    : null;
-            if (
-                data &&
-                typeof data === "object" &&
-                "reason" in data &&
-                data.reason === "history_page_too_large"
-            ) {
-                if (limit > 1) limit = Math.max(1, Math.floor(limit / 2));
-                else
-                    throw new Error(
-                        `单条历史内容超过 16 MiB 接口上限，无法完整归档（会话 ${sessionId}）`,
-                        { cause: error },
-                    );
-                continue;
-            }
-            throw error;
-        }
+        const raw = await request({
+            sessionId,
+            mode: "export",
+            sortDirection: "asc",
+            cursor,
+            limit: 50,
+            maxBytes: 16 * 1024 * 1024,
+        });
         check();
         const page = object(raw);
         if (

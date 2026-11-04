@@ -410,17 +410,25 @@ export class HistoryRead {
             complete: nextCursor === null,
         };
     }
-    bounded<T>(page: T): T {
-        const bytes = Buffer.byteLength(JSON.stringify(page));
+    /**
+     * Reads the page at the current cursor with the largest item count, at most `limit`, whose
+     * response fits `maxBytes`. Native cursors are opaque, so a page cannot be cut after the read;
+     * a smaller count is read again from the same cursor instead.
+     */
+    async fitting<T>(limit: number, read: (limit: number) => Promise<T>): Promise<T> {
         const maxBytes = this.params.maxBytes ?? 1024 * 1024;
-        if (bytes > maxBytes)
-            throw historyError(
-                "history_page_too_large",
-                "History page exceeds maxBytes; retry the same cursor with a smaller limit or larger maxBytes, or start a new summary/item traversal",
-                true,
-                { bytes, maxBytes },
-                -32600,
-            );
-        return page;
+        for (let count = limit; ; count = Math.floor(count / 2)) {
+            const page = await read(count);
+            const bytes = Buffer.byteLength(JSON.stringify(page));
+            if (bytes <= maxBytes) return page;
+            if (count === 1)
+                throw historyError(
+                    "history_page_too_large",
+                    "A single history entry exceeds maxBytes; retry with a larger maxBytes",
+                    false,
+                    { bytes, maxBytes },
+                    -32600,
+                );
+        }
     }
 }

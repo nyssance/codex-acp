@@ -31,36 +31,16 @@ export async function readActivityReply(
 ): Promise<string | null> {
     const seen = new Set<string>();
     let cursor: string | null = null;
-    let limit = 20;
     do {
         check();
-        let raw: unknown;
-        try {
-            raw = await request({
-                sessionId,
-                mode: "browse",
-                sortDirection: "desc",
-                limit,
-                maxBytes: 16 * 1024 * 1024,
-                ...(cursor === null ? {} : { cursor }),
-            });
-        } catch (error) {
-            const data =
-                error && typeof error === "object" && "data" in error
-                    ? error.data
-                    : null;
-            if (
-                data &&
-                typeof data === "object" &&
-                "reason" in data &&
-                data.reason === "history_page_too_large" &&
-                limit > 1
-            ) {
-                limit = Math.max(1, Math.floor(limit / 2));
-                continue;
-            }
-            throw error;
-        }
+        const raw = await request({
+            sessionId,
+            mode: "browse",
+            sortDirection: "desc",
+            limit: 20,
+            maxBytes: 16 * 1024 * 1024,
+            ...(cursor === null ? {} : { cursor }),
+        });
         check();
         const page = object(raw);
         if (

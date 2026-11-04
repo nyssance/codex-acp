@@ -151,38 +151,18 @@ export async function readHistoryTurn(
     const seen = new Set<string>();
     const ids = new Set<string>();
     let cursor: string | null = null;
-    let limit = 30;
     let title: unknown;
     do {
         check();
-        let raw: unknown;
-        try {
-            raw = await request("_codex/session_history_items", {
-                sessionId,
-                turnId: turn.turnId,
-                mode: "browse",
-                sortDirection: "asc",
-                limit,
-                maxBytes: 16 * 1024 * 1024,
-                ...(cursor === null ? {} : { cursor }),
-            });
-        } catch (error) {
-            const data =
-                error && typeof error === "object" && "data" in error
-                    ? error.data
-                    : null;
-            if (
-                data &&
-                typeof data === "object" &&
-                "reason" in data &&
-                data.reason === "history_page_too_large" &&
-                limit > 1
-            ) {
-                limit = Math.max(1, Math.floor(limit / 2));
-                continue;
-            }
-            throw error;
-        }
+        const raw = await request("_codex/session_history_items", {
+            sessionId,
+            turnId: turn.turnId,
+            mode: "browse",
+            sortDirection: "asc",
+            limit: 30,
+            maxBytes: 16 * 1024 * 1024,
+            ...(cursor === null ? {} : { cursor }),
+        });
         check();
         const page = pageOf(raw, sessionId, cursor, seen);
         if (
@@ -211,7 +191,7 @@ export async function readHistoryTurn(
                     turnId: turn.turnId,
                     mode: "browse",
                     sortDirection: "desc",
-                    limit,
+                    limit: 30,
                     maxBytes: 16 * 1024 * 1024,
                 }),
                 sessionId,

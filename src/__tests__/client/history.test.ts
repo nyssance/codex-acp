@@ -119,10 +119,9 @@ test("rejects repeated cursors and respects activation cancellation", async () =
     expect(request).not.toHaveBeenCalled();
 });
 
-test("retries oversized pages at the same cursor and retains attachment references", async () => {
+test("retains attachment references", async () => {
     const request = vi
         .fn()
-        .mockRejectedValueOnce({ data: { reason: "history_page_too_large" } })
         .mockResolvedValueOnce({
             ...page,
             items: [
@@ -146,10 +145,6 @@ test("retries oversized pages at the same cursor and retains attachment referenc
     expect(await exportConversation("s", request, () => {})).toContain(
         "file:///tmp/image.png",
     );
-    expect(request.mock.calls[1]?.[0]).toMatchObject({
-        limit: 25,
-        cursor: undefined,
-    });
 });
 
 const png = {
@@ -291,26 +286,4 @@ test("counts inline image bytes toward the complete archive size limit", async (
             () => {},
         ),
     ).rejects.toThrow("25 MiB");
-});
-
-test("reports a single item exceeding the history protocol budget without invalid larger requests", async () => {
-    const calls: Array<{ limit: number; maxBytes: number }> = [];
-    await expect(
-        exportConversation(
-            "s",
-            (params) => {
-                calls.push({ limit: params.limit, maxBytes: params.maxBytes });
-                return Promise.reject(
-                    Object.assign(new Error("History page too large"), {
-                        data: { reason: "history_page_too_large" },
-                    }),
-                );
-            },
-            () => {},
-        ),
-    ).rejects.toThrow("16 MiB");
-    expect(calls.map((call) => call.limit)).toEqual([50, 25, 12, 6, 3, 1]);
-    expect(calls.every((call) => call.maxBytes === 16 * 1024 * 1024)).toBe(
-        true,
-    );
 });
