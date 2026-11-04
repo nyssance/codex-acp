@@ -9,9 +9,6 @@ import { withTurnId } from "../bridge/turnMetadata";
 import { questionReplyContent } from "../codex/questionReplies";
 import { fromUserInput, fromUserMessage } from "../codex/sessionConfig";
 import { hydrateUserImages, localImageContent } from "../codex/userImages";
-import {
-    type CommandReceipt,
-} from "./commandReceipts";
 
 export interface HistoryOmission {
     itemId: string;
@@ -93,7 +90,6 @@ export async function projectHistoryItem(
     agents: AgentDirectory,
     turnId: string,
     startedAt?: number | null,
-    command?: CommandReceipt | null,
     signal: AbortSignal = new AbortController().signal,
 ): Promise<HistoryProjection> {
     const omissions: HistoryOmission[] = [];
@@ -102,19 +98,17 @@ export async function projectHistoryItem(
         updates = [
             {
                 sessionUpdate: "user_message",
-                messageId: command?.messageId ?? item.clientId ?? item.id,
-                content:
-                    command?.content ??
-                    (await hydrateUserImages(
-                        fromUserMessage(item.content, (input) =>
-                            input.type === "text"
-                                ? (questionReplyContent(input.text) ?? [
-                                      inputBlock(input),
-                                  ])
-                                : [inputBlock(input)],
-                        ),
-                        signal,
-                    )),
+                messageId: item.clientId ?? item.id,
+                content: await hydrateUserImages(
+                    fromUserMessage(item.content, (input) =>
+                        input.type === "text"
+                            ? (questionReplyContent(input.text) ?? [
+                                  inputBlock(input),
+                              ])
+                            : [inputBlock(input)],
+                    ),
+                    signal,
+                ),
             },
         ];
     } else {

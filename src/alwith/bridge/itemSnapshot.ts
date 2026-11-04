@@ -1,8 +1,5 @@
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import {
-    type CommandReceipt,
-} from "../agent/commandReceipts";
 import type { ThreadItem } from "../../app-server/v2";
 import { fromUserMessage } from "../codex/sessionConfig";
 import type { AgentDirectory } from "./agentDirectory";
@@ -13,18 +10,9 @@ import * as tool from "./toolCalls";
 export function itemSnapshot(
     item: ThreadItem,
     agents: AgentDirectory,
-    command?: CommandReceipt,
 ): acp.SessionUpdate[] {
     switch (item.type) {
         case "userMessage": {
-            if (command)
-                return [
-                    {
-                        sessionUpdate: "user_message",
-                        messageId: command.messageId,
-                        content: command.content,
-                    },
-                ];
             const content = fromUserMessage(item.content);
             // The receipt id (`clientId`) wins so a replay names the message the client knows.
             return content.length > 0

@@ -3,7 +3,6 @@ import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type { ThreadItem, Turn } from "../../app-server/v2";
 import type { AgentDirectory } from "../bridge/agentDirectory";
 import type { AppServerClient } from "../codex/AppServerClient";
-import { assertCommandHistory, type CommandReceipts } from "./commandReceipts";
 import { type HistoryOmission, projectHistoryItem } from "./historyProjection";
 import {
     historyError,
@@ -55,7 +54,6 @@ export async function readSessionHistory(
     agents: AgentDirectory,
     raw: SessionHistoryParams,
     signal?: AbortSignal,
-    commandReceipts?: CommandReceipts | null,
 ): Promise<SessionHistoryResponse> {
     const params = parseSessionHistoryParams(raw);
     const view = params.itemsView ?? "summary";
@@ -87,10 +85,6 @@ export async function readSessionHistory(
             );
         if (view === "full")
             await read.call(() =>
-                assertCommandHistory(codex, start.thread, commandReceipts, signal),
-            );
-        if (view === "full")
-            await read.call(() =>
                 agents.load(page.data.flatMap((turn) => turn.items)),
             );
         const turns = await read.call(() =>
@@ -105,9 +99,6 @@ export async function readSessionHistory(
                                           agents,
                                           turn.id,
                                           turn.startedAt,
-                                          item.type === "userMessage"
-                                              ? await commandReceipts?.read(item.id)
-                                              : null,
                                           signal,
                                       ),
                                   ),
@@ -155,7 +146,6 @@ export async function readSessionHistoryItems(
     agents: AgentDirectory,
     raw: SessionHistoryItemsParams,
     signal?: AbortSignal,
-    commandReceipts?: CommandReceipts | null,
 ): Promise<SessionHistoryItemsResponse> {
     const params = parseSessionHistoryItemsParams(raw);
     const read = new HistoryRead(
@@ -179,9 +169,6 @@ export async function readSessionHistoryItems(
                 sortDirection: read.direction,
             }),
         );
-        await read.call(() =>
-            assertCommandHistory(codex, start.thread, commandReceipts, signal),
-        );
         await read.call(() => agents.load(page.data.map((entry) => entry.item)));
         const items = await read.call(() =>
             Promise.all(
@@ -195,9 +182,6 @@ export async function readSessionHistoryItems(
                         agents,
                         entry.turnId,
                         null,
-                        entry.item.type === "userMessage"
-                            ? await commandReceipts?.read(entry.item.id)
-                            : null,
                         signal,
                     )),
                     ...(params.includeNative

@@ -1,8 +1,7 @@
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type { CodexAppServerClient } from "../../CodexAppServerClient";
 import { nativeHistoryMetadata } from "./forkIndex";
-import { listedSessionTitle } from "../../SessionTitle";
-import { historyTitle } from "./historyTitle";
+import { sessionTitle } from "./historyTitle";
 const run = <T>(operation: () => Promise<T>): Promise<T> => operation();
 /**
  * `session/list` and the full `_codex/session_list`, with the ACP `archived` filter. Codex lists
@@ -170,26 +169,7 @@ async function readListPage(
                     .map(async (thread) => ({
                         sessionId: thread.id,
                         cwd: thread.cwd,
-                        // Native previews can start with a serialized attachment, or cut it
-                        // halfway through a URI. Read the first page only for those rows.
-                        title:
-                            !thread.name?.trim() &&
-                            /^(?:\[@|# Files mentioned by the user:|<send_user_message_question_reply>)/.test(
-                                thread.preview.trimStart(),
-                            )
-                                ? historyTitle(
-                                      thread,
-                                      (
-                                          await client.threadTurnsList({
-                                              threadId: thread.id,
-                                              cursor: null,
-                                              limit: 25,
-                                              itemsView: "full",
-                                              sortDirection: "asc",
-                                          })
-                                      ).data,
-                                  )
-                                : listedSessionTitle(thread),
+                        title: await sessionTitle(client, thread),
                         updatedAt: new Date(
                             thread.updatedAt * 1000,
                         ).toISOString(),

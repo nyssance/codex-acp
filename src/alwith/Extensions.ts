@@ -13,7 +13,6 @@ import type {
 import { AppServerClient } from "./codex/AppServerClient";
 import { setRemotePluginEnabled } from "./codex/remotePluginEnablement";
 import { AgentDirectory } from "./bridge/agentDirectory";
-import { CommandReceipts } from "./agent/commandReceipts";
 import {
     readSessionHistory,
     readSessionHistoryItems,
@@ -161,13 +160,6 @@ export class AlwithExtensions {
                 }
             };
             assertIdle();
-            const home = this.current().getCodexHome();
-            if (!home)
-                throw RequestError.internalError(
-                    undefined,
-                    "Codex initialize did not return codexHome",
-                );
-            const receipts = new CommandReceipts(home);
             const response =
                 method === "_codex/session_history"
                     ? await readSessionHistory(
@@ -175,14 +167,12 @@ export class AlwithExtensions {
                           this.agents,
                           parseSessionHistoryParams(params),
                           signal,
-                          receipts,
                       )
                     : await readSessionHistoryItems(
                           this.codex,
                           this.agents,
                           parseSessionHistoryItemsParams(params),
                           signal,
-                          receipts,
                       );
             assertIdle();
             return {

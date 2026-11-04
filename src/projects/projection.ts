@@ -18,6 +18,11 @@ export function normalizedPath(value: string): string {
         : normalized;
 }
 
+/** The last segment of a directory path; the path itself for a root such as `/`. */
+export function directoryName(path: string): string {
+    return path.replaceAll("\\", "/").replace(/\/+$/, "").split("/").pop() || path;
+}
+
 export function pathContains(root: string, path: string): boolean {
     const parent = normalizedPath(root);
     const child = normalizedPath(path);
@@ -75,12 +80,7 @@ export function sessionGroup(
         return { id: QUICK_CHATS_GROUP, name: "", cwd: null };
     return {
         id: row.cwd,
-        name:
-            row.cwd
-                .replaceAll("\\", "/")
-                .replace(/\/+$/, "")
-                .split("/")
-                .pop() || row.cwd,
+        name: directoryName(row.cwd),
         cwd: row.cwd,
     };
 }
@@ -110,7 +110,7 @@ export function projectName(id: string, context?: ProjectContext): string {
             context?.projects.find((project) => `project:${project.id}` === id)
                 ?.name ?? id.slice(8)
         );
-    return id.replaceAll("\\", "/").replace(/\/+$/, "").split("/").pop() || id;
+    return directoryName(id);
 }
 
 export function isQuickChatDirectory(

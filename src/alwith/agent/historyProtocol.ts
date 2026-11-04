@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { sessionTitle } from "./historyTitle";
 
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
@@ -394,7 +395,7 @@ export class HistoryRead {
         return {
             sessionId: this.params.sessionId,
             cwd: t.cwd,
-            title: t.name?.trim() || t.preview.trim() || null,
+            title: await sessionTitle(this.codex, t),
             createdAt: t.createdAt,
             updatedAt: t.updatedAt,
             forkedFromId: t.forkedFromId,
