@@ -25,6 +25,8 @@ jobs:
               run: bun run check
             - name: Run unit tests
               run: bun run test
+            - name: Run integration tests
+              run: bun run test:integration
             - name: Bundle binaries
               run: bun run bundle:all
 
