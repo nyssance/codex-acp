@@ -1,9 +1,12 @@
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type { ThreadItem, Turn } from "../../app-server/v2";
-import type { AgentDirectory } from "../bridge/agentDirectory";
 import type { AppServerClient } from "../codex/AppServerClient";
-import { type HistoryOmission, projectHistoryItem } from "./historyProjection";
+import {
+    type HistoryOmission,
+    type HistoryRenderer,
+    projectHistoryItem,
+} from "./historyProjection";
 import {
     historyError,
     type HistoryPage,
@@ -51,9 +54,9 @@ export interface SessionHistoryItemsResponse extends HistoryPage {
 
 export async function readSessionHistory(
     codex: AppServerClient,
-    agents: AgentDirectory,
+    render: HistoryRenderer,
     raw: SessionHistoryParams,
-    signal?: AbortSignal,
+    signal: AbortSignal = new AbortController().signal,
 ): Promise<SessionHistoryResponse> {
     const params = parseSessionHistoryParams(raw);
     const view = params.itemsView ?? "summary";
@@ -83,10 +86,6 @@ export async function readSessionHistory(
                 {},
                 -32603,
             );
-        if (view === "full")
-            await read.call(() =>
-                agents.load(page.data.flatMap((turn) => turn.items)),
-            );
         const turns = await read.call(() =>
             Promise.all(
                 page.data.map(async (turn) => {
@@ -95,8 +94,9 @@ export async function readSessionHistory(
                             ? await Promise.all(
                                   turn.items.map(async (item) =>
                                       projectHistoryItem(
+                                          render,
                                           item,
-                                          agents,
+                                          start.thread.cwd,
                                           turn.id,
                                           turn.startedAt,
                                           signal,
@@ -143,9 +143,9 @@ export async function readSessionHistory(
 
 export async function readSessionHistoryItems(
     codex: AppServerClient,
-    agents: AgentDirectory,
+    render: HistoryRenderer,
     raw: SessionHistoryItemsParams,
-    signal?: AbortSignal,
+    signal: AbortSignal = new AbortController().signal,
 ): Promise<SessionHistoryItemsResponse> {
     const params = parseSessionHistoryItemsParams(raw);
     const read = new HistoryRead(
@@ -169,7 +169,6 @@ export async function readSessionHistoryItems(
                 sortDirection: read.direction,
             }),
         );
-        await read.call(() => agents.load(page.data.map((entry) => entry.item)));
         const items = await read.call(() =>
             Promise.all(
                 page.data.map(async (entry) => ({
@@ -178,8 +177,9 @@ export async function readSessionHistoryItems(
                     startedAtMs: entry.startedAtMs,
                     completedAtMs: entry.completedAtMs,
                     ...(await projectHistoryItem(
+                        render,
                         entry.item,
-                        agents,
+                        start.thread.cwd,
                         entry.turnId,
                         null,
                         signal,

@@ -37,6 +37,7 @@ describe("ALwith extensions on the upstream connection", () => {
             () => upstream.client,
             notify,
             () => false,
+            async () => [],
         );
         await extensions.request("_codex/skills_list", { cwds: ["/work"] });
         expect(upstream.sendRequest).toHaveBeenCalledWith("skills/list", {
@@ -55,6 +56,7 @@ describe("ALwith extensions on the upstream connection", () => {
             () => upstream.client,
             vi.fn(),
             () => false,
+            async () => [],
         );
         await expect(
             extensions.request("_codex/skills_list", {}, AbortSignal.abort()),
@@ -68,6 +70,7 @@ describe("ALwith extensions on the upstream connection", () => {
             () => upstream.client,
             vi.fn(),
             () => true,
+            async () => [],
         );
         await expect(
             extensions.request("_codex/session_history", {
@@ -123,6 +126,7 @@ describe("ALwith extensions on the upstream connection", () => {
             () => upstream.client,
             vi.fn(),
             () => false,
+            async () => [],
         );
         const page = (await extensions.request("_codex/session_history", {
             sessionId: "one",
@@ -156,6 +160,7 @@ describe("ALwith extensions on the upstream connection", () => {
             () => upstream.client,
             notify,
             () => false,
+            async () => [],
         );
         await expect(
             extensions.request("_codex/plugin_set_enabled", {
@@ -175,6 +180,7 @@ describe("ALwith extensions on the upstream connection", () => {
             () => current,
             notify,
             () => false,
+            async () => [],
         );
         extensions.observe();
         extensions.observe();

@@ -4,57 +4,49 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-// Provenance is process-local: client-supplied metadata and ordinary links cannot
-// authorize local reads. Only native localImage inputs create these references.
-const nativeImages = new WeakMap<acp.ContentBlock, string>();
+import type { UserInput } from "../../app-server/v2";
+import { attachmentFileUri } from "../../DesktopAttachmentHistory";
+
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 
 export function localImageContent(path: string): acp.ContentBlock {
-    const block: acp.ContentBlock = {
+    return {
         type: "resource_link",
         name: "Image",
         uri: path.startsWith("file:") ? path : pathToFileURL(path).href,
     };
-    nativeImages.set(block, path);
-    return block;
 }
 
-export async function hydrateUserImages(
-    content: readonly acp.ContentBlock[],
+/**
+ * Replaces the links `session/load` replays for a message's native `localImage` inputs with the
+ * image data. Only those inputs authorize a local read; other links in the message stay links.
+ */
+export async function hydrateLocalImages(
+    updates: readonly acp.SessionUpdate[],
+    inputs: readonly UserInput[],
     signal: AbortSignal,
-): Promise<acp.ContentBlock[]> {
-    const result: acp.ContentBlock[] = [];
-    for (const block of content) {
-        signal.throwIfAborted();
-        const path = nativeImages.get(block);
-        if (path === undefined) result.push(block);
-        else {
-            const image = await readImage(path);
-            if (
-                acp.ContentBlock.isResourceLink(block) &&
-                block._meta &&
-                (acp.ContentBlock.isImage(image) ||
-                    acp.ContentBlock.isResourceLink(image))
-            ) {
-                const original = block._meta["codex"];
-                const hydrated = image._meta?.["codex"];
-                image._meta = {
-                    ...block._meta,
-                    ...image._meta,
-                    codex: {
-                        ...(original && typeof original === "object"
-                            ? original
-                            : {}),
-                        ...(hydrated && typeof hydrated === "object"
-                            ? hydrated
-                            : {}),
-                    },
-                };
-            }
-            result.push(image);
-        }
+): Promise<acp.SessionUpdate[]> {
+    const paths = new Map<string, string>();
+    for (const input of inputs) {
+        if (input.type !== "localImage") continue;
+        const uri = attachmentFileUri(input.path);
+        if (uri !== null) paths.set(uri, input.path);
     }
-    signal.throwIfAborted();
+    const result: acp.SessionUpdate[] = [];
+    for (const update of updates) {
+        signal.throwIfAborted();
+        if (
+            acp.SessionUpdate.isUserMessageChunk(update) &&
+            acp.ContentBlock.isResourceLink(update.content)
+        ) {
+            const path = paths.get(update.content.uri);
+            if (path !== undefined) {
+                result.push({ ...update, content: await readImage(path) });
+                continue;
+            }
+        }
+        result.push(update);
+    }
     return result;
 }
 

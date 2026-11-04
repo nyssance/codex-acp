@@ -75,7 +75,7 @@ test("rejects cross-session, partial, running and changed history instead of exp
             items: [
                 {
                     ...page.items[0],
-                    updates: [{ sessionUpdate: "user_message", content: null }],
+                    updates: [{ sessionUpdate: "user_message", messageId: "m1", content: null }],
                 },
             ],
         },
@@ -130,6 +130,7 @@ test("retains attachment references", async () => {
                     updates: [
                         {
                             sessionUpdate: "user_message",
+                            messageId: "m3",
                             content: [
                                 {
                                     type: "resource_link",
@@ -171,7 +172,7 @@ test.each(["user_message", "agent_message"])(
                     items: [
                         {
                             ...page.items[0],
-                            updates: [{ sessionUpdate, content }],
+                            updates: [{ sessionUpdate, messageId: "m", content }],
                         },
                     ],
                 }),
@@ -192,9 +193,10 @@ test("exports image-only messages and keeps unavailable image placeholders", asy
                     {
                         ...page.items[0],
                         updates: [
-                            { sessionUpdate: "user_message", content: [png] },
+                            { sessionUpdate: "user_message", messageId: "m2", content: [png] },
                             {
                                 sessionUpdate: "user_message",
+                                messageId: "m4",
                                 content: [
                                     {
                                         type: "resource_link",
@@ -242,6 +244,7 @@ test.each([
                                 updates: [
                                     {
                                         sessionUpdate: "user_message",
+                                        messageId: "m5",
                                         content: [
                                             { type: "text", text: "Keep me" },
                                             block,
@@ -270,6 +273,7 @@ test("counts inline image bytes toward the complete archive size limit", async (
                             updates: [
                                 {
                                     sessionUpdate: "user_message",
+                                    messageId: "m6",
                                     content: [
                                         {
                                             ...png,
@@ -286,4 +290,39 @@ test("counts inline image bytes toward the complete archive size limit", async (
             () => {},
         ),
     ).rejects.toThrow("25 MiB");
+});
+
+test("joins a replayed message start and its chunks into one record", async () => {
+    const body = await exportConversation(
+        "s",
+        () =>
+            Promise.resolve({
+                ...page,
+                items: [
+                    {
+                        ...page.items[0],
+                        updates: [
+                            { sessionUpdate: "agent_message", messageId: "a", content: [] },
+                            {
+                                sessionUpdate: "agent_message_chunk",
+                                messageId: "a",
+                                content: { type: "text", text: "One" },
+                            },
+                            {
+                                sessionUpdate: "agent_message_chunk",
+                                messageId: "a",
+                                content: { type: "text", text: "Two" },
+                            },
+                        ],
+                    },
+                ],
+            }),
+        () => {},
+    );
+    const records = body.trim().split("\n").map((line) => JSON.parse(line));
+    expect(records).toHaveLength(1);
+    expect(records[0].message.content).toEqual([
+        { type: "text", text: "One" },
+        { type: "text", text: "Two" },
+    ]);
 });

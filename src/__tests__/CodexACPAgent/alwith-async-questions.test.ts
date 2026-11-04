@@ -1,7 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { ThreadItem } from "../../app-server/v2";
-import { projectHistoryItem } from "../../alwith/agent/historyProjection";
-import { AgentDirectory } from "../../alwith/bridge/agentDirectory";
 import {
     connectSession,
     createTurn,
@@ -11,6 +9,7 @@ import {
     turnStarted,
     turnCompleted,
     turnId,
+    sessionId,
     type PromptSession,
 } from "./v2-prompt-harness";
 const clients: PromptSession[] = [];
@@ -80,23 +79,9 @@ it("keeps question-only native messages structured without waiting for user inte
     client.emit(turnCompleted());
     await client.promptRunFinished();
 });
-it("preserves structured question metadata and every reply identity in native history", async () => {
-    const directory = new AgentDirectory(async () => {
-        throw new Error("Unexpected agent lookup");
-    });
-    const projected = await projectHistoryItem(question, directory, turnId);
-    expect(projected.omissions).toEqual([]);
-    expect(projected.updates).toContainEqual(
-        expect.objectContaining({
-            messageId: question.id,
-            _meta: expect.objectContaining({
-                codex: expect.objectContaining({
-                    delivery: "async",
-                    questions: question.questions,
-                }),
-            }),
-        }),
-    );
+it("reads question messages and replies from history as session/load replays them", async () => {
+    const client = await connectSession();
+    clients.push(client);
     const replies = [
         {
             questionItemId: JSON.stringify([
@@ -108,25 +93,48 @@ it("preserves structured question metadata and every reply identity in native hi
             answer: "Remote",
         },
     ];
-    const history = await projectHistoryItem(
-        userMessageItem(
-            "reply",
-            `<send_user_message_question_reply>\n${JSON.stringify(replies)}\n</send_user_message_question_reply>`,
-        ),
-        directory,
-        turnId,
+    const reply = userMessageItem(
+        "reply",
+        `<send_user_message_question_reply>\n${JSON.stringify(replies)}\n</send_user_message_question_reply>`,
     );
-    expect(history.omissions).toEqual([]);
-    expect(history.updates).toContainEqual(
+    client.setCodexResponse("thread/items/list", async () => ({
+        data: [question, reply].map((item) => ({
+            turnId,
+            item,
+            startedAtMs: 1,
+            completedAtMs: 2,
+        })),
+        nextCursor: null,
+    }));
+    const page = (await client.request("_codex/session_history_items", {
+        sessionId,
+    })) as {
+        items: Array<{
+            itemId: string;
+            updates: Array<Record<string, unknown>>;
+            omissions: unknown[];
+        }>;
+    };
+    const [asked, answered] = page.items;
+    expect(asked!.omissions).toEqual([]);
+    expect(asked!.updates).toContainEqual(
         expect.objectContaining({
+            sessionUpdate: "agent_message_chunk",
+            messageId: question.id,
+            _meta: expect.objectContaining({
+                codex: expect.objectContaining({
+                    delivery: "async",
+                    questions: question.questions,
+                    turnId,
+                }),
+            }),
+        }),
+    );
+    expect(answered!.updates).toContainEqual(
+        expect.objectContaining({
+            sessionUpdate: "user_message_chunk",
             messageId: "reply",
-            content: [
-                {
-                    type: "text",
-                    text: "Which environment?\nRemote",
-                    _meta: { codex: { questionReply: replies[0] } },
-                },
-            ],
+            content: { type: "text", text: "> Which environment?\n\nRemote" },
         }),
     );
 });

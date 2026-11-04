@@ -1,9 +1,3 @@
-import {
-    commandStarted,
-    commandCompleted,
-    imageGenerationCompleted,
-} from "../../alwith/bridge/toolCalls";
-import { usesTerminal } from "../../alwith/bridge/terminal";
 import type { ThreadItem } from "../../app-server/v2";
 import {describe, expect, it} from "vitest";
 import {AcpToolCallRenderer} from "../../tool-calls/AcpToolCallRenderer";
@@ -59,32 +53,20 @@ const read = {
     ...command, id: "read", command: "cat a.txt",
     commandActions: [{type: "read", command: "cat a.txt", name: "a.txt", path: "/w/a.txt"}],
 } as const;
-it("keeps user shell provenance and terminal output in history snapshots, including read commands", () => {
+it("keeps user shell provenance and terminal output in history, including read commands", () => {
     for (const base of [command, read]) {
         const item: ThreadItem & { type: "commandExecution" } = {
             ...base,
             commandActions: [...base.commandActions],
             source: "userShell",
         };
-        expect(usesTerminal(item)).toBe(true);
-        expect(commandStarted(item)).toMatchObject({
+        const renderer = new AcpToolCallRenderer(ZED);
+        const history = CommandReporter.history(item).map((facts) => renderer.render(facts));
+        expect(history[0]).toMatchObject({
             kind: "execute",
             _meta: { codex: { commandSource: "userShell" } },
         });
-        expect(commandCompleted(item)).toMatchObject({
-            _meta: { codex: { commandSource: "userShell" } },
-        });
-        expect(
-            commandCompleted({ ...item, aggregatedOutput: "x".repeat(20_000) }),
-        ).toMatchObject({
-            _meta: {
-                codex: {
-                    commandSource: "userShell",
-                    outputTruncated: true,
-                    outputCharacters: 20_000,
-                },
-            },
-        });
+        expect(history.at(-1)).toMatchObject({ _meta: { terminal_output: { data: "ok\n" } } });
     }
 });
 
@@ -331,11 +313,9 @@ describe("Codex 0.164 image attachments", () => {
         }
     });
     it("preserves attachment identity without inventing inline image bytes", () => {
-        const v1 = ImageGenerationReporter.whole(item);
-        const v2 = imageGenerationCompleted(item);
-        expect(v1.standard?.rawOutput).toMatchObject({ fileId: "file-123" });
-        expect(v2.rawOutput).toMatchObject({ fileId: "file-123" });
-        for (const content of [v1.result, v2.content]) {
+        const whole = ImageGenerationReporter.whole(item);
+        expect(whole.standard?.rawOutput).toMatchObject({ fileId: "file-123" });
+        for (const content of [whole.result]) {
             expect(content).toEqual([
                 {
                     type: "content",
@@ -347,7 +327,7 @@ describe("Codex 0.164 image attachments", () => {
             ]);
         }
     });
-    it("preserves a local generated image reference in both protocols", () => {
+    it("preserves a local generated image reference", () => {
         const saved = { ...item, savedPath: "/tmp/generated.png" };
         const reference = {
             type: "content",
@@ -360,6 +340,5 @@ describe("Codex 0.164 image attachments", () => {
         expect(ImageGenerationReporter.whole(saved).result).toEqual([
             reference,
         ]);
-        expect(imageGenerationCompleted(saved).content).toEqual([reference]);
     });
 });

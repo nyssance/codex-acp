@@ -82,18 +82,41 @@ export async function exportConversation(
             const timestamp = item.startedAtMs ?? page.createdAt * 1000;
             if (typeof timestamp !== "number" || !Number.isFinite(timestamp))
                 throw new Error("Invalid history timestamp");
+            // History replays each message as a start followed by its chunks; an item's
+            // messages are written in the order they started.
+            const messages = new Map<
+                string,
+                { type: "user" | "assistant"; blocks: Record<string, unknown>[] }
+            >();
             for (const rawUpdate of item.updates) {
                 const update = object(rawUpdate);
-                if (
-                    update.sessionUpdate !== "user_message" &&
-                    update.sessionUpdate !== "agent_message"
-                )
-                    continue;
-                if (!Array.isArray(update.content))
+                const type =
+                    update.sessionUpdate === "user_message" ||
+                    update.sessionUpdate === "user_message_chunk"
+                        ? "user"
+                        : update.sessionUpdate === "agent_message" ||
+                            update.sessionUpdate === "agent_message_chunk"
+                          ? "assistant"
+                          : null;
+                if (type === null) continue;
+                if (typeof update.messageId !== "string")
                     throw new Error("Invalid history message");
+                const blocks = update.sessionUpdate.endsWith("_chunk")
+                    ? [update.content]
+                    : update.content;
+                if (!Array.isArray(blocks))
+                    throw new Error("Invalid history message");
+                const message = messages.get(update.messageId);
+                if (message === undefined)
+                    messages.set(update.messageId, {
+                        type,
+                        blocks: blocks.map(object),
+                    });
+                else message.blocks.push(...blocks.map(object));
+            }
+            for (const [messageId, message] of messages) {
                 const content: ArchiveContent[] = [];
-                for (const rawBlock of update.content) {
-                    const block = object(rawBlock);
+                for (const block of message.blocks) {
                     if (block.type === "text" && typeof block.text === "string")
                         content.push({ type: "text", text: block.text });
                     else if (
@@ -123,17 +146,13 @@ export async function exportConversation(
                         );
                 }
                 if (!content.length) continue;
-                const type =
-                    update.sessionUpdate === "user_message"
-                        ? "user"
-                        : "assistant";
                 const line = `${JSON.stringify({
-                    type,
+                    type: message.type,
                     sessionId,
-                    uuid: update.messageId ?? item.itemId,
+                    uuid: messageId,
                     turnId: item.turnId,
                     timestamp: new Date(timestamp).toISOString(),
-                    message: { role: type, content },
+                    message: { role: message.type, content },
                 })}\n`;
                 bytes += encoder.encode(line).length;
                 if (bytes > MAX_ARCHIVE_BYTES)

@@ -110,7 +110,8 @@ import {
     toV1SetSessionConfigOptionRequest,
     toV2ConfigOptions,
 } from "./AcpV2ConfigOptions";
-import { toV2AvailableCommands } from "./AcpV2SessionUpdate";
+import { toV2AvailableCommands, toV2SessionUpdates } from "./AcpV2SessionUpdate";
+import { toV2ReplayUpdates } from "./AcpV2Replay";
 import {
     changesSystemPrompt,
     clientSystemPromptText,
@@ -1170,6 +1171,7 @@ export class CodexAcpServer {
         (id) =>
             this.activePrompts.has(id) ||
             !!this.sessions.get(id)?.codexReportedRunningTurnId,
+        (item, cwd) => this.historyItemUpdates(item, cwd),
     );
 
     private readonly configRevisions = new ConfigRevisions();
@@ -5576,7 +5578,11 @@ export class CodexAcpServer {
         item: ThreadItem,
         sessionState: SessionState,
     ): Promise<UpdateSessionEvent[]> {
-        const updates = await this.renderHistoryItem(item, sessionState);
+        const updates = await this.renderHistoryItem(
+            item,
+            sessionState.clientCapabilities,
+            sessionState.cwd,
+        );
         if (this.protocolVersion !== 2) return updates;
         const entry = this.replayEntries.get(item);
         return updates.map((update) => ({
@@ -5595,13 +5601,23 @@ export class CodexAcpServer {
         }));
     }
 
+    /** `_codex/session_history` renders an item exactly as `session/load` replays it. */
+    private async historyItemUpdates(
+        item: ThreadItem,
+        cwd: string,
+    ): Promise<acpV2.SessionUpdate[]> {
+        const initialized = new Set<string>();
+        return (await this.renderHistoryItem(item, this.capabilities, cwd))
+            .flatMap(toV2SessionUpdates)
+            .flatMap((update) => toV2ReplayUpdates(update, initialized));
+    }
+
     private async renderHistoryItem(
         item: ThreadItem,
-        sessionState: SessionState,
+        clientCapabilities: ClientCapabilities,
+        cwd: string,
     ): Promise<UpdateSessionEvent[]> {
-        const renderer = new AcpToolCallRenderer(
-            sessionState.clientCapabilities,
-        );
+        const renderer = new AcpToolCallRenderer(clientCapabilities);
         switch (item.type) {
             case "userMessage":
                 return this.createUserMessageUpdates(item);
@@ -5614,7 +5630,7 @@ export class CodexAcpServer {
             case "agentMessage": {
                 const phaseMeta = createMessagePhaseMeta(
                     item.phase,
-                    sessionState.clientCapabilities.airClient,
+                    clientCapabilities.airClient,
                 );
                 const meta =
                     this.protocolVersion === 2
@@ -5633,10 +5649,7 @@ export class CodexAcpServer {
                         messageId: item.id,
                         content: {
                             type: "text",
-                            text: renderFileCitations(
-                                item.text,
-                                sessionState.cwd,
-                            ),
+                            text: renderFileCitations(item.text, cwd),
                         },
                         ...(meta ? { _meta: meta } : {}),
                     },

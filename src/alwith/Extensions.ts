@@ -12,7 +12,7 @@ import type {
 } from "../app-server/v2";
 import { AppServerClient } from "./codex/AppServerClient";
 import { setRemotePluginEnabled } from "./codex/remotePluginEnablement";
-import { AgentDirectory } from "./bridge/agentDirectory";
+import type { HistoryRenderer } from "./agent/historyProjection";
 import {
     readSessionHistory,
     readSessionHistoryItems,
@@ -72,7 +72,6 @@ export function objectParams(value: unknown): Record<string, unknown> {
 export class AlwithExtensions {
     readonly codex: AppServerClient;
     readonly predictions: ComposerPredictions;
-    private readonly agents: AgentDirectory;
     private observed: CodexAppServerClient | null = null;
     private stopObserving: (() => void) | null = null;
 
@@ -112,13 +111,10 @@ export class AlwithExtensions {
             params: Record<string, unknown>,
         ) => Promise<void>,
         private readonly running: (id: string) => boolean,
+        private readonly render: HistoryRenderer,
     ) {
         this.codex = new AppServerClient(current);
         this.predictions = new ComposerPredictions(this.codex);
-        this.agents = new AgentDirectory(
-            async (id) =>
-                (await this.codex.threadRead({ threadId: id })).thread,
-        );
     }
 
     async request(
@@ -164,13 +160,13 @@ export class AlwithExtensions {
                 method === "_codex/session_history"
                     ? await readSessionHistory(
                           this.codex,
-                          this.agents,
+                          this.render,
                           parseSessionHistoryParams(params),
                           signal,
                       )
                     : await readSessionHistoryItems(
                           this.codex,
-                          this.agents,
+                          this.render,
                           parseSessionHistoryItemsParams(params),
                           signal,
                       );

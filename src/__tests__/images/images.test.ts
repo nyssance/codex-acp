@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { generateImage } from "../../alwith/codex/images";
 import type { AppServerClient } from "../../alwith/codex/AppServerClient";
-import { displayBlock } from "../../tool-calls/reporters/DynamicToolReporter";
-import { dynamicToolCallCompleted } from "../../alwith/bridge/toolCalls";
+import { AcpToolCallRenderer } from "../../tool-calls/AcpToolCallRenderer";
+import { ClientCapabilities } from "../../tool-calls/ClientCapabilities";
+import { DynamicToolReporter, displayBlock } from "../../tool-calls/reporters/DynamicToolReporter";
 vi.mock("../../alwith/codex/nativeFetch", () => ({ nativeFetch: vi.fn() }));
 import { nativeFetch } from "../../alwith/codex/nativeFetch";
 const request = vi.mocked(nativeFetch);
@@ -172,16 +173,18 @@ test("live output and history both carry standard ACP image blocks", () => {
     };
     const expected = { type: "image", mimeType: "image/png", data: "aGVsbG8=" };
     expect(displayBlock(content)).toEqual(expected);
-    const frame = dynamicToolCallCompleted({
-        type: "dynamicToolCall",
-        id: "image-tool",
-        tool: "alwith_client_generate_image",
-        namespace: null,
-        arguments: {},
-        status: "completed",
-        success: true,
-        durationMs: 5,
-        contentItems: [content],
-    });
-    expect(frame.content).toEqual([{ type: "content", content: expected }]);
+    const frame = new AcpToolCallRenderer(ClientCapabilities.from({})).render(
+        DynamicToolReporter.completed({
+            type: "dynamicToolCall",
+            id: "image-tool",
+            tool: "alwith_client_generate_image",
+            namespace: null,
+            arguments: {},
+            status: "completed",
+            success: true,
+            durationMs: 5,
+            contentItems: [content],
+        }),
+    );
+    expect(frame).toMatchObject({ content: [{ type: "content", content: expected }] });
 });
