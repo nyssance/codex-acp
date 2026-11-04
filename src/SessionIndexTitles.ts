@@ -3,12 +3,12 @@
  * keep out of each other's way. Shared by `session/set_title` and AIR's `_session/rename`.
  */
 
-import { RequestError } from "@agentclientprotocol/sdk/unstable";
-import { ACPSessionConnection } from "./ACPSessionConnection";
-import type { SessionIndexHost } from "./SessionIndexService";
-import { renameRequestError } from "./SessionIndexMutations";
-import { normalizeSessionTitle } from "./SessionTitle";
-import type { SessionWriteQueue } from "./SessionWriteQueue";
+import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import {ACPSessionConnection} from "./ACPSessionConnection";
+import type {SessionIndexHost} from "./SessionIndexService";
+import {renameRequestError} from "./SessionIndexMutations";
+import {normalizeSessionTitle} from "./SessionTitle";
+import type {SessionWriteQueue} from "./SessionWriteQueue";
 
 /** The title fields that `SessionState` carries for the session index. */
 export interface SessionIndexTitleState {
@@ -28,15 +28,9 @@ export interface SessionIndexTitleState {
  * Takes a `thread/name/updated` of a loaded session into account, and tells whether it is a late echo of an
  * automatic title that Codex wrote before `_session/rename`, which the client must not see.
  */
-export function isStaleAutomaticTitleEcho(
-    state: SessionIndexTitleState,
-    name: string | null,
-): boolean {
+export function isStaleAutomaticTitleEcho(state: SessionIndexTitleState, name: string | null): boolean {
     const explicitTitle = state.sessionIndexExplicitTitle;
-    if (
-        state.automaticTitleEcho !== undefined &&
-        name === state.automaticTitleEcho
-    ) {
+    if (state.automaticTitleEcho !== undefined && name === state.automaticTitleEcho) {
         delete state.automaticTitleEcho;
         if (explicitTitle !== undefined && name !== explicitTitle) return true;
     }
@@ -54,15 +48,9 @@ export class SessionIndexTitles {
      * `SessionState`, so an automatic title of a session that was closed or loaded again since its generation
      * started still sees the rename, see {@link writeAutomaticTitle}.
      */
-    private readonly explicitTitles = new Map<
-        string,
-        { confirmed: boolean; pending: number }
-    >();
+    private readonly explicitTitles = new Map<string, {confirmed: boolean, pending: number}>();
 
-    constructor(
-        private readonly host: SessionIndexHost,
-        private readonly writes: SessionWriteQueue,
-    ) {}
+    constructor(private readonly host: SessionIndexHost, private readonly writes: SessionWriteQueue) {}
 
     /**
      * `_session/rename`: sets the explicit title of a thread, loaded or not.
@@ -74,20 +62,14 @@ export class SessionIndexTitles {
     async rename(sessionId: string, requestedTitle: string): Promise<string> {
         const title = normalizeSessionTitle(requestedTitle);
         if (title === null) {
-            throw RequestError.invalidParams(
-                { sessionId },
-                "title must be a non-empty string",
-            );
+            throw RequestError.invalidParams({sessionId}, "title must be a non-empty string");
         }
         const sessionState = this.host.session(sessionId);
         const previousTitleSource = sessionState?.sessionTitleSource;
         if (sessionState) {
             sessionState.sessionTitleSource = "explicit";
         }
-        const explicitTitle = this.explicitTitles.get(sessionId) ?? {
-            confirmed: false,
-            pending: 0,
-        };
+        const explicitTitle = this.explicitTitles.get(sessionId) ?? {confirmed: false, pending: 0};
         this.explicitTitles.set(sessionId, explicitTitle);
         explicitTitle.pending++;
         try {
@@ -95,31 +77,21 @@ export class SessionIndexTitles {
                 // The outcome is recorded before the next title write of the queue starts, so an automatic
                 // title that waits behind this rename sees whether it failed.
                 try {
-                    await this.host.runWithProcessCheck(() =>
-                        this.host.client().renameSession(sessionId, title),
-                    );
+                    await this.host.runWithProcessCheck(() => this.host.client().renameSession(sessionId, title));
                 } catch (err) {
                     explicitTitle.pending--;
-                    if (
-                        !explicitTitle.confirmed &&
-                        explicitTitle.pending === 0 &&
-                        this.explicitTitles.get(sessionId) === explicitTitle
-                    ) {
+                    if (!explicitTitle.confirmed && explicitTitle.pending === 0
+                        && this.explicitTitles.get(sessionId) === explicitTitle) {
                         this.explicitTitles.delete(sessionId);
                     }
-                    if (
-                        sessionState &&
-                        previousTitleSource !== undefined &&
-                        sessionState.sessionTitleSource === "explicit"
-                    ) {
+                    if (sessionState && previousTitleSource !== undefined
+                        && sessionState.sessionTitleSource === "explicit") {
                         sessionState.sessionTitleSource = previousTitleSource;
                     }
                     if (!this.explicitTitles.has(sessionId)) {
                         // An automatic title that was dropped for this rename comes after the next turn.
                         sessionState?.titleGen?.retryAfterFailedRename();
-                        this.host
-                            .session(sessionId)
-                            ?.titleGen?.retryAfterFailedRename();
+                        this.host.session(sessionId)?.titleGen?.retryAfterFailedRename();
                     }
                     throw err;
                 }
@@ -128,12 +100,7 @@ export class SessionIndexTitles {
             });
         } catch (err) {
             const client = this.host.client();
-            throw await renameRequestError(
-                client.appServerClient,
-                sessionId,
-                err,
-                client.getHomePath(),
-            );
+            throw await renameRequestError(client.appServerClient, sessionId, err, client.getHomePath());
         }
         sessionState?.titleGen?.markExistingTitle();
         const current = this.host.session(sessionId);
@@ -144,10 +111,7 @@ export class SessionIndexTitles {
             current.sessionIndexExplicitTitle = title;
             // Sent here, not left to the `thread/name/updated` echo: a session gets the Codex notifications
             // of its thread only after its first prompt on this connection.
-            await new ACPSessionConnection(
-                this.host.connection(),
-                sessionId,
-            ).update({
+            await new ACPSessionConnection(this.host.connection(), sessionId).update({
                 sessionUpdate: "session_info_update",
                 title,
             });
@@ -160,25 +124,19 @@ export class SessionIndexTitles {
      * setting the title. The check runs when the write gets its turn, whatever `SessionState` the generator
      * belongs to. Both standard and AIR title requests suppress automatic title writes.
      */
-    writeAutomaticTitle(
-        sessionId: string,
-        title: string,
-        write: () => Promise<boolean>,
-    ): Promise<boolean> {
+    writeAutomaticTitle(sessionId: string, title: string, write: () => Promise<boolean>): Promise<boolean> {
         return this.writes.run(sessionId, async () => {
             if (this.explicitTitles.has(sessionId)) return false;
             // Its echo can come after a later `_session/rename`, see `isStaleAutomaticTitleEcho`.
             const echo = normalizeSessionTitle(title) ?? undefined;
             const current = this.host.session(sessionId);
-            if (current && echo !== undefined)
-                current.automaticTitleEcho = echo;
+            if (current && echo !== undefined) current.automaticTitleEcho = echo;
             let written = false;
             try {
                 written = await write();
                 return written;
             } finally {
-                if (!written && current?.automaticTitleEcho === echo)
-                    delete current?.automaticTitleEcho;
+                if (!written && current?.automaticTitleEcho === echo) delete current?.automaticTitleEcho;
             }
         });
     }

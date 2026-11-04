@@ -16,9 +16,9 @@ distinguish support for a specific optional behavior, so clients check the adapt
 
 ```json
 {
-    "sessionId": "session-id",
-    "prompt": [{ "type": "text", "text": "Adjust the plan" }],
-    "_meta": { "steering": { "idleBehavior": "promptRequired" } }
+  "sessionId": "session-id",
+  "prompt": [{ "type": "text", "text": "Adjust the plan" }],
+  "_meta": { "steering": { "idleBehavior": "promptRequired" } }
 }
 ```
 
@@ -31,12 +31,12 @@ distinguish support for a specific optional behavior, so clients check the adapt
 
 ## Outcomes
 
-| Outcome          | Meaning                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `injected`       | The prompt joined the running turn.                                                                                                                                                                                                                                      |
+| Outcome | Meaning |
+| --- | --- |
+| `injected` | The prompt joined the running turn. |
 | `startedNewTurn` | No turn was running, and the adapter started one with the steer content. The response arrives once the turn is running; the turn's output follows the usual session updates, and its completion, usage, and failure reporting belong to that turn, not to this response. |
-| `promptRequired` | Returned with `reason: "noRunningTurn"` when the client opted into `idleBehavior: "promptRequired"` and no turn can accept the input, including while the original prompt is waiting for plan approval. The input is not consumed and no turn is started.                |
-| `failed`         | The steer could not be applied due to an unexpected error. Errors the protocol defines are thrown as JSON-RPC errors instead.                                                                                                                                            |
+| `promptRequired` | Returned with `reason: "noRunningTurn"` when the client opted into `idleBehavior: "promptRequired"` and no turn can accept the input, including while the original prompt is waiting for plan approval. The input is not consumed and no turn is started. |
+| `failed` | The steer could not be applied due to an unexpected error. Errors the protocol defines are thrown as JSON-RPC errors instead. |
 
 ## Host-owned idle fallback
 

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import {describe, expect, it, vi} from "vitest";
 import {
     AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES,
     AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH,
@@ -32,44 +32,27 @@ function hideTemporaryDirectoryAncestorGitMarkers() {
     const existsSync = fs.existsSync;
     // These fixtures need lexical ancestor discovery to stop without finding a
     // repository outside the fixture, even when the host temp directory has one.
-    return vi
-        .spyOn(fs, "existsSync")
-        .mockImplementation((filename) =>
-            typeof filename === "string" && markers.has(filename)
-                ? false
-                : existsSync(filename),
-        );
+    return vi.spyOn(fs, "existsSync").mockImplementation(filename =>
+        typeof filename === "string" && markers.has(filename) ? false : existsSync(filename),
+    );
 }
 
 describe("agent file-change report", () => {
     it("accepts only a versioned request with a bounded opaque id", () => {
-        expect(
-            parseAgentFileChangeReportRequest({
-                jetbrains: {
-                    air: {
-                        agentFileChangeReportRequest: {
-                            version: 1,
-                            requestId: "turn.42:audit-1",
-                        },
-                    },
-                },
-            }),
-        ).toEqual({ version: 1, requestId: "turn.42:audit-1" });
+        expect(parseAgentFileChangeReportRequest({
+            jetbrains: {air: {agentFileChangeReportRequest: {version: 1, requestId: "turn.42:audit-1"}}},
+        })).toEqual({version: 1, requestId: "turn.42:audit-1"});
 
         for (const request of [
-            { version: 2, requestId: "request-id" },
-            { version: 1, requestId: "contains spaces" },
-            { version: 1, requestId: "x".repeat(129) },
-            { version: 1, requestId: "request-id", extra: true },
+            {version: 2, requestId: "request-id"},
+            {version: 1, requestId: "contains spaces"},
+            {version: 1, requestId: "x".repeat(129)},
+            {version: 1, requestId: "request-id", extra: true},
             true,
         ]) {
-            expect(
-                parseAgentFileChangeReportRequest({
-                    jetbrains: {
-                        air: { agentFileChangeReportRequest: request },
-                    },
-                }),
-            ).toBeNull();
+            expect(parseAgentFileChangeReportRequest({
+                jetbrains: {air: {agentFileChangeReportRequest: request}},
+            })).toBeNull();
         }
     });
 
@@ -82,13 +65,11 @@ describe("agent file-change report", () => {
             "diff --git a/image.png b/image.png\nindex 111..222 100644\nBinary files a/image.png and b/image.png differ\n",
         ].join("");
 
-        expect(
-            createReportedAgentFileChangeReport(
-                "request-id",
-                diff,
-                capturedWorkspace("/repo"),
-            ),
-        ).toEqual({
+        expect(createReportedAgentFileChangeReport(
+            "request-id",
+            diff,
+            capturedWorkspace("/repo"),
+        )).toEqual({
             version: 1,
             requestId: "request-id",
             status: "reported",
@@ -102,64 +83,52 @@ describe("agent file-change report", () => {
             ],
             declaredComplete: false,
             truncated: false,
-            uncertainty:
-                "Codex turn diffs may omit same-content renames and changes made outside apply_patch, including shell commands, version-control commands, generators, and child processes.",
+            uncertainty: "Codex turn diffs may omit same-content renames and changes made outside apply_patch, including shell commands, version-control commands, generators, and child processes.",
         });
     });
 
     it("reports an empty incomplete list when the turn emitted no diff", () => {
-        expect(
-            createReportedAgentFileChangeReport(
-                "request-empty",
-                "",
-                capturedWorkspace("/repo"),
-            ),
-        ).toEqual({
+        expect(createReportedAgentFileChangeReport(
+            "request-empty",
+            "",
+            capturedWorkspace("/repo"),
+        )).toEqual({
             version: 1,
             requestId: "request-empty",
             status: "reported",
             paths: [],
             declaredComplete: false,
             truncated: false,
-            uncertainty:
-                "Codex turn diffs may omit same-content renames and changes made outside apply_patch, including shell commands, version-control commands, generators, and child processes.",
+            uncertainty: "Codex turn diffs may omit same-content renames and changes made outside apply_patch, including shell commands, version-control commands, generators, and child processes.",
         });
     });
 
     it("decodes quoted Git paths", () => {
-        const diff =
-            'diff --git "a/\\303\\251 file.txt" "b/\\303\\251 file.txt"\n' +
-            '--- "a/\\303\\251 file.txt"\n' +
-            '+++ "b/\\303\\251 file.txt"\n' +
-            "@@ -1 +1 @@\n-old\n+new\n";
+        const diff = "diff --git \"a/\\303\\251 file.txt\" \"b/\\303\\251 file.txt\"\n"
+            + "--- \"a/\\303\\251 file.txt\"\n"
+            + "+++ \"b/\\303\\251 file.txt\"\n"
+            + "@@ -1 +1 @@\n-old\n+new\n";
 
-        expect(
-            createReportedAgentFileChangeReport(
-                "request-quoted",
-                diff,
-                capturedWorkspace("/repo"),
-            ).paths,
-        ).toEqual(["/repo/é file.txt"]);
+        expect(createReportedAgentFileChangeReport(
+            "request-quoted",
+            diff,
+            capturedWorkspace("/repo"),
+        ).paths).toEqual(["/repo/é file.txt"]);
     });
 
     it("preserves leading and trailing spaces in decoded Git paths", () => {
-        const diff = [" leading.txt", "trailing.txt "]
-            .map(
-                (pathname) =>
-                    `diff --git "a/${pathname}" "b/${pathname}"\n` +
-                    `--- "a/${pathname}"\n` +
-                    `+++ "b/${pathname}"\n` +
-                    "@@ -1 +1 @@\n-old\n+new\n",
-            )
-            .join("");
+        const diff = [" leading.txt", "trailing.txt "].map(pathname =>
+            `diff --git "a/${pathname}" "b/${pathname}"\n`
+            + `--- "a/${pathname}"\n`
+            + `+++ "b/${pathname}"\n`
+            + "@@ -1 +1 @@\n-old\n+new\n",
+        ).join("");
 
-        expect(
-            createReportedAgentFileChangeReport(
-                "request-spaces",
-                diff,
-                capturedWorkspace("/repo"),
-            ).paths,
-        ).toEqual(["/repo/ leading.txt", "/repo/trailing.txt "]);
+        expect(createReportedAgentFileChangeReport(
+            "request-spaces",
+            diff,
+            capturedWorkspace("/repo"),
+        ).paths).toEqual(["/repo/ leading.txt", "/repo/trailing.txt "]);
     });
 
     it("rejects an ambiguous unquoted tab in a Codex file header without changing the filename", () => {
@@ -181,13 +150,11 @@ describe("agent file-change report", () => {
             )}diff --git /generated/out.txt /generated/out.txt\n--- /generated/out.txt\n+++ /generated/out.txt\n@@ -1 +1 @@\n-old\n+new\n` +
             `diff --git /outside/out.txt /outside/out.txt\n--- /outside/out.txt\n+++ /outside/out.txt\n@@ -1 +1 @@\n-old\n+new\n`;
 
-        expect(
-            createReportedAgentFileChangeReport(
-                "request-id",
-                diff,
-                capturedWorkspace("/repo", ["/generated"]),
-            ),
-        ).toMatchObject({
+        expect(createReportedAgentFileChangeReport(
+            "request-id",
+            diff,
+            capturedWorkspace("/repo", ["/generated"]),
+        )).toMatchObject({
             paths: ["/repo/src/A.kt", "/generated/out.txt"],
             declaredComplete: false,
             truncated: true,
@@ -208,12 +175,10 @@ describe("agent file-change report", () => {
     it("resolves repository-relative diff paths from a nested working directory", () => {
         if (process.platform === "win32") return;
 
-        const repository = fs.mkdtempSync(
-            path.join(os.tmpdir(), "file-report-repo-"),
-        );
+        const repository = fs.mkdtempSync(path.join(os.tmpdir(), "file-report-repo-"));
         const cwd = path.join(repository, "packages", "app");
         fs.mkdirSync(path.join(repository, ".git"));
-        fs.mkdirSync(cwd, { recursive: true });
+        fs.mkdirSync(cwd, {recursive: true});
         try {
             const report = createReportedAgentFileChangeReport(
                 "request-git-root",
@@ -224,20 +189,19 @@ describe("agent file-change report", () => {
             expect(report.paths).toEqual([
                 path.join(fs.realpathSync.native(cwd), "src", "Main.ts"),
             ]);
+
         } finally {
-            fs.rmSync(repository, { recursive: true, force: true });
+            fs.rmSync(repository, {recursive: true, force: true});
         }
     });
 
     it("uses the display root captured before the turn when a nearer Git marker appears", () => {
         if (process.platform === "win32") return;
 
-        const repository = fs.mkdtempSync(
-            path.join(os.tmpdir(), "file-report-root-snapshot-"),
-        );
+        const repository = fs.mkdtempSync(path.join(os.tmpdir(), "file-report-root-snapshot-"));
         const cwd = path.join(repository, "packages", "app");
         fs.mkdirSync(path.join(repository, ".git"));
-        fs.mkdirSync(cwd, { recursive: true });
+        fs.mkdirSync(cwd, {recursive: true});
         const workspace = capturedWorkspace(cwd);
         fs.mkdirSync(path.join(cwd, ".git"));
         try {
@@ -247,24 +211,20 @@ describe("agent file-change report", () => {
                 workspace,
             );
 
-            expect(report.paths).toEqual([
-                path.join(fs.realpathSync.native(cwd), "src", "Main.ts"),
-            ]);
+            expect(report.paths).toEqual([path.join(fs.realpathSync.native(cwd), "src", "Main.ts")]);
         } finally {
-            fs.rmSync(repository, { recursive: true, force: true });
+            fs.rmSync(repository, {recursive: true, force: true});
         }
     });
 
     it("resolves a repository-relative path into a sibling additional root", () => {
         if (process.platform === "win32") return;
 
-        const repository = fs.mkdtempSync(
-            path.join(os.tmpdir(), "file-report-roots-"),
-        );
+        const repository = fs.mkdtempSync(path.join(os.tmpdir(), "file-report-roots-"));
         const cwd = path.join(repository, "packages", "app");
         const generated = path.join(repository, "generated");
         fs.mkdirSync(path.join(repository, ".git"));
-        fs.mkdirSync(cwd, { recursive: true });
+        fs.mkdirSync(cwd, {recursive: true});
         fs.mkdirSync(generated);
         try {
             const report = createReportedAgentFileChangeReport(
@@ -277,16 +237,14 @@ describe("agent file-change report", () => {
                 path.join(fs.realpathSync.native(generated), "out.txt"),
             ]);
         } finally {
-            fs.rmSync(repository, { recursive: true, force: true });
+            fs.rmSync(repository, {recursive: true, force: true});
         }
     });
 
     it("accepts canonical paths under a symlinked workspace root", () => {
         if (process.platform === "win32") return;
 
-        const realRoot = fs.mkdtempSync(
-            path.join(os.tmpdir(), "file-report-real-"),
-        );
+        const realRoot = fs.mkdtempSync(path.join(os.tmpdir(), "file-report-real-"));
         const linkedRoot = `${realRoot}-link`;
         fs.symlinkSync(realRoot, linkedRoot, "dir");
         const ancestorMarkers = hideTemporaryDirectoryAncestorGitMarkers();
@@ -296,26 +254,22 @@ describe("agent file-change report", () => {
                 modified("generated.ts"),
                 capturedWorkspace(linkedRoot),
             );
-            expect(report.paths).toEqual([
-                path.join(fs.realpathSync.native(realRoot), "generated.ts"),
-            ]);
+            expect(report.paths).toEqual([path.join(fs.realpathSync.native(realRoot), "generated.ts")]);
         } finally {
             ancestorMarkers.mockRestore();
             fs.unlinkSync(linkedRoot);
-            fs.rmSync(realRoot, { recursive: true, force: true });
+            fs.rmSync(realRoot, {recursive: true, force: true});
         }
     });
 
     it("resolves cwd-relative diffs from a symlink to a nested repository directory", () => {
         if (process.platform === "win32") return;
 
-        const repository = fs.mkdtempSync(
-            path.join(os.tmpdir(), "file-report-symlink-repo-"),
-        );
+        const repository = fs.mkdtempSync(path.join(os.tmpdir(), "file-report-symlink-repo-"));
         const realCwd = path.join(repository, "packages", "app");
         const linkedCwd = `${repository}-app-link`;
         fs.mkdirSync(path.join(repository, ".git"));
-        fs.mkdirSync(realCwd, { recursive: true });
+        fs.mkdirSync(realCwd, {recursive: true});
         fs.symlinkSync(realCwd, linkedCwd, "dir");
         const ancestorMarkers = hideTemporaryDirectoryAncestorGitMarkers();
         try {
@@ -325,24 +279,20 @@ describe("agent file-change report", () => {
                 capturedWorkspace(linkedCwd),
             );
 
-            expect(report.paths).toEqual([
-                path.join(fs.realpathSync.native(realCwd), "src", "Main.ts"),
-            ]);
+            expect(report.paths).toEqual([path.join(fs.realpathSync.native(realCwd), "src", "Main.ts")]);
         } finally {
             ancestorMarkers.mockRestore();
             fs.unlinkSync(linkedCwd);
-            fs.rmSync(repository, { recursive: true, force: true });
+            fs.rmSync(repository, {recursive: true, force: true});
         }
     });
 
     it("classifies malformed non-empty diff as invalid output", () => {
-        expect(() =>
-            createReportedAgentFileChangeReport(
-                "request-id",
-                "not a unified diff",
-                capturedWorkspace("/repo"),
-            ),
-        ).toThrow(AgentFileChangeReportError);
+        expect(() => createReportedAgentFileChangeReport(
+            "request-id",
+            "not a unified diff",
+            capturedWorkspace("/repo"),
+        )).toThrow(AgentFileChangeReportError);
 
         try {
             createReportedAgentFileChangeReport(
@@ -351,27 +301,22 @@ describe("agent file-change report", () => {
                 capturedWorkspace("/repo"),
             );
         } catch (error) {
-            expect(error).toMatchObject({ reason: "invalidOutput" });
+            expect(error).toMatchObject({reason: "invalidOutput"});
         }
     });
 
     it("rejects an oversized turn diff before parsing", () => {
-        expect(() =>
-            createReportedAgentFileChangeReport(
-                "request-oversized",
-                "x".repeat(AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES + 1),
-                capturedWorkspace("/repo"),
-            ),
-        ).toThrow(expect.objectContaining({ reason: "invalidOutput" }));
+        expect(() => createReportedAgentFileChangeReport(
+            "request-oversized",
+            "x".repeat(AGENT_FILE_CHANGE_REPORT_MAX_DIFF_BYTES + 1),
+            capturedWorkspace("/repo"),
+        )).toThrow(expect.objectContaining({reason: "invalidOutput"}));
     });
 
     it("keeps valid paths when another path exceeds the per-path cap", () => {
         const report = createReportedAgentFileChangeReport(
             "request-id",
-            modified("valid.txt") +
-                modified(
-                    "x".repeat(AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH + 1),
-                ),
+            modified("valid.txt") + modified("x".repeat(AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH + 1)),
             capturedWorkspace("/repo"),
         );
 
@@ -381,9 +326,7 @@ describe("agent file-change report", () => {
     });
 
     it("applies the path cap after removing Git's header prefix", () => {
-        const relativePath = "x".repeat(
-            AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH - "/repo/".length,
-        );
+        const relativePath = "x".repeat(AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH - "/repo/".length);
         const report = createReportedAgentFileChangeReport(
             "request-boundary",
             modified(relativePath),
@@ -391,14 +334,13 @@ describe("agent file-change report", () => {
         );
 
         expect(report.paths).toEqual([`/repo/${relativePath}`]);
-        expect(report.paths[0]).toHaveLength(
-            AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH,
-        );
+        expect(report.paths[0]).toHaveLength(AGENT_FILE_CHANGE_REPORT_MAX_PATH_LENGTH);
     });
 
     it("caps the serialized report", () => {
-        const diff = Array.from({ length: 1_024 }, (_, index) =>
-            modified(`generated/${index}-${"x".repeat(240)}.txt`),
+        const diff = Array.from(
+            {length: 1_024},
+            (_, index) => modified(`generated/${index}-${"x".repeat(240)}.txt`),
         ).join("");
         const report = createReportedAgentFileChangeReport(
             "request-id",
@@ -406,9 +348,8 @@ describe("agent file-change report", () => {
             capturedWorkspace("/repo"),
         );
 
-        expect(
-            Buffer.byteLength(JSON.stringify(report), "utf8"),
-        ).toBeLessThanOrEqual(AGENT_FILE_CHANGE_REPORT_MAX_TOTAL_BYTES);
+        expect(Buffer.byteLength(JSON.stringify(report), "utf8"))
+            .toBeLessThanOrEqual(AGENT_FILE_CHANGE_REPORT_MAX_TOTAL_BYTES);
         expect(report.declaredComplete).toBe(false);
         expect(report.truncated).toBe(true);
     });

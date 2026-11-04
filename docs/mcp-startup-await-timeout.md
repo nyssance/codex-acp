@@ -12,25 +12,27 @@ startup state (`ready`, `failed`, or `cancelled`) before the request completes.
 
 ```json
 {
-    "cwd": "/workspace",
-    "mcpServers": [
-        {
-            "name": "docs",
-            "command": "npx",
-            "args": ["docs-mcp"],
-            "env": []
-        }
-    ],
-    "_meta": {
-        "mcpStartupAwaitTimeoutMs": 3000
+  "cwd": "/workspace",
+  "mcpServers": [
+    {
+      "name": "docs",
+      "command": "npx",
+      "args": [
+        "docs-mcp"
+      ],
+      "env": []
     }
+  ],
+  "_meta": {
+    "mcpStartupAwaitTimeoutMs": 3000
+  }
 }
 ```
 
-| Value             | Behavior                                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `<= 0` or omitted | Do not wait for the requested MCP servers to reach a terminal state.                                                                 |
-| `> 0`             | Wait up to that many milliseconds for a terminal state. If the timeout elapses first, the request completes without waiting further. |
+| Value              | Behavior                                                                                                                              |
+|--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `<= 0` or omitted | Do not wait for the requested MCP servers to reach a terminal state. |
+| `> 0`              | Wait up to that many milliseconds for a terminal state. If the timeout elapses first, the request completes without waiting further.  |
 
 There is no built-in default timeout: an omitted field means do not wait
 

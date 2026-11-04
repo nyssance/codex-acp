@@ -1,12 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import * as acp from "@agentclientprotocol/sdk/unstable";
-import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { z } from "zod";
-import { createAcpAgentRouter } from "../../AcpAgentRouter";
-import { CodexAcpServer } from "../../CodexAcpServer";
-import { CodexAcpClient } from "../../CodexAcpClient";
-import { CodexAppServerClient } from "../../CodexAppServerClient";
-import type { Thread } from "../../app-server/v2";
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import * as acp from '@agentclientprotocol/sdk/unstable';
+import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import {z} from 'zod';
+import {createAcpAgentRouter} from '../../AcpAgentRouter';
+import {CodexAcpServer} from '../../CodexAcpServer';
+import {CodexAcpClient} from '../../CodexAcpClient';
+import {CodexAppServerClient} from '../../CodexAppServerClient';
+import type {Thread} from '../../app-server/v2';
 import {
     SESSION_ARCHIVE_METHOD,
     SESSION_LIST_CHANGES_METHOD,
@@ -46,7 +46,7 @@ function createThread(overrides?: Partial<Thread>): Thread {
         createdAt: 100,
         updatedAt: 200,
         recencyAt: 300,
-        status: { type: "notLoaded" },
+        status: {type: "notLoaded"},
         path: null,
         cwd,
         cliVersion: "0.0.0",
@@ -65,7 +65,7 @@ function createThread(overrides?: Partial<Thread>): Thread {
 }
 
 /** Replaces the canned `thread/list` rows or `thread/read` thread. */
-type CodexOverrides = { threads?: Thread[]; threadRead?: Thread };
+type CodexOverrides = {threads?: Thread[], threadRead?: Thread};
 
 function codexResponse(method: string, overrides: CodexOverrides): unknown {
     switch (method) {
@@ -77,7 +77,7 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
             return mockInitializeResponse();
         case "thread/start":
             return {
-                thread: createThread({ status: { type: "idle" } }),
+                thread: createThread({status: {type: "idle"}}),
                 model: "gpt-5",
                 modelProvider: "openai",
                 reasoningEffort: "medium",
@@ -95,24 +95,17 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
                     }),
             };
         case "thread/list":
-            return {
-                data: overrides.threads ?? [createThread()],
-                nextCursor: null,
-                backwardsCursor: null,
-            };
+            return {data: overrides.threads ?? [createThread()], nextCursor: null, backwardsCursor: null};
         case "thread/backgroundTerminals/list":
-            return { data: [], nextCursor: null };
+            return {data: [], nextCursor: null};
         case "model/list":
-            return {
-                data: [createTestModel({ id: "gpt-5" })],
-                nextCursor: null,
-            };
+            return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
         case "skills/list":
-            return { data: [] };
+            return {data: []};
         case "config/read":
-            return { config: {}, origins: {}, layers: [] };
+            return {config: {}, origins: {}, layers: []};
         case "thread/goal/get":
-            return { goal: null };
+            return {goal: null};
         default:
             return {};
     }
@@ -126,10 +119,7 @@ const recordedCodexMethods = new Set([
     "thread/unarchive",
 ]);
 
-async function connectV2Client(
-    airCapabilities: string[],
-    overrides: CodexOverrides = {},
-) {
+async function connectV2Client(airCapabilities: string[], overrides: CodexOverrides = {}) {
     const mocks = createMockConnections();
     const codexRequests: Array<{ method: string; params: unknown }> = [];
     mocks.mockCodexConnection.sendRequest.mockImplementation(
@@ -166,52 +156,26 @@ async function connectV2Client(
     );
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
-    router.connect(
-        acp.ndJsonStream(agentToClient.writable, clientToAgent.readable),
-    );
+    router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
 
     const updates: acpV2.UpdateSessionNotification[] = [];
     const listChanges: unknown[] = [];
-    const connection = acpV2
-        .client({ name: "test-client" })
+    const connection = acpV2.client({name: "test-client"})
         .onNotification(acpV2.methods.client.session.update, (ctx) => {
             checkV2SessionUpdate(ctx.params.update);
             updates.push(ctx.params);
         })
-        .onNotification(
-            SESSION_LIST_CHANGES_METHOD,
-            z.object({}).passthrough(),
-            (ctx) => {
-                listChanges.push(ctx.params);
-            },
-        )
-        .connect(
-            acp.ndJsonStream(clientToAgent.writable, agentToClient.readable),
-        );
-    const initialize = await connection.agent.request(
-        acpV2.methods.agent.initialize,
-        {
-            protocolVersion: 2,
-            info: { name: "test-client", version: "1.0.0" },
-            capabilities: {
-                _meta: {
-                    jetbrains: {
-                        air: { version: 1, capabilities: airCapabilities },
-                    },
-                },
-            },
-        },
-    );
-    const sendServerNotification = (notification: unknown) =>
-        mocks.getUnhandledNotificationHandler()?.(notification);
-    return {
-        connection,
-        initialize,
-        codexRequests,
-        updates,
-        listChanges,
-        sendServerNotification,
-    };
+        .onNotification(SESSION_LIST_CHANGES_METHOD, z.object({}).passthrough(), (ctx) => {
+            listChanges.push(ctx.params);
+        })
+        .connect(acp.ndJsonStream(clientToAgent.writable, agentToClient.readable));
+    const initialize = await connection.agent.request(acpV2.methods.agent.initialize, {
+        protocolVersion: 2,
+        info: {name: "test-client", version: "1.0.0"},
+        capabilities: {_meta: {jetbrains: {air: {version: 1, capabilities: airCapabilities}}}},
+    });
+    const sendServerNotification = (notification: unknown) => mocks.getUnhandledNotificationHandler()?.(notification);
+    return {connection, initialize, codexRequests, updates, listChanges, sendServerNotification};
 }
 
 function airCapabilitiesOf(response: acpV2.InitializeResponse): unknown {
@@ -222,7 +186,7 @@ function dump(value: unknown): string {
     return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-describe("AIR sessionIndex over ACP v2", () => {
+describe('AIR sessionIndex over ACP v2', () => {
     let closeClient: (() => void) | null = null;
 
     afterEach(() => {
@@ -233,187 +197,94 @@ describe("AIR sessionIndex over ACP v2", () => {
         expectConformingV2SessionUpdates();
     });
 
-    it("neither advertises nor serves sessionIndex to a v2 client that does not declare it", async () => {
-        const { connection, initialize } = await connectV2Client([]);
+    it('neither advertises nor serves sessionIndex to a v2 client that does not declare it', async () => {
+        const {connection, initialize} = await connectV2Client([]);
         closeClient = () => connection.close();
 
         expect(airCapabilitiesOf(initialize)).not.toContain("sessionIndex");
-        await expect(
-            connection.agent.request(SESSION_RENAME_METHOD, {
-                sessionId,
-                title: "Renamed",
-            }),
-        ).rejects.toMatchObject({ code: -32601 });
+        await expect(connection.agent.request(SESSION_RENAME_METHOD, {sessionId, title: "Renamed"}))
+            .rejects.toMatchObject({code: -32601});
     });
 
-    it("lists, renames, archives and unarchives sessions", async () => {
-        const { connection, initialize, codexRequests, updates } =
-            await connectV2Client(["sessionIndex"]);
+    it('lists, renames, archives and unarchives sessions', async () => {
+        const {connection, initialize, codexRequests, updates} = await connectV2Client(["sessionIndex"]);
         closeClient = () => connection.close();
-        const session = await connection.agent.request(
-            acpV2.methods.agent.session.new,
-            { cwd },
-        );
+        const session = await connection.agent.request(acpV2.methods.agent.session.new, {cwd});
         expect(session.availableCommands?.length).toBeGreaterThan(0);
         updates.length = 0;
 
-        const list = await connection.agent.request(
-            acpV2.methods.agent.session.list,
-            {
-                cwd,
-                _meta: { jetbrains: { air: { list: { limit: 10 } } } },
-            },
-        );
-        const rename = await connection.agent.request(SESSION_RENAME_METHOD, {
-            sessionId,
-            title: "Renamed",
+        const list = await connection.agent.request(acpV2.methods.agent.session.list, {
+            cwd,
+            _meta: {jetbrains: {air: {list: {limit: 10}}}},
         });
+        const rename = await connection.agent.request(SESSION_RENAME_METHOD, {sessionId, title: "Renamed"});
         // The session is open here: archiving closes it and tells the client why.
-        const archive = await connection.agent.request(SESSION_ARCHIVE_METHOD, {
-            sessionId,
-        });
-        const unarchive = await connection.agent.request(
-            SESSION_UNARCHIVE_METHOD,
-            { sessionId },
-        );
+        const archive = await connection.agent.request(SESSION_ARCHIVE_METHOD, {sessionId});
+        const unarchive = await connection.agent.request(SESSION_UNARCHIVE_METHOD, {sessionId});
 
-        await expect(
-            dump({
-                capabilities: airCapabilitiesOf(initialize),
-                list,
-                rename,
-                archive,
-                unarchive,
-                codexRequests,
-                updates: updates.filter(
-                    ({ update }) =>
-                        update.sessionUpdate === "session_info_update",
-                ),
-            }),
-        ).toMatchFileSnapshot("data/session-index-v2.json");
+        await expect(dump({
+            capabilities: airCapabilitiesOf(initialize),
+            list,
+            rename,
+            archive,
+            unarchive,
+            codexRequests,
+            updates: updates.filter(({update}) => update.sessionUpdate === "session_info_update"),
+        })).toMatchFileSnapshot('data/session-index-v2.json');
     });
 
-    it("pushes the changed rows of a subscription", async () => {
-        const { connection, listChanges, sendServerNotification } =
-            await connectV2Client(["sessionIndex"]);
+    it('pushes the changed rows of a subscription', async () => {
+        const {connection, listChanges, sendServerNotification} = await connectV2Client(["sessionIndex"]);
         closeClient = () => connection.close();
 
-        const { subscriptionId } = (await connection.agent.request(
-            SESSION_LIST_SUBSCRIBE_METHOD,
-            { cwd },
-        )) as { subscriptionId: string };
+        const {subscriptionId} = await connection.agent.request(SESSION_LIST_SUBSCRIBE_METHOD, {cwd}) as {subscriptionId: string};
         sendServerNotification({
             method: "thread/status/changed",
-            params: {
-                threadId: sessionId,
-                status: { type: "active", activeFlags: [] },
-            },
+            params: {threadId: sessionId, status: {type: "active", activeFlags: []}},
         });
         await vi.waitFor(() => expect(listChanges).toHaveLength(1));
-        const unsubscribe = await connection.agent.request(
-            SESSION_LIST_UNSUBSCRIBE_METHOD,
-            { subscriptionId },
-        );
+        const unsubscribe = await connection.agent.request(SESSION_LIST_UNSUBSCRIBE_METHOD, {subscriptionId});
 
-        await expect(
-            dump({
-                listChanges: listChanges.map((change: any) => ({
-                    ...change,
-                    subscriptionId: "<subscriptionId>",
-                })),
-                unsubscribe,
-            }),
-        ).toMatchFileSnapshot("data/session-index-v2-subscription.json");
+        await expect(dump({
+            listChanges: listChanges.map((change: any) => ({...change, subscriptionId: "<subscriptionId>"})),
+            unsubscribe,
+        })).toMatchFileSnapshot('data/session-index-v2-subscription.json');
     });
     // #606: rows are titled by the first non-blank of name, title, summary and preview, without a cut.
-    it.each([[["sessionIndex"]], [[]]])(
-        "titles session/list rows by name, title, summary, then preview (AIR capabilities: %j)",
-        async (airCapabilities) => {
-            const longPreview = `Investigate ${"x".repeat(MAX_SESSION_TITLE_LENGTH)}\n end`;
-            const { connection } = await connectV2Client(airCapabilities, {
-                threads: [
-                    createThread({
-                        id: "named",
-                        name: " Named\n thread ",
-                        recencyAt: 50,
-                    }),
-                    createThread({
-                        id: "blank-name",
-                        name: " ",
-                        preview: longPreview,
-                        recencyAt: 40,
-                    }),
-                    {
-                        ...createThread({
-                            id: "summarized",
-                            name: null,
-                            recencyAt: 30,
-                        }),
-                        title: null,
-                        summary: "Summary",
-                    } as Thread,
-                    createThread({
-                        id: "untitled",
-                        name: null,
-                        preview: "",
-                        recencyAt: 20,
-                    }),
-                ],
-            });
-            closeClient = () => connection.close();
-
-            const response = await connection.agent.request(
-                acpV2.methods.agent.session.list,
-                { cwd },
-            );
-
-            expect(
-                response.sessions.map(({ sessionId, title }) => [
-                    sessionId,
-                    title,
-                ]),
-            ).toEqual([
-                ["named", "Named thread"],
-                [
-                    "blank-name",
-                    `Investigate ${"x".repeat(MAX_SESSION_TITLE_LENGTH)} end`,
-                ],
-                ["summarized", "Summary"],
-                ["untitled", null],
-            ]);
-        },
-    );
-
-    it("sends the uncut title of a changed row to a subscription", async () => {
-        const name = `Renamed ${"y".repeat(MAX_SESSION_TITLE_LENGTH)}`;
-        const { connection, listChanges, sendServerNotification } =
-            await connectV2Client(["sessionIndex"], {
-                threadRead: createThread({
-                    name,
-                    path: "/codex-home/sessions/rollout.jsonl",
-                }),
-            });
+    it.each([[["sessionIndex"]], [[]]])('titles session/list rows by name, title, summary, then preview (AIR capabilities: %j)', async (airCapabilities) => {
+        const longPreview = `Investigate ${"x".repeat(MAX_SESSION_TITLE_LENGTH)}\n end`;
+        const {connection} = await connectV2Client(airCapabilities, {threads: [
+            createThread({id: "named", name: " Named\n thread ", recencyAt: 50}),
+            createThread({id: "blank-name", name: " ", preview: longPreview, recencyAt: 40}),
+            {...createThread({id: "summarized", name: null, recencyAt: 30}), title: null, summary: "Summary"} as Thread,
+            createThread({id: "untitled", name: null, preview: "", recencyAt: 20}),
+        ]});
         closeClient = () => connection.close();
 
-        const { subscriptionId } = (await connection.agent.request(
-            SESSION_LIST_SUBSCRIBE_METHOD,
-            { cwd },
-        )) as { subscriptionId: string };
-        sendServerNotification({
-            method: "thread/name/updated",
-            params: { threadId: sessionId, threadName: name },
-        });
+        const response = await connection.agent.request(acpV2.methods.agent.session.list, {cwd});
 
-        await vi.waitFor(() =>
-            expect(listChanges).toEqual([
-                {
-                    subscriptionId,
-                    sessions: [
-                        expect.objectContaining({ sessionId, title: name }),
-                    ],
-                    removed: [],
-                },
-            ]),
-        );
+        expect(response.sessions.map(({sessionId, title}) => [sessionId, title])).toEqual([
+            ["named", "Named thread"],
+            ["blank-name", `Investigate ${"x".repeat(MAX_SESSION_TITLE_LENGTH)} end`],
+            ["summarized", "Summary"],
+            ["untitled", null],
+        ]);
+    });
+
+    it('sends the uncut title of a changed row to a subscription', async () => {
+        const name = `Renamed ${"y".repeat(MAX_SESSION_TITLE_LENGTH)}`;
+        const {connection, listChanges, sendServerNotification} = await connectV2Client(["sessionIndex"], {
+            threadRead: createThread({name, path: "/codex-home/sessions/rollout.jsonl"}),
+        });
+        closeClient = () => connection.close();
+
+        const {subscriptionId} = await connection.agent.request(SESSION_LIST_SUBSCRIBE_METHOD, {cwd}) as {subscriptionId: string};
+        sendServerNotification({method: "thread/name/updated", params: {threadId: sessionId, threadName: name}});
+
+        await vi.waitFor(() => expect(listChanges).toEqual([{
+            subscriptionId,
+            sessions: [expect.objectContaining({sessionId, title: name})],
+            removed: [],
+        }]));
     });
 });

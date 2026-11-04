@@ -37,8 +37,7 @@ describe("CodexEventHandler - Guardian approval review events", () => {
                     status: "inProgress",
                     riskLevel: "medium",
                     userAuthorization: "unknown",
-                    rationale:
-                        "Checking whether this command should run automatically.",
+                    rationale: "Checking whether this command should run automatically.",
                 },
                 action: {
                     type: "execve",
@@ -78,17 +77,15 @@ describe("CodexEventHandler - Guardian approval review events", () => {
             method: "guardianWarning",
             params: {
                 threadId: sessionId,
-                message:
-                    "Automatic approval review approved (risk: low, authorization: medium): The command only lists files.",
+                message: "Automatic approval review approved (risk: low, authorization: medium): The command only lists files.",
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [started, duplicateWarning, completed],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            started,
+            duplicateWarning,
+            completed,
+        ]);
 
         const dump = mockFixture.getAcpConnectionDump([]);
         expect(dump).not.toContain("agent_message_chunk");
@@ -97,7 +94,7 @@ describe("CodexEventHandler - Guardian approval review events", () => {
         expect(dump).toContain("tool_call_update");
         expect(dump).toContain("Authorization: medium");
         await expect(dump).toMatchFileSnapshot(
-            "data/guardian-approval-review-flow.json",
+            "data/guardian-approval-review-flow.json"
         );
     });
 
@@ -128,15 +125,10 @@ describe("CodexEventHandler - Guardian approval review events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [completed],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [completed]);
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/guardian-approval-review-completed-without-start.json",
+            "data/guardian-approval-review-completed-without-start.json"
         );
     });
 
@@ -145,8 +137,7 @@ describe("CodexEventHandler - Guardian approval review events", () => {
             method: "guardianWarning",
             params: {
                 threadId: sessionId,
-                message:
-                    "Automatic approval review rejected too many approval requests for this turn (3 consecutive, 5 in the last 10 reviews); interrupting the turn.",
+                message: "Automatic approval review rejected too many approval requests for this turn (3 consecutive, 5 in the last 10 reviews); interrupting the turn.",
             },
         };
 

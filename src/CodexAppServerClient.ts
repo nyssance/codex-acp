@@ -4,19 +4,16 @@ import type {
     DynamicToolCallParams,
     DynamicToolCallResponse,
 } from "./app-server/v2";
-import { type MessageConnection, RequestType } from "vscode-jsonrpc/node";
-import {
-    AppServerConnectionLostError,
-    ConnectionLoss,
-} from "./app-server-recovery/ConnectionLoss";
-import { explainCodexError } from "./CodexErrorExplanations";
-import { McpOauthCompletions } from "./mcp/McpOauthCompletions";
-import { McpStartupTracker } from "./mcp/McpStartupTracker";
+import {type MessageConnection, RequestType} from "vscode-jsonrpc/node";
+import {AppServerConnectionLostError, ConnectionLoss} from "./app-server-recovery/ConnectionLoss";
+import {explainCodexError} from "./CodexErrorExplanations";
+import {McpOauthCompletions} from "./mcp/McpOauthCompletions";
+import {McpStartupTracker} from "./mcp/McpStartupTracker";
 import type {
     ClientRequest,
     InitializeParams,
     InitializeResponse,
-    ServerNotification,
+    ServerNotification
 } from "./app-server";
 import type {
     ActivePermissionProfile,
@@ -123,55 +120,45 @@ import type {
 } from "./async-tasks/BackgroundTerminalApi";
 
 export interface ApprovalHandler {
-    handleCommandExecution(
-        params: CommandExecutionRequestApprovalParams,
-    ): Promise<CommandExecutionRequestApprovalResponse>;
-    handleFileChange(
-        params: FileChangeRequestApprovalParams,
-    ): Promise<FileChangeRequestApprovalResponse>;
-    handlePermissionsRequest(
-        params: PermissionsRequestApprovalParams,
-    ): Promise<PermissionsRequestApprovalResponse>;
+    handleCommandExecution(params: CommandExecutionRequestApprovalParams): Promise<CommandExecutionRequestApprovalResponse>;
+    handleFileChange(params: FileChangeRequestApprovalParams): Promise<FileChangeRequestApprovalResponse>;
+    handlePermissionsRequest(params: PermissionsRequestApprovalParams): Promise<PermissionsRequestApprovalResponse>;
 }
 
 export interface ElicitationHandler {
-    handleElicitation(
-        params: McpServerElicitationRequestParams,
-    ): Promise<McpServerElicitationRequestResponse>;
-    handleUserInput(
-        params: ToolRequestUserInputParams,
-    ): Promise<ToolRequestUserInputResponse>;
+    handleElicitation(params: McpServerElicitationRequestParams): Promise<McpServerElicitationRequestResponse>;
+    handleUserInput(params: ToolRequestUserInputParams): Promise<ToolRequestUserInputResponse>;
 }
 
 export const CommandExecutionApprovalRequest = new RequestType<
     CommandExecutionRequestApprovalParams,
     CommandExecutionRequestApprovalResponse,
     void
->("item/commandExecution/requestApproval");
+>('item/commandExecution/requestApproval');
 
 export const FileChangeApprovalRequest = new RequestType<
     FileChangeRequestApprovalParams,
     FileChangeRequestApprovalResponse,
     void
->("item/fileChange/requestApproval");
+>('item/fileChange/requestApproval');
 
 export const PermissionsApprovalRequest = new RequestType<
     PermissionsRequestApprovalParams,
     PermissionsRequestApprovalResponse,
     void
->("item/permissions/requestApproval");
+>('item/permissions/requestApproval');
 
 const McpServerElicitationRequest = new RequestType<
     McpServerElicitationRequestParams,
     McpServerElicitationRequestResponse,
     void
->("mcpServer/elicitation/request");
+>('mcpServer/elicitation/request');
 
 const ToolRequestUserInputRequest = new RequestType<
     ToolRequestUserInputParams,
     ToolRequestUserInputResponse,
     void
->("item/tool/requestUserInput");
+>('item/tool/requestUserInput');
 
 const GOAL_RUNTIME_EFFECTS_GRACE_MS = 1_000;
 
@@ -198,41 +185,17 @@ export class CodexAppServerClient {
     private elicitationHandlers = new Map<string, ElicitationHandler>();
     readonly mcpStartup = new McpStartupTracker();
     readonly mcpOauthCompletions = new McpOauthCompletions();
-    private readonly pendingTurnCompletionResolvers = new Map<
-        string,
-        Map<string, (event: TurnCompletedNotification) => void>
-    >();
-    private readonly pendingCompactionCompletionResolvers = new Map<
-        string,
-        Set<(event: CompactionCompletedNotification) => void>
-    >();
-    private readonly turnCompletionCaptures = new Map<
-        string,
-        Set<(event: TurnCompletedNotification) => void>
-    >();
-    private readonly turnRoutingCaptures = new Map<
-        string,
-        Set<(turnId: string, notification: ServerNotification) => void>
-    >();
-    private readonly threadStatusCaptures = new Map<
-        string,
-        Set<(status: ThreadStatus) => void>
-    >();
-    private readonly threadGoalUpdateCaptures = new Map<
-        string,
-        Set<(event: ThreadGoalUpdatedNotification) => void>
-    >();
-    private readonly threadGoalClearedCaptures = new Map<
-        string,
-        Set<() => void>
-    >();
+    private readonly pendingTurnCompletionResolvers = new Map<string, Map<string, (event: TurnCompletedNotification) => void>>();
+    private readonly pendingCompactionCompletionResolvers = new Map<string, Set<(event: CompactionCompletedNotification) => void>>();
+    private readonly turnCompletionCaptures = new Map<string, Set<(event: TurnCompletedNotification) => void>>();
+    private readonly turnRoutingCaptures = new Map<string, Set<(turnId: string, notification: ServerNotification) => void>>();
+    private readonly threadStatusCaptures = new Map<string, Set<(status: ThreadStatus) => void>>();
+    private readonly threadGoalUpdateCaptures = new Map<string, Set<(event: ThreadGoalUpdatedNotification) => void>>();
+    private readonly threadGoalClearedCaptures = new Map<string, Set<() => void>>();
     private readonly threadSettings = new Map<string, ThreadSettings>();
     private readonly staleTurnIds = new Map<string, Set<string>>();
     private readonly runningTurnIds = new Map<string, string>();
-    private readonly leakedReviewErrors = new Map<
-        string,
-        { error: TurnError; failedTurnIds: Set<string> }
-    >();
+    private readonly leakedReviewErrors = new Map<string, {error: TurnError, failedTurnIds: Set<string>}>();
     /** Ends the notification waits below when the connection is gone, see {@link waitWhileConnected}. */
     readonly connectionLoss: ConnectionLoss;
     /** The `$CODEX_HOME` of the app-server, for the error explanations. */
@@ -250,35 +213,22 @@ export class CodexAppServerClient {
         this.connection.onClose?.(() => this.disposeMcpWaits());
         this.connection.onDispose?.(() => this.disposeMcpWaits());
         this.connection.onUnhandledNotification((data) => {
-            const serverNotification = this.dropLeakedReviewError(
-                data as ServerNotification,
-            );
+            const serverNotification = this.dropLeakedReviewError(data as ServerNotification);
             if (isMcpServerStatusUpdatedNotification(serverNotification)) {
                 this.mcpStartup.record(serverNotification.params);
             }
-            if (
-                serverNotification.method === "mcpServer/oauthLogin/completed"
-            ) {
+            if (serverNotification.method === "mcpServer/oauthLogin/completed") {
                 this.mcpOauthCompletions.complete(serverNotification.params);
             }
             if (isTurnCompletedNotification(serverNotification)) {
-                if (
-                    serverNotification.params.turn.status !== "inProgress" &&
-                    this.runningTurnIds.get(
-                        serverNotification.params.threadId,
-                    ) === serverNotification.params.turn.id
-                ) {
-                    this.runningTurnIds.delete(
-                        serverNotification.params.threadId,
-                    );
+                if (serverNotification.params.turn.status !== "inProgress"
+                    && this.runningTurnIds.get(serverNotification.params.threadId) === serverNotification.params.turn.id) {
+                    this.runningTurnIds.delete(serverNotification.params.threadId);
                 }
                 this.recordTurnCompleted(serverNotification.params);
             }
             if (serverNotification.method === "turn/started") {
-                this.runningTurnIds.set(
-                    serverNotification.params.threadId,
-                    serverNotification.params.turn.id,
-                );
+                this.runningTurnIds.set(serverNotification.params.threadId, serverNotification.params.turn.id);
             }
             if (isCompactionCompletedNotification(serverNotification)) {
                 this.recordCompactionCompleted(serverNotification);
@@ -293,10 +243,7 @@ export class CodexAppServerClient {
                 this.recordThreadGoalCleared(serverNotification.params);
             }
             if (serverNotification.method === "thread/settings/updated") {
-                this.threadSettings.set(
-                    serverNotification.params.threadId,
-                    serverNotification.params.threadSettings,
-                );
+                this.threadSettings.set(serverNotification.params.threadId, serverNotification.params.threadSettings);
             }
             const routing = extractTurnRouting(serverNotification);
             if (this.handleStaleTurnNotification(serverNotification, routing)) {
@@ -378,19 +325,16 @@ export class CodexAppServerClient {
             },
         );
 
-        this.connection.onRequest(
-            ToolRequestUserInputRequest,
-            async (params) => {
-                if (this.isStaleTurn(params.threadId, params.turnId)) {
-                    return { answers: {} };
-                }
-                const handler = this.elicitationHandlers.get(params.threadId);
-                if (!handler) {
-                    return { answers: {} };
-                }
-                return await handler.handleUserInput(params);
-            },
-        );
+        this.connection.onRequest(ToolRequestUserInputRequest, async (params) => {
+            if (this.isStaleTurn(params.threadId, params.turnId)) {
+                return { answers: {} };
+            }
+            const handler = this.elicitationHandlers.get(params.threadId);
+            if (!handler) {
+                return { answers: {} };
+            }
+            return await handler.handleUserInput(params);
+        });
     }
 
     onDynamicToolCall(
@@ -436,34 +380,23 @@ export class CodexAppServerClient {
         return await this.sendRequest({ method: "turn/start", params });
     }
 
-    async runTurn(
-        params: ExperimentalTurnStartParams,
-        onTurnStarted?: (turnId: string) => void,
-    ): Promise<TurnCompletedNotification> {
+    async runTurn(params: ExperimentalTurnStartParams, onTurnStarted?: (turnId: string) => void): Promise<TurnCompletedNotification> {
         const capturedCompletions: Array<TurnCompletedNotification> = [];
-        const releaseCapture = this.captureTurnCompletions(
-            params.threadId,
-            (event) => {
-                capturedCompletions.push(event);
-            },
-        );
+        const releaseCapture = this.captureTurnCompletions(params.threadId, (event) => {
+            capturedCompletions.push(event);
+        });
 
         try {
             const turnStarted = await this.turnStart(params);
             onTurnStarted?.(turnStarted.turn.id);
-            const earlyCompletion = capturedCompletions.find(
-                (event) => event.turn.id === turnStarted.turn.id,
-            );
+            const earlyCompletion = capturedCompletions.find(event => event.turn.id === turnStarted.turn.id);
             releaseCapture();
             if (earlyCompletion) {
                 return earlyCompletion;
             }
             // Wait for turn completion
             // If turnInterrupt() was called, Codex will send turn/completed event with status "interrupted"
-            return await this.awaitTurnCompleted(
-                params.threadId,
-                turnStarted.turn.id,
-            );
+            return await this.awaitTurnCompleted(params.threadId, turnStarted.turn.id);
         } finally {
             releaseCapture();
         }
@@ -475,12 +408,9 @@ export class CodexAppServerClient {
         onAccepted?: () => void,
     ): Promise<TurnCompletedNotification> {
         const capturedCompletions: Array<TurnCompletedNotification> = [];
-        const releaseCapture = this.captureTurnCompletions(
-            params.threadId,
-            (event) => {
-                capturedCompletions.push(event);
-            },
-        );
+        const releaseCapture = this.captureTurnCompletions(params.threadId, (event) => {
+            capturedCompletions.push(event);
+        });
         // If Codex cannot resolve the review request (e.g. a base branch in a non-git cwd), it reports
         // one fatal error under the review turn id and never starts or completes that turn. A spawned
         // review always reports `enteredReviewMode` first, so a fatal error before it ends the review.
@@ -488,10 +418,7 @@ export class CodexAppServerClient {
         const enteredReviewTurnIds = new Set<string>();
         const unspawnedReviewErrors = new Map<string, ErrorNotification>();
         const finishUnspawnedReview = (error: ErrorNotification) => {
-            this.leakedReviewErrors.set(error.threadId, {
-                error: error.error,
-                failedTurnIds: new Set(),
-            });
+            this.leakedReviewErrors.set(error.threadId, {error: error.error, failedTurnIds: new Set()});
             this.recordTurnCompleted({
                 threadId: error.threadId,
                 turn: {
@@ -507,52 +434,36 @@ export class CodexAppServerClient {
                 },
             });
         };
-        const releaseRoutingCapture = this.captureTurnRoutings(
-            params.threadId,
-            (turnId, notification) => {
-                if (
-                    (notification.method === "item/started" ||
-                        notification.method === "item/completed") &&
-                    notification.params.item.type === "enteredReviewMode"
-                ) {
-                    enteredReviewTurnIds.add(turnId);
-                    return;
-                }
-                if (
-                    notification.method !== "error" ||
-                    notification.params.willRetry ||
-                    enteredReviewTurnIds.has(turnId) ||
-                    unspawnedReviewErrors.has(turnId)
-                ) {
-                    return;
-                }
-                unspawnedReviewErrors.set(turnId, notification.params);
-                if (turnId === reviewTurnId) {
-                    finishUnspawnedReview(notification.params);
-                }
-            },
-        );
+        const releaseRoutingCapture = this.captureTurnRoutings(params.threadId, (turnId, notification) => {
+            if ((notification.method === "item/started" || notification.method === "item/completed")
+                && notification.params.item.type === "enteredReviewMode") {
+                enteredReviewTurnIds.add(turnId);
+                return;
+            }
+            if (notification.method !== "error"
+                || notification.params.willRetry
+                || enteredReviewTurnIds.has(turnId)
+                || unspawnedReviewErrors.has(turnId)) {
+                return;
+            }
+            unspawnedReviewErrors.set(turnId, notification.params);
+            if (turnId === reviewTurnId) {
+                finishUnspawnedReview(notification.params);
+            }
+        });
 
         try {
             const reviewStarted = await this.reviewStart(params);
             // The reviewer's own user message carries `clientId: null`, never the caller's, so
             // this response is the earliest signal that Codex accepted the command.
             onAccepted?.();
-            onTurnStarted?.(
-                reviewStarted.turn.id,
-                reviewStarted.reviewThreadId,
-            );
-            const earlyCompletion = capturedCompletions.find(
-                (event) => event.turn.id === reviewStarted.turn.id,
-            );
+            onTurnStarted?.(reviewStarted.turn.id, reviewStarted.reviewThreadId);
+            const earlyCompletion = capturedCompletions.find(event => event.turn.id === reviewStarted.turn.id);
             releaseCapture();
             if (earlyCompletion) {
                 return earlyCompletion;
             }
-            const completion = this.awaitTurnCompleted(
-                reviewStarted.reviewThreadId,
-                reviewStarted.turn.id,
-            );
+            const completion = this.awaitTurnCompleted(reviewStarted.reviewThreadId, reviewStarted.turn.id);
             reviewTurnId = reviewStarted.turn.id;
             const earlyError = unspawnedReviewErrors.get(reviewTurnId);
             if (earlyError) {
@@ -574,23 +485,16 @@ export class CodexAppServerClient {
     ): Promise<TurnCompletedNotification | null> {
         let goalTurnId: string | null = null;
         const capturedCompletions: Array<TurnCompletedNotification> = [];
-        let resolveGoalTurnCompleted: (
-            event: TurnCompletedNotification,
-        ) => void = () => {};
-        const goalTurnCompleted = new Promise<TurnCompletedNotification>(
-            (resolve) => {
-                resolveGoalTurnCompleted = resolve;
-            },
-        );
-        const releaseCompletionCapture = this.captureTurnCompletions(
-            params.threadId,
-            (event) => {
-                capturedCompletions.push(event);
-                if (goalTurnId === event.turn.id) {
-                    resolveGoalTurnCompleted(event);
-                }
-            },
-        );
+        let resolveGoalTurnCompleted: (event: TurnCompletedNotification) => void = () => {};
+        const goalTurnCompleted = new Promise<TurnCompletedNotification>((resolve) => {
+            resolveGoalTurnCompleted = resolve;
+        });
+        const releaseCompletionCapture = this.captureTurnCompletions(params.threadId, (event) => {
+            capturedCompletions.push(event);
+            if (goalTurnId === event.turn.id) {
+                resolveGoalTurnCompleted(event);
+            }
+        });
         let resolveGoalTurnStarted: (turnId: string) => void = () => {};
         const goalTurnStarted = new Promise<string>((resolve) => {
             resolveGoalTurnStarted = resolve;
@@ -601,47 +505,32 @@ export class CodexAppServerClient {
         });
         let goalUpdateHandled = false;
         let expectedGoal: ThreadGoal | null = null;
-        const noGoalTurnStarted = this.createNoGoalTurnStartedPromise(
-            runtimeEffectsGraceMs,
-        );
+        const noGoalTurnStarted = this.createNoGoalTurnStartedPromise(runtimeEffectsGraceMs);
         const capturedGoalUpdates: Array<ThreadGoalUpdatedNotification> = [];
-        const releaseRoutingCapture = this.captureTurnRoutings(
-            params.threadId,
-            (turnId) => {
-                if (!goalUpdateHandled || goalTurnId !== null) {
-                    return;
-                }
-                goalTurnId = turnId;
-                onTurnStarted?.(turnId);
-                resolveGoalTurnStarted(turnId);
-            },
-        );
-        const releaseGoalUpdateCapture = this.captureThreadGoalUpdates(
-            params.threadId,
-            (event) => {
-                capturedGoalUpdates.push(event);
-                if (
-                    expectedGoal !== null &&
-                    goalsMatch(event.goal, expectedGoal)
-                ) {
-                    goalUpdateHandled = true;
-                    resolveGoalUpdateHandled();
-                    noGoalTurnStarted.goalUpdated();
-                }
-            },
-        );
-        const releaseStatusCapture = this.captureThreadStatuses(
-            params.threadId,
-            (status) => {
-                if (!goalUpdateHandled || goalTurnId !== null) {
-                    return;
-                }
-                noGoalTurnStarted.threadStatusChanged(status);
-            },
-        );
+        const releaseRoutingCapture = this.captureTurnRoutings(params.threadId, (turnId) => {
+            if (!goalUpdateHandled || goalTurnId !== null) {
+                return;
+            }
+            goalTurnId = turnId;
+            onTurnStarted?.(turnId);
+            resolveGoalTurnStarted(turnId);
+        });
+        const releaseGoalUpdateCapture = this.captureThreadGoalUpdates(params.threadId, (event) => {
+            capturedGoalUpdates.push(event);
+            if (expectedGoal !== null && goalsMatch(event.goal, expectedGoal)) {
+                goalUpdateHandled = true;
+                resolveGoalUpdateHandled();
+                noGoalTurnStarted.goalUpdated();
+            }
+        });
+        const releaseStatusCapture = this.captureThreadStatuses(params.threadId, (status) => {
+            if (!goalUpdateHandled || goalTurnId !== null) {
+                return;
+            }
+            noGoalTurnStarted.threadStatusChanged(status);
+        });
 
-        const whileConnected = <T>(wait: Promise<T>) =>
-            this.waitWhileConnected("the goal update", wait);
+        const whileConnected = <T>(wait: Promise<T>) => this.waitWhileConnected("the goal update", wait);
         try {
             const goalSetResponse = await this.threadGoalSet(params);
             // `/goal` records no user message, live or in history, so this response is the
@@ -650,11 +539,7 @@ export class CodexAppServerClient {
             onAccepted?.();
             expectedGoal = goalSetResponse.goal;
             onGoalSet?.(expectedGoal);
-            if (
-                capturedGoalUpdates.some((event) =>
-                    goalsMatch(event.goal, expectedGoal!),
-                )
-            ) {
+            if (capturedGoalUpdates.some(event => goalsMatch(event.goal, expectedGoal!))) {
                 goalUpdateHandled = true;
                 resolveGoalUpdateHandled();
                 noGoalTurnStarted.goalUpdated();
@@ -663,11 +548,7 @@ export class CodexAppServerClient {
                 await whileConnected(matchingGoalUpdateHandled);
                 return null;
             }
-            const turnId =
-                goalTurnId ??
-                (await whileConnected(
-                    Promise.race([goalTurnStarted, noGoalTurnStarted.promise]),
-                ));
+            const turnId = goalTurnId ?? await whileConnected(Promise.race([goalTurnStarted, noGoalTurnStarted.promise]));
             noGoalTurnStarted.release();
             releaseRoutingCapture();
             releaseStatusCapture();
@@ -675,9 +556,7 @@ export class CodexAppServerClient {
             if (turnId === null) {
                 return null;
             }
-            const earlyCompletion = capturedCompletions.find(
-                (event) => event.turn.id === turnId,
-            );
+            const earlyCompletion = capturedCompletions.find(event => event.turn.id === turnId);
             if (earlyCompletion) {
                 return earlyCompletion;
             }
@@ -697,33 +576,29 @@ export class CodexAppServerClient {
         const matchingGoalClearedHandled = new Promise<void>((resolve) => {
             resolveGoalClearedHandled = () => resolve();
         });
-        const releaseGoalClearedCapture = this.captureThreadGoalClears(
-            params.threadId,
-            () => {
-                goalClearedHandled = true;
-                resolveGoalClearedHandled();
-            },
-        );
+        const releaseGoalClearedCapture = this.captureThreadGoalClears(params.threadId, () => {
+            goalClearedHandled = true;
+            resolveGoalClearedHandled();
+        });
 
         try {
             const response = await this.threadGoalClear(params);
             if (!response.cleared || goalClearedHandled) {
                 return;
             }
-            await this.waitWhileConnected(
-                "the goal clear",
-                matchingGoalClearedHandled,
-            );
+            await this.waitWhileConnected("the goal clear", matchingGoalClearedHandled);
         } finally {
             releaseGoalClearedCapture();
         }
     }
 
-    private createNoGoalTurnStartedPromise(runtimeEffectsGraceMs: number): {
-        promise: Promise<null>;
-        release: () => void;
-        goalUpdated: () => void;
-        threadStatusChanged: (status: ThreadStatus) => void;
+    private createNoGoalTurnStartedPromise(
+        runtimeEffectsGraceMs: number,
+    ): {
+        promise: Promise<null>,
+        release: () => void,
+        goalUpdated: () => void,
+        threadStatusChanged: (status: ThreadStatus) => void,
     } {
         let released = false;
         let resolved = false;
@@ -746,13 +621,7 @@ export class CodexAppServerClient {
             resolveNoGoalTurnStarted();
         };
         const scheduleNoTurnTimer = () => {
-            if (
-                released ||
-                resolved ||
-                !goalUpdated ||
-                activeAfterGoalUpdate ||
-                timeout !== null
-            ) {
+            if (released || resolved || !goalUpdated || activeAfterGoalUpdate || timeout !== null) {
                 return;
             }
             timeout = setTimeout(resolveNoTurn, runtimeEffectsGraceMs);
@@ -800,52 +669,32 @@ export class CodexAppServerClient {
         onAccepted?: () => void,
     ): Promise<TurnCompletedNotification> {
         let compactTurnId: string | null = null;
-        let resolveCompleted: (
-            event: TurnCompletedNotification,
-        ) => void = () => {};
+        let resolveCompleted: (event: TurnCompletedNotification) => void = () => {};
         let rejectCompleted: (error: Error) => void = () => {};
-        const completed = new Promise<TurnCompletedNotification>(
-            (resolve, reject) => {
-                resolveCompleted = resolve;
-                rejectCompleted = reject;
-            },
-        );
+        const completed = new Promise<TurnCompletedNotification>((resolve, reject) => {
+            resolveCompleted = resolve;
+            rejectCompleted = reject;
+        });
         // The request acknowledgement can still be pending when the connection closes.
         void completed.catch(() => {});
         // The process exit disposes the connection and does not close it, so both events end the wait.
-        const rejectClosed = () =>
-            rejectCompleted(
-                new Error("Codex connection closed during compaction."),
-            );
+        const rejectClosed = () => rejectCompleted(new Error("Codex connection closed during compaction."));
         const closed = this.connection.onClose?.(rejectClosed);
         const disposed = this.connection.onDispose?.(rejectClosed);
         // Item completion reports progress, but Codex still owns the turn until turn/completed.
-        const releaseTurnCapture = this.captureTurnCompletions(
-            params.threadId,
-            (event) => {
-                if (compactTurnId === null || event.turn.id !== compactTurnId)
-                    return;
-                if (event.turn.status !== "inProgress") {
-                    resolveCompleted(event);
-                }
-            },
-        );
-        const releaseRoutingCapture = this.captureTurnRoutings(
-            params.threadId,
-            (turnId, notification) => {
-                if (compactTurnId !== null) return;
-                if (
-                    notification.method !== "turn/started" &&
-                    !(
-                        notification.method === "item/started" &&
-                        notification.params.item.type === "contextCompaction"
-                    )
-                )
-                    return;
-                compactTurnId = turnId;
-                onTurnStarted?.(turnId);
-            },
-        );
+        const releaseTurnCapture = this.captureTurnCompletions(params.threadId, (event) => {
+            if (compactTurnId === null || event.turn.id !== compactTurnId) return;
+            if (event.turn.status !== "inProgress") {
+                resolveCompleted(event);
+            }
+        });
+        const releaseRoutingCapture = this.captureTurnRoutings(params.threadId, (turnId, notification) => {
+            if (compactTurnId !== null) return;
+            if (notification.method !== "turn/started"
+                && !(notification.method === "item/started" && notification.params.item.type === "contextCompaction")) return;
+            compactTurnId = turnId;
+            onTurnStarted?.(turnId);
+        });
         try {
             await this.threadCompactStart(params);
             // Compaction records no user message, so this is the earliest signal that Codex
@@ -875,8 +724,7 @@ export class CodexAppServerClient {
     }
 
     markTurnStale(threadId: string, turnId: string): void {
-        const threadStaleTurns =
-            this.staleTurnIds.get(threadId) ?? new Set<string>();
+        const threadStaleTurns = this.staleTurnIds.get(threadId) ?? new Set<string>();
         threadStaleTurns.add(turnId);
         this.staleTurnIds.set(threadId, threadStaleTurns);
     }
@@ -885,9 +733,7 @@ export class CodexAppServerClient {
         return await this.sendRequest({ method: "thread/start", params });
     }
 
-    async threadSetName(
-        params: ThreadSetNameParams,
-    ): Promise<ThreadSetNameResponse> {
+    async threadSetName(params: ThreadSetNameParams): Promise<ThreadSetNameResponse> {
         return await this.sendRequest({ method: "thread/name/set", params });
     }
 
@@ -926,26 +772,17 @@ export class CodexAppServerClient {
         return await this.sendRequest({ method: "thread/read", params });
     }
 
-    async threadTurnsList(
-        params: ThreadTurnsListParams,
-    ): Promise<ThreadTurnsListResponse> {
-        return await this.sendRequest({ method: "thread/turns/list", params });
+    async threadTurnsList(params: ThreadTurnsListParams): Promise<ThreadTurnsListResponse> {
+        return await this.sendRequest({method: "thread/turns/list", params});
     }
 
-    async threadItemsList(
-        params: ThreadItemsListParams,
-    ): Promise<ThreadItemsListResponse> {
-        return await this.sendRequest({ method: "thread/items/list", params });
+    async threadItemsList(params: ThreadItemsListParams): Promise<ThreadItemsListResponse> {
+        return await this.sendRequest({method: "thread/items/list", params});
     }
 
     /** The turns of a thread in pages, from the first page. See {@link historyPages}. */
-    threadTurnPages({
-        threadId,
-        ...params
-    }: Omit<ThreadTurnsListParams, "cursor">): AsyncGenerator<Turn[]> {
-        return historyPages(threadId, "thread/turns/list", (cursor) =>
-            this.threadTurnsList({ threadId, cursor, ...params }),
-        );
+    threadTurnPages({threadId, ...params}: Omit<ThreadTurnsListParams, "cursor">): AsyncGenerator<Turn[]> {
+        return historyPages(threadId, "thread/turns/list", cursor => this.threadTurnsList({threadId, cursor, ...params}));
     }
 
     /**
@@ -959,45 +796,35 @@ export class CodexAppServerClient {
      */
     async *threadItemPages(
         threadId: string,
-        options: { lastItemCursor?: string | null; turnId?: string } = {},
+        options: {lastItemCursor?: string | null; turnId?: string} = {},
     ): AsyncGenerator<ThreadItem[]> {
         for await (const page of this.threadItemEntryPages(threadId, options)) {
-            yield page.map((entry) => entry.item);
+            yield page.map(entry => entry.item);
         }
     }
 
     /** The pages of {@link threadItemPages}, with the turn of each item. */
     async *threadItemEntryPages(
         threadId: string,
-        options: { lastItemCursor?: string | null; turnId?: string } = {},
+        options: {lastItemCursor?: string | null; turnId?: string} = {},
     ): AsyncGenerator<ThreadItemEntry[]> {
         const turnId = options.turnId ?? null;
-        const last = await withHistoryTimeout(
-            this.threadItemsList({
-                threadId,
-                turnId,
-                cursor: options.lastItemCursor ?? null,
-                limit: 1,
-                sortDirection: "desc",
-            }),
-            "thread/items/list",
+        const last = await withHistoryTimeout(this.threadItemsList({
             threadId,
-        );
+            turnId,
+            cursor: options.lastItemCursor ?? null,
+            limit: 1,
+            sortDirection: "desc",
+        }), "thread/items/list", threadId);
         const lastItemId = last.data[0]?.item.id;
         if (lastItemId === undefined) return;
-        const pages = historyPages(
+        const pages = historyPages(threadId, "thread/items/list", cursor => this.threadItemsList({
             threadId,
-            "thread/items/list",
-            (cursor) =>
-                this.threadItemsList({
-                    threadId,
-                    turnId,
-                    cursor,
-                    limit: HISTORY_PAGE_ITEMS,
-                    sortDirection: "asc",
-                }),
-            (page) => page.some((entry) => entry.item.id === lastItemId),
-        );
+            turnId,
+            cursor,
+            limit: HISTORY_PAGE_ITEMS,
+            sortDirection: "asc",
+        }), page => page.some(entry => entry.item.id === lastItemId));
         for await (const page of pages) {
             const lastIndex = page.findIndex(
                 (entry) => entry.item.id === lastItemId,
@@ -1046,17 +873,17 @@ export class CodexAppServerClient {
     }
 
     async threadReadWithHistory(threadId: string): Promise<ThreadReadResponse> {
-        const response = await this.threadRead({ threadId });
+        const response = await this.threadRead({threadId});
         // Legacy stores reconstruct the rollout on each read; paging would repeat
         // that work. Full-history reads are only deprecated for paginated threads.
         if (response.thread.historyMode === "legacy") {
-            return await this.threadRead({ threadId, includeTurns: true });
+            return await this.threadRead({threadId, includeTurns: true});
         }
         const turns: Turn[] = [];
         for await (const page of this.threadHistoryPages(threadId)) {
             turns.push(...page);
         }
-        return { ...response, thread: { ...response.thread, turns } };
+        return {...response, thread: {...response.thread, turns}};
     }
 
     /**
@@ -1064,28 +891,17 @@ export class CodexAppServerClient {
      * end at the newest turn when the read starts, so a turn that arrives
      * during the read is not in the pages.
      */
-    private async *threadHistoryPages(
-        threadId: string,
-    ): AsyncGenerator<Turn[]> {
-        const last = await withHistoryTimeout(
-            this.threadTurnsList({
-                threadId,
-                cursor: null,
-                limit: 1,
-                sortDirection: "desc",
-                itemsView: "notLoaded",
-            }),
-            "thread/turns/list",
+    private async *threadHistoryPages(threadId: string): AsyncGenerator<Turn[]> {
+        const last = await withHistoryTimeout(this.threadTurnsList({
             threadId,
-        );
+            cursor: null,
+            limit: 1,
+            sortDirection: "desc",
+            itemsView: "notLoaded",
+        }), "thread/turns/list", threadId);
         const lastTurnId = last.data[0]?.id;
         if (lastTurnId === undefined) return;
-        const pages = this.threadTurnPages({
-            threadId,
-            limit: HISTORY_PAGE_TURNS,
-            sortDirection: "asc",
-            itemsView: "full",
-        });
+        const pages = this.threadTurnPages({threadId, limit: HISTORY_PAGE_TURNS, sortDirection: "asc", itemsView: "full"});
         for await (const page of pages) {
             const lastIndex = page.findIndex((turn) => turn.id === lastTurnId);
             if (lastIndex !== -1) {
@@ -1129,41 +945,23 @@ export class CodexAppServerClient {
         });
     }
 
-    async threadBackgroundTerminalsList(
-        params: ThreadBackgroundTerminalsListParams,
-    ): Promise<ThreadBackgroundTerminalsListResponse> {
-        return await this.sendRequest({
-            method: "thread/backgroundTerminals/list",
-            params,
-        });
+    async threadBackgroundTerminalsList(params: ThreadBackgroundTerminalsListParams): Promise<ThreadBackgroundTerminalsListResponse> {
+        return await this.sendRequest({method: "thread/backgroundTerminals/list", params});
     }
 
-    async threadBackgroundTerminalsTerminate(
-        params: ThreadBackgroundTerminalsTerminateParams,
-    ): Promise<ThreadBackgroundTerminalsTerminateResponse> {
-        return await this.sendRequest({
-            method: "thread/backgroundTerminals/terminate",
-            params,
-        });
+    async threadBackgroundTerminalsTerminate(params: ThreadBackgroundTerminalsTerminateParams): Promise<ThreadBackgroundTerminalsTerminateResponse> {
+        return await this.sendRequest({method: "thread/backgroundTerminals/terminate", params});
     }
 
-    async *backgroundTerminalPages(
-        threadId: string,
-    ): AsyncGenerator<ThreadBackgroundTerminal[]> {
+    async *backgroundTerminalPages(threadId: string): AsyncGenerator<ThreadBackgroundTerminal[]> {
         const seen = new Set<string>();
         let cursor: string | null = null;
         do {
-            const response = await this.threadBackgroundTerminalsList({
-                threadId,
-                cursor,
-            });
+            const response = await this.threadBackgroundTerminalsList({threadId, cursor});
             yield response.data;
             cursor = response.nextCursor;
             if (cursor !== null) {
-                if (seen.has(cursor))
-                    throw new Error(
-                        "Codex returned a repeated background terminal cursor",
-                    );
+                if (seen.has(cursor)) throw new Error("Codex returned a repeated background terminal cursor");
                 seen.add(cursor);
             }
         } while (cursor !== null);
@@ -1319,11 +1117,7 @@ export class CodexAppServerClient {
      * A JSON-RPC response wait needs no such guard: vscode-jsonrpc rejects it on dispose. A notification wait does.
      * `release` removes the registration behind `wait`; it runs once the wait ends either way.
      */
-    waitWhileConnected<T>(
-        what: string,
-        wait: Promise<T>,
-        release: () => void = () => {},
-    ): Promise<T> {
+    waitWhileConnected<T>(what: string, wait: Promise<T>, release: () => void = () => {}): Promise<T> {
         return new Promise<T>((resolve, reject) => {
             let ended = false;
             const end = () => {
@@ -1338,12 +1132,8 @@ export class CodexAppServerClient {
                 if (end()) reject(new AppServerConnectionLostError(what));
             });
             wait.then(
-                (value) => {
-                    if (end()) resolve(value);
-                },
-                (error) => {
-                    if (end()) reject(error);
-                },
+                value => { if (end()) resolve(value); },
+                error => { if (end()) reject(error); },
             );
         });
     }
@@ -1369,22 +1159,12 @@ export class CodexAppServerClient {
         return await this.sendRequest({ method: "model/list", params });
     }
 
-    async listPermissionProfiles(
-        params: PermissionProfileListParams,
-    ): Promise<PermissionProfileListResponse> {
-        return await this.sendRequest({
-            method: "permissionProfile/list",
-            params,
-        });
+    async listPermissionProfiles(params: PermissionProfileListParams): Promise<PermissionProfileListResponse> {
+        return await this.sendRequest({ method: "permissionProfile/list", params });
     }
 
-    async skillsExtraRootsSet(
-        params: SkillsExtraRootsSetParams,
-    ): Promise<void> {
-        return await this.sendRequest({
-            method: "skills/extraRoots/set",
-            params,
-        });
+    async skillsExtraRootsSet(params: SkillsExtraRootsSetParams): Promise<void> {
+        return await this.sendRequest({ method: "skills/extraRoots/set", params });
     }
 
     async listSkills(params: SkillsListParams): Promise<SkillsListResponse> {
@@ -1395,16 +1175,12 @@ export class CodexAppServerClient {
      * Registers a notification handler for a specific session.
      * Replaces any existing handler for the same session, preventing handler accumulation.
      */
-    onServerNotification(
-        sessionId: string,
-        callback: (event: ServerNotification) => void,
-    ) {
+    onServerNotification(sessionId: string, callback: (event: ServerNotification) => void) {
         this.notificationHandlers.set(sessionId, callback);
     }
 
-    private codexEventHandlers: Array<(event: CodexConnectionEvent) => void> =
-        [];
-    onClientTransportEvent(callback: (event: CodexConnectionEvent) => void) {
+    private codexEventHandlers: Array<(event: CodexConnectionEvent) => void> = [];
+    onClientTransportEvent(callback: (event: CodexConnectionEvent) => void){
         this.codexEventHandlers.push(callback);
         return () => {
             const index = this.codexEventHandlers.indexOf(callback);
@@ -1412,10 +1188,7 @@ export class CodexAppServerClient {
         };
     }
 
-    private notificationHandlers = new Map<
-        string,
-        (event: ServerNotification) => void
-    >();
+    private notificationHandlers = new Map<string, (event: ServerNotification) => void>();
     private notify(notification: ServerNotification) {
         const threadId = extractThreadId(notification);
         if (threadId !== null) {
@@ -1435,52 +1208,35 @@ export class CodexAppServerClient {
      * error again as the failure of the next turn on the thread, which did not fail. Report that
      * next turn as completed unless it raised a fatal error of its own.
      */
-    private dropLeakedReviewError(
-        notification: ServerNotification,
-    ): ServerNotification {
+    private dropLeakedReviewError(notification: ServerNotification): ServerNotification {
         if (notification.method === "error") {
             if (!notification.params.willRetry) {
-                this.leakedReviewErrors
-                    .get(notification.params.threadId)
-                    ?.failedTurnIds.add(notification.params.turnId);
+                this.leakedReviewErrors.get(notification.params.threadId)?.failedTurnIds.add(notification.params.turnId);
             }
             return notification;
         }
         if (!isTurnCompletedNotification(notification)) {
             return notification;
         }
-        const { threadId, turn } = notification.params;
+        const {threadId, turn} = notification.params;
         const leaked = this.leakedReviewErrors.get(threadId);
         if (!leaked) {
             return notification;
         }
         this.leakedReviewErrors.delete(threadId);
-        if (
-            turn.status !== "failed" ||
-            leaked.failedTurnIds.has(turn.id) ||
-            turn.error?.message !== leaked.error.message ||
-            JSON.stringify(turn.error.codexErrorInfo) !==
-                JSON.stringify(leaked.error.codexErrorInfo)
-        ) {
+        if (turn.status !== "failed"
+            || leaked.failedTurnIds.has(turn.id)
+            || turn.error?.message !== leaked.error.message
+            || JSON.stringify(turn.error.codexErrorInfo) !== JSON.stringify(leaked.error.codexErrorInfo)) {
             return notification;
         }
-        return {
-            ...notification,
-            params: {
-                ...notification.params,
-                turn: { ...turn, status: "completed", error: null },
-            },
-        };
+        return {...notification, params: {...notification.params, turn: {...turn, status: "completed", error: null}}};
     }
 
-    runningTurnId(threadId: string): string | undefined {
-        return this.runningTurnIds.get(threadId);
-    }
+    runningTurnId(threadId: string): string | undefined { return this.runningTurnIds.get(threadId); }
 
     private recordTurnCompleted(event: TurnCompletedNotification): void {
-        const threadResolvers = this.pendingTurnCompletionResolvers.get(
-            event.threadId,
-        );
+        const threadResolvers = this.pendingTurnCompletionResolvers.get(event.threadId);
         const resolve = threadResolvers?.get(event.turn.id);
         if (resolve) {
             threadResolvers!.delete(event.turn.id);
@@ -1500,15 +1256,12 @@ export class CodexAppServerClient {
         }
     }
 
-    private recordCompactionCompleted(
-        event: CompactionCompletedNotification,
-    ): void {
+    private recordCompactionCompleted(event: CompactionCompletedNotification): void {
         const threadId = extractThreadId(event);
         if (threadId === null) {
             return;
         }
-        const resolvers =
-            this.pendingCompactionCompletionResolvers.get(threadId);
+        const resolvers = this.pendingCompactionCompletionResolvers.get(threadId);
         if (!resolvers) {
             return;
         }
@@ -1521,9 +1274,7 @@ export class CodexAppServerClient {
         threadId: string,
         capture: (event: CompactionCompletedNotification) => void,
     ): () => void {
-        const captures =
-            this.pendingCompactionCompletionResolvers.get(threadId) ??
-            new Set();
+        const captures = this.pendingCompactionCompletionResolvers.get(threadId) ?? new Set();
         captures.add(capture);
         this.pendingCompactionCompletionResolvers.set(threadId, captures);
         let released = false;
@@ -1537,9 +1288,7 @@ export class CodexAppServerClient {
         };
     }
 
-    private recordThreadStatusChanged(
-        event: ThreadStatusChangedNotification,
-    ): void {
+    private recordThreadStatusChanged(event: ThreadStatusChangedNotification): void {
         const captures = this.threadStatusCaptures.get(event.threadId);
         if (!captures) {
             return;
@@ -1549,9 +1298,7 @@ export class CodexAppServerClient {
         }
     }
 
-    private recordThreadGoalUpdated(
-        event: ThreadGoalUpdatedNotification,
-    ): void {
+    private recordThreadGoalUpdated(event: ThreadGoalUpdatedNotification): void {
         const captures = this.threadGoalUpdateCaptures.get(event.threadId);
         if (!captures) {
             return;
@@ -1561,9 +1308,7 @@ export class CodexAppServerClient {
         }
     }
 
-    private recordThreadGoalCleared(
-        event: ThreadGoalClearedNotification,
-    ): void {
+    private recordThreadGoalCleared(event: ThreadGoalClearedNotification): void {
         const captures = this.threadGoalClearedCaptures.get(event.threadId);
         if (!captures) {
             return;
@@ -1574,7 +1319,7 @@ export class CodexAppServerClient {
     }
 
     private recordTurnRouting(
-        routing: { threadId: string | null; turnId: string | null },
+        routing: { threadId: string | null, turnId: string | null },
         notification: ServerNotification,
     ): void {
         if (routing.threadId === null || routing.turnId === null) {
@@ -1591,16 +1336,12 @@ export class CodexAppServerClient {
 
     private handleStaleTurnNotification(
         notification: ServerNotification,
-        routing: { threadId: string | null; turnId: string | null },
+        routing: { threadId: string | null, turnId: string | null },
     ): boolean {
         if (!this.isStaleTurn(routing.threadId, routing.turnId)) {
             return false;
         }
-        if (
-            isTurnCompletedNotification(notification) &&
-            routing.threadId !== null &&
-            routing.turnId !== null
-        ) {
+        if (isTurnCompletedNotification(notification) && routing.threadId !== null && routing.turnId !== null) {
             this.clearStaleTurn(routing.threadId, routing.turnId);
         }
         for (const callback of this.codexEventHandlers) {
@@ -1609,10 +1350,7 @@ export class CodexAppServerClient {
         return true;
     }
 
-    private isStaleTurn(
-        threadId: string | null,
-        turnId: string | null,
-    ): boolean {
+    private isStaleTurn(threadId: string | null, turnId: string | null): boolean {
         if (threadId === null || turnId === null) {
             return false;
         }
@@ -1630,28 +1368,18 @@ export class CodexAppServerClient {
         }
     }
 
-    private getOrCreatePendingTurnCompletionResolvers(
-        threadId: string,
-    ): Map<string, (event: TurnCompletedNotification) => void> {
+    private getOrCreatePendingTurnCompletionResolvers(threadId: string): Map<string, (event: TurnCompletedNotification) => void> {
         const existing = this.pendingTurnCompletionResolvers.get(threadId);
         if (existing) {
             return existing;
         }
-        const created = new Map<
-            string,
-            (event: TurnCompletedNotification) => void
-        >();
+        const created = new Map<string, (event: TurnCompletedNotification) => void>();
         this.pendingTurnCompletionResolvers.set(threadId, created);
         return created;
     }
 
-    private captureTurnCompletions(
-        threadId: string,
-        capture: (event: TurnCompletedNotification) => void,
-    ): () => void {
-        const captures =
-            this.turnCompletionCaptures.get(threadId) ??
-            new Set<(event: TurnCompletedNotification) => void>();
+    private captureTurnCompletions(threadId: string, capture: (event: TurnCompletedNotification) => void): () => void {
+        const captures = this.turnCompletionCaptures.get(threadId) ?? new Set<(event: TurnCompletedNotification) => void>();
         captures.add(capture);
         this.turnCompletionCaptures.set(threadId, captures);
         let released = false;
@@ -1667,15 +1395,8 @@ export class CodexAppServerClient {
         };
     }
 
-    private captureTurnRoutings(
-        threadId: string,
-        capture: (turnId: string, notification: ServerNotification) => void,
-    ): () => void {
-        const captures =
-            this.turnRoutingCaptures.get(threadId) ??
-            new Set<
-                (turnId: string, notification: ServerNotification) => void
-            >();
+    private captureTurnRoutings(threadId: string, capture: (turnId: string, notification: ServerNotification) => void): () => void {
+        const captures = this.turnRoutingCaptures.get(threadId) ?? new Set<(turnId: string, notification: ServerNotification) => void>();
         captures.add(capture);
         this.turnRoutingCaptures.set(threadId, captures);
         let released = false;
@@ -1691,13 +1412,8 @@ export class CodexAppServerClient {
         };
     }
 
-    private captureThreadStatuses(
-        threadId: string,
-        capture: (status: ThreadStatus) => void,
-    ): () => void {
-        const captures =
-            this.threadStatusCaptures.get(threadId) ??
-            new Set<(status: ThreadStatus) => void>();
+    private captureThreadStatuses(threadId: string, capture: (status: ThreadStatus) => void): () => void {
+        const captures = this.threadStatusCaptures.get(threadId) ?? new Set<(status: ThreadStatus) => void>();
         captures.add(capture);
         this.threadStatusCaptures.set(threadId, captures);
         let released = false;
@@ -1713,13 +1429,8 @@ export class CodexAppServerClient {
         };
     }
 
-    private captureThreadGoalUpdates(
-        threadId: string,
-        capture: (event: ThreadGoalUpdatedNotification) => void,
-    ): () => void {
-        const captures =
-            this.threadGoalUpdateCaptures.get(threadId) ??
-            new Set<(event: ThreadGoalUpdatedNotification) => void>();
+    private captureThreadGoalUpdates(threadId: string, capture: (event: ThreadGoalUpdatedNotification) => void): () => void {
+        const captures = this.threadGoalUpdateCaptures.get(threadId) ?? new Set<(event: ThreadGoalUpdatedNotification) => void>();
         captures.add(capture);
         this.threadGoalUpdateCaptures.set(threadId, captures);
         let released = false;
@@ -1735,13 +1446,8 @@ export class CodexAppServerClient {
         };
     }
 
-    private captureThreadGoalClears(
-        threadId: string,
-        capture: () => void,
-    ): () => void {
-        const captures =
-            this.threadGoalClearedCaptures.get(threadId) ??
-            new Set<() => void>();
+    private captureThreadGoalClears(threadId: string, capture: () => void): () => void {
+        const captures = this.threadGoalClearedCaptures.get(threadId) ?? new Set<() => void>();
         captures.add(capture);
         this.threadGoalClearedCaptures.set(threadId, captures);
         let released = false;
@@ -1772,10 +1478,7 @@ export class CodexAppServerClient {
      * Runs each request that reads a whole rollout, see `AppServerRecovery.loadThread`: it can refuse a thread that
      * crashed the app-server too often, or run such requests one at a time. By default it runs the request at once.
      */
-    threadLoadGate: <T>(
-        threadId: string,
-        request: () => Promise<T>,
-    ) => Promise<T> = (_threadId, request) => request();
+    threadLoadGate: <T>(threadId: string, request: () => Promise<T>) => Promise<T> = (_threadId, request) => request();
 
     threadLoadsInFlight(): string[] {
         return [...this.threadLoads.keys()];
@@ -1783,51 +1486,34 @@ export class CodexAppServerClient {
 
     private async sendRequest<R>(request: CodexRequest): Promise<R> {
         for (const callback of this.codexEventHandlers) {
-            callback({ eventType: "request", ...request });
+            callback({ eventType: "request", ...request});
         }
         const loadedThreadId = threadLoadOf(request);
         let result: any;
         try {
             if (loadedThreadId === null) {
                 if (request.params) {
-                    result = await this.connection.sendRequest<R>(
-                        request.method,
-                        request.params,
-                    );
-                } else {
-                    result = await this.connection.sendRequest<R>(
-                        request.method,
-                    );
+                    result = await this.connection.sendRequest<R>(request.method, request.params)
+                }
+                else {
+                    result = await this.connection.sendRequest<R>(request.method);
                 }
             } else {
-                result = await this.threadLoadGate(loadedThreadId, () =>
-                    this.sendThreadLoad<R>(loadedThreadId, request),
-                );
+                result = await this.threadLoadGate(loadedThreadId, () => this.sendThreadLoad<R>(loadedThreadId, request));
             }
         } catch (err) {
-            throw err instanceof Error
-                ? explainCodexError(err, { codexHome: this.codexHome })
-                : err;
+            throw err instanceof Error ? explainCodexError(err, {codexHome: this.codexHome}) : err;
         }
         for (const callback of this.codexEventHandlers) {
-            callback({ eventType: "response", ...result });
+            callback({ eventType: "response", ...result});
         }
         return result;
     }
 
-    private async sendThreadLoad<R>(
-        threadId: string,
-        request: CodexRequest,
-    ): Promise<R> {
-        this.threadLoads.set(
-            threadId,
-            (this.threadLoads.get(threadId) ?? 0) + 1,
-        );
+    private async sendThreadLoad<R>(threadId: string, request: CodexRequest): Promise<R> {
+        this.threadLoads.set(threadId, (this.threadLoads.get(threadId) ?? 0) + 1);
         try {
-            return await this.connection.sendRequest<R>(
-                request.method,
-                (request as { params?: unknown }).params,
-            );
+            return await this.connection.sendRequest<R>(request.method, (request as {params?: unknown}).params);
         } finally {
             const count = (this.threadLoads.get(threadId) ?? 1) - 1;
             if (count > 0) this.threadLoads.set(threadId, count);
@@ -1838,8 +1524,7 @@ export class CodexAppServerClient {
 
 /** The thread whose rollout `request` reads: a resume, a fork (of the source thread) or a history read. */
 function threadLoadOf(request: CodexRequest): string | null {
-    const params = (request as { params?: unknown }).params as
-        { threadId?: unknown; includeTurns?: unknown } | undefined;
+    const params = (request as {params?: unknown}).params as {threadId?: unknown, includeTurns?: unknown} | undefined;
     if (typeof params?.threadId !== "string") return null;
     switch (request.method) {
         case "thread/resume":
@@ -1860,25 +1545,10 @@ export type CodexConnectionEvent =
     | ({ eventType: "notification" } & ServerNotification);
 
 export type CompactionCompletedNotification =
-    | {
-          method: "thread/compacted";
-          params: Extract<
-              ServerNotification,
-              { method: "thread/compacted" }
-          >["params"];
-      }
-    | {
-          method: "item/completed";
-          params: ItemCompletedNotification & {
-              item: Extract<
-                  ItemCompletedNotification["item"],
-                  { type: "contextCompaction" }
-              >;
-          };
-      };
+    | { method: "thread/compacted", params: Extract<ServerNotification, { method: "thread/compacted" }>["params"] }
+    | { method: "item/completed", params: ItemCompletedNotification & { item: Extract<ItemCompletedNotification["item"], { type: "contextCompaction" }> } };
 
-type CodexRequest =
-    DistributiveOmit<ClientRequest, "id"> | ThreadBackgroundTerminalsRequest;
+type CodexRequest = DistributiveOmit<ClientRequest, "id"> | ThreadBackgroundTerminalsRequest
 
 type DistributiveOmit<T, K extends keyof any> = T extends any
     ? Omit<T, K>
@@ -1901,83 +1571,63 @@ type ExperimentalThreadPermissions = {
     activePermissionProfile?: ActivePermissionProfile | null;
 };
 
-export type ExperimentalThreadStartResponse = ThreadStartResponse &
-    ExperimentalThreadPermissions;
-export type ExperimentalThreadResumeResponse = ThreadResumeResponse &
-    ExperimentalThreadPermissions;
-export type ExperimentalThreadForkResponse = ThreadForkResponse &
-    ExperimentalThreadPermissions;
+export type ExperimentalThreadStartResponse = ThreadStartResponse & ExperimentalThreadPermissions;
+export type ExperimentalThreadResumeResponse = ThreadResumeResponse & ExperimentalThreadPermissions;
+export type ExperimentalThreadForkResponse = ThreadForkResponse & ExperimentalThreadPermissions;
 
 export type ExperimentalTurnStartParams = TurnStartParams & {
     permissions?: string | null;
     runtimeWorkspaceRoots?: string[] | null;
 };
 
-function isMcpServerStatusUpdatedNotification(
-    notification: ServerNotification,
-): notification is {
+function isMcpServerStatusUpdatedNotification(notification: ServerNotification): notification is {
     method: "mcpServer/startupStatus/updated";
     params: McpServerStatusUpdatedNotification;
 } {
     return notification.method === "mcpServer/startupStatus/updated";
 }
 
-function isTurnCompletedNotification(
-    notification: ServerNotification,
-): notification is {
+function isTurnCompletedNotification(notification: ServerNotification): notification is {
     method: "turn/completed";
     params: TurnCompletedNotification;
 } {
     return notification.method === "turn/completed";
 }
 
-function isThreadStatusChangedNotification(
-    notification: ServerNotification,
-): notification is {
+function isThreadStatusChangedNotification(notification: ServerNotification): notification is {
     method: "thread/status/changed";
     params: ThreadStatusChangedNotification;
 } {
     return notification.method === "thread/status/changed";
 }
 
-function isThreadGoalUpdatedNotification(
-    notification: ServerNotification,
-): notification is {
+function isThreadGoalUpdatedNotification(notification: ServerNotification): notification is {
     method: "thread/goal/updated";
     params: ThreadGoalUpdatedNotification;
 } {
     return notification.method === "thread/goal/updated";
 }
 
-function isThreadGoalClearedNotification(
-    notification: ServerNotification,
-): notification is {
+function isThreadGoalClearedNotification(notification: ServerNotification): notification is {
     method: "thread/goal/cleared";
     params: ThreadGoalClearedNotification;
 } {
     return notification.method === "thread/goal/cleared";
 }
 
-function isCompactionCompletedNotification(
-    notification: ServerNotification,
-): notification is CompactionCompletedNotification {
+function isCompactionCompletedNotification(notification: ServerNotification): notification is CompactionCompletedNotification {
     if (notification.method === "thread/compacted") {
         return true;
     }
-    return (
-        notification.method === "item/completed" &&
-        notification.params.item.type === "contextCompaction"
-    );
+    return notification.method === "item/completed" && notification.params.item.type === "contextCompaction";
 }
 
 function goalsMatch(left: ThreadGoal, right: ThreadGoal): boolean {
-    return (
-        left.threadId === right.threadId &&
-        left.objective === right.objective &&
-        left.status === right.status &&
-        left.tokenBudget === right.tokenBudget &&
-        left.updatedAt === right.updatedAt
-    );
+    return left.threadId === right.threadId
+        && left.objective === right.objective
+        && left.status === right.status
+        && left.tokenBudget === right.tokenBudget
+        && left.updatedAt === right.updatedAt;
 }
 
 function extractThreadId(notification: ServerNotification): string | null {
@@ -1988,25 +1638,20 @@ function extractThreadId(notification: ServerNotification): string | null {
     return null;
 }
 
-function extractTurnRouting(notification: ServerNotification): {
-    threadId: string | null;
-    turnId: string | null;
-} {
-    const params = notification.params as
-        | {
-              threadId?: unknown;
-              turnId?: unknown;
-              turn?: { id?: unknown };
-          }
-        | undefined;
+function extractTurnRouting(notification: ServerNotification): { threadId: string | null, turnId: string | null } {
+    const params = notification.params as {
+        threadId?: unknown,
+        turnId?: unknown,
+        turn?: { id?: unknown },
+    } | undefined;
     const threadId = extractThreadId(notification);
     if (params && typeof params.turnId === "string") {
-        return { threadId, turnId: params.turnId };
+        return {threadId, turnId: params.turnId};
     }
     if (params && typeof params.turn?.id === "string") {
-        return { threadId, turnId: params.turn.id };
+        return {threadId, turnId: params.turn.id};
     }
-    return { threadId, turnId: null };
+    return {threadId, turnId: null};
 }
 
 /**
@@ -2019,12 +1664,10 @@ function extractTurnRouting(notification: ServerNotification): {
 async function* historyPages<T>(
     threadId: string,
     method: string,
-    requestPage: (
-        cursor: string | null,
-    ) => Promise<{ data: T[]; nextCursor: string | null }>,
+    requestPage: (cursor: string | null) => Promise<{data: T[]; nextCursor: string | null}>,
     endsHistory?: (page: T[]) => boolean,
 ): AsyncGenerator<T[]> {
-    type Page = { data: T[]; nextCursor: string | null };
+    type Page = {data: T[]; nextCursor: string | null};
     const request = (cursor: string | null): Promise<Page> => {
         const page = withHistoryTimeout(requestPage(cursor), method, threadId);
         // A caller that stops early never reads the next page. Its failure is not an unhandled rejection.
@@ -2051,22 +1694,12 @@ async function* historyPages<T>(
 }
 
 /** The page, or an error when Codex does not answer within {@link HISTORY_PAGE_TIMEOUT_MS}. */
-async function withHistoryTimeout<T>(
-    page: Promise<T>,
-    method: string,
-    threadId: string,
-): Promise<T> {
+async function withHistoryTimeout<T>(page: Promise<T>, method: string, threadId: string): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(
-            () =>
-                reject(
-                    new Error(
-                        `Codex did not answer ${method} for thread ${threadId} within ${HISTORY_PAGE_TIMEOUT_MS / 1000} s`,
-                    ),
-                ),
-            HISTORY_PAGE_TIMEOUT_MS,
-        );
+        timer = setTimeout(() => reject(new Error(
+            `Codex did not answer ${method} for thread ${threadId} within ${HISTORY_PAGE_TIMEOUT_MS / 1000} s`,
+        )), HISTORY_PAGE_TIMEOUT_MS);
     });
     try {
         return await Promise.race([page, timeout]);

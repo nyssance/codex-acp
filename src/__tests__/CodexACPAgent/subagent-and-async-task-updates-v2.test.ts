@@ -1,50 +1,35 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {
-    ACPSessionConnection,
-    AcpV2Connection,
-} from "../../ACPSessionConnection";
-import { CodexSubagentEventRouter } from "../../subagents/CodexSubagentEventRouter";
-import { CodexBackgroundTerminalTasks } from "../../async-tasks/CodexBackgroundTerminalTasks";
-import { CodexAppServerClient } from "../../CodexAppServerClient";
-import type { ThreadBackgroundTerminalsListResponse } from "../../async-tasks/BackgroundTerminalApi";
-import {
-    checkV2SessionUpdate,
-    expectConformingV2SessionUpdates,
-} from "./v2-session-update-guard";
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import type * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import {ACPSessionConnection, AcpV2Connection} from '../../ACPSessionConnection';
+import {CodexSubagentEventRouter} from '../../subagents/CodexSubagentEventRouter';
+import {CodexBackgroundTerminalTasks} from '../../async-tasks/CodexBackgroundTerminalTasks';
+import {CodexAppServerClient} from '../../CodexAppServerClient';
+import type {ThreadBackgroundTerminalsListResponse} from '../../async-tasks/BackgroundTerminalApi';
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 /** A v2-wrapped `ACPSessionConnection`, so `session.update()` renders through `toV2SessionUpdate`. */
-function v2Session(sessionId: string): {
-    session: ACPSessionConnection;
-    updates: acpV2.SessionUpdate[];
-} {
+function v2Session(sessionId: string): {session: ACPSessionConnection; updates: acpV2.SessionUpdate[]} {
     const updates: acpV2.SessionUpdate[] = [];
     const v2Client = {
         notify: vi.fn(async (_method: string, params: unknown) => {
-            const update = (params as { update: acpV2.SessionUpdate }).update;
+            const update = (params as {update: acpV2.SessionUpdate}).update;
             checkV2SessionUpdate(update);
             updates.push(update);
         }),
         request: vi.fn(),
     };
     const view = new AcpV2Connection(v2Client as any).extensionOnlyV1View();
-    return { session: new ACPSessionConnection(view, sessionId), updates };
+    return {session: new ACPSessionConnection(view, sessionId), updates};
 }
 
-describe("subagent and async task updates on ACP v2", () => {
+describe('subagent and async task updates on ACP v2', () => {
     afterEach(() => {
         expectConformingV2SessionUpdates();
     });
 
-    it("renders the subagent lifecycle as `_subagent_update` when native subagents are enabled", async () => {
-        const { session, updates } = v2Session("root");
-        const router = new CodexSubagentEventRouter(
-            "root",
-            true,
-            session,
-            () => {},
-            () => ({ currentModel: null, availableModels: [] }),
-        );
+    it('renders the subagent lifecycle as `_subagent_update` when native subagents are enabled', async () => {
+        const {session, updates} = v2Session("root");
+        const router = new CodexSubagentEventRouter("root", true, session, () => {}, () => ({currentModel: null, availableModels: []}));
 
         await router.handle({
             method: "item/started",
@@ -155,11 +140,7 @@ describe("subagent and async task updates on ACP v2", () => {
                 task: "Delegated task for Researcher",
                 capabilities: {},
             },
-            {
-                sessionUpdate: "_subagent_update",
-                subagentSessionId: "child-1",
-                state: "completed",
-            },
+            {sessionUpdate: "_subagent_update", subagentSessionId: "child-1", state: "completed"},
             {
                 sessionUpdate: "_subagent_update",
                 subagentSessionId: "child-1:generation:2",
@@ -167,23 +148,13 @@ describe("subagent and async task updates on ACP v2", () => {
                 task: "Delegated task for Researcher",
                 capabilities: {},
             },
-            {
-                sessionUpdate: "_subagent_update",
-                subagentSessionId: "child-1:generation:2",
-                state: "completed",
-            },
+            {sessionUpdate: "_subagent_update", subagentSessionId: "child-1:generation:2", state: "completed"},
         ]);
     });
 
-    it("never emits `_subagent_update` (or `subagent_spawned`) when native subagents are disabled", async () => {
-        const { session, updates } = v2Session("root");
-        const router = new CodexSubagentEventRouter(
-            "root",
-            false,
-            session,
-            () => {},
-            () => ({ currentModel: null, availableModels: [] }),
-        );
+    it('never emits `_subagent_update` (or `subagent_spawned`) when native subagents are disabled', async () => {
+        const {session, updates} = v2Session("root");
+        const router = new CodexSubagentEventRouter("root", false, session, () => {}, () => ({currentModel: null, availableModels: []}));
 
         const handled = await router.handle({
             method: "item/started",
@@ -210,71 +181,48 @@ describe("subagent and async task updates on ACP v2", () => {
     });
 
     function createAsyncTasks(enabled: boolean) {
-        const { session, updates } = v2Session("root");
-        const list =
-            vi.fn<() => Promise<ThreadBackgroundTerminalsListResponse>>();
-        const appServer = {
-            threadBackgroundTerminalsList: list,
-            backgroundTerminalPages:
-                CodexAppServerClient.prototype.backgroundTerminalPages,
-        } as unknown as CodexAppServerClient;
-        const tasks = new CodexBackgroundTerminalTasks(
-            enabled,
-            "root",
-            appServer,
-            session,
-        );
-        return { tasks, list, updates };
+        const {session, updates} = v2Session("root");
+        const list = vi.fn<() => Promise<ThreadBackgroundTerminalsListResponse>>();
+        const appServer = {threadBackgroundTerminalsList: list,
+            backgroundTerminalPages: CodexAppServerClient.prototype.backgroundTerminalPages} as unknown as CodexAppServerClient;
+        const tasks = new CodexBackgroundTerminalTasks(enabled, "root", appServer, session);
+        return {tasks, list, updates};
     }
 
-    it("renders async task updates as `_async_task_*` when async tasks are enabled", async () => {
-        const { tasks, list, updates } = createAsyncTasks(true);
-        list.mockResolvedValue({
-            data: [
-                {
-                    itemId: "command-1",
-                    processId: "42",
-                    command: "python -m http.server",
-                },
-            ],
-            nextCursor: null,
-        });
+    it('renders async task updates as `_async_task_*` when async tasks are enabled', async () => {
+        const {tasks, list, updates} = createAsyncTasks(true);
+        list.mockResolvedValue({data: [{itemId: "command-1", processId: "42", command: "python -m http.server"}], nextCursor: null});
 
-        await tasks.handleNotification(
-            {
-                method: "item/started",
-                params: {
-                    threadId: "root",
-                    turnId: "turn-1",
-                    startedAtMs: 0,
-                    item: {
-                        type: "commandExecution",
-                        id: "command-1",
-                        pluginId: null,
-                        scriptPath: null,
-                        command: "python -m http.server",
-                        cwd: "/workspace",
-                        processId: "42",
-                        source: "unifiedExecStartup",
-                        status: "inProgress",
-                        commandActions: [],
-                        aggregatedOutput: null,
-                        exitCode: null,
-                        durationMs: null,
-                    },
+        await tasks.handleNotification({
+            method: "item/started",
+            params: {
+                threadId: "root",
+                turnId: "turn-1",
+                startedAtMs: 0,
+                item: {
+                    type: "commandExecution",
+                    id: "command-1",
+                    pluginId: null,
+                    scriptPath: null,
+                    command: "python -m http.server",
+                    cwd: "/workspace",
+                    processId: "42",
+                    source: "unifiedExecStartup",
+                    status: "inProgress",
+                    commandActions: [],
+                    aggregatedOutput: null,
+                    exitCode: null,
+                    durationMs: null,
                 },
             },
-            "root",
-        );
+        }, "root");
         await tasks.sync("root", "root");
 
         expect(updates).toEqual([
             {
                 sessionUpdate: "tool_call_update",
                 toolCallId: "command-1",
-                _meta: {
-                    jetbrains: { air: { asyncTasks: { backgrounded: true } } },
-                },
+                _meta: {jetbrains: {air: {asyncTasks: {backgrounded: true}}}},
             },
             {
                 sessionUpdate: "_async_task_spawned",
@@ -288,36 +236,33 @@ describe("subagent and async task updates on ACP v2", () => {
         ]);
     });
 
-    it("never emits `_async_task_*` (or `async_task_*`) when async tasks are disabled", async () => {
-        const { tasks, list, updates } = createAsyncTasks(false);
-        list.mockResolvedValue({ data: [], nextCursor: null });
+    it('never emits `_async_task_*` (or `async_task_*`) when async tasks are disabled', async () => {
+        const {tasks, list, updates} = createAsyncTasks(false);
+        list.mockResolvedValue({data: [], nextCursor: null});
 
-        await tasks.handleNotification(
-            {
-                method: "item/started",
-                params: {
-                    threadId: "root",
-                    turnId: "turn-1",
-                    startedAtMs: 0,
-                    item: {
-                        type: "commandExecution",
-                        id: "command-1",
-                        pluginId: null,
-                        scriptPath: null,
-                        command: "python -m http.server",
-                        cwd: "/workspace",
-                        processId: "42",
-                        source: "unifiedExecStartup",
-                        status: "inProgress",
-                        commandActions: [],
-                        aggregatedOutput: null,
-                        exitCode: null,
-                        durationMs: null,
-                    },
+        await tasks.handleNotification({
+            method: "item/started",
+            params: {
+                threadId: "root",
+                turnId: "turn-1",
+                startedAtMs: 0,
+                item: {
+                    type: "commandExecution",
+                    id: "command-1",
+                    pluginId: null,
+                    scriptPath: null,
+                    command: "python -m http.server",
+                    cwd: "/workspace",
+                    processId: "42",
+                    source: "unifiedExecStartup",
+                    status: "inProgress",
+                    commandActions: [],
+                    aggregatedOutput: null,
+                    exitCode: null,
+                    durationMs: null,
                 },
             },
-            "root",
-        );
+        }, "root");
         await tasks.sync("root", "root");
 
         expect(updates).toEqual([]);

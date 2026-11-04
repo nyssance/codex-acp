@@ -1,15 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import { TitleGenerator } from "../TitleGenerator";
-import type { CodexAppServerClient } from "../CodexAppServerClient";
-import { deferred } from "./acp-test-utils";
+import {describe, expect, it, vi} from "vitest";
+import {TitleGenerator} from "../TitleGenerator";
+import type {CodexAppServerClient} from "../CodexAppServerClient";
+import {deferred} from "./acp-test-utils";
 
 function createGenerator(client: Partial<CodexAppServerClient>) {
-    return new TitleGenerator(
-        client as CodexAppServerClient,
-        "thread-id",
-        "/test/cwd",
-        () => "unset",
-    );
+    return new TitleGenerator(client as CodexAppServerClient, "thread-id", "/test/cwd", () => "unset");
 }
 
 describe("TitleGenerator.waitForIdle", () => {
@@ -20,9 +15,7 @@ describe("TitleGenerator.waitForIdle", () => {
     });
 
     it("waits for the rename echo notification before settling", async () => {
-        const turn = deferred<{
-            turn: { items: { type: string; text: string }[] };
-        }>();
+        const turn = deferred<{turn: {items: {type: string; text: string}[]}}>();
         const threadSetName = vi.fn().mockResolvedValue({});
         const generator = createGenerator({
             threadStart: vi.fn().mockResolvedValue({
@@ -41,22 +34,13 @@ describe("TitleGenerator.waitForIdle", () => {
         await Promise.resolve();
         expect(settled).toBe(false);
 
-        turn.resolve({
-            turn: {
-                items: [
-                    { type: "agentMessage", text: '{"title":"A short title"}' },
-                ],
-            },
-        });
+        turn.resolve({turn: {items: [{type: "agentMessage", text: '{"title":"A short title"}'}]}});
         // Flush the microtask chain (extract title -> threadSetName -> start
         // waiting for the echo) without resolving the echo itself yet.
         for (let i = 0; i < 10; i++) {
             await Promise.resolve();
         }
-        expect(threadSetName).toHaveBeenCalledWith({
-            threadId: "thread-id",
-            name: "A short title",
-        });
+        expect(threadSetName).toHaveBeenCalledWith({threadId: "thread-id", name: "A short title"});
         expect(settled).toBe(false);
 
         // The thread/name/updated notification for this rename arrives.
@@ -82,9 +66,7 @@ describe("TitleGenerator.waitForIdle", () => {
 
     it("stops waiting once a failed generation has settled", async () => {
         const generator = createGenerator({
-            threadStart: vi
-                .fn()
-                .mockRejectedValue(new Error("no ephemeral threads")),
+            threadStart: vi.fn().mockRejectedValue(new Error("no ephemeral threads")),
             runTurn: vi.fn(),
             threadSetName: vi.fn(),
         } as unknown as Partial<CodexAppServerClient>);
@@ -97,7 +79,7 @@ describe("TitleGenerator.waitForIdle", () => {
 
 describe("TitleGenerator prompt", () => {
     it("sends only the start of a long first message to the title model", async () => {
-        const runTurn = vi.fn().mockResolvedValue({ turn: { items: [] } });
+        const runTurn = vi.fn().mockResolvedValue({turn: {items: []}});
         const generator = createGenerator({
             threadStart: vi.fn().mockResolvedValue({
                 readState: null,
@@ -107,14 +89,10 @@ describe("TitleGenerator prompt", () => {
         } as unknown as Partial<CodexAppServerClient>);
 
         // The cut falls between the two halves of the emoji.
-        generator.onTurnCompleted(
-            `${"a".repeat(3_999)}\u{1F600}${"b".repeat(200_000)}`,
-        );
+        generator.onTurnCompleted(`${"a".repeat(3_999)}\u{1F600}${"b".repeat(200_000)}`);
         await generator.waitForIdle(1_000);
 
         const text: string = runTurn.mock.calls[0]![0].input[0].text;
-        expect(
-            text.endsWith(`User's first message:\n${"a".repeat(3_999)}`),
-        ).toBe(true);
+        expect(text.endsWith(`User's first message:\n${"a".repeat(3_999)}`)).toBe(true);
     });
 });

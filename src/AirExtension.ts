@@ -1,5 +1,5 @@
-import type { ClientCapabilities } from "@agentclientprotocol/sdk/unstable";
-import type { ACPSessionConnection } from "./ACPSessionConnection";
+import type {ClientCapabilities} from "@agentclientprotocol/sdk/unstable";
+import type {ACPSessionConnection} from "./ACPSessionConnection";
 
 /**
  * Wire names for the versioned JetBrains AIR ACP extension.
@@ -21,8 +21,7 @@ export const AIR_NATIVE_SUBAGENT_SESSIONS_KEY = "nativeSubagentSessions";
 export const AIR_ASYNC_TASKS_KEY = "asyncTasks";
 export const AIR_RECOMMENDED_CONFIG_VALUE_KEY = "recommendedValue";
 export const AIR_ASYNC_TASKS_BACKGROUNDED_KEY = "backgrounded";
-export const AIR_AGENT_FILE_CHANGE_REPORT_REQUEST_KEY =
-    "agentFileChangeReportRequest";
+export const AIR_AGENT_FILE_CHANGE_REPORT_REQUEST_KEY = "agentFileChangeReportRequest";
 export const AIR_MESSAGE_PHASE_KEY = "phase";
 export const AIR_GOAL_KEY = "goal";
 export const AIR_KIND_KEY = "kind";
@@ -49,7 +48,7 @@ export function withAirMeta(
     key: string,
     value: unknown,
 ): Record<string, unknown> {
-    return withAirMetadata(meta, { [key]: value });
+    return withAirMetadata(meta, {[key]: value});
 }
 
 /** Compose AIR-owned fields; this is a producer operation, not a protocol metadata merge. */
@@ -74,33 +73,20 @@ export function withAirMetadata(
 }
 
 /** A v2 session patch replaces the whole JetBrains value, so compose it at publication time. */
-export function publishAirSessionMetadata(
-    session: ACPSessionConnection,
-    key: string,
-    value: unknown,
-): Promise<void> {
+export function publishAirSessionMetadata(session: ACPSessionConnection, key: string, value: unknown): Promise<void> {
     if (session.protocolVersion === 2) {
-        return session.patchSessionMetadata((current) => ({
-            [JETBRAINS_META_KEY]: withAirMeta(current, key, value)[
-                JETBRAINS_META_KEY
-            ],
+        return session.patchSessionMetadata(current => ({
+            [JETBRAINS_META_KEY]: withAirMeta(current, key, value)[JETBRAINS_META_KEY],
         }));
     }
-    return session.update({
-        sessionUpdate: "session_info_update",
-        _meta: withAirMeta(undefined, key, value),
-    });
+    return session.update({sessionUpdate: "session_info_update", _meta: withAirMeta(undefined, key, value)});
 }
 
 /**
  * The metadata of a key that exists only for AIR.
  * AIR gets `_meta.jetbrains.air.<key>`. Every other client gets no metadata.
  */
-export function airOnlyMeta(
-    airClient: boolean,
-    key: string,
-    value: unknown,
-): Record<string, unknown> | undefined {
+export function airOnlyMeta(airClient: boolean, key: string, value: unknown): Record<string, unknown> | undefined {
     return airClient ? withAirMeta(undefined, key, value) : undefined;
 }
 
@@ -108,9 +94,7 @@ export function airOnlyMeta(
  * Tells whether the client is AIR.
  * A client is AIR when `clientCapabilities._meta.jetbrains.air` is present.
  */
-export function isAirClient(
-    capabilities: ClientCapabilities | null | undefined,
-): boolean {
+export function isAirClient(capabilities: ClientCapabilities | null | undefined): boolean {
     const meta = asRecord(capabilities?._meta);
     const jetbrains = asRecord(meta[JETBRAINS_META_KEY]);
     const air = jetbrains[AIR_META_KEY];
@@ -126,13 +110,11 @@ export function clientSupportsAirCapability(
     const air = asRecord(jetbrains[AIR_META_KEY]);
     const version = air[AIR_EXTENSION_VERSION_KEY];
     const supported = air[AIR_EXTENSION_CAPABILITIES_KEY];
-    return (
-        typeof version === "number" &&
-        Number.isInteger(version) &&
-        version >= AIR_EXTENSION_VERSION &&
-        Array.isArray(supported) &&
-        supported.includes(capability)
-    );
+    return typeof version === "number"
+        && Number.isInteger(version)
+        && version >= AIR_EXTENSION_VERSION
+        && Array.isArray(supported)
+        && supported.includes(capability);
 }
 
 /** Read custom instructions from `session/new` metadata. */
@@ -146,6 +128,6 @@ export function airCustomInstructions(meta: unknown): string | undefined {
 
 function asRecord(value: unknown): Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value)
-        ? (value as Record<string, unknown>)
+        ? value as Record<string, unknown>
         : {};
 }

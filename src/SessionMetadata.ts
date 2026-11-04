@@ -9,7 +9,7 @@ import type {
     ThreadItemEntry,
     ThreadStatus,
 } from "./app-server/v2";
-import type { SessionInstructions } from "./ClientSystemPrompt";
+import type {SessionInstructions} from "./ClientSystemPrompt";
 
 export type SessionMetadata = {
     sessionId: string;
@@ -41,7 +41,7 @@ export type SessionMetadata = {
 
 export type SessionMetadataWithThread = SessionMetadata & {
     /** The thread metadata. Its `turns` are empty: the items are in `history`. */
-    thread: Thread;
+    thread: Thread,
     /** The items of the thread with their turns, oldest first, one page at a time. */
-    history: AsyncIterable<ThreadItemEntry[]>;
-};
+    history: AsyncIterable<ThreadItemEntry[]>,
+}

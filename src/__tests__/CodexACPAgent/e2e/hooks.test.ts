@@ -25,9 +25,7 @@ const testRuntime =
         ? `"${process.execPath}"`
         : `'${process.execPath.replaceAll("'", "'\"'\"'")}'`;
 
-const hasLiveApiKey = Boolean(
-    process.env["CODEX_API_KEY"] || process.env["OPENAI_API_KEY"],
-);
+const hasLiveApiKey = Boolean(process.env["CODEX_API_KEY"] || process.env["OPENAI_API_KEY"]);
 
 describe.skipIf(process.env["RUN_E2E_TESTS"] !== "true")(
     "ACP hook review",

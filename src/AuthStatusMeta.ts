@@ -1,6 +1,6 @@
-import type { Account, AccountUpdatedNotification } from "./app-server/v2";
-import type { AuthMode } from "./app-server/AuthMode";
-import type { PlanType } from "./app-server/PlanType";
+import type {Account, AccountUpdatedNotification} from "./app-server/v2";
+import type {AuthMode} from "./app-server/AuthMode";
+import type {PlanType} from "./app-server/PlanType";
 
 /**
  * `authStatus` — interim `_meta`-based ACP extension that reports the auth
@@ -35,8 +35,7 @@ export const AUTH_STATUS_UPDATE_METHOD = "_auth/status_update";
 export const AUTH_STATUS_META_KEY = "authStatus";
 
 /** Category of the credential the agent uses. Clients tolerate unknown values. */
-export type AuthStatusKind =
-    "account" | "api_key" | "gateway" | "external" | "none";
+export type AuthStatusKind = "account" | "api_key" | "gateway" | "external" | "none";
 
 export interface AuthStatusAccount {
     email?: string;
@@ -63,7 +62,7 @@ export interface AuthStatus {
 /** Params of the `_auth/status_update` notification. */
 export type AuthStatusUpdateNotification = {
     authStatus: AuthStatus;
-};
+}
 
 /**
  * Capability advertised in the `initialize` response under
@@ -71,7 +70,7 @@ export type AuthStatusUpdateNotification = {
  * "this agent pushes its identity". It is never a status payload, and it gates
  * nothing the client sends — the client only listens.
  */
-export type AuthStatusCapability = {};
+export type AuthStatusCapability = {}
 
 export function authStatusCapability(): AuthStatusCapability {
     return {};
@@ -99,9 +98,7 @@ const PLAN_DISPLAY_NAMES: Record<string, string> = {
  * Display name for a Codex plan; unknown raw values are capitalized so the
  * label stays truthful when the enum grows.
  */
-export function planTypePresentable(
-    planType: PlanType | string | null | undefined,
-): string | null {
+export function planTypePresentable(planType: PlanType | string | null | undefined): string | null {
     if (!planType || planType === "unknown") {
         return null;
     }
@@ -123,14 +120,13 @@ function chatGptLabel(planType: PlanType | null | undefined): string {
  * specifics, so it rides in `detail` (line 2) the way every other kind does.
  */
 export function gatewayStatus(providerName?: string | null): AuthStatus {
-    const detail =
-        typeof providerName === "string" && providerName.trim().length > 0
-            ? providerName.trim()
-            : undefined;
+    const detail = typeof providerName === "string" && providerName.trim().length > 0
+        ? providerName.trim()
+        : undefined;
     return {
         kind: "gateway",
         label: DEFAULT_GATEWAY_LABEL,
-        ...(detail === undefined ? {} : { detail }),
+        ...(detail === undefined ? {} : {detail}),
     };
 }
 
@@ -140,11 +136,9 @@ export function gatewayStatus(providerName?: string | null): AuthStatus {
  * came from, and the provider name, URL and route are not checked
  * (see `docs/air-extensions.md`, "Auth source display").
  */
-export function agentConfiguredProviderStatus(
-    providerId: string | null,
-): AuthStatus {
+export function agentConfiguredProviderStatus(providerId: string | null): AuthStatus {
     if (providerId?.trim().toLowerCase() === AIR_GATEWAY_PROVIDER_ID) {
-        return { kind: "gateway", label: AIR_GATEWAY_LABEL };
+        return {kind: "gateway", label: AIR_GATEWAY_LABEL};
     }
     return gatewayStatus(providerId);
 }
@@ -173,9 +167,7 @@ export function fromAccount(account: Account | null): AuthStatus {
             return {
                 kind: "account",
                 label: chatGptLabel(account.planType),
-                ...(Object.keys(accountInfo).length > 0
-                    ? { account: accountInfo }
-                    : {}),
+                ...(Object.keys(accountInfo).length > 0 ? {account: accountInfo} : {}),
             };
         }
         case "apiKey":
@@ -217,10 +209,7 @@ export function fromAccountUpdated(
                 label: chatGptLabel(notification.planType),
             };
             const accountInfo: AuthStatusAccount = {};
-            const previousEmail =
-                previous?.kind === "account"
-                    ? previous.account?.email
-                    : undefined;
+            const previousEmail = previous?.kind === "account" ? previous.account?.email : undefined;
             if (previousEmail) {
                 accountInfo.email = previousEmail;
             }
@@ -264,17 +253,13 @@ export function fromAccountUpdated(
  * ChatGPT account too. The push cannot fill the other account shapes, so the other modes keep `previous`
  * until the next account read.
  */
-export function accountFromUpdated(
-    notification: AccountUpdatedNotification,
-    previous: Account | null,
-): Account | null {
+export function accountFromUpdated(notification: AccountUpdatedNotification, previous: Account | null): Account | null {
     switch (notification.authMode) {
         case null:
             return null;
         case "chatgpt":
         case "chatgptAuthTokens": {
-            const previousChatGpt =
-                previous?.type === "chatgpt" ? previous : null;
+            const previousChatGpt = previous?.type === "chatgpt" ? previous : null;
             return {
                 type: "chatgpt",
                 email: previousChatGpt?.email ?? null,
@@ -287,7 +272,7 @@ export function accountFromUpdated(
         }
         case "apikey":
         case "personalAccessToken":
-            return { type: "apiKey" };
+            return {type: "apiKey"};
         default:
             return previous;
     }
@@ -302,23 +287,18 @@ export function accountFromUpdated(
  *
  * A missing `previous` means "nothing reported yet", which never equals a payload.
  */
-export function sameAuthStatus(
-    previous: AuthStatus | null | undefined,
-    next: AuthStatus,
-): boolean {
+export function sameAuthStatus(previous: AuthStatus | null | undefined, next: AuthStatus): boolean {
     if (!previous) {
         return false;
     }
-    return (
-        previous.kind === next.kind &&
-        previous.label === next.label &&
-        previous.detail === next.detail &&
-        previous.account?.email === next.account?.email &&
-        previous.account?.organization === next.account?.organization &&
-        previous.account?.plan === next.account?.plan &&
+    return previous.kind === next.kind
+        && previous.label === next.label
+        && previous.detail === next.detail
+        && previous.account?.email === next.account?.email
+        && previous.account?.organization === next.account?.organization
+        && previous.account?.plan === next.account?.plan
         // Vendor extras are an open bag, so compare them structurally. Both
         // sides are built here from the same key order, so a string compare is
         // enough and costs nothing on the usual `undefined`/`undefined` pair.
-        JSON.stringify(previous.vendor) === JSON.stringify(next.vendor)
-    );
+        && JSON.stringify(previous.vendor) === JSON.stringify(next.vendor);
 }

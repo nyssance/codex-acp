@@ -15,35 +15,14 @@ export class SubagentInteractionHandlers {
     readonly approvals: CodexApprovalHandler;
     readonly elicitations: CodexElicitationHandler;
 
-    constructor(
-        connection: AcpClientConnection,
-        rootSessionId: string,
-        capabilities: acp.ClientCapabilities | null,
-        renderer: AcpToolCallRenderer,
-    ) {
-        this.context = new PermissionLifecycleContext({
-            sessionId: rootSessionId,
-        }).beginPrompt();
-        this.approvals = new CodexApprovalHandler(
-            connection,
-            this.context,
-            undefined,
-            renderer,
-        );
-        this.elicitations = new CodexElicitationHandler(
-            connection,
-            this.context,
-            capabilities,
-            undefined,
-            renderer,
-        );
+    constructor(connection: AcpClientConnection, rootSessionId: string, capabilities: acp.ClientCapabilities | null, renderer: AcpToolCallRenderer) {
+        this.context = new PermissionLifecycleContext({sessionId: rootSessionId}).beginPrompt();
+        this.approvals = new CodexApprovalHandler(connection, this.context, undefined, renderer);
+        this.elicitations = new CodexElicitationHandler(connection, this.context, capabilities, undefined, renderer);
     }
 
     async observe(event: ServerNotification, sessionId: string): Promise<void> {
-        const scoped = {
-            ...event,
-            params: { ...event.params, threadId: sessionId },
-        } as ServerNotification;
+        const scoped = {...event, params: {...event.params, threadId: sessionId}} as ServerNotification;
         this.context.handleNotification(scoped);
         await this.elicitations.handleNotification(scoped);
     }

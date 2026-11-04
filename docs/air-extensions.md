@@ -89,20 +89,16 @@ AIR declares its capabilities in the `initialize` request:
 
 ```json
 {
-    "clientCapabilities": {
-        "_meta": {
-            "jetbrains": {
-                "air": {
-                    "version": 1,
-                    "capabilities": [
-                        "diffPatch",
-                        "rawInputRendering",
-                        "planContentDelta"
-                    ]
-                }
-            }
+  "clientCapabilities": {
+    "_meta": {
+      "jetbrains": {
+        "air": {
+          "version": 1,
+          "capabilities": ["diffPatch", "rawInputRendering", "planContentDelta"]
         }
+      }
     }
+  }
 }
 ```
 
@@ -121,30 +117,30 @@ The `initialize` response carries the agent side of the extension only when the 
 
 ```json
 {
-    "_meta": {
-        "steering": { "supported": true },
-        "jetbrains": {
-            "air": {
-                "version": 1,
-                "goal": {
-                    "version": 1,
-                    "controlMethod": "_session/goal",
-                    "actions": ["set", "pause", "resume", "clear"]
-                },
-                "capabilities": [
-                    "sessionFailure",
-                    "diffPatch",
-                    "agentFileChangeReport",
-                    "nativeSubagentSessions",
-                    "asyncTasks",
-                    "recommendedValue",
-                    "rawInputRendering",
-                    "planContentDelta",
-                    "codexHooks"
-                ]
-            }
-        }
+  "_meta": {
+    "steering": { "supported": true },
+    "jetbrains": {
+      "air": {
+        "version": 1,
+        "goal": {
+          "version": 1,
+          "controlMethod": "_session/goal",
+          "actions": ["set", "pause", "resume", "clear"]
+        },
+        "capabilities": [
+          "sessionFailure",
+          "diffPatch",
+          "agentFileChangeReport",
+          "nativeSubagentSessions",
+          "asyncTasks",
+          "recommendedValue",
+          "rawInputRendering",
+          "planContentDelta",
+          "codexHooks"
+        ]
+      }
     }
+  }
 }
 ```
 
@@ -158,28 +154,28 @@ A client that is not AIR gets no `jetbrains` key and no `goal` key in the `initi
 
 ### Capabilities
 
-| Capability               | What the adapter does when the client declares it                                                                                                                                                           | Section                                                                   |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `diffPatch`              | Sends a file change as one Git patch in the diff block.                                                                                                                                                     | [Diff patch](#diff-patch)                                                 |
-| `rawInputRendering`      | Sends no display copy of readable input in `content`. The client renders `rawInput`.                                                                                                                        | [Tool call contract](#tool-call-contract)                                 |
-| `planContentDelta`       | Streams a Markdown plan as appended text in `plan_update`.                                                                                                                                                  | [Plan content delta and plan review](#plan-content-delta-and-plan-review) |
-| `recommendedValue`       | Adds the Codex recommendation to the model and effort selectors.                                                                                                                                            | [Recommended config values](#recommended-config-values)                   |
-| `asyncTasks`             | Publishes background terminal commands as async tasks.                                                                                                                                                      | [Async tasks](#async-tasks)                                               |
-| `agentFileChangeReport`  | Accepts a report request on `session/prompt` and sends the changed file list.                                                                                                                               | [Agent file-change report](#agent-file-change-report)                     |
-| `sessionFailure`         | Sends warnings and errors as typed transcript records.                                                                                                                                                      | [Session failure](#session-failure)                                       |
-| `nativeSubagentSessions` | Reports a Codex subagent as a native ACP child session.                                                                                                                                                     | [Native subagent sessions](#native-subagent-sessions)                     |
-| `codexHooks`             | Lets AIR review and trust startup hooks before it opens a session.                                                                                                                                          | [Hook trust](#hook-trust)                                                 |
-| `sessionIndex`           | Serves `session/list` as the session index of AIR, as the ACP session list extensions RFD and RFD #2161 describe, adds rename and archive requests, and pushes the changed rows of a cwd to a subscription. | [Session index](#session-index)                                           |
+| Capability | What the adapter does when the client declares it | Section |
+| --- | --- | --- |
+| `diffPatch` | Sends a file change as one Git patch in the diff block. | [Diff patch](#diff-patch) |
+| `rawInputRendering` | Sends no display copy of readable input in `content`. The client renders `rawInput`. | [Tool call contract](#tool-call-contract) |
+| `planContentDelta` | Streams a Markdown plan as appended text in `plan_update`. | [Plan content delta and plan review](#plan-content-delta-and-plan-review) |
+| `recommendedValue` | Adds the Codex recommendation to the model and effort selectors. | [Recommended config values](#recommended-config-values) |
+| `asyncTasks` | Publishes background terminal commands as async tasks. | [Async tasks](#async-tasks) |
+| `agentFileChangeReport` | Accepts a report request on `session/prompt` and sends the changed file list. | [Agent file-change report](#agent-file-change-report) |
+| `sessionFailure` | Sends warnings and errors as typed transcript records. | [Session failure](#session-failure) |
+| `nativeSubagentSessions` | Reports a Codex subagent as a native ACP child session. | [Native subagent sessions](#native-subagent-sessions) |
+| `codexHooks` | Lets AIR review and trust startup hooks before it opens a session. | [Hook trust](#hook-trust) |
+| `sessionIndex` | Serves `session/list` as the session index of AIR, as the ACP session list extensions RFD and RFD #2161 describe, adds rename and archive requests, and pushes the changed rows of a cwd to a subscription. | [Session index](#session-index) |
 
 Five agent capabilities come with `sessionIndex` and are listed exactly when it is. The client does not declare them:
 
-| Agent capability       | What it tells the client                                                                                      | Section                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `sessionBatchGet`      | Reads metadata for known session IDs with `_session/batch_get`.                                               | [Batch get](#batch-get)                                 |
-| `sessionArchive`       | The agent serves `_session/archive` and `_session/unarchive`.                                                 | [Requests](#requests)                                   |
-| `sessionRename`        | The agent serves `_session/rename`.                                                                           | [Requests](#requests)                                   |
+| Agent capability | What it tells the client | Section |
+| --- | --- | --- |
+| `sessionBatchGet` | Reads metadata for known session IDs with `_session/batch_get`. | [Batch get](#batch-get) |
+| `sessionArchive` | The agent serves `_session/archive` and `_session/unarchive`. | [Requests](#requests) |
+| `sessionRename` | The agent serves `_session/rename`. | [Requests](#requests) |
 | `sessionListSubscribe` | The agent serves `_session/list/subscribe` and `_session/list/unsubscribe` and sends `_session/list/changes`. | [Session list subscription](#session-list-subscription) |
-| `sessionWorktrees`     | A list row of a thread in a linked Git worktree that Codex made carries `agentWorktree: true`.                | [Agent worktrees](#agent-worktrees)                     |
+| `sessionWorktrees` | A list row of a thread in a linked Git worktree that Codex made carries `agentWorktree: true`. | [Agent worktrees](#agent-worktrees) |
 
 The goal extension has no client capability.
 The agent advertises the `goal` object, and the client uses the control method when it wants to.
@@ -212,28 +208,28 @@ Every payload goes into `_meta.jetbrains.air`, next to `version: 1`.
 The adapter merges a payload into an existing `_meta` and keeps the other namespaces.
 The adapter sends these keys only to AIR. "AIR" in the gate column means that the key needs no AIR capability.
 
-| Key                            | Message and field path                                                                           | Shape                                                              | Gate                                                                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `capabilities`                 | `initialize` response `_meta.jetbrains.air`                                                      | string array                                                       | AIR                                                                                                                                         |
-| `goal`                         | `initialize` response `_meta.jetbrains.air`                                                      | `{version: 1, controlMethod, actions}`                             | AIR                                                                                                                                         |
-| `goal`                         | `session_info_update._meta.jetbrains.air`                                                        | goal snapshot or `null`                                            | AIR                                                                                                                                         |
-| `diffPatch`                    | tool call `content[]` of type `diff`, `_meta.jetbrains.air`                                      | `{version: 1, format: "git_patch", text}`                          | `diffPatch`                                                                                                                                 |
-| `contentDelta`                 | `plan_update._meta.jetbrains.air`                                                                | string                                                             | `planContentDelta`                                                                                                                          |
-| `permission`                   | `session/request_permission` request `_meta.jetbrains.air`                                       | `{version: 1, title, description?}`                                | AIR                                                                                                                                         |
-| `permission`                   | permission option `_meta.jetbrains.air`                                                          | `{version: 1, description}`                                        | AIR                                                                                                                                         |
-| `recommendedValue`             | `model` and `reasoning_effort` config options, `_meta.jetbrains.air`                             | option value string                                                | `recommendedValue`                                                                                                                          |
-| `asyncTasks`                   | `tool_call_update._meta.jetbrains.air`                                                           | `{backgrounded: true}`                                             | `asyncTasks`                                                                                                                                |
-| `agentFileChangeReportRequest` | `session/prompt` request `_meta.jetbrains.air` (client to agent)                                 | `{version: 1, requestId}`                                          | `agentFileChangeReport`                                                                                                                     |
-| `agentFileChangeReport`        | `session_info_update._meta.jetbrains.air`                                                        | report object                                                      | `agentFileChangeReport`                                                                                                                     |
-| `sessionFailure`               | `session_info_update._meta.jetbrains.air` or `PromptResponse._meta.jetbrains.air`                | failure record                                                     | `sessionFailure`                                                                                                                            |
-| `subagent`                     | `tool_call._meta.jetbrains.air` of a `spawnAgent` collaboration item or a subagent activity item | `true`                                                             | AIR                                                                                                                                         |
-| `contextCompaction`            | `tool_call` and `tool_call_update` `_meta.jetbrains.air` of the synthetic compaction tool call   | `{version: 1}`                                                     | AIR, when the client has no ACP compaction                                                                                                  |
-| `fork`                         | `session/fork` request `_meta.jetbrains.air` (client to agent)                                   | `{version: 1, messageId, messageFingerprint?, messageOccurrence?}` | none                                                                                                                                        |
-| `phase`                        | `agent_message_chunk._meta.jetbrains.air`                                                        | Codex message phase string                                         | AIR                                                                                                                                         |
-| `kind`                         | session mode `_meta.jetbrains.air` and `mode` config option value `_meta.jetbrains.air`          | `standard`, `auto_review`, or `full_access`                        | AIR                                                                                                                                         |
-| `commandAction`                | available command `_meta.jetbrains.air`                                                          | command action object                                              | AIR                                                                                                                                         |
-| `skillPath`                    | available command `_meta.jetbrains.air` of a `$skill` command                                    | OS-native absolute path of the skill's `SKILL.md`, not a URI       | AIR                                                                                                                                         |
-| `customAnswer`                 | `request_user_input` note field of an elicitation schema, `_meta.jetbrains.air`                  | `true`                                                             | AIR. The same field also carries the root key `_meta._askUserQuestionCustomAnswer: true`, because released AIR versions read only that key. |
+| Key | Message and field path | Shape | Gate |
+| --- | --- | --- | --- |
+| `capabilities` | `initialize` response `_meta.jetbrains.air` | string array | AIR |
+| `goal` | `initialize` response `_meta.jetbrains.air` | `{version: 1, controlMethod, actions}` | AIR |
+| `goal` | `session_info_update._meta.jetbrains.air` | goal snapshot or `null` | AIR |
+| `diffPatch` | tool call `content[]` of type `diff`, `_meta.jetbrains.air` | `{version: 1, format: "git_patch", text}` | `diffPatch` |
+| `contentDelta` | `plan_update._meta.jetbrains.air` | string | `planContentDelta` |
+| `permission` | `session/request_permission` request `_meta.jetbrains.air` | `{version: 1, title, description?}` | AIR |
+| `permission` | permission option `_meta.jetbrains.air` | `{version: 1, description}` | AIR |
+| `recommendedValue` | `model` and `reasoning_effort` config options, `_meta.jetbrains.air` | option value string | `recommendedValue` |
+| `asyncTasks` | `tool_call_update._meta.jetbrains.air` | `{backgrounded: true}` | `asyncTasks` |
+| `agentFileChangeReportRequest` | `session/prompt` request `_meta.jetbrains.air` (client to agent) | `{version: 1, requestId}` | `agentFileChangeReport` |
+| `agentFileChangeReport` | `session_info_update._meta.jetbrains.air` | report object | `agentFileChangeReport` |
+| `sessionFailure` | `session_info_update._meta.jetbrains.air` or `PromptResponse._meta.jetbrains.air` | failure record | `sessionFailure` |
+| `subagent` | `tool_call._meta.jetbrains.air` of a `spawnAgent` collaboration item or a subagent activity item | `true` | AIR |
+| `contextCompaction` | `tool_call` and `tool_call_update` `_meta.jetbrains.air` of the synthetic compaction tool call | `{version: 1}` | AIR, when the client has no ACP compaction |
+| `fork` | `session/fork` request `_meta.jetbrains.air` (client to agent) | `{version: 1, messageId, messageFingerprint?, messageOccurrence?}` | none |
+| `phase` | `agent_message_chunk._meta.jetbrains.air` | Codex message phase string | AIR |
+| `kind` | session mode `_meta.jetbrains.air` and `mode` config option value `_meta.jetbrains.air` | `standard`, `auto_review`, or `full_access` | AIR |
+| `commandAction` | available command `_meta.jetbrains.air` | command action object | AIR |
+| `skillPath` | available command `_meta.jetbrains.air` of a `$skill` command | OS-native absolute path of the skill's `SKILL.md`, not a URI | AIR |
+| `customAnswer` | `request_user_input` note field of an elicitation schema, `_meta.jetbrains.air` | `true` | AIR. The same field also carries the root key `_meta._askUserQuestionCustomAnswer: true`, because released AIR versions read only that key. |
 
 ## JetBrains shared keys
 
@@ -241,16 +237,16 @@ These keys are JetBrains conventions outside the AIR namespace.
 Other JetBrains ACP clients and adapters use them too.
 The adapter keeps them where they are.
 
-| Key                     | Where                                                                                                                                     | Meaning                                                                                                                                                                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `terminal_output_delta` | client `initialize` `clientCapabilities._meta.terminal_output_delta: true`; tool call `_meta.terminal_output_delta = {terminal_id, data}` | The client appends each chunk of command output. AIR gets it only when it declares it. A client that is not AIR also gets it when it declares no other channel, see [Zed conventions](#zed-conventions).                                         |
-| `terminal_input`        | tool call `_meta.terminal_input = {terminal_id, data}`                                                                                    | Text that was written to the stdin of a running command. It is not output. Only AIR gets it.                                                                                                                                                     |
-| `mcp_output_delta`      | tool call `_meta.mcp_output_delta = {data}`                                                                                               | MCP progress text to append, trimmed. AIR does not get it.                                                                                                                                                                                       |
-| `is_mcp_tool_call`      | tool call `_meta.is_mcp_tool_call: true`                                                                                                  | The tool call is an MCP tool call.                                                                                                                                                                                                               |
-| `is_mcp_tool_approval`  | `session/request_permission` request `_meta.is_mcp_tool_approval: true`                                                                   | The permission request approves an MCP tool call.                                                                                                                                                                                                |
-| `steering`              | `initialize` response `_meta.steering = {supported: true}`                                                                                | The agent accepts `_session/steering` for a running turn; see [session steering](steering.md).                                                                                                                                                   |
-| `quota`                 | `PromptResponse._meta.quota`                                                                                                              | Token usage of the whole turn, the same counts as `PromptResponse.usage`: `token_count` and one `model_usage` entry for the current model, or `null` and `[]` when Codex reported no usage for the prompt, as for a prompt that started no turn. |
-| `authStatus`            | `initialize` response `agentCapabilities._meta.authStatus`                                                                                | The agent pushes `_auth/status_update`. The object carries no payload.                                                                                                                                                                           |
+| Key | Where | Meaning |
+| --- | --- | --- |
+| `terminal_output_delta` | client `initialize` `clientCapabilities._meta.terminal_output_delta: true`; tool call `_meta.terminal_output_delta = {terminal_id, data}` | The client appends each chunk of command output. AIR gets it only when it declares it. A client that is not AIR also gets it when it declares no other channel, see [Zed conventions](#zed-conventions). |
+| `terminal_input` | tool call `_meta.terminal_input = {terminal_id, data}` | Text that was written to the stdin of a running command. It is not output. Only AIR gets it. |
+| `mcp_output_delta` | tool call `_meta.mcp_output_delta = {data}` | MCP progress text to append, trimmed. AIR does not get it. |
+| `is_mcp_tool_call` | tool call `_meta.is_mcp_tool_call: true` | The tool call is an MCP tool call. |
+| `is_mcp_tool_approval` | `session/request_permission` request `_meta.is_mcp_tool_approval: true` | The permission request approves an MCP tool call. |
+| `steering` | `initialize` response `_meta.steering = {supported: true}` | The agent accepts `_session/steering` for a running turn; see [session steering](steering.md). |
+| `quota` | `PromptResponse._meta.quota` | Token usage of the whole turn, the same counts as `PromptResponse.usage`: `token_count` and one `model_usage` entry for the current model, or `null` and `[]` when Codex reported no usage for the prompt, as for a prompt that started no turn. |
+| `authStatus` | `initialize` response `agentCapabilities._meta.authStatus` | The agent pushes `_auth/status_update`. The object carries no payload. |
 
 ## Auth source display
 
@@ -303,15 +299,15 @@ AIR gets this contract. Each fact goes in exactly one field.
 A client that is not AIR keeps the fields of the adapter before this contract,
 see [Codex items and ACP fields](#codex-items-and-acp-fields).
 
-| Fact                                                                     | The only field that carries it                                                                               |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Tool parameters                                                          | `rawInput`, once they are complete, and again only when they change                                          |
-| File text of an edit                                                     | the diff in `content`, a patch when `diffPatch` is negotiated, never also in `rawInput`                      |
-| Result to show (review verdict, tool text)                               | `content`                                                                                                    |
-| Result without a display form (MCP result and error, elicitation action) | `rawOutput`                                                                                                  |
-| Command output                                                           | the chunk channel of a command with a terminal. Read, search, and list output as `rawOutput` text at the end |
-| MCP progress                                                             | none, AIR does not show it                                                                                   |
-| Status, title, kind, locations                                           | the field itself, only when it changes                                                                       |
+| Fact | The only field that carries it |
+| --- | --- |
+| Tool parameters | `rawInput`, once they are complete, and again only when they change |
+| File text of an edit | the diff in `content`, a patch when `diffPatch` is negotiated, never also in `rawInput` |
+| Result to show (review verdict, tool text) | `content` |
+| Result without a display form (MCP result and error, elicitation action) | `rawOutput` |
+| Command output | the chunk channel of a command with a terminal. Read, search, and list output as `rawOutput` text at the end |
+| MCP progress | none, AIR does not show it |
+| Status, title, kind, locations | the field itself, only when it changes |
 
 Rules:
 
@@ -346,25 +342,25 @@ The table shows the fields that differ between AIR and the other clients.
 A field that the table does not name is the same for every client.
 The other clients get the same fields as before the AIR extensions.
 
-| Codex item                                                          | AIR                                                                                                                                                                                                                                                                                                                                                        | Other clients                                                                                                                                                                        |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `commandExecution` with one `read`, `search`, or `listFiles` action | `kind` `read` or `search`, a title that names the path or the query, `locations`. No terminal. The whole output is `rawOutput` text at completion, from `aggregatedOutput`. No chunks.                                                                                                                                                                     | The same start. The output follows [Zed conventions](#zed-conventions): chunks, or `content` text at completion.                                                                     |
-| Any other `commandExecution`                                        | `kind: execute`, `title` is the command, `rawInput = {command, cwd}`, a terminal. Output streams to `_meta.terminal_output_delta`. Stdin goes to `_meta.terminal_input`. The end sends `_meta.terminal_exit`. With `asyncTasks`, a command that keeps running gets `_meta.jetbrains.air.asyncTasks.backgrounded`.                                          | The same start. Output and stdin follow [Zed conventions](#zed-conventions). The output goes only to the chunks.                                                                     |
-| `fileChange`                                                        | `kind: edit`, `title: "Editing files"`. With `diffPatch`, one `diff` block per changed file carries a Git patch. Without a patch, see [Fallback](#fallback): one block per hunk of an update, the whole text of an added or a deleted file. The block has `_meta.kind` `add`, `update`, or `delete`.                                                       | The same, without a patch.                                                                                                                                                           |
-| `mcpToolCall`                                                       | `kind: execute`, `title: "mcp.<server>.<tool>"`, `rawInput = {server, tool, arguments}`, `_meta.is_mcp_tool_call`. No `content`. `rawOutput = {result, error}` with the whole Codex result and error. AIR shows the text of `result` and `error.message`. No progress.                                                                                     | The same. The progress text goes to `_meta.mcp_output_delta`, trimmed.                                                                                                               |
-| `dynamicToolCall`                                                   | `name`, `kind: execute`, `title` is the tool, `rawInput = {arguments}`. The content items go to `content`.                                                                                                                                                                                                                                                 | The same.                                                                                                                                                                            |
-| `collabAgentToolCall`, without native subagent sessions             | `kind: other`, `title` is the Codex tool name, `rawInput` holds the prompt, `senderThreadId`, `receiverThreadIds`, `agentsStates`, the model, and the effort. AIR recognizes a collaboration tool call by these three keys. Only `spawnAgent` gets `_meta.jetbrains.air.subagent: true`. Without `rawInputRendering`, one copy of the prompt in `content`. | `rawInput` also holds the Codex `status`. No `rawOutput`, no `content`, no `_meta`.                                                                                                  |
-| `subAgentActivity`, without native subagent sessions                | `kind: other`, a title such as `Start subagent <name>`, `rawInput = {agentThreadId, agentPath, activityKind}`, `_meta.jetbrains.air.subagent: true`.                                                                                                                                                                                                       | The same, without `_meta`.                                                                                                                                                           |
-| Guardian approval review                                            | `toolCallId: guardian_assessment:<reviewId>`, `kind: think`, `title: "Guardian Review"`, `rawInput = {action}`. The verdict goes to `content`. Without `rawInputRendering`, one `Action: ...` text in `content`.                                                                                                                                           | One text in `content` with the status, the action, the risk, the authorization, and the rationale. The start has the whole Codex event in `rawInput`, a later report in `rawOutput`. |
-| MCP elicitation shown as a permission                               | A standalone tool call with `rawInput = {serverName, description, schema}` or `{serverName, description, url}`. Without `rawInputRendering`, one copy of the question in `content`.                                                                                                                                                                        | The same, with the question in `content`.                                                                                                                                            |
-| `webSearch`                                                         | `kind: search`, a title that names the query or the page, `rawInput = {query, action}`.                                                                                                                                                                                                                                                                    | A live report has `rawInput = {type, id, query, action}`.                                                                                                                            |
-| `imageGeneration`                                                   | `kind: other`, `title: "Image generation"`. The revised prompt and the image go to `content`. A saved image without data goes to `content` as a resource link.                                                                                                                                                                                             | The start has `rawInput = {id}`. The end has `rawOutput = {status, revisedPrompt, result, savedPath}`, and no resource link.                                                         |
-| `plan` item (the Markdown plan of plan mode)                        | With `planContentDelta`, appended text in `plan_update`.                                                                                                                                                                                                                                                                                                   | `plan_update` snapshots when the client shows plans. Otherwise the whole plan in one `agent_message_chunk` when the plan item completes.                                             |
-| Turn plan (`turn/plan/updated`)                                     | standard `plan` with entries                                                                                                                                                                                                                                                                                                                               | The same.                                                                                                                                                                            |
-| `contextCompaction`                                                 | `compaction_update` when the client declares `session.compaction`. Otherwise a synthetic tool call with `_meta.jetbrains.air.contextCompaction`.                                                                                                                                                                                                           | The same, without `_meta`.                                                                                                                                                           |
-| `agentMessage`                                                      | `agent_message_chunk` with `_meta.jetbrains.air.phase` when Codex reports a phase.                                                                                                                                                                                                                                                                         | No `_meta`.                                                                                                                                                                          |
-| Command, file change, or sandbox permission request                 | See [Tool call of the request](#tool-call-of-the-request).                                                                                                                                                                                                                                                                                                 | `kind`, `status: pending`, and a generic title such as `Run command` or `Edit files`, also for a started tool call. No `_meta`.                                                      |
-| `imageView`, fuzzy search, MCP startup                              | standard shape. A fuzzy search that finds no file sends `locations: []`.                                                                                                                                                                                                                                                                                   | The same.                                                                                                                                                                            |
+| Codex item | AIR | Other clients |
+| --- | --- | --- |
+| `commandExecution` with one `read`, `search`, or `listFiles` action | `kind` `read` or `search`, a title that names the path or the query, `locations`. No terminal. The whole output is `rawOutput` text at completion, from `aggregatedOutput`. No chunks. | The same start. The output follows [Zed conventions](#zed-conventions): chunks, or `content` text at completion. |
+| Any other `commandExecution` | `kind: execute`, `title` is the command, `rawInput = {command, cwd}`, a terminal. Output streams to `_meta.terminal_output_delta`. Stdin goes to `_meta.terminal_input`. The end sends `_meta.terminal_exit`. With `asyncTasks`, a command that keeps running gets `_meta.jetbrains.air.asyncTasks.backgrounded`. | The same start. Output and stdin follow [Zed conventions](#zed-conventions). The output goes only to the chunks. |
+| `fileChange` | `kind: edit`, `title: "Editing files"`. With `diffPatch`, one `diff` block per changed file carries a Git patch. Without a patch, see [Fallback](#fallback): one block per hunk of an update, the whole text of an added or a deleted file. The block has `_meta.kind` `add`, `update`, or `delete`. | The same, without a patch. |
+| `mcpToolCall` | `kind: execute`, `title: "mcp.<server>.<tool>"`, `rawInput = {server, tool, arguments}`, `_meta.is_mcp_tool_call`. No `content`. `rawOutput = {result, error}` with the whole Codex result and error. AIR shows the text of `result` and `error.message`. No progress. | The same. The progress text goes to `_meta.mcp_output_delta`, trimmed. |
+| `dynamicToolCall` | `name`, `kind: execute`, `title` is the tool, `rawInput = {arguments}`. The content items go to `content`. | The same. |
+| `collabAgentToolCall`, without native subagent sessions | `kind: other`, `title` is the Codex tool name, `rawInput` holds the prompt, `senderThreadId`, `receiverThreadIds`, `agentsStates`, the model, and the effort. AIR recognizes a collaboration tool call by these three keys. Only `spawnAgent` gets `_meta.jetbrains.air.subagent: true`. Without `rawInputRendering`, one copy of the prompt in `content`. | `rawInput` also holds the Codex `status`. No `rawOutput`, no `content`, no `_meta`. |
+| `subAgentActivity`, without native subagent sessions | `kind: other`, a title such as `Start subagent <name>`, `rawInput = {agentThreadId, agentPath, activityKind}`, `_meta.jetbrains.air.subagent: true`. | The same, without `_meta`. |
+| Guardian approval review | `toolCallId: guardian_assessment:<reviewId>`, `kind: think`, `title: "Guardian Review"`, `rawInput = {action}`. The verdict goes to `content`. Without `rawInputRendering`, one `Action: ...` text in `content`. | One text in `content` with the status, the action, the risk, the authorization, and the rationale. The start has the whole Codex event in `rawInput`, a later report in `rawOutput`. |
+| MCP elicitation shown as a permission | A standalone tool call with `rawInput = {serverName, description, schema}` or `{serverName, description, url}`. Without `rawInputRendering`, one copy of the question in `content`. | The same, with the question in `content`. |
+| `webSearch` | `kind: search`, a title that names the query or the page, `rawInput = {query, action}`. | A live report has `rawInput = {type, id, query, action}`. |
+| `imageGeneration` | `kind: other`, `title: "Image generation"`. The revised prompt and the image go to `content`. A saved image without data goes to `content` as a resource link. | The start has `rawInput = {id}`. The end has `rawOutput = {status, revisedPrompt, result, savedPath}`, and no resource link. |
+| `plan` item (the Markdown plan of plan mode) | With `planContentDelta`, appended text in `plan_update`. | `plan_update` snapshots when the client shows plans. Otherwise the whole plan in one `agent_message_chunk` when the plan item completes. |
+| Turn plan (`turn/plan/updated`) | standard `plan` with entries | The same. |
+| `contextCompaction` | `compaction_update` when the client declares `session.compaction`. Otherwise a synthetic tool call with `_meta.jetbrains.air.contextCompaction`. | The same, without `_meta`. |
+| `agentMessage` | `agent_message_chunk` with `_meta.jetbrains.air.phase` when Codex reports a phase. | No `_meta`. |
+| Command, file change, or sandbox permission request | See [Tool call of the request](#tool-call-of-the-request). | `kind`, `status: pending`, and a generic title such as `Run command` or `Edit files`, also for a started tool call. No `_meta`. |
+| `imageView`, fuzzy search, MCP startup | standard shape. A fuzzy search that finds no file sends `locations: []`. | The same. |
 
 ## Diff patch
 
@@ -383,31 +379,31 @@ Patch mode puts the payload at `_meta.jetbrains.air.diffPatch`:
 
 ```json
 {
-    "type": "diff",
-    "path": "/workspace/src/App.ts",
-    "oldText": null,
-    "newText": "",
-    "_meta": {
-        "kind": "update",
-        "jetbrains": {
-            "air": {
-                "version": 1,
-                "diffPatch": {
-                    "version": 1,
-                    "format": "git_patch",
-                    "text": "diff --git a/workspace/src/App.ts b/workspace/src/App.ts\n--- a/workspace/src/App.ts\n+++ b/workspace/src/App.ts\n@@ -1 +1 @@\n-old\n+new\n"
-                }
-            }
+  "type": "diff",
+  "path": "/workspace/src/App.ts",
+  "oldText": null,
+  "newText": "",
+  "_meta": {
+    "kind": "update",
+    "jetbrains": {
+      "air": {
+        "version": 1,
+        "diffPatch": {
+          "version": 1,
+          "format": "git_patch",
+          "text": "diff --git a/workspace/src/App.ts b/workspace/src/App.ts\n--- a/workspace/src/App.ts\n+++ b/workspace/src/App.ts\n@@ -1 +1 @@\n-old\n+new\n"
         }
+      }
     }
+  }
 }
 ```
 
-| Field     | Type    | Meaning                                          |
-| --------- | ------- | ------------------------------------------------ |
-| `version` | integer | Must equal `1`.                                  |
-| `format`  | string  | Must equal `git_patch`.                          |
-| `text`    | string  | One unified Git patch for the file of the block. |
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `version` | integer | Must equal `1`. |
+| `format` | string | Must equal `git_patch`. |
+| `text` | string | One unified Git patch for the file of the block. |
 
 The patch rules:
 
@@ -486,38 +482,30 @@ Every permission request contains:
 
 ```json
 {
-    "sessionId": "session-1",
-    "toolCall": {
-        "toolCallId": "command-7",
-        "kind": "execute",
-        "status": "pending",
-        "title": "Run command",
-        "rawInput": { "command": "npm test", "cwd": "/workspace" }
-    },
-    "options": [
-        {
-            "optionId": "allow_once",
-            "name": "Yes, proceed",
-            "kind": "allow_once"
-        },
-        {
-            "optionId": "cancel",
-            "name": "No, and tell Codex what to do differently",
-            "kind": "reject_once"
+  "sessionId": "session-1",
+  "toolCall": {
+    "toolCallId": "command-7",
+    "kind": "execute",
+    "status": "pending",
+    "title": "Run command",
+    "rawInput": { "command": "npm test", "cwd": "/workspace" }
+  },
+  "options": [
+    { "optionId": "allow_once", "name": "Yes, proceed", "kind": "allow_once" },
+    { "optionId": "cancel", "name": "No, and tell Codex what to do differently", "kind": "reject_once" }
+  ],
+  "_meta": {
+    "jetbrains": {
+      "air": {
+        "version": 1,
+        "permission": {
+          "version": 1,
+          "title": "Run command?",
+          "description": "The test suite needs to run outside the current sandbox."
         }
-    ],
-    "_meta": {
-        "jetbrains": {
-            "air": {
-                "version": 1,
-                "permission": {
-                    "version": 1,
-                    "title": "Run command?",
-                    "description": "The test suite needs to run outside the current sandbox."
-                }
-            }
-        }
+      }
     }
+  }
 }
 ```
 
@@ -527,12 +515,12 @@ The adapter keeps the exact Codex decision of each option and returns that value
 
 ### Presentation record
 
-| Field         | Level           | Required | Meaning                                                      |
-| ------------- | --------------- | -------- | ------------------------------------------------------------ |
-| `version`     | request, option | yes      | Must equal `1`.                                              |
-| `title`       | request         | yes      | The approval heading.                                        |
-| `description` | request         | no       | The non-blank reason that Codex supplied.                    |
-| `description` | option          | yes      | What the option does. Only MCP elicitation options carry it. |
+| Field | Level | Required | Meaning |
+| --- | --- | --- | --- |
+| `version` | request, option | yes | Must equal `1`. |
+| `title` | request | yes | The approval heading. |
+| `description` | request | no | The non-blank reason that Codex supplied. |
+| `description` | option | yes | What the option does. Only MCP elicitation options carry it. |
 
 The request titles are `Run command?`, `Allow network access?`, `Make edits?`, and `Grant permissions?`.
 The adapter does not copy action payloads into the metadata.
@@ -567,15 +555,15 @@ The adapter does not present `grantRoot` as though every file below it changes.
 When Codex sends `availableDecisions`, that ordered list is authoritative.
 An older Codex version that omits the list gets the native Codex fallback decision set.
 
-| Codex decision                  | ACP option kind | Meaning                                                               |
-| ------------------------------- | --------------- | --------------------------------------------------------------------- |
-| `accept`                        | `allow_once`    | Approve this execution once.                                          |
-| `acceptForSession`              | `allow_always`  | Approve the command, host, or requested permissions for this session. |
-| `acceptWithExecpolicyAmendment` | `allow_always`  | Approve and install the exact proposed command-prefix rule.           |
-| network amendment with `allow`  | `allow_always`  | Approve and install the exact proposed allow rule.                    |
-| network amendment with `deny`   | `reject_always` | Reject and install the exact proposed deny rule.                      |
-| `decline`                       | `reject_once`   | Reject this execution and continue the turn.                          |
-| `cancel`                        | `reject_once`   | Reject this execution and stop the pending operation.                 |
+| Codex decision | ACP option kind | Meaning |
+| --- | --- | --- |
+| `accept` | `allow_once` | Approve this execution once. |
+| `acceptForSession` | `allow_always` | Approve the command, host, or requested permissions for this session. |
+| `acceptWithExecpolicyAmendment` | `allow_always` | Approve and install the exact proposed command-prefix rule. |
+| network amendment with `allow` | `allow_always` | Approve and install the exact proposed allow rule. |
+| network amendment with `deny` | `reject_always` | Reject and install the exact proposed deny rule. |
+| `decline` | `reject_once` | Reject this execution and continue the turn. |
+| `cancel` | `reject_once` | Reject this execution and stop the pending operation. |
 
 The adapter returns an exec-policy or network amendment as the exact structured value that Codex supplied.
 It rejects an amendment that does not match the proposal.
@@ -585,11 +573,11 @@ The adapter does not invent replacement choices.
 
 ### File changes
 
-| ACP option                                  | Kind           | Codex decision     |
-| ------------------------------------------- | -------------- | ------------------ |
-| `Yes, proceed`                              | `allow_once`   | `accept`           |
-| `Yes, and don't ask again for these files`  | `allow_always` | `acceptForSession` |
-| `No, and tell Codex what to do differently` | `reject_once`  | `cancel`           |
+| ACP option | Kind | Codex decision |
+| --- | --- | --- |
+| `Yes, proceed` | `allow_once` | `accept` |
+| `Yes, and don't ask again for these files` | `allow_always` | `acceptForSession` |
+| `No, and tell Codex what to do differently` | `reject_once` | `cancel` |
 
 The protocol enum also contains `decline`.
 The native Codex file-change prompt does not offer it, so the adapter does not offer it.
@@ -600,12 +588,12 @@ Codex can request a structured network and filesystem permission profile.
 The adapter returns only permissions from that requested profile.
 Codex intersects the response with the original request.
 
-| User choice                                 | Scope     | `strictAutoReview` |
-| ------------------------------------------- | --------- | ------------------ |
-| Grant for this turn                         | `turn`    | `false`            |
-| Grant for this turn with strict auto review | `turn`    | `true`             |
-| Grant for this session                      | `session` | `false`            |
-| Continue without permissions                | `turn`    | `false`            |
+| User choice | Scope | `strictAutoReview` |
+| --- | --- | --- |
+| Grant for this turn | `turn` | `false` |
+| Grant for this turn with strict auto review | `turn` | `true` |
+| Grant for this session | `session` | `false` |
+| Continue without permissions | `turn` | `false` |
 
 Strict auto review is turn-scoped on purpose.
 It sends the later actions of that turn through Codex review, also when the sandbox policy allows them.
@@ -619,13 +607,13 @@ The client then gets the same decision matrix as the native Codex UI.
 Codex offers durable choices through the request `_meta.persist`.
 The adapter never creates a persistence scope that the server did not offer.
 
-| Condition                      | ACP option               | MCP response                               |
-| ------------------------------ | ------------------------ | ------------------------------------------ |
-| always                         | `Allow`                  | `action: accept`                           |
-| `persist` contains `session`   | `Allow for this session` | `action: accept`, `_meta.persist: session` |
-| `persist` contains `always`    | `Always allow`           | `action: accept`, `_meta.persist: always`  |
-| request is not a tool approval | `Deny`                   | `action: decline`                          |
-| always                         | `Cancel`                 | `action: cancel`                           |
+| Condition | ACP option | MCP response |
+| --- | --- | --- |
+| always | `Allow` | `action: accept` |
+| `persist` contains `session` | `Allow for this session` | `action: accept`, `_meta.persist: session` |
+| `persist` contains `always` | `Always allow` | `action: accept`, `_meta.persist: always` |
+| request is not a tool approval | `Deny` | `action: decline` |
+| always | `Cancel` | `action: cancel` |
 
 A tool-call approval has no `Deny` choice. Cancellation stops the tool call.
 For an ordinary MCP request, `Deny` declines the request and the turn continues. `Cancel` stops the request.
@@ -682,13 +670,9 @@ When a completed plan differs from the streamed text, the adapter sends a snapsh
 
 ```json
 {
-    "sessionUpdate": "plan_update",
-    "plan": { "type": "markdown", "planId": "item-1", "content": "" },
-    "_meta": {
-        "jetbrains": {
-            "air": { "version": 1, "contentDelta": "\n3. Run the tests." }
-        }
-    }
+  "sessionUpdate": "plan_update",
+  "plan": { "type": "markdown", "planId": "item-1", "content": "" },
+  "_meta": { "jetbrains": { "air": { "version": 1, "contentDelta": "\n3. Run the tests." } } }
 }
 ```
 
@@ -717,11 +701,7 @@ Another client gets no goal key and no `session_info_update` for a goal.
 The `initialize` response advertises the goal support:
 
 ```json
-{
-    "version": 1,
-    "controlMethod": "_session/goal",
-    "actions": ["set", "pause", "resume", "clear"]
-}
+{ "version": 1, "controlMethod": "_session/goal", "actions": ["set", "pause", "resume", "clear"] }
 ```
 
 `actions` is the subset of `set`, `pause`, `resume`, and `clear` that the adapter supports.
@@ -741,14 +721,14 @@ Clearing a goal publishes `goal: null`.
 
 ```json
 {
-    "objective": "Ship the change",
-    "status": "active",
-    "createdAt": 1710000000000,
-    "updatedAt": 1710000012000,
-    "tokenBudget": null,
-    "tokensUsed": 42,
-    "timeUsedSeconds": 12,
-    "controlMethod": "_session/goal"
+  "objective": "Ship the change",
+  "status": "active",
+  "createdAt": 1710000000000,
+  "updatedAt": 1710000012000,
+  "tokenBudget": null,
+  "tokensUsed": 42,
+  "timeUsedSeconds": 12,
+  "controlMethod": "_session/goal"
 }
 ```
 
@@ -784,11 +764,7 @@ It applies to the `model` and `reasoning_effort` config selectors.
 When the client declares `recommendedValue`, a selector with a recommendation carries:
 
 ```json
-{
-    "_meta": {
-        "jetbrains": { "air": { "version": 1, "recommendedValue": "medium" } }
-    }
-}
+{ "_meta": { "jetbrains": { "air": { "version": 1, "recommendedValue": "medium" } } } }
 ```
 
 - The recommended model is the available model that Codex marks `isDefault`.
@@ -845,18 +821,7 @@ The version 1 `agentFileChangeReport` extension adds that list.
 The client declares `agentFileChangeReport` and adds this object to `session/prompt`:
 
 ```json
-{
-    "_meta": {
-        "jetbrains": {
-            "air": {
-                "agentFileChangeReportRequest": {
-                    "version": 1,
-                    "requestId": "a-unique-request-id"
-                }
-            }
-        }
-    }
-}
+{ "_meta": { "jetbrains": { "air": { "agentFileChangeReportRequest": { "version": 1, "requestId": "a-unique-request-id" } } } } }
 ```
 
 The request object must have exactly the keys `version` and `requestId`, and `version` must be `1`.
@@ -869,23 +834,23 @@ The adapter sends one `session_info_update` before the `PromptResponse`:
 
 ```json
 {
-    "sessionUpdate": "session_info_update",
-    "_meta": {
-        "jetbrains": {
-            "air": {
-                "version": 1,
-                "agentFileChangeReport": {
-                    "version": 1,
-                    "requestId": "a-unique-request-id",
-                    "status": "reported",
-                    "paths": ["/workspace/src/App.ts"],
-                    "declaredComplete": false,
-                    "truncated": false,
-                    "uncertainty": "Codex turn diffs may omit same-content renames and changes made outside apply_patch, including shell commands, version-control commands, generators, and child processes."
-                }
-            }
+  "sessionUpdate": "session_info_update",
+  "_meta": {
+    "jetbrains": {
+      "air": {
+        "version": 1,
+        "agentFileChangeReport": {
+          "version": 1,
+          "requestId": "a-unique-request-id",
+          "status": "reported",
+          "paths": ["/workspace/src/App.ts"],
+          "declaredComplete": false,
+          "truncated": false,
+          "uncertainty": "Codex turn diffs may omit same-content renames and changes made outside apply_patch, including shell commands, version-control commands, generators, and child processes."
         }
+      }
     }
+  }
 }
 ```
 
@@ -908,12 +873,12 @@ The adapter therefore sends `declaredComplete: false` and explains the limit in 
 
 The adapter sends `status: "unavailable"` with a `reason`:
 
-| Reason          | Cause                     |
-| --------------- | ------------------------- |
-| `cancelled`     | The prompt was cancelled. |
+| Reason | Cause |
+| --- | --- |
+| `cancelled` | The prompt was cancelled. |
 | `invalidOutput` | The turn diff is invalid. |
-| `notReported`   | No provider turn ran.     |
-| `providerError` | The provider failed.      |
+| `notReported` | No provider turn ran. |
+| `providerError` | The provider failed. |
 
 The `timeout` reason stays in the version 1 wire contract for backward compatibility. This adapter does not produce it.
 A report failure does not change the prompt outcome.
@@ -943,33 +908,33 @@ It does not go out as a `sessionFailure` record. Errors still use `sessionFailur
 
 ```json
 {
-    "_meta": {
-        "jetbrains": {
-            "air": {
-                "version": 1,
-                "sessionFailure": {
-                    "id": "turn-7:error",
-                    "revision": 1,
-                    "category": "limit",
-                    "severity": "error",
-                    "title": "You've hit your usage limit.",
-                    "actions": []
-                }
-            }
+  "_meta": {
+    "jetbrains": {
+      "air": {
+        "version": 1,
+        "sessionFailure": {
+          "id": "turn-7:error",
+          "revision": 1,
+          "category": "limit",
+          "severity": "error",
+          "title": "You've hit your usage limit.",
+          "actions": []
         }
+      }
     }
+  }
 }
 ```
 
-| Field      | Required | Type                 | Meaning                                       |
-| ---------- | -------- | -------------------- | --------------------------------------------- |
-| `id`       | yes      | non-empty string     | Stable identity of one incident.              |
-| `revision` | yes      | positive integer     | Increasing version of that incident.          |
-| `category` | yes      | category             | Broad visual group.                           |
-| `severity` | yes      | `warning` or `error` | Inline warning or error presentation.         |
-| `title`    | yes      | string               | The complete user-facing text.                |
-| `details`  | no       | string               | Long text that does not fit in `title`.       |
-| `actions`  | yes      | ordered string array | Recovery actions that the adapter recommends. |
+| Field | Required | Type | Meaning |
+| --- | --- | --- | --- |
+| `id` | yes | non-empty string | Stable identity of one incident. |
+| `revision` | yes | positive integer | Increasing version of that incident. |
+| `category` | yes | category | Broad visual group. |
+| `severity` | yes | `warning` or `error` | Inline warning or error presentation. |
+| `title` | yes | string | The complete user-facing text. |
+| `details` | no | string | Long text that does not fit in `title`. |
+| `actions` | yes | ordered string array | Recovery actions that the adapter recommends. |
 
 ### Identity and revisions
 
@@ -989,17 +954,17 @@ It does not go out as a `sessionFailure` record. Errors still use `sessionFailur
 
 ### Categories and actions
 
-| Codex condition                                                                                                                          | Category     | Actions                |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ---------------------- |
+| Codex condition | Category | Actions |
+| --- | --- | --- |
 | `httpConnectionFailed`, `responseStreamConnectionFailed`, `responseStreamDisconnected`, `responseTooManyFailedAttempts`, app-server exit | `connection` | `retry`, `new_session` |
-| `rateLimitExceeded`, HTTP 429                                                                                                            | `limit`      | `retry`                |
-| `usageLimitExceeded`                                                                                                                     | `limit`      | none                   |
-| `contextWindowExceeded`, `sessionBudgetExceeded`                                                                                         | `limit`      | `new_session`          |
-| `cyberPolicy`, `misalignmentPolicyViolation`, `badRequest`                                                                               | `request`    | none                   |
-| `serverOverloaded`                                                                                                                       | `service`    | `retry`                |
-| `internalServerError`, an unexpected adapter error                                                                                       | `service`    | `retry`, `new_session` |
-| `threadRollbackFailed`, `sandboxError`, `activeTurnNotSteerable`, `other`, unknown                                                       | `service`    | `retry`                |
-| `warning`, `configWarning`, `deprecationNotice` notifications                                                                            | `unknown`    | none                   |
+| `rateLimitExceeded`, HTTP 429 | `limit` | `retry` |
+| `usageLimitExceeded` | `limit` | none |
+| `contextWindowExceeded`, `sessionBudgetExceeded` | `limit` | `new_session` |
+| `cyberPolicy`, `misalignmentPolicyViolation`, `badRequest` | `request` | none |
+| `serverOverloaded` | `service` | `retry` |
+| `internalServerError`, an unexpected adapter error | `service` | `retry`, `new_session` |
+| `threadRollbackFailed`, `sandboxError`, `activeTurnNotSteerable`, `other`, unknown | `service` | `retry` |
+| `warning`, `configWarning`, `deprecationNotice` notifications | `unknown` | none |
 
 A retry warning (`willRetry: true`) has `severity: warning` and no actions.
 A notice has `severity: warning`.
@@ -1058,21 +1023,7 @@ and [RFD #2161](https://github.com/agentclientprotocol/agent-client-protocol/pul
 The request can carry `_meta.jetbrains.air.list`:
 
 ```json
-{
-    "cwd": "/repo",
-    "cursor": null,
-    "_meta": {
-        "jetbrains": {
-            "air": {
-                "list": {
-                    "limit": 50,
-                    "archived": "unarchived",
-                    "includeWorktrees": false
-                }
-            }
-        }
-    }
-}
+{ "cwd": "/repo", "cursor": null, "_meta": { "jetbrains": { "air": { "list": { "limit": 50, "archived": "unarchived", "includeWorktrees": false } } } } }
 ```
 
 - `limit`: omitted or `null` is `50`. An integer of at least 1 is clamped to `100`; the adapter never answers more
@@ -1080,27 +1031,27 @@ The request can carry `_meta.jetbrains.air.list`:
   with `-32602`.
 - `archived` is a string with three values. Omitted or `null` is `"unarchived"`. Any other value fails with
   `-32602`.
-    - `"unarchived"`: unarchived threads only, one `thread/list` with `archived: false`.
-    - `"archived"`: archived threads only, one `thread/list` with `archived: true`.
-    - `"all"`: unarchived and archived threads in one list, see below.
+  - `"unarchived"`: unarchived threads only, one `thread/list` with `archived: false`.
+  - `"archived"`: archived threads only, one `thread/list` with `archived: true`.
+  - `"all"`: unarchived and archived threads in one list, see below.
 - `includeWorktrees` is a boolean. Omitted or `null` is `false`. Any other value fails with `-32602`.
-    - `false`: `cwd` matches exactly, plus its canonical path when that differs (symlinks).
-    - `true`: also the same relative subdirectory of `cwd` in the primary checkout and in each linked Git
-      worktree: for `<repo>/src/app`, `<worktree>/src/app`. The adapter reads
-      `<git-common-dir>/worktrees/*/gitdir` and never runs Git, as the Codex TUI does. A worktree whose directory is
-      gone is left out. The worktrees of a bare repository count too; the primary checkout is added only when there
-      is one. Each row reports its own real `cwd`.
+  - `false`: `cwd` matches exactly, plus its canonical path when that differs (symlinks).
+  - `true`: also the same relative subdirectory of `cwd` in the primary checkout and in each linked Git
+    worktree: for `<repo>/src/app`, `<worktree>/src/app`. The adapter reads
+    `<git-common-dir>/worktrees/*/gitdir` and never runs Git, as the Codex TUI does. A worktree whose directory is
+    gone is left out. The worktrees of a bare repository count too; the primary checkout is added only when there
+    is one. Each row reports its own real `cwd`.
 - The adapter sends `thread/list`
   `{cwd, limit, sortKey: "recency_at", archived, sourceKinds: [], modelProviders: [], useStateDbOnly: true, cursor}`.
-    - `cwd` is a string for a single path and an array otherwise.
-    - `archived` of `thread/list` is a boolean: `false` for `"unarchived"`, `true` for `"archived"`.
-    - Codex lists unarchived and archived threads apart, so `"all"` sends one request with `archived: false` and one
-      with `archived: true` at the same time, and merges the two by recency, ties unarchived first. A row is answered
-      only when no unread Codex page can hold a newer one. An empty Codex page that has a cursor tells nothing about
-      that, so the adapter reads on in that list first; these reads count against the budget below.
-    - `sourceKinds: []` means the interactive sources, so `codex exec` runs and subagent threads are not listed.
-    - `modelProviders: []` means every provider, whatever the login of the agent.
-    - Codex deletes a thread with `thread/delete`, so a deleted thread is never listed, whatever `archived` is.
+  - `cwd` is a string for a single path and an array otherwise.
+  - `archived` of `thread/list` is a boolean: `false` for `"unarchived"`, `true` for `"archived"`.
+  - Codex lists unarchived and archived threads apart, so `"all"` sends one request with `archived: false` and one
+    with `archived: true` at the same time, and merges the two by recency, ties unarchived first. A row is answered
+    only when no unread Codex page can hold a newer one. An empty Codex page that has a cursor tells nothing about
+    that, so the adapter reads on in that list first; these reads count against the budget below.
+  - `sourceKinds: []` means the interactive sources, so `codex exec` runs and subagent threads are not listed.
+  - `modelProviders: []` means every provider, whatever the login of the agent.
+  - Codex deletes a thread with `thread/delete`, so a deleted thread is never listed, whatever `archived` is.
 - A relative `cwd` keeps the basename filter of the old path: the adapter sends the requests above without `cwd`
   and with `limit: 100`, filters each page by the basename of `Thread.cwd`, gathers the matches of several Codex
   pages up to `limit` and cuts them to it.
@@ -1135,15 +1086,15 @@ The request can carry `_meta.jetbrains.air.list`:
 
 Every row carries these fields in `_meta.jetbrains.air`; all but `archived` only when known:
 
-| Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `archived`        | `true` for a thread from the archived Codex list, `false` otherwise, whatever the `archived` filter. Always present.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `lastPromptAt`    | ISO time of `Thread.recencyAt`: Codex moves it when a turn starts and orders threads by it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `model`           | `Thread.model`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `forkedFrom`      | The thread it was forked from: `Thread.forkedFromId` when Codex gives it, which `thread/read` does and `thread/list` does not. Otherwise the adapter asks `thread/read` without turns in the background, so a list never waits for it: the first row of a fork can come without `forkedFrom`. A found parent is kept for the thread's life. Codex can answer from its state DB without the rollout and then gives no parent, so a thread without one is read again once its `updatedAt` changes. A subscription that runs when the read ends gets the row again; otherwise the next `session/list` has it. |
-| `state`           | Only for a thread that this adapter has loaded, see [Row state](#row-state): `requires_action`, `reviewing`, `running`, `error` or `idle`. Omitted otherwise, never `unknown`.                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `lastTurnEndedAt` | ISO time of the last `turn/completed` that this adapter saw for a session of this connection. Forgotten when the thread is deleted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `agentWorktree`   | `true` when the cwd of the thread lies in a linked Git worktree that Codex made, see [Agent worktrees](#agent-worktrees). Omitted otherwise, never `false`.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Field | Value |
+| --- | --- |
+| `archived` | `true` for a thread from the archived Codex list, `false` otherwise, whatever the `archived` filter. Always present. |
+| `lastPromptAt` | ISO time of `Thread.recencyAt`: Codex moves it when a turn starts and orders threads by it. |
+| `model` | `Thread.model`. |
+| `forkedFrom` | The thread it was forked from: `Thread.forkedFromId` when Codex gives it, which `thread/read` does and `thread/list` does not. Otherwise the adapter asks `thread/read` without turns in the background, so a list never waits for it: the first row of a fork can come without `forkedFrom`. A found parent is kept for the thread's life. Codex can answer from its state DB without the rollout and then gives no parent, so a thread without one is read again once its `updatedAt` changes. A subscription that runs when the read ends gets the row again; otherwise the next `session/list` has it. |
+| `state` | Only for a thread that this adapter has loaded, see [Row state](#row-state): `requires_action`, `reviewing`, `running`, `error` or `idle`. Omitted otherwise, never `unknown`. |
+| `lastTurnEndedAt` | ISO time of the last `turn/completed` that this adapter saw for a session of this connection. Forgotten when the thread is deleted. |
+| `agentWorktree` | `true` when the cwd of the thread lies in a linked Git worktree that Codex made, see [Agent worktrees](#agent-worktrees). Omitted otherwise, never `false`. |
 
 The adapter sends no `cost`: Codex reports none.
 
@@ -1153,17 +1104,7 @@ A row whose `Thread.cwd` is the root of a linked Git worktree, or a directory in
 `agentWorktree: true` when Codex made that worktree:
 
 ```json
-{
-    "sessionId": "…",
-    "cwd": "/repo-worktrees/fix-login/src",
-    "title": "…",
-    "updatedAt": "…",
-    "_meta": {
-        "jetbrains": {
-            "air": { "version": 1, "archived": false, "agentWorktree": true }
-        }
-    }
-}
+{ "sessionId": "…", "cwd": "/repo-worktrees/fix-login/src", "title": "…", "updatedAt": "…", "_meta": { "jetbrains": { "air": { "version": 1, "archived": false, "agentWorktree": true } } } }
 ```
 
 - Codex made a worktree when its own Git directory, `<main>/.git/worktrees/<name>/`, holds the regular file
@@ -1172,18 +1113,18 @@ A row whose `Thread.cwd` is the root of a linked Git worktree, or a directory in
 - Only the existence of the file counts, not `ownerThreadId`: several threads can work in one Codex worktree, and
   each of their rows is marked.
 - The rule gives the same answer as AIR's native Codex provider (`codexMadeWorktreeDirectoryOf`), step by step:
-    - The nearest `.git` entry at or above the cwd decides. A `.git` directory, with or without `HEAD`, is a main
-      worktree, which is never marked; a `.git` file, or a link to one, is read as `gitdir: <main>/.git/worktrees/<name>`;
-      any other entry, such as a broken link, marks nothing.
-    - The common Git directory is what the `commondir` file of that Git directory names, or `<gitdir>/../..` without
-      the file. It must be a directory named `.git`: the worktrees of a bare repository are not marked.
-    - The worktrees Codex made are the parents of the `.git` files that the `gitdir` files of the marked Git directories
-      of `<main>/.git/worktrees/` name, when they are directories. A row is marked when its cwd is one of them or a path
-      below one, compared by whole names, ignoring case on Windows. So a worktree whose `gitdir` file names another
-      directory marks only the rows under that directory.
-    - Paths are normalized but not resolved to their real path, so the cwd is matched as Codex stored it, the string
-      that AIR matches too. A cwd that reaches the worktree through a symbolic link is not marked; a cwd below the
-      worktree that no longer exists is.
+  - The nearest `.git` entry at or above the cwd decides. A `.git` directory, with or without `HEAD`, is a main
+    worktree, which is never marked; a `.git` file, or a link to one, is read as `gitdir: <main>/.git/worktrees/<name>`;
+    any other entry, such as a broken link, marks nothing.
+  - The common Git directory is what the `commondir` file of that Git directory names, or `<gitdir>/../..` without
+    the file. It must be a directory named `.git`: the worktrees of a bare repository are not marked.
+  - The worktrees Codex made are the parents of the `.git` files that the `gitdir` files of the marked Git directories
+    of `<main>/.git/worktrees/` name, when they are directories. A row is marked when its cwd is one of them or a path
+    below one, compared by whole names, ignoring case on Windows. So a worktree whose `gitdir` file names another
+    directory marks only the rows under that directory.
+  - Paths are normalized but not resolved to their real path, so the cwd is matched as Codex stored it, the string
+    that AIR matches too. A cwd that reaches the worktree through a symbolic link is not marked; a cwd below the
+    worktree that no longer exists is.
 - The adapter reads the Git administrative files and never runs Git. Like AIR, it keeps what it read for a minute:
   the main worktree per cwd and the worktrees Codex made per main worktree.
 - A `codex-thread.json` written after a row went out shows with the next change of that thread or the next list read,
@@ -1212,12 +1153,12 @@ A thread that is not loaded here has no `state`. A change of `state` is a row ch
 
 ### Requests
 
-| Method               | Params               | Codex call                                       |
-| -------------------- | -------------------- | ------------------------------------------------ |
-| `_session/rename`    | `{sessionId, title}` | `thread/name/set`.                               |
-| `_session/archive`   | `{sessionId}`        | `thread/archive`. A loaded session closes first. |
-| `_session/unarchive` | `{sessionId}`        | `thread/unarchive`.                              |
-| `session/delete`     | `{sessionId}`        | `thread/delete`. A loaded session closes first.  |
+| Method | Params | Codex call |
+| --- | --- | --- |
+| `_session/rename` | `{sessionId, title}` | `thread/name/set`. |
+| `_session/archive` | `{sessionId}` | `thread/archive`. A loaded session closes first. |
+| `_session/unarchive` | `{sessionId}` | `thread/unarchive`. |
+| `session/delete` | `{sessionId}` | `thread/delete`. A loaded session closes first. |
 
 - Each request answers `{}` and works for a thread that is not loaded.
 - The writes of one session run one after another: rename, archive, unarchive, delete and the automatic title.
@@ -1231,22 +1172,22 @@ A thread that is not loaded here has no `state`. A change of `state` is a row ch
 - Codex does not rename an archived thread. The rename then fails with `-32600` and `data.reason: "archived"`,
   and does not unarchive the thread.
 - Archiving a session stops it, as `thread/archive` unloads a loaded thread. Unarchive loads nothing.
-    - Archive of a session that is open here closes it first, as `session/close` does: it interrupts the running
-      turn, ends the pending prompt and its interactions, and unsubscribes the thread. Then it sends `thread/archive`. An open of the session that starts meanwhile fails.
-    - The session is then closed: a later `session/prompt` fails as for a closed session. To work in it again, the
-      client unarchives it and loads it.
-    - If `thread/archive` then fails, the session stays closed and unarchived.
-    - Codex does not load an archived thread, so a session open here is not archived and unarchive just succeeds.
-      It keeps running.
-    - Both are idempotent. Codex fails them for a thread already in the target state, so the adapter reads
-      `Thread.path` with `thread/read`: an archived rollout is under `<CODEX_HOME>/archived_sessions/`.
-    - After a change of a session that was open on this connection, the adapter sends `session_info_update` with
-      `_meta.jetbrains.air.archived`. For an archive it comes after the close, as the last update of the session.
-    - `session/load` and `session/resume` of an archived thread fail, and do not unarchive it.
+  - Archive of a session that is open here closes it first, as `session/close` does: it interrupts the running
+    turn, ends the pending prompt and its interactions, and unsubscribes the thread. Then it sends `thread/archive`. An open of the session that starts meanwhile fails.
+  - The session is then closed: a later `session/prompt` fails as for a closed session. To work in it again, the
+    client unarchives it and loads it.
+  - If `thread/archive` then fails, the session stays closed and unarchived.
+  - Codex does not load an archived thread, so a session open here is not archived and unarchive just succeeds.
+    It keeps running.
+  - Both are idempotent. Codex fails them for a thread already in the target state, so the adapter reads
+    `Thread.path` with `thread/read`: an archived rollout is under `<CODEX_HOME>/archived_sessions/`.
+  - After a change of a session that was open on this connection, the adapter sends `session_info_update` with
+    `_meta.jetbrains.air.archived`. For an archive it comes after the close, as the last update of the session.
+  - `session/load` and `session/resume` of an archived thread fail, and do not unarchive it.
 - Errors:
-    - A thread that another Codex process holds fails with the `thread_active_writer` reason in `data.reason`.
-    - A thread that Codex does not have, or has deleted, fails with `-32002`, as does a thread that `thread/read`
-      shows without a rollout. Unarchive never brings back a deleted thread.
+  - A thread that another Codex process holds fails with the `thread_active_writer` reason in `data.reason`.
+  - A thread that Codex does not have, or has deleted, fails with `-32002`, as does a thread that `thread/read`
+    shows without a rollout. Unarchive never brings back a deleted thread.
 - Without `sessionIndex` the three `_session/*` methods answer method-not-found, and `session/delete` keeps
   archiving the thread: old AIR builds send `session/delete` for "Done". Threads they closed that way show as
   archived to a `sessionIndex` client.
@@ -1266,30 +1207,28 @@ or worktrees are eligible; the client applies display filters.
 
 ```json
 {
-    "jsonrpc": "2.0",
-    "id": 7,
-    "method": "_session/batch_get",
-    "params": { "sessionIds": ["oldA", "oldB", "oldC"] }
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "_session/batch_get",
+  "params": { "sessionIds": ["oldA", "oldB", "oldC"] }
 }
 ```
 
 ```json
 {
-    "jsonrpc": "2.0",
-    "id": 7,
-    "result": {
-        "sessions": [
-            {
-                "sessionId": "oldA",
-                "cwd": "/project",
-                "title": "Fix the build",
-                "updatedAt": "2026-01-01T00:00:00.000Z",
-                "_meta": {
-                    "jetbrains": { "air": { "version": 1, "archived": false } }
-                }
-            }
-        ]
-    }
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "sessions": [
+      {
+        "sessionId": "oldA",
+        "cwd": "/project",
+        "title": "Fix the build",
+        "updatedAt": "2026-01-01T00:00:00.000Z",
+        "_meta": { "jetbrains": { "air": { "version": 1, "archived": false } } }
+      }
+    ]
+  }
 }
 ```
 
@@ -1396,23 +1335,23 @@ How the agent sees changes:
 
 The names and the semantics are the RFDs'. The transport differs:
 
-| Extension                                                                            | RFD                                                                                                                                                                                                                              |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| capability `sessionBatchGet`, `_session/batch_get`                                   | none                                                                                                                                                                                                                             |
-| capability `sessionIndex` in `_meta.jetbrains.air.capabilities`                      | `sessionCapabilities.list.limit`                                                                                                                                                                                                 |
-| agent capability `sessionArchive`                                                    | agent capability `archive` (#2161): `sessionCapabilities.archive`, `capabilities.session.archive` in v2                                                                                                                          |
-| agent capability `sessionRename`                                                     | the rename capability of RFD #1987, which it spells `sessionCapabilities.setTitle`                                                                                                                                               |
-| `_meta.jetbrains.air.list.limit`                                                     | `session/list` `limit`                                                                                                                                                                                                           |
-| `_meta.jetbrains.air.list.includeWorktrees`                                          | `session/list` `includeWorktrees`                                                                                                                                                                                                |
-| `_meta.jetbrains.air.list.archived`: `"unarchived"`, `"archived"` or `"all"`         | `session/list` `archived` (#2161)                                                                                                                                                                                                |
-| `SessionInfo.updatedAt` = `Thread.updatedAt`                                         | `SessionInfo.updatedAt`, the last activity of any kind                                                                                                                                                                           |
-| `SessionInfo._meta.jetbrains.air.lastPromptAt` = `Thread.recencyAt`, the order key   | `SessionInfo.lastPromptAt`; the list order `lastPromptAt ?? updatedAt`                                                                                                                                                           |
-| `SessionInfo._meta.jetbrains.air.{model, forkedFrom, state, lastTurnEndedAt}`        | the `SessionInfo` fields of the same names                                                                                                                                                                                       |
-| `SessionInfo._meta.jetbrains.air.archived`                                           | `SessionInfo.archived` (#2161)                                                                                                                                                                                                   |
+| Extension | RFD |
+| --- | --- |
+| capability `sessionBatchGet`, `_session/batch_get` | none |
+| capability `sessionIndex` in `_meta.jetbrains.air.capabilities` | `sessionCapabilities.list.limit` |
+| agent capability `sessionArchive` | agent capability `archive` (#2161): `sessionCapabilities.archive`, `capabilities.session.archive` in v2 |
+| agent capability `sessionRename` | the rename capability of RFD #1987, which it spells `sessionCapabilities.setTitle` |
+| `_meta.jetbrains.air.list.limit` | `session/list` `limit` |
+| `_meta.jetbrains.air.list.includeWorktrees` | `session/list` `includeWorktrees` |
+| `_meta.jetbrains.air.list.archived`: `"unarchived"`, `"archived"` or `"all"` | `session/list` `archived` (#2161) |
+| `SessionInfo.updatedAt` = `Thread.updatedAt` | `SessionInfo.updatedAt`, the last activity of any kind |
+| `SessionInfo._meta.jetbrains.air.lastPromptAt` = `Thread.recencyAt`, the order key | `SessionInfo.lastPromptAt`; the list order `lastPromptAt ?? updatedAt` |
+| `SessionInfo._meta.jetbrains.air.{model, forkedFrom, state, lastTurnEndedAt}` | the `SessionInfo` fields of the same names |
+| `SessionInfo._meta.jetbrains.air.archived` | `SessionInfo.archived` (#2161) |
 | agent capability `sessionWorktrees`; `SessionInfo._meta.jetbrains.air.agentWorktree` | `SessionInfo.agentWorktree` and the agent capability marker `agentWorktrees`, as proposed for the session list extensions RFD in [#2323](https://github.com/agentclientprotocol/agent-client-protocol/pull/2323), not merged yet |
-| `session_info_update._meta.jetbrains.air.archived`                                   | `SessionInfoUpdate.archived` (#2161)                                                                                                                                                                                             |
-| `_session/archive`, `_session/unarchive`                                             | `session/archive`, `session/unarchive` (#2161)                                                                                                                                                                                   |
-| `_session/rename`                                                                    | `session/set_title`, client-set titles (#1987)                                                                                                                                                                                   |
+| `session_info_update._meta.jetbrains.air.archived` | `SessionInfoUpdate.archived` (#2161) |
+| `_session/archive`, `_session/unarchive` | `session/archive`, `session/unarchive` (#2161) |
+| `_session/rename` | `session/set_title`, client-set titles (#1987) |
 
 Remaining differences:
 
@@ -1449,20 +1388,7 @@ AIR can fork a session at one agent message.
 It adds this object to the `session/fork` request:
 
 ```json
-{
-    "_meta": {
-        "jetbrains": {
-            "air": {
-                "fork": {
-                    "version": 1,
-                    "messageId": "item-12",
-                    "messageFingerprint": "sha256:<64 hex>",
-                    "messageOccurrence": 1
-                }
-            }
-        }
-    }
-}
+{ "_meta": { "jetbrains": { "air": { "fork": { "version": 1, "messageId": "item-12", "messageFingerprint": "sha256:<64 hex>", "messageOccurrence": 1 } } } } }
 ```
 
 - The adapter reads the object only when `version` is `1`.
@@ -1484,8 +1410,8 @@ The adapter sends these keys only to AIR:
 - Each session mode and each value of the `mode` config option carries `_meta.jetbrains.air.kind`.
   `read-only` is `standard`, `agent` is `auto_review`, and `agent-full-access` is `full_access`.
 - An available command can carry `_meta.jetbrains.air.commandAction`:
-    - `/plan` has `{kind: "setConfigOption", configId, value, resetValue, presentation: "state"}`. It switches the collaboration mode to plan.
-    - `/goal` has `{kind: "prefixPrompt", presentation: "state"}`.
+  - `/plan` has `{kind: "setConfigOption", configId, value, resetValue, presentation: "state"}`. It switches the collaboration mode to plan.
+  - `/goal` has `{kind: "prefixPrompt", presentation: "state"}`.
 - A `$skill` command carries `_meta.jetbrains.air.skillPath`, the absolute path of its `SKILL.md` from `skills/list`.
   The path is an OS-native absolute path, such as `C:\repo\SKILL.md` on Windows. It is not a URI.
   AIR opens this file on a click on the skill chip.
@@ -1495,12 +1421,7 @@ The adapter sends these keys only to AIR:
 After a turn ends normally, the adapter sends AIR the prompt the user is most likely to send next:
 
 ```json
-{
-    "sessionUpdate": "session_info_update",
-    "_meta": {
-        "promptSuggestions": { "suggestions": [{ "text": "Run the tests" }] }
-    }
-}
+{"sessionUpdate": "session_info_update", "_meta": {"promptSuggestions": {"suggestions": [{"text": "Run the tests"}]}}}
 ```
 
 - The key is `_meta.promptSuggestions` on the session info update, not under `jetbrains.air`. Only AIR gets it.
@@ -1518,13 +1439,13 @@ After a turn ends normally, the adapter sends AIR the prompt the user is most li
 These keys moved into the AIR namespace.
 AIR gets only the new key. A client that is not AIR gets neither the old key nor the new key.
 
-| Old key                                                   | New key                                  |
-| --------------------------------------------------------- | ---------------------------------------- |
-| `agent_message_chunk._meta.codex.phase`                   | `_meta.jetbrains.air.phase`, same values |
-| `initialize._meta.goal`, `session_info_update._meta.goal` | `_meta.jetbrains.air.goal`, same shape   |
-| mode `_meta.kind`, config option value `_meta.kind`       | `_meta.jetbrains.air.kind`               |
-| available command `_meta.commandAction`                   | `_meta.jetbrains.air.commandAction`      |
-| tool call `_meta.contextCompaction`                       | `_meta.jetbrains.air.contextCompaction`  |
+| Old key | New key |
+| --- | --- |
+| `agent_message_chunk._meta.codex.phase` | `_meta.jetbrains.air.phase`, same values |
+| `initialize._meta.goal`, `session_info_update._meta.goal` | `_meta.jetbrains.air.goal`, same shape |
+| mode `_meta.kind`, config option value `_meta.kind` | `_meta.jetbrains.air.kind` |
+| available command `_meta.commandAction` | `_meta.jetbrains.air.commandAction` |
+| tool call `_meta.contextCompaction` | `_meta.jetbrains.air.contextCompaction` |
 
 The adapter does not send these keys to any client:
 

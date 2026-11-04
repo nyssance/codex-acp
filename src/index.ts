@@ -1,25 +1,19 @@
 #!/usr/bin/env bun
 
-import { startCodexConnection } from "./CodexJsonRpcConnection";
-import { CodexAcpServer, type CodexProcessState } from "./CodexAcpServer";
-import { createJsonStream } from "./StdUtils";
-import { isCodexAuthRequest } from "./CodexAuthMethod";
-import { providerStartupConfig, CodexAcpClient } from "./CodexAcpClient";
-import { CodexAppServerClient } from "./CodexAppServerClient";
+import {startCodexConnection} from "./CodexJsonRpcConnection";
+import {CodexAcpServer, type CodexProcessState} from "./CodexAcpServer";
+import {createJsonStream} from "./StdUtils";
+import {isCodexAuthRequest} from "./CodexAuthMethod";
+import {providerStartupConfig, CodexAcpClient} from "./CodexAcpClient";
+import {CodexAppServerClient} from "./CodexAppServerClient";
 import packageJson from "../package.json";
-import { logger } from "./Logger";
-import {
-    appServerStartup,
-    CodexAppServerSupervisor,
-} from "./app-server-recovery/CodexAppServerSupervisor";
-import { runLoginCommand } from "./login";
-import { runCodexCli } from "./CodexCli";
-import { prepareCodexHookConfig } from "./CodexHookConfig";
-import { createAcpAgentRouter } from "./AcpAgentRouter";
-import type {
-    AcpClientConnection,
-    AcpV2Connection,
-} from "./ACPSessionConnection";
+import {logger} from "./Logger";
+import {appServerStartup, CodexAppServerSupervisor} from "./app-server-recovery/CodexAppServerSupervisor";
+import {runLoginCommand} from "./login";
+import {runCodexCli} from "./CodexCli";
+import {prepareCodexHookConfig} from "./CodexHookConfig";
+import {createAcpAgentRouter} from "./AcpAgentRouter";
+import type {AcpClientConnection, AcpV2Connection} from "./ACPSessionConnection";
 
 if (process.argv.includes("--version")) {
     console.log(`${packageJson.name} ${packageJson.version}`);
@@ -53,13 +47,8 @@ function startAcpServer() {
     const modelProvider = process.env["MODEL_PROVIDER"];
     const config = configString ? JSON.parse(configString) : undefined;
     const hookConfig = prepareCodexHookConfig(config);
-    const parsedAuthRequest = authRequestString
-        ? JSON.parse(authRequestString)
-        : undefined;
-    const defaultAuthRequest =
-        parsedAuthRequest && isCodexAuthRequest(parsedAuthRequest)
-            ? parsedAuthRequest
-            : undefined;
+    const parsedAuthRequest = authRequestString ? JSON.parse(authRequestString) : undefined;
+    const defaultAuthRequest = parsedAuthRequest && isCodexAuthRequest(parsedAuthRequest) ? parsedAuthRequest : undefined;
 
     logger.log("Startup", {
         name: packageJson.name,
@@ -73,21 +62,12 @@ function startAcpServer() {
 
     const startupState = {
         appServerStartupArgs: hookConfig.appServerStartupArgs,
-        providerStartupConfig: providerStartupConfig(
-            modelProvider ?? null,
-            hookConfig.sessionConfig ?? {},
-            null,
-        ),
+        providerStartupConfig: providerStartupConfig(modelProvider ?? null, hookConfig.sessionConfig ?? {}, null),
     };
     const startup = appServerStartup(startupState);
     const codexProcessState: CodexProcessState = {
         // The supervisor disposes the connection itself, after the last output of the process was read.
-        connection: startCodexConnection(
-            codexPath,
-            { ...process.env, ...startup.env },
-            startup.args,
-            { disposeOnExit: false },
-        ),
+        connection: startCodexConnection(codexPath, {...process.env, ...startup.env}, startup.args, {disposeOnExit: false}),
         codexPath,
         config: hookConfig.sessionConfig,
         ...startupState,

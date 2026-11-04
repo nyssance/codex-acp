@@ -19,8 +19,7 @@ function sameText(value: unknown, recorded: unknown): boolean {
 
 function nested(depth: number, leaf: unknown): unknown {
     let value = leaf;
-    for (let level = 0; level < depth; level++)
-        value = level % 2 === 0 ? { next: value } : [value];
+    for (let level = 0; level < depth; level++) value = level % 2 === 0 ? {next: value} : [value];
     return value;
 }
 
@@ -28,10 +27,7 @@ class Box {
     constructor(readonly value: number) {}
 }
 
-const nullPrototype = Object.assign(
-    Object.create(null) as Record<string, unknown>,
-    { a: 1 },
-);
+const nullPrototype = Object.assign(Object.create(null) as Record<string, unknown>, {a: 1});
 const ownProto = JSON.parse('{"__proto__": {"x": 1}, "a": 1}') as unknown;
 const sparse = new Array<number>(3);
 sparse[0] = 1;
@@ -181,10 +177,7 @@ const VALUES: unknown[] = [
 describe("jsonSnapshot", () => {
     it("serializes to the text of JSON.stringify for every edge case", () => {
         for (const value of VALUES) {
-            expect(
-                text(jsonSnapshot(value)),
-                String(JSON.stringify(value)),
-            ).toBe(JSON.stringify(value));
+            expect(text(jsonSnapshot(value)), String(JSON.stringify(value))).toBe(JSON.stringify(value));
         }
     });
 
@@ -193,29 +186,14 @@ describe("jsonSnapshot", () => {
             const item = {
                 get a() {
                     log.push("get a");
-                    return {
-                        toJSON: (key: string) => (
-                            log.push(`toJSON ${key}`),
-                            [1, 2]
-                        ),
-                    };
+                    return {toJSON: (key: string) => (log.push(`toJSON ${key}`), [1, 2])};
                 },
                 get b() {
                     log.push("get b");
                     return new Date(0);
                 },
             };
-            return {
-                list: [
-                    item,
-                    {
-                        toJSON: (key: string) => (
-                            log.push(`toJSON ${key}`),
-                            undefined
-                        ),
-                    },
-                ],
-            };
+            return {list: [item, {toJSON: (key: string) => (log.push(`toJSON ${key}`), undefined)}]};
         };
         const stringified: string[] = [];
         const snapshotted: string[] = [];
@@ -229,69 +207,39 @@ describe("jsonSnapshot", () => {
     it("keeps the length and keys that it read first, like JSON.stringify, when the value changes during the walk", () => {
         const make = () => {
             const list: unknown[] = [];
-            Object.defineProperty(list, 0, {
-                enumerable: true,
-                get: () => (list.push("late"), "first"),
-            });
+            Object.defineProperty(list, 0, {enumerable: true, get: () => (list.push("late"), "first")});
             const record: Record<string, unknown> = {};
-            Object.defineProperty(record, "a", {
-                enumerable: true,
-                get: () => (delete record["b"], (record["c"] = 3), 1),
-            });
+            Object.defineProperty(record, "a", {enumerable: true, get: () => (delete record["b"], record["c"] = 3, 1)});
             record["b"] = 2;
-            return { list, record };
+            return {list, record};
         };
 
         expect(text(jsonSnapshot(make()))).toBe(JSON.stringify(make()));
     });
 
     it("throws a TypeError where JSON.stringify throws", () => {
-        const cyclic: Record<string, unknown> = { a: 1 };
+        const cyclic: Record<string, unknown> = {a: 1};
         cyclic["self"] = cyclic;
         const deepCycle = nested(400, cyclic);
 
-        const coercedToBigInt = Object.assign(Object(1) as object, {
-            [Symbol.toPrimitive]: () => 1n,
-        });
-        const bigLength = new Proxy([], {
-            get: (target, name) =>
-                name === "length" ? 1n : Reflect.get(target, name),
-        });
+        const coercedToBigInt = Object.assign(Object(1) as object, {[Symbol.toPrimitive]: () => 1n});
+        const bigLength = new Proxy([], {get: (target, name) => name === "length" ? 1n : Reflect.get(target, name)});
         const unboxable = Object.setPrototypeOf(Object(7), null) as object;
-        for (const value of [
-            cyclic,
-            deepCycle,
-            { a: 1n },
-            [2n],
-            Object(3n),
-            { toJSON: () => 1n },
-            coercedToBigInt,
-            bigLength,
-            { a: unboxable },
-        ]) {
+        for (const value of [cyclic, deepCycle, {a: 1n}, [2n], Object(3n), {toJSON: () => 1n}, coercedToBigInt, bigLength, {a: unboxable}]) {
             expect(() => JSON.stringify(value)).toThrow(TypeError);
             expect(() => jsonSnapshot(value)).toThrow(TypeError);
         }
-        const repeated = { x: 1 };
-        expect(
-            text(jsonSnapshot({ a: repeated, b: [repeated, repeated] })),
-        ).toBe('{"a":{"x":1},"b":[{"x":1},{"x":1}]}');
+        const repeated = {x: 1};
+        expect(text(jsonSnapshot({a: repeated, b: [repeated, repeated]}))).toBe("{\"a\":{\"x\":1},\"b\":[{\"x\":1},{\"x\":1}]}");
     });
 
     it("serializes like JSON.stringify when Object.prototype has toJSON", () => {
-        const prototype = Object.prototype as { toJSON?: unknown };
+        const prototype = Object.prototype as {toJSON?: unknown};
         prototype.toJSON = function (this: unknown, key: string) {
             return Array.isArray(this) ? this : `polluted:${key}`;
         };
         try {
-            for (const value of [
-                { a: 1 },
-                [1, { b: 2 }],
-                new Date(0),
-                { d: new Date(0) },
-                nested(300, { a: 1 }),
-                [new Box(1)],
-            ]) {
+            for (const value of [{a: 1}, [1, {b: 2}], new Date(0), {d: new Date(0)}, nested(300, {a: 1}), [new Box(1)]]) {
                 expect(text(jsonSnapshot(value))).toBe(JSON.stringify(value));
             }
         } finally {
@@ -304,32 +252,19 @@ describe("jsonSnapshot", () => {
         const snapshot = jsonSnapshot(deep);
 
         expect(text(snapshot)).toBe(JSON.stringify(deep));
-        expect(
-            sameJson(jsonSnapshot(nested(4000, 1), snapshot), snapshot),
-        ).toBe(true);
-        expect(
-            sameJson(jsonSnapshot(nested(4000, 2), snapshot), snapshot),
-        ).toBe(false);
+        expect(sameJson(jsonSnapshot(nested(4000, 1), snapshot), snapshot)).toBe(true);
+        expect(sameJson(jsonSnapshot(nested(4000, 2), snapshot), snapshot)).toBe(false);
     });
 
     it("reuses the text of a value that JSON.stringify serialized", () => {
-        const previous = jsonSnapshot([new Box(1), { at: new Date(0) }]);
+        const previous = jsonSnapshot([new Box(1), {at: new Date(0)}]);
 
-        expect(jsonSnapshot([new Box(1), { at: new Date(0) }], previous)).toBe(
-            previous,
-        );
-        expect(
-            text(jsonSnapshot([new Box(2), { at: new Date(0) }], previous)),
-        ).toBe('[{"value":2},{"at":"1970-01-01T00:00:00.000Z"}]');
+        expect(jsonSnapshot([new Box(1), {at: new Date(0)}], previous)).toBe(previous);
+        expect(text(jsonSnapshot([new Box(2), {at: new Date(0)}], previous))).toBe("[{\"value\":2},{\"at\":\"1970-01-01T00:00:00.000Z\"}]");
     });
 
     it("returns undefined where JSON.stringify returns undefined", () => {
-        for (const value of [
-            undefined,
-            () => 1,
-            Symbol("s"),
-            { toJSON: () => undefined },
-        ]) {
+        for (const value of [undefined, () => 1, Symbol("s"), {toJSON: () => undefined}]) {
             expect(JSON.stringify(value)).toBeUndefined();
             expect(jsonSnapshot(value)).toBeUndefined();
         }
@@ -340,10 +275,8 @@ describe("sameJson", () => {
     it("agrees with a comparison of the serialized texts for every pair of edge cases", () => {
         for (const recorded of VALUES) {
             for (const value of VALUES) {
-                expect(
-                    sameJson(jsonSnapshot(value), jsonSnapshot(recorded)),
-                    `${String(JSON.stringify(value))} vs ${String(JSON.stringify(recorded))}`,
-                ).toBe(sameText(value, recorded));
+                expect(sameJson(jsonSnapshot(value), jsonSnapshot(recorded)), `${String(JSON.stringify(value))} vs ${String(JSON.stringify(recorded))}`)
+                    .toBe(sameText(value, recorded));
             }
         }
     });
@@ -351,38 +284,14 @@ describe("sameJson", () => {
     it("tells apart content that changes but keeps its length", () => {
         const text = "x".repeat(100_000);
         const changed = `${text.slice(0, 50_000)}y${text.slice(50_001)}`;
-        const content = (body: string) => [
-            { type: "diff", path: "/a.ts", oldText: body, newText: body },
-        ];
+        const content = (body: string) => [{type: "diff", path: "/a.ts", oldText: body, newText: body}];
 
         expect(changed.length).toBe(text.length);
-        expect(
-            sameJson(
-                jsonSnapshot(content(changed)),
-                jsonSnapshot(content(text)),
-            ),
-        ).toBe(false);
-        expect(
-            sameJson(
-                jsonSnapshot(content(text)),
-                jsonSnapshot(content(Buffer.from(text).toString("utf8"))),
-            ),
-        ).toBe(true);
-        expect(
-            sameJson(
-                jsonSnapshot([{ type: "text", text: "ab" }]),
-                jsonSnapshot([{ type: "text", text: "ba" }]),
-            ),
-        ).toBe(false);
-        expect(
-            sameJson(
-                jsonSnapshot({ a: 12, b: 3 }),
-                jsonSnapshot({ a: 1, b: 23 }),
-            ),
-        ).toBe(false);
-        expect(sameJson(jsonSnapshot({ ab: 1 }), jsonSnapshot({ ba: 1 }))).toBe(
-            false,
-        );
+        expect(sameJson(jsonSnapshot(content(changed)), jsonSnapshot(content(text)))).toBe(false);
+        expect(sameJson(jsonSnapshot(content(text)), jsonSnapshot(content(Buffer.from(text).toString("utf8"))))).toBe(true);
+        expect(sameJson(jsonSnapshot([{type: "text", text: "ab"}]), jsonSnapshot([{type: "text", text: "ba"}]))).toBe(false);
+        expect(sameJson(jsonSnapshot({a: 12, b: 3}), jsonSnapshot({a: 1, b: 23}))).toBe(false);
+        expect(sameJson(jsonSnapshot({ab: 1}), jsonSnapshot({ba: 1}))).toBe(false);
     });
 
     it("reuses the unchanged parts of the previous snapshot, and agrees with the texts for every pair of edge cases", () => {
@@ -391,49 +300,26 @@ describe("sameJson", () => {
             for (const value of VALUES) {
                 const reusing = jsonSnapshot(value, snapshot);
                 expect(text(reusing)).toBe(JSON.stringify(value));
-                expect(sameJson(reusing, snapshot)).toBe(
-                    sameText(value, recorded),
-                );
+                expect(sameJson(reusing, snapshot)).toBe(sameText(value, recorded));
             }
         }
-        const previous = jsonSnapshot({
-            list: [{ a: "x" }, { b: "y" }],
-            other: { c: 1 },
-        }) as JsonObject;
-        const next = jsonSnapshot(
-            { list: [{ a: "x" }, { b: "z" }], other: { c: 1 } },
-            previous,
-        ) as JsonObject;
-        const list = (tree: JsonObject) =>
-            tree.values[0] as readonly JsonTree[];
+        const previous = jsonSnapshot({list: [{a: "x"}, {b: "y"}], other: {c: 1}}) as JsonObject;
+        const next = jsonSnapshot({list: [{a: "x"}, {b: "z"}], other: {c: 1}}, previous) as JsonObject;
+        const list = (tree: JsonObject) => tree.values[0] as readonly JsonTree[];
 
         expect(next).not.toBe(previous);
         expect(list(next)[0]).toBe(list(previous)[0]);
         expect(next.values[1]).toBe(previous.values[1]);
-        expect(
-            jsonSnapshot(
-                { list: [{ a: "x" }, { b: "y" }], other: { c: 1 } },
-                previous,
-            ),
-        ).toBe(previous);
+        expect(jsonSnapshot({list: [{a: "x"}, {b: "y"}], other: {c: 1}}, previous)).toBe(previous);
     });
 
     it("keeps the recorded value when the reported object changes in place", () => {
-        const content = [
-            { type: "content", content: { type: "text", text: "a" } },
-        ];
+        const content = [{type: "content", content: {type: "text", text: "a"}}];
         const snapshot = jsonSnapshot(content);
         content[0]!.content.text = "b";
 
         expect(sameJson(jsonSnapshot(content), snapshot)).toBe(false);
-        expect(
-            sameJson(
-                jsonSnapshot([
-                    { type: "content", content: { type: "text", text: "a" } },
-                ]),
-                snapshot,
-            ),
-        ).toBe(true);
+        expect(sameJson(jsonSnapshot([{type: "content", content: {type: "text", text: "a"}}]), snapshot)).toBe(true);
     });
 
     it("agrees with a comparison of the serialized texts for random mutations of random values", () => {
@@ -465,28 +351,15 @@ describe("sameJson", () => {
         const generate = (depth: number): unknown => {
             const roll = random();
             if (depth > 3 || roll < 0.4) return pick(leaves);
-            if (roll < 0.7)
-                return Array.from({ length: Math.floor(random() * 4) }, () =>
-                    generate(depth + 1),
-                );
+            if (roll < 0.7) return Array.from({length: Math.floor(random() * 4)}, () => generate(depth + 1));
             const object: Record<string, unknown> = {};
-            for (let index = Math.floor(random() * 4); index > 0; index--)
-                object[pick(["a", "b", "c", "1"])] = generate(depth + 1);
+            for (let index = Math.floor(random() * 4); index > 0; index--) object[pick(["a", "b", "c", "1"])] = generate(depth + 1);
             return object;
         };
         const clone = (value: unknown): unknown => {
             if (Array.isArray(value)) return value.map(clone);
-            if (
-                value !== null &&
-                typeof value === "object" &&
-                value !== keyEcho
-            ) {
-                return Object.fromEntries(
-                    Object.entries(value).map(([key, item]) => [
-                        key,
-                        clone(item),
-                    ]),
-                );
+            if (value !== null && typeof value === "object" && value !== keyEcho) {
+                return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clone(item)]));
             }
             return value;
         };
@@ -494,24 +367,16 @@ describe("sameJson", () => {
             if (random() < 0.3 || depth > 3) return generate(depth);
             if (Array.isArray(value)) {
                 const copy = [...value];
-                if (copy.length > 0 && random() < 0.6)
-                    copy[Math.floor(random() * copy.length)] = mutate(
-                        copy[0],
-                        depth + 1,
-                    );
+                if (copy.length > 0 && random() < 0.6) copy[Math.floor(random() * copy.length)] = mutate(copy[0], depth + 1);
                 else if (random() < 0.5) copy.reverse();
                 else copy.push(pick(leaves));
                 return copy;
             }
-            if (
-                value !== null &&
-                typeof value === "object" &&
-                value !== keyEcho
-            ) {
+            if (value !== null && typeof value === "object" && value !== keyEcho) {
                 const entries = Object.entries(value);
                 if (entries.length > 0 && random() < 0.6) {
                     const [key, item] = pick(entries);
-                    return { ...value, [key]: mutate(item, depth + 1) };
+                    return {...value, [key]: mutate(item, depth + 1)};
                 }
                 return Object.fromEntries(
                     random() < 0.5
@@ -525,8 +390,7 @@ describe("sameJson", () => {
         let same = 0;
         for (let run = 0; run < 20_000; run++) {
             const recorded = generate(0);
-            const value =
-                random() < 0.2 ? clone(recorded) : mutate(recorded, 0);
+            const value = random() < 0.2 ? clone(recorded) : mutate(recorded, 0);
             const expected = sameText(value, recorded);
             if (expected) same++;
             const snapshot = jsonSnapshot(recorded);
@@ -535,8 +399,7 @@ describe("sameJson", () => {
             expect(sameJson(reusing, snapshot)).toBe(expected);
             expect(text(reusing)).toBe(JSON.stringify(value));
             expect(text(snapshot)).toBe(JSON.stringify(recorded));
-            if (expected && snapshot !== null && typeof snapshot === "object")
-                expect(reusing).toBe(snapshot);
+            if (expected && snapshot !== null && typeof snapshot === "object") expect(reusing).toBe(snapshot);
         }
         // Both outcomes are covered.
         expect(same).toBeGreaterThan(1000);

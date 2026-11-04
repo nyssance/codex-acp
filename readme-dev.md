@@ -31,16 +31,16 @@ Run from sources
 
 ```json
 {
-    "agent_servers": {
-        "Codex (app-server)": {
-            "command": "npm",
-            "args": ["run", "start", "--prefix", "/path/to/project/"],
-            "env": {
-                "CODEX_PATH": "node_modules/.bin/codex",
-                "APP_SERVER_LOGS": "optional/path/to/existing/log/directory"
-            }
-        }
+  "agent_servers": {
+    "Codex (app-server)": {
+      "command": "npm",
+      "args": ["run", "start", "--prefix", "/path/to/project/"],
+      "env": {
+        "CODEX_PATH": "node_modules/.bin/codex",
+        "APP_SERVER_LOGS": "optional/path/to/existing/log/directory"
+      }
     }
+  }
 }
 ```
 
@@ -48,21 +48,21 @@ Run from binaries
 
 1. Download a `codex-acp-<platform>.zip` archive from https://github.com/agentclientprotocol/codex-acp/releases (`<platform>` is one of: `linux`, `darwin`, `win32`)
 2. Unzip the archive:
-    ```bash
-    unzip codex-acp-<platform>.zip
-    ```
+   ```bash
+   unzip codex-acp-<platform>.zip
+   ```
 3. Adjust ACP client config
 
 ```json
 {
-    "agent_servers": {
-        "Codex (app-server)": {
-            "command": "/path/to/codex-acp",
-            "env": {
-                "CODEX_PATH": "/path/to/codex"
-            }
-        }
+  "agent_servers": {
+    "Codex (app-server)": {
+      "command": "/path/to/codex-acp",
+      "env": {
+        "CODEX_PATH": "/path/to/codex"
+      }
     }
+  }
 }
 ```
 

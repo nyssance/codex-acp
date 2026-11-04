@@ -80,28 +80,16 @@ function linkedWorktreeCwdsOrNull(cwd: string): string[] | null {
     return result;
 }
 
-function appendLinkedCwd(
-    result: string[],
-    seen: Set<string>,
-    checkoutRoot: string,
-    identity: RepositoryIdentity,
-): void {
+function appendLinkedCwd(result: string[], seen: Set<string>, checkoutRoot: string, identity: RepositoryIdentity): void {
     const root = canonicalize(checkoutRoot);
     if (root === null) return;
     const candidate = canonicalize(path.join(root, identity.relativeCwd));
-    if (
-        candidate === null ||
-        !isDirectory(candidate) ||
-        !isWithin(candidate, root)
-    )
-        return;
+    if (candidate === null || !isDirectory(candidate) || !isWithin(candidate, root)) return;
     const candidateIdentity = repositoryIdentity(candidate);
     if (candidateIdentity === null) return;
-    if (
-        candidateIdentity.commonDir === identity.commonDir &&
-        candidateIdentity.relativeCwd === identity.relativeCwd &&
-        !seen.has(candidate)
-    ) {
+    if (candidateIdentity.commonDir === identity.commonDir
+        && candidateIdentity.relativeCwd === identity.relativeCwd
+        && !seen.has(candidate)) {
         seen.add(candidate);
         result.push(candidate);
     }
@@ -114,8 +102,7 @@ function repositoryIdentity(cwd: string): RepositoryIdentity | null {
     const repoRoot = findGitRepoRoot(canonicalCwd);
     if (repoRoot === null) return null;
     const checkoutRoot = canonicalize(repoRoot);
-    if (checkoutRoot === null || !isWithin(canonicalCwd, checkoutRoot))
-        return null;
+    if (checkoutRoot === null || !isWithin(canonicalCwd, checkoutRoot)) return null;
     const relativeCwd = path.relative(checkoutRoot, canonicalCwd);
 
     const gitEntry = path.join(checkoutRoot, ".git");
@@ -131,21 +118,15 @@ function repositoryIdentity(cwd: string): RepositoryIdentity | null {
         commonDir = readGitPath(path.join(gitDir, "commondir"), gitDir, "");
         if (commonDir === null || !isDirectory(commonDir)) return null;
         const registeredRoot = canonicalize(path.join(commonDir, "worktrees"));
-        if (registeredRoot === null || path.dirname(gitDir) !== registeredRoot)
-            return null;
+        if (registeredRoot === null || path.dirname(gitDir) !== registeredRoot) return null;
         const backlink = readGitPath(path.join(gitDir, "gitdir"), gitDir, "");
-        if (backlink === null || backlink !== canonicalize(gitEntry))
-            return null;
+        if (backlink === null || backlink !== canonicalize(gitEntry)) return null;
     } else {
         return null;
     }
     if (commonDir === null) return null;
 
-    return {
-        commonDir,
-        relativeCwd,
-        primaryRoot: primaryCheckoutRoot(commonDir),
-    };
+    return {commonDir, relativeCwd, primaryRoot: primaryCheckoutRoot(commonDir)};
 }
 
 /**
@@ -157,11 +138,9 @@ function primaryCheckoutRoot(commonDir: string): string | null {
     const primaryRoot = path.dirname(commonDir);
     const primaryGitEntry = path.join(primaryRoot, ".git");
     const primaryEntry = lstat(primaryGitEntry);
-    if (
-        primaryEntry === null ||
-        !primaryEntry.isDirectory() ||
-        canonicalize(primaryGitEntry) !== commonDir
-    ) {
+    if (primaryEntry === null
+        || !primaryEntry.isDirectory()
+        || canonicalize(primaryGitEntry) !== commonDir) {
         return null;
     }
     return primaryRoot;
@@ -172,10 +151,7 @@ function findGitRepoRoot(dir: string): string | null {
     let current = dir;
     for (;;) {
         const dotGit = path.join(current, ".git");
-        if (
-            fs.existsSync(dotGit) &&
-            (!isDirectory(dotGit) || fs.existsSync(path.join(dotGit, "HEAD")))
-        ) {
+        if (fs.existsSync(dotGit) && (!isDirectory(dotGit) || fs.existsSync(path.join(dotGit, "HEAD")))) {
             return current;
         }
         const parent = path.dirname(current);
@@ -185,11 +161,7 @@ function findGitRepoRoot(dir: string): string | null {
 }
 
 /** Reads a one-line Git path file, as `.git`, `commondir` or `gitdir`, and resolves it against `relativeTo`. */
-function readGitPath(
-    file: string,
-    relativeTo: string,
-    prefix: string,
-): string | null {
+function readGitPath(file: string, relativeTo: string, prefix: string): string | null {
     const stats = lstat(file);
     if (!stats?.isFile()) return null;
     let contents: string;
@@ -200,8 +172,7 @@ function readGitPath(
     }
     if (!contents.startsWith(prefix)) return null;
     const value = contents.slice(prefix.length).trim();
-    if (value.length === 0 || value.includes("\n") || value.includes("\r"))
-        return null;
+    if (value.length === 0 || value.includes("\n") || value.includes("\r")) return null;
     return canonicalize(path.resolve(relativeTo, value));
 }
 
@@ -232,10 +203,7 @@ function isDirectory(value: string): boolean {
 
 function isWithin(child: string, parent: string): boolean {
     const relative = path.relative(parent, child);
-    return (
-        relative === "" ||
-        (!relative.startsWith("..") && !path.isAbsolute(relative))
-    );
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 /**
@@ -263,10 +231,7 @@ export function isCodexWorktreeCwd(cwd: string): boolean {
     const directory = normalizedAbsolutePath(cwd);
     if (directory === null) return false;
     const mainRoot = mainWorktreeRootOrNull(directory);
-    return (
-        mainRoot !== null &&
-        isUnderAny(directory, codexMadeWorktreesOrEmpty(mainRoot))
-    );
+    return mainRoot !== null && isUnderAny(directory, codexMadeWorktreesOrEmpty(mainRoot));
 }
 
 /** Whether `cwd` is a Windows UNC path, as `\\server\share\…` or `\\wsl.localhost\…`, whose reads can be slow. */
@@ -283,25 +248,13 @@ export function isUncPath(cwd: string): boolean {
  * main worktree root. A marker written later shows once the entry expires. Each map keeps at most `maxEntries` entries.
  */
 export class CodexWorktreeMarks {
-    private readonly mainRoots = new Map<
-        string,
-        { value: string | null; readAt: number }
-    >();
-    private readonly madeWorktrees = new Map<
-        string,
-        { value: string[]; readAt: number }
-    >();
+    private readonly mainRoots = new Map<string, {value: string | null; readAt: number}>();
+    private readonly madeWorktrees = new Map<string, {value: string[]; readAt: number}>();
     private readonly ttlMs: number;
     private readonly maxEntries: number;
     private readonly clock: () => number;
 
-    constructor(
-        options: {
-            ttlMs?: number;
-            maxEntries?: number;
-            clock?: () => number;
-        } = {},
-    ) {
+    constructor(options: {ttlMs?: number; maxEntries?: number; clock?: () => number} = {}) {
         this.ttlMs = options.ttlMs ?? CODEX_WORKTREE_MARKS_TTL_MS;
         this.maxEntries = options.maxEntries ?? 4096;
         this.clock = options.clock ?? Date.now;
@@ -310,30 +263,18 @@ export class CodexWorktreeMarks {
     isCodexWorktreeCwd(cwd: string): boolean {
         const directory = normalizedAbsolutePath(cwd);
         if (directory === null) return false;
-        const mainRoot = this.cached(this.mainRoots, directory, () =>
-            mainWorktreeRootOrNull(directory),
-        );
+        const mainRoot = this.cached(this.mainRoots, directory, () => mainWorktreeRootOrNull(directory));
         if (mainRoot === null) return false;
-        return isUnderAny(
-            directory,
-            this.cached(this.madeWorktrees, mainRoot, () =>
-                codexMadeWorktreesOrEmpty(mainRoot),
-            ),
-        );
+        return isUnderAny(directory, this.cached(this.madeWorktrees, mainRoot, () => codexMadeWorktreesOrEmpty(mainRoot)));
     }
 
-    private cached<T>(
-        entries: Map<string, { value: T; readAt: number }>,
-        key: string,
-        read: () => T,
-    ): T {
+    private cached<T>(entries: Map<string, {value: T; readAt: number}>, key: string, read: () => T): T {
         const now = this.clock();
         const entry = entries.get(key);
-        if (entry !== undefined && now - entry.readAt < this.ttlMs)
-            return entry.value;
+        if (entry !== undefined && now - entry.readAt < this.ttlMs) return entry.value;
         const value = read();
         if (entries.size >= this.maxEntries) entries.clear();
-        entries.set(key, { value, readAt: now });
+        entries.set(key, {value, readAt: now});
         return value;
     }
 }
@@ -387,19 +328,13 @@ function mainRootOfDotGitFile(dotGit: string, worktree: string): string | null {
     if (gitDir === null || !namesEqual(parentName(gitDir), "worktrees"))
         return null;
     const commonDir = commonDirOf(gitDir);
-    if (
-        commonDir === null ||
-        !namesEqual(path.basename(commonDir), DOT_GIT) ||
-        !isDirectory(commonDir)
-    )
-        return null;
+    if (commonDir === null || !namesEqual(path.basename(commonDir), DOT_GIT) || !isDirectory(commonDir)) return null;
     return path.dirname(commonDir);
 }
 
 function commonDirOf(gitDir: string): string | null {
     const commonDirFile = path.join(gitDir, "commondir");
-    if (!isRegularFile(commonDirFile))
-        return parentOrNull(parentOrNull(gitDir));
+    if (!isRegularFile(commonDirFile)) return parentOrNull(parentOrNull(gitDir));
     const value = readFirstLine(commonDirFile);
     return value === null ? null : resolveAgainst(gitDir, value);
 }
@@ -416,15 +351,12 @@ function codexMadeWorktreesOrEmpty(mainRoot: string): string[] {
         const worktrees = new Set<string>();
         for (const name of fs.readdirSync(worktreesDirectory)) {
             const gitDir = path.join(worktreesDirectory, name);
-            if (!isRegularFile(path.join(gitDir, CODEX_WORKTREE_MARKER_FILE)))
-                continue;
+            if (!isRegularFile(path.join(gitDir, CODEX_WORKTREE_MARKER_FILE))) continue;
             const line = readFirstLine(path.join(gitDir, "gitdir"));
             const dotGit = line === null ? null : resolveAgainst(gitDir, line);
-            if (dotGit === null || !namesEqual(path.basename(dotGit), DOT_GIT))
-                continue;
+            if (dotGit === null || !namesEqual(path.basename(dotGit), DOT_GIT)) continue;
             const worktree = parentOrNull(dotGit);
-            if (worktree !== null && isDirectory(worktree))
-                worktrees.add(worktree);
+            if (worktree !== null && isDirectory(worktree)) worktrees.add(worktree);
         }
         return [...worktrees].toSorted();
     } catch {
@@ -434,14 +366,10 @@ function codexMadeWorktreesOrEmpty(mainRoot: string): string[] {
 
 /** Java's `Path.startsWith` of normalized absolute paths: by whole names, ignoring case on Windows. */
 function isUnderAny(directory: string, worktrees: string[]): boolean {
-    return worktrees.some((worktree) => {
+    return worktrees.some(worktree => {
         const relative = path.relative(worktree, directory);
-        return (
-            relative === "" ||
-            (relative !== ".." &&
-                !relative.startsWith(`..${path.sep}`) &&
-                !path.isAbsolute(relative))
-        );
+        return relative === ""
+            || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
     });
 }
 
@@ -452,10 +380,7 @@ function readFirstLine(file: string): string | null {
         // One descriptor for the size check and the read, so the file cannot change between them.
         fd = fs.openSync(file, "r");
         if (fs.fstatSync(fd).size > MAX_GIT_FILE_BYTES) return null;
-        const contents = new TextDecoder("utf-8", {
-            fatal: true,
-            ignoreBOM: true,
-        }).decode(fs.readFileSync(fd));
+        const contents = new TextDecoder("utf-8", {fatal: true, ignoreBOM: true}).decode(fs.readFileSync(fd));
         const line = kotlinTrim(contents.split(/\r\n|\n|\r/, 1)[0] ?? "");
         return line.length === 0 ? null : line;
     } catch {

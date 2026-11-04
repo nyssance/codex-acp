@@ -1,8 +1,4 @@
-import type {
-    McpAuthStatus,
-    McpServerConnectionStatus,
-    McpServerStatus,
-} from "../app-server/v2";
+import type {McpAuthStatus, McpServerConnectionStatus, McpServerStatus} from "../app-server/v2";
 
 /** One MCP server in the status list. */
 export type McpServerEntry = {
@@ -62,12 +58,7 @@ function statusLabel(status: McpServerConnectionStatus | null): string {
 }
 
 /** The statuses that this adapter knows. */
-const KNOWN_STATUSES = new Set<McpServerConnectionStatus>([
-    ...GROUP_ORDER.filter(
-        (status): status is McpServerConnectionStatus => status !== null,
-    ),
-    "disabled",
-]);
+const KNOWN_STATUSES = new Set<McpServerConnectionStatus>([...GROUP_ORDER.filter((status): status is McpServerConnectionStatus => status !== null), "disabled"]);
 
 /** A status that a newer Codex reports and this adapter does not know becomes `null`, so that the list shows it as unknown. */
 export function toEntry(server: McpServerStatus): McpServerEntry {
@@ -87,75 +78,42 @@ export function toEntry(server: McpServerStatus): McpServerEntry {
  * `errors` maps a server name to its startup error.
  * Inside a group, the servers keep the Codex order.
  */
-export function formatStatus(
-    servers: McpServerEntry[],
-    errors: Map<string, string>,
-): string {
+export function formatStatus(servers: McpServerEntry[], errors: Map<string, string>): string {
     if (servers.length === 0) {
         return NO_SERVERS_MESSAGE;
     }
-    const counts = SUMMARY_ORDER.map((status) => ({
-        status,
-        count: servers.filter((server) => server.status === status).length,
-    }))
-        .filter((entry) => entry.count > 0)
-        .map(
-            (entry) =>
-                `${entry.count} ${statusLabel(entry.status).toLowerCase()}`,
-        );
+    const counts = SUMMARY_ORDER
+        .map(status => ({status, count: servers.filter(server => server.status === status).length}))
+        .filter(entry => entry.count > 0)
+        .map(entry => `${entry.count} ${statusLabel(entry.status).toLowerCase()}`);
     const lines = [`**MCP servers:** ${servers.length} (${counts.join(", ")})`];
     for (const status of GROUP_ORDER) {
-        const group = servers.filter((server) => server.status === status);
+        const group = servers.filter(server => server.status === status);
         if (group.length === 0) {
             continue;
         }
         lines.push("", `**${statusLabel(status)}**`);
         for (const server of group) {
-            const detail = serverDetail(
-                server,
-                errors.get(server.name) ?? null,
-            );
-            lines.push(
-                detail === null
-                    ? `- ${inlineCode(server.name)}`
-                    : `- ${inlineCode(server.name)}: ${detail}`,
-            );
+            const detail = serverDetail(server, errors.get(server.name) ?? null);
+            lines.push(detail === null ? `- ${inlineCode(server.name)}` : `- ${inlineCode(server.name)}: ${detail}`);
         }
     }
-    const disabled = servers.filter((server) => server.status === "disabled");
+    const disabled = servers.filter(server => server.status === "disabled");
     if (disabled.length > 0) {
-        lines.push(
-            "",
-            `**Disabled:** ${disabled.map((server) => inlineCode(server.name)).join(", ")}`,
-        );
+        lines.push("", `**Disabled:** ${disabled.map(server => inlineCode(server.name)).join(", ")}`);
     }
-    if (
-        servers.some(
-            (server) =>
-                server.status !== null &&
-                RECONNECT_HINT_STATUSES.has(server.status),
-        )
-    ) {
+    if (servers.some(server => server.status !== null && RECONNECT_HINT_STATUSES.has(server.status))) {
         lines.push("", RECONNECT_HINT);
     }
     return lines.join("\n");
 }
 
-export const RECONNECT_HINT =
-    "Run `/mcp reconnect` to restart the servers that are not connected.";
+export const RECONNECT_HINT = "Run `/mcp reconnect` to restart the servers that are not connected.";
 
 /** The statuses that a reconnect can change. */
-const RECONNECT_HINT_STATUSES = new Set<McpServerConnectionStatus>([
-    "failed",
-    "cancelled",
-    "authenticationRequired",
-    "notStarted",
-]);
+const RECONNECT_HINT_STATUSES = new Set<McpServerConnectionStatus>(["failed", "cancelled", "authenticationRequired", "notStarted"]);
 
-function serverDetail(
-    server: McpServerEntry,
-    startupError: string | null,
-): string | null {
+function serverDetail(server: McpServerEntry, startupError: string | null): string | null {
     if (server.status === "authenticationRequired") {
         return NOT_SIGNED_IN;
     }
@@ -186,8 +144,7 @@ const MAX_ERROR_SENTENCES = 2;
 const MAX_INPUT_LENGTH = 2000;
 
 /** An error chain segment that only wraps the real message. A JSON-RPC error code is also a wrapper. An HTTP status, such as `401`, stays. */
-const WRAPPER_SEGMENT =
-    /^(?:tool discovery failed|mcp startup failed|handshaking with mcp server failed|json-rpc error|startup error|error|mcp client for .+ failed to start|-32\d{3})$/i;
+const WRAPPER_SEGMENT = /^(?:tool discovery failed|mcp startup failed|handshaking with mcp server failed|json-rpc error|startup error|error|mcp client for .+ failed to start|-32\d{3})$/i;
 
 /**
  * A Rust type path with three or more parts, and the rest of its word, such as `[crate::module::Type<Inner>]`.
@@ -218,12 +175,7 @@ export function cleanErrorMessage(text: string): string {
     if (message.length === 0) {
         return shorten(oneLine);
     }
-    return shorten(
-        message
-            .split(/(?<=[.!?])\s+/)
-            .slice(0, MAX_ERROR_SENTENCES)
-            .join(" "),
-    );
+    return shorten(message.split(/(?<=[.!?])\s+/).slice(0, MAX_ERROR_SENTENCES).join(" "));
 }
 
 /** Shortens the text by code points, so that the cut never splits a surrogate pair. */
@@ -256,10 +208,7 @@ export function inlineCode(name: string): string {
     if (text.length === 0) {
         return UNNAMED_SERVER;
     }
-    const longestRun = Math.max(
-        0,
-        ...Array.from(text.matchAll(/`+/g), (match) => match[0].length),
-    );
+    const longestRun = Math.max(0, ...Array.from(text.matchAll(/`+/g), match => match[0].length));
     const fence = "`".repeat(longestRun + 1);
     const padding = /^[` ]|[` ]$/.test(text) ? " " : "";
     return `${fence}${padding}${text}${padding}${fence}`;

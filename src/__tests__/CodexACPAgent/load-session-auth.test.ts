@@ -1,10 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-    createCodexMockTestFixture,
-    createTestModel,
-    type CodexMockTestFixture,
-} from "../acp-test-utils";
-import type { GetAccountResponse } from "../../app-server/v2";
+import {describe, expect, it, vi} from "vitest";
+import {createCodexMockTestFixture, createTestModel, type CodexMockTestFixture} from "../acp-test-utils";
+import type {GetAccountResponse} from "../../app-server/v2";
 
 const SESSION_ID = "session-1";
 const SIGNED_IN: GetAccountResponse = {
@@ -23,11 +19,9 @@ function loadFixture(): CodexMockTestFixture {
     const fixture = createCodexMockTestFixture();
     const client = fixture.getCodexAcpClient();
     const appServer = fixture.getCodexAppServerClient();
-    client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+    client.listSkills = vi.fn().mockResolvedValue({data: []});
     const model = createTestModel();
-    appServer.listModels = vi
-        .fn()
-        .mockResolvedValue({ data: [model], nextCursor: null });
+    appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
     appServer.threadResume = vi.fn().mockResolvedValue({
         runtimeWorkspaceRoots: [],
         activePermissionProfile: null,
@@ -51,20 +45,7 @@ function loadFixture(): CodexMockTestFixture {
         reasoningEffort: model.defaultReasoningEffort,
     });
     appServer.threadItemsList = vi.fn().mockResolvedValue({
-        data: [
-            {
-                turnId: "turn-1",
-                item: {
-                    type: "agentMessage",
-                    id: "m-1",
-                    text: "history",
-                    phase: null,
-                    memoryCitation: null,
-                    delivery: null,
-                    questions: null,
-                },
-            },
-        ],
+        data: [{turnId: "turn-1", item: {type: "agentMessage", id: "m-1", text: "history", phase: null, memoryCitation: null, delivery: null, questions: null}}],
         nextCursor: null,
         backwardsCursor: null,
     });
@@ -73,9 +54,9 @@ function loadFixture(): CodexMockTestFixture {
 
 /** Initializes the agent and waits for the account read that `initialize` starts. */
 async function initialize(fixture: CodexMockTestFixture): Promise<void> {
-    await fixture.getCodexAcpAgent().initialize({ protocolVersion: 1 });
+    await fixture.getCodexAcpAgent().initialize({protocolVersion: 1});
     for (let round = 0; round < 5; round += 1) {
-        await new Promise<void>((resolve) => setImmediate(resolve));
+        await new Promise<void>(resolve => setImmediate(resolve));
     }
     vi.mocked(fixture.getCodexAppServerClient().accountRead).mockClear();
 }
@@ -85,15 +66,9 @@ describe("CodexACPAgent - loadSession auth", () => {
         const fixture = loadFixture();
         const appServer = fixture.getCodexAppServerClient();
         let answer: (response: GetAccountResponse) => void = () => {};
-        appServer.accountRead = vi
-            .fn()
+        appServer.accountRead = vi.fn()
             .mockResolvedValueOnce(SIGNED_IN)
-            .mockImplementation(
-                () =>
-                    new Promise<GetAccountResponse>(
-                        (resolve) => (answer = resolve),
-                    ),
-            );
+            .mockImplementation(() => new Promise<GetAccountResponse>(resolve => answer = resolve));
         await initialize(fixture);
 
         const load = fixture.getCodexAcpAgent().loadSession({
@@ -108,9 +83,7 @@ describe("CodexACPAgent - loadSession auth", () => {
         await load;
 
         expect(appServer.accountRead).toHaveBeenCalledTimes(1);
-        expect(
-            fixture.getCodexAcpAgent().getSessionState(SESSION_ID).account,
-        ).toEqual(SIGNED_IN.account);
+        expect(fixture.getCodexAcpAgent().getSessionState(SESSION_ID).account).toEqual(SIGNED_IN.account);
     });
 
     it("fails with auth_required and closes the resumed thread when the agent needs a login", async () => {
@@ -137,9 +110,7 @@ describe("CodexACPAgent - loadSession auth", () => {
 
         expect(closeSpy).toHaveBeenCalledWith(SESSION_ID);
         expect(appServer.threadItemsList).not.toHaveBeenCalled();
-        expect(() =>
-            fixture.getCodexAcpAgent().getSessionState(SESSION_ID),
-        ).toThrow();
+        expect(() => fixture.getCodexAcpAgent().getSessionState(SESSION_ID)).toThrow();
     });
 
     it("fails with auth_required when the resume also fails", async () => {

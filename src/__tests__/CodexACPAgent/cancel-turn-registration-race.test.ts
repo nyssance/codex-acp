@@ -1,12 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-    createCodexMockTestFixture,
-    createTestModel,
-    type CodexMockTestFixture,
-} from "../acp-test-utils";
-import type { CodexAcpServer } from "../../CodexAcpServer";
-import type { CodexAcpClient } from "../../CodexAcpClient";
-import type { TurnCompletedNotification } from "../../app-server/v2";
+import {describe, expect, it, vi} from "vitest";
+import {createCodexMockTestFixture, createTestModel, type CodexMockTestFixture} from "../acp-test-utils";
+import type {CodexAcpServer} from "../../CodexAcpServer";
+import type {CodexAcpClient} from "../../CodexAcpClient";
+import type {TurnCompletedNotification} from "../../app-server/v2";
 
 const sessionId = "session-id";
 const turnId = "turn-id";
@@ -18,29 +14,24 @@ const NO_ACTIVE_TURN = new Error("no active turn to interrupt");
 describe("session/cancel racing Codex's turn registration", () => {
     it("retries the interrupt until Codex accepts it", async () => {
         const turn = await startPrompt();
-        const turnInterrupt = vi
-            .spyOn(turn.codexAcpClient, "turnInterrupt")
+        const turnInterrupt = vi.spyOn(turn.codexAcpClient, "turnInterrupt")
             .mockRejectedValueOnce(NO_ACTIVE_TURN)
             .mockRejectedValueOnce(NO_ACTIVE_TURN)
             .mockResolvedValueOnce(undefined);
 
-        await turn.codexAcpAgent.cancel({ sessionId });
+        await turn.codexAcpAgent.cancel({sessionId});
 
         expect(turnInterrupt).toHaveBeenCalledTimes(3);
-        expect(turnInterrupt).toHaveBeenLastCalledWith({
-            threadId: sessionId,
-            turnId,
-        });
+        expect(turnInterrupt).toHaveBeenLastCalledWith({threadId: sessionId, turnId});
         await turn.finish();
     });
 
     it("gives up after the retry budget instead of spinning", async () => {
         const turn = await startPrompt();
-        const turnInterrupt = vi
-            .spyOn(turn.codexAcpClient, "turnInterrupt")
+        const turnInterrupt = vi.spyOn(turn.codexAcpClient, "turnInterrupt")
             .mockRejectedValue(NO_ACTIVE_TURN);
 
-        await turn.codexAcpAgent.cancel({ sessionId });
+        await turn.codexAcpAgent.cancel({sessionId});
 
         // One initial attempt plus one per configured backoff step.
         expect(turnInterrupt).toHaveBeenCalledTimes(6);
@@ -49,11 +40,10 @@ describe("session/cancel racing Codex's turn registration", () => {
 
     it("does not retry an interrupt that failed for another reason", async () => {
         const turn = await startPrompt();
-        const turnInterrupt = vi
-            .spyOn(turn.codexAcpClient, "turnInterrupt")
+        const turnInterrupt = vi.spyOn(turn.codexAcpClient, "turnInterrupt")
             .mockRejectedValue(new Error("codex app-server transport closed"));
 
-        await turn.codexAcpAgent.cancel({ sessionId });
+        await turn.codexAcpAgent.cancel({sessionId});
 
         expect(turnInterrupt).toHaveBeenCalledTimes(1);
         await turn.finish();
@@ -61,13 +51,12 @@ describe("session/cancel racing Codex's turn registration", () => {
 
     it("retries a close interrupt the same way as a cancel", async () => {
         const turn = await startPrompt();
-        const turnInterrupt = vi
-            .spyOn(turn.codexAcpClient, "turnInterrupt")
+        const turnInterrupt = vi.spyOn(turn.codexAcpClient, "turnInterrupt")
             .mockRejectedValueOnce(NO_ACTIVE_TURN)
             .mockRejectedValueOnce(NO_ACTIVE_TURN)
             .mockResolvedValueOnce(undefined);
 
-        const closed = turn.codexAcpAgent.closeSession({ sessionId });
+        const closed = turn.codexAcpAgent.closeSession({sessionId});
         // The turn is still active while the retries run: only resolve it once
         // `turnInterrupt` has gone through its retry budget, otherwise the underlying
         // prompt would complete and drop the session from the active-prompts set first.
@@ -76,10 +65,7 @@ describe("session/cancel racing Codex's turn registration", () => {
         await closed;
 
         expect(turnInterrupt).toHaveBeenCalledTimes(3);
-        expect(turnInterrupt).toHaveBeenLastCalledWith({
-            threadId: sessionId,
-            turnId,
-        });
+        expect(turnInterrupt).toHaveBeenLastCalledWith({threadId: sessionId, turnId});
     });
 });
 
@@ -88,9 +74,9 @@ describe("session/cancel racing Codex's turn registration", () => {
  * `session/cancel` actually arrives in.
  */
 async function startPrompt(): Promise<{
-    codexAcpAgent: CodexAcpServer;
-    codexAcpClient: CodexAcpClient;
-    finish: () => Promise<void>;
+    codexAcpAgent: CodexAcpServer,
+    codexAcpClient: CodexAcpClient,
+    finish: () => Promise<void>,
 }> {
     const fixture: CodexMockTestFixture = createCodexMockTestFixture();
     const codexAcpAgent = fixture.getCodexAcpAgent();
@@ -114,7 +100,7 @@ async function startPrompt(): Promise<{
         currentServiceTier: null,
         additionalDirectories: [],
     });
-    await codexAcpAgent.newSession({ cwd: "/test/cwd", mcpServers: [] });
+    await codexAcpAgent.newSession({cwd: "/test/cwd", mcpServers: []});
 
     const inProgressTurn = {
         rootTurnId: null,
@@ -127,24 +113,17 @@ async function startPrompt(): Promise<{
         completedAt: null,
         durationMs: null,
     };
-    vi.spyOn(appServer, "turnStart").mockResolvedValue({
-        turn: inProgressTurn,
-    });
+    vi.spyOn(appServer, "turnStart").mockResolvedValue({turn: inProgressTurn});
     let completeTurn: (value: TurnCompletedNotification) => void = () => {};
     vi.spyOn(appServer, "awaitTurnCompleted").mockReturnValue(
-        new Promise<TurnCompletedNotification>((resolve) => {
+        new Promise<TurnCompletedNotification>(resolve => {
             completeTurn = resolve;
-        }),
+        })
     );
 
-    const prompt = codexAcpAgent.prompt({
-        sessionId,
-        prompt: [{ type: "text", text: "hello" }],
-    });
+    const prompt = codexAcpAgent.prompt({sessionId, prompt: [{type: "text", text: "hello"}]});
     await vi.waitFor(() => {
-        expect(codexAcpAgent.getSessionState(sessionId).currentTurnId).toBe(
-            turnId,
-        );
+        expect(codexAcpAgent.getSessionState(sessionId).currentTurnId).toBe(turnId);
     });
 
     return {
@@ -153,7 +132,7 @@ async function startPrompt(): Promise<{
         finish: async () => {
             completeTurn({
                 threadId: sessionId,
-                turn: { ...inProgressTurn, status: "interrupted" },
+                turn: {...inProgressTurn, status: "interrupted"},
             });
             await prompt;
         },

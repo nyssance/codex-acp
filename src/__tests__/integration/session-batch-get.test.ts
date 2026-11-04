@@ -1,18 +1,16 @@
-import { once } from "node:events";
+import {once} from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { expect, it } from "vitest";
-import { startCodexConnection } from "../../CodexJsonRpcConnection";
-import { createBaseTestFixture, writeCodexHomeConfig } from "../acp-test-utils";
-import { describeIntegration } from "./integration-fixture";
+import {expect, it} from "vitest";
+import {startCodexConnection} from "../../CodexJsonRpcConnection";
+import {createBaseTestFixture, writeCodexHomeConfig} from "../acp-test-utils";
+import {describeIntegration} from "./integration-fixture";
 
 /** Real app-server metadata reads only; no model requests or session turns. */
 describeIntegration("integration: session batch metadata", () => {
     it("returns older sessions and the selected stored copies using the same rows as the unscoped list", async () => {
-        const home = fs.mkdtempSync(
-            path.join(os.tmpdir(), "codex-batch-metadata-"),
-        );
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), "codex-batch-metadata-"));
         writeCodexHomeConfig(home);
         const old = "00000000-0000-4000-8000-000000000001";
         const archived = "00000000-0000-4000-8000-000000000002";
@@ -68,47 +66,20 @@ describeIntegration("integration: session batch metadata", () => {
             return file;
         }
         rollout(old, "Older stored copy", "2026-01-01T00:00:00");
-        const selected = rollout(
-            old,
-            "Selected current copy",
-            "2026-01-01T01:00:00",
-        );
+        const selected = rollout(old, "Selected current copy", "2026-01-01T01:00:00");
         // A mature legacy rollout's mtime differs from its creation/session_meta timestamp.
-        fs.utimesSync(
-            selected,
-            new Date("2026-01-15T00:00:00Z"),
-            new Date("2026-01-15T00:00:00Z"),
-        );
+        fs.utimesSync(selected, new Date("2026-01-15T00:00:00Z"), new Date("2026-01-15T00:00:00Z"));
         rollout(archived, "Archived session", "2026-01-01T02:00:00", true);
-        fs.writeFileSync(
-            rollout(corrupt, "Unreadable", "2026-01-01T03:00:00"),
-            "invalid json\n",
-        );
+        fs.writeFileSync(rollout(corrupt, "Unreadable", "2026-01-01T03:00:00"), "invalid json\n");
         for (let index = 0; index < 60; index++) {
-            rollout(
-                `00000000-0000-4000-8000-${(100 + index).toString(16).padStart(12, "0")}`,
-                `Recent ${index}`,
-                "2026-02-01T00:00:00",
-            );
+            rollout(`00000000-0000-4000-8000-${(100 + index).toString(16).padStart(12, "0")}`, `Recent ${index}`, "2026-02-01T00:00:00");
         }
-        const codex = startCodexConnection(
-            path.resolve("node_modules/.bin/codex"),
-            { ...process.env, CODEX_HOME: home },
-        );
-        const fixture = createBaseTestFixture({
-            connection: codex.connection,
-            getExitCode: () => codex.process.exitCode,
-        });
+        const codex = startCodexConnection(path.resolve("node_modules/.bin/codex"), {...process.env, CODEX_HOME: home});
+        const fixture = createBaseTestFixture({connection: codex.connection, getExitCode: () => codex.process.exitCode});
         const index = fixture.getCodexAcpAgent().sessionIndex;
         try {
             await fixture.getCodexAcpClient().initialize({});
-            index.configure({
-                _meta: {
-                    jetbrains: {
-                        air: { version: 1, capabilities: ["sessionIndex"] },
-                    },
-                },
-            });
+            index.configure({_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionIndex"]}}}});
             // Populate the backend index as its normal discovery does; batchGet itself never lists.
             await fixture.getCodexAppServerClient().threadList({
                 limit: 100,
@@ -123,65 +94,29 @@ describeIntegration("integration: session batch metadata", () => {
             });
             const recent = await index.list({});
             expect(recent.sessions).toHaveLength(50);
-            expect(recent.sessions.map((row) => row.sessionId)).not.toContain(
-                old,
-            );
+            expect(recent.sessions.map(row => row.sessionId)).not.toContain(old);
             fixture.clearCodexConnectionDump();
             const requested = [archived, corrupt, old, absent, "not-a-uuid"];
-            const result = await index.batchGet({ sessionIds: requested });
-            expect(result.sessions.map((row) => row.sessionId)).toEqual([
-                archived,
-                old,
-            ]);
+            const result = await index.batchGet({sessionIds: requested});
+            expect(result.sessions.map(row => row.sessionId)).toEqual([archived, old]);
             expect(result.sessions[1]!.title).toBe("Selected current copy");
             // The list above reads the fork parents of its rows in the background; those reads are of other threads.
-            const requests = fixture
-                .getCodexConnectionEvents([])
-                .filter(
-                    (event) =>
-                        event.eventType === "request" &&
-                        requested.includes(
-                            (event.params as { threadId?: string }).threadId ??
-                                "",
-                        ),
-                );
-            expect(requests).toEqual(
-                requested.map((threadId) => ({
-                    eventType: "request",
-                    method: "thread/read",
-                    params: { threadId, includeTurns: false },
-                })),
-            );
-            const all = await index.list({
-                _meta: {
-                    jetbrains: {
-                        air: { list: { limit: 100, archived: "all" } },
-                    },
-                },
-            });
-            const withoutUpdatedAt = ({
-                updatedAt: _updatedAt,
-                ...row
-            }: (typeof result.sessions)[number]) => row;
-            expect(result.sessions.map(withoutUpdatedAt)).toEqual(
-                [archived, old].map((id) =>
-                    withoutUpdatedAt(
-                        all.sessions.find((row) => row.sessionId === id)!,
-                    ),
-                ),
-            );
+            const requests = fixture.getCodexConnectionEvents([]).filter(event =>
+                event.eventType === "request" && requested.includes((event.params as {threadId?: string}).threadId ?? ""));
+            expect(requests).toEqual(requested.map(threadId => ({
+                eventType: "request", method: "thread/read", params: {threadId, includeTurns: false},
+            })));
+            const all = await index.list({_meta: {jetbrains: {air: {list: {limit: 100, archived: "all"}}}}});
+            const withoutUpdatedAt = ({updatedAt: _updatedAt, ...row}: (typeof result.sessions)[number]) => row;
+            expect(result.sessions.map(withoutUpdatedAt)).toEqual([archived, old].map(id => withoutUpdatedAt(all.sessions.find(row => row.sessionId === id)!)));
             // The supported native read has creation-based updatedAt for legacy rollouts; list uses its stored update.
-            expect(result.sessions[1]!.updatedAt).toBe(
-                "2026-01-01T01:00:00.000Z",
-            );
-            expect(
-                all.sessions.find((row) => row.sessionId === old)!.updatedAt,
-            ).toBe("2026-01-15T00:00:00.000Z");
+            expect(result.sessions[1]!.updatedAt).toBe("2026-01-01T01:00:00.000Z");
+            expect(all.sessions.find(row => row.sessionId === old)!.updatedAt).toBe("2026-01-15T00:00:00.000Z");
         } finally {
             index.dispose();
             codex.process.kill();
             await once(codex.process, "exit");
-            fs.rmSync(home, { recursive: true, force: true });
+            fs.rmSync(home, {recursive: true, force: true});
         }
     });
 });

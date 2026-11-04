@@ -54,13 +54,9 @@ export class FileCitationStream {
 
             // A citation starts at the first `:` of a run, outside code; `\:` escapes it.
             const before = index > 0 ? text[index - 1] : this.previous;
-            const citation =
-                char === ":" &&
-                this.codeRun === 0 &&
-                before !== ":" &&
-                before !== "\\"
-                    ? parseCitation(text, index)
-                    : null;
+            const citation = char === ":" && this.codeRun === 0 && before !== ":" && before !== "\\"
+                ? parseCitation(text, index)
+                : null;
 
             // Wait for the rest of an unfinished citation.
             if (citation === "partial") break;
@@ -107,28 +103,18 @@ export function renderFileCitations(text: string, cwd: string): string {
  * needs it: it parses citations alone (no other directives or `[label]`s), reports `"partial"` for streaming,
  * and limits a directive's length instead of sharing a scan budget across attempts.
  */
-function parseCitation(
-    text: string,
-    start: number,
-): Citation | "partial" | null {
-    return (
-        parseCitationWith(text, start, false) ??
-        parseCitationWith(text, start, true)
-    );
+function parseCitation(text: string, start: number): Citation | "partial" | null {
+    return parseCitationWith(text, start, false) ?? parseCitationWith(text, start, true);
 }
 
 /**
  * The directive is one to three colons, the name, and `key=value` attributes in braces.
  * A value is quoted with `"` or `'`, or unquoted up to whitespace or `}`.
  */
-function parseCitationWith(
-    text: string,
-    start: number,
-    backslashEscapesQuote: boolean,
-): Citation | "partial" | null {
+function parseCitationWith(text: string, start: number, backslashEscapesQuote: boolean): Citation | "partial" | null {
     const limit = Math.min(text.length, start + MAX_CITATION_LENGTH);
     // Reaching the end of the text, not the length limit, means the directive may continue in the next delta.
-    const ended = () => (limit === text.length ? "partial" : null);
+    const ended = () => limit === text.length ? "partial" : null;
     let index = start;
 
     while (index < limit && text[index] === ":") index++;
@@ -164,7 +150,7 @@ function parseCitationWith(
 
         let value = "";
         const quote = text[index];
-        if (quote === '"' || quote === "'") {
+        if (quote === "\"" || quote === "'") {
             // A quoted value ends at the matching quote and may contain spaces and braces, but no line break.
             index++;
             while (true) {
@@ -172,12 +158,7 @@ function parseCitationWith(
                 const char = text[index]!;
                 if (char === quote) break;
                 if (char === "\n" || char === "\r") return null;
-                if (
-                    backslashEscapesQuote &&
-                    char === "\\" &&
-                    text[index + 1] === quote
-                )
-                    index++;
+                if (backslashEscapesQuote && char === "\\" && text[index + 1] === quote) index++;
                 value += text[index];
                 index++;
             }
@@ -193,34 +174,26 @@ function parseCitationWith(
     }
 
     // Only a citation with a path can become a link.
-    return citedPath === "" ? null : { path: citedPath, end: index + 1 };
+    return citedPath === "" ? null : {path: citedPath, end: index + 1};
 }
 
 function skipSpaces(text: string, index: number, limit: number): number {
-    while (index < limit && (text[index] === " " || text[index] === "\t"))
-        index++;
+    while (index < limit && (text[index] === " " || text[index] === "\t")) index++;
     return index;
 }
 
 function isNameChar(char: string): boolean {
-    return (
-        (char >= "a" && char <= "z") ||
-        (char >= "A" && char <= "Z") ||
-        (char >= "0" && char <= "9") ||
-        char === "_" ||
-        char === "-"
-    );
+    return (char >= "a" && char <= "z") || (char >= "A" && char <= "Z") || (char >= "0" && char <= "9")
+        || char === "_" || char === "-";
 }
 
 function markdownFileLink(citedPath: string, cwd: string): string {
     // Absolute paths, Windows drive paths, and URLs such as `file://` are kept as cited.
-    const destination =
-        path.isAbsolute(citedPath) ||
-        /^(?:[A-Za-z]:[\\/]|[A-Za-z][\w+.-]*:\/\/)/.test(citedPath)
-            ? citedPath
-            : path.join(cwd, citedPath);
+    const destination = path.isAbsolute(citedPath) || /^(?:[A-Za-z]:[\\/]|[A-Za-z][\w+.-]*:\/\/)/.test(citedPath)
+        ? citedPath
+        : path.join(cwd, citedPath);
     const label = escapeMarkdown(citedPath, "[]");
-    const target = [...destination].some((char) => " \t\n\r()<>".includes(char))
+    const target = [...destination].some(char => " \t\n\r()<>".includes(char))
         ? `<${escapeMarkdown(destination, "<>")}>`
         : escapeMarkdown(destination, "");
     return `[${label}](${target})`;
@@ -232,12 +205,7 @@ function escapeMarkdown(text: string, special: string): string {
     for (let index = 0; index < text.length; index++) {
         const char = text[index]!;
         const next = text[index + 1];
-        if (
-            special.includes(char) ||
-            (char === "\\" &&
-                next !== undefined &&
-                ASCII_PUNCTUATION.includes(next))
-        ) {
+        if (special.includes(char) || (char === "\\" && next !== undefined && ASCII_PUNCTUATION.includes(next))) {
             escaped += "\\";
         }
         escaped += char;

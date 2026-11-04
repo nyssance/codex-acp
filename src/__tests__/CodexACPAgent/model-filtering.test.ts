@@ -8,14 +8,8 @@ describe("Model filtering", () => {
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
 
-        const defaultEffort: ReasoningEffortOption = {
-            reasoningEffort: "medium",
-            description: "Default effort.",
-        };
-        const fastEffort: ReasoningEffortOption = {
-            reasoningEffort: "low",
-            description: "Fast effort.",
-        };
+        const defaultEffort: ReasoningEffortOption = {reasoningEffort: "medium", description: "Default effort."};
+        const fastEffort: ReasoningEffortOption = {reasoningEffort: "low", description: "Fast effort."};
         const efforts: ReasoningEffortOption[] = [defaultEffort, fastEffort];
 
         const models: Model[] = [
@@ -38,7 +32,7 @@ describe("Model filtering", () => {
                 serviceTiers: [],
                 defaultServiceTier: null,
                 isDefault: false,
-                inputModalities: [],
+                inputModalities: []
             },
             {
                 id: "other-id",
@@ -59,7 +53,7 @@ describe("Model filtering", () => {
                 serviceTiers: [],
                 defaultServiceTier: null,
                 isDefault: false,
-                inputModalities: [],
+                inputModalities: []
             },
             {
                 id: "gpt-5.1-codex-mini",
@@ -80,7 +74,7 @@ describe("Model filtering", () => {
                 serviceTiers: [],
                 defaultServiceTier: null,
                 isDefault: false,
-                inputModalities: [],
+                inputModalities: []
             },
             {
                 id: "gpt-4o",
@@ -101,7 +95,7 @@ describe("Model filtering", () => {
                 serviceTiers: [],
                 defaultServiceTier: null,
                 isDefault: false,
-                inputModalities: [],
+                inputModalities: []
             },
             {
                 id: "gpt-5.3-codex",
@@ -122,7 +116,7 @@ describe("Model filtering", () => {
                 serviceTiers: [],
                 defaultServiceTier: null,
                 isDefault: false,
-                inputModalities: [],
+                inputModalities: []
             },
             {
                 id: "gpt-5.4-mini",
@@ -143,14 +137,11 @@ describe("Model filtering", () => {
                 serviceTiers: [],
                 defaultServiceTier: null,
                 isDefault: false,
-                inputModalities: [],
+                inputModalities: []
             },
         ];
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId: "session-id",
             currentModelId: "gpt-5.2[medium]",
@@ -164,15 +155,12 @@ describe("Model filtering", () => {
             requiresOpenaiAuth: false,
         });
 
-        const newSessionResponse = await codexAcpAgent.newSession({
-            cwd: "",
-            mcpServers: [],
-        });
+        const newSessionResponse = await codexAcpAgent.newSession({ cwd: "", mcpServers: [] });
         const sessionModels = newSessionResponse.models;
         const availableModels = sessionModels?.availableModels;
 
-        await expect(
-            JSON.stringify(availableModels, null, 2),
-        ).toMatchFileSnapshot("data/model-filtering.json");
+        await expect(JSON.stringify(availableModels, null, 2)).toMatchFileSnapshot(
+            "data/model-filtering.json"
+        );
     });
 });

@@ -1,8 +1,8 @@
 import * as rpc from "vscode-jsonrpc/node";
-import type { Message } from "vscode-jsonrpc/node";
-import type { MessageConnection } from "vscode-jsonrpc/node";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createRequire } from "node:module";
+import type {Message} from "vscode-jsonrpc/node";
+import type {MessageConnection} from "vscode-jsonrpc/node";
+import {spawn, type ChildProcessWithoutNullStreams} from "node:child_process";
+import {createRequire} from "node:module";
 import crossSpawn from "cross-spawn";
 
 import { createJSONRPCReader, createJSONRPCWriter } from "./StdUtils";
@@ -12,7 +12,7 @@ import { providerConnections } from "./ProviderConnections";
 const require = createRequire(import.meta.url);
 
 export interface CodexConnection {
-    readonly connection: MessageConnection;
+    readonly connection: MessageConnection
     readonly process: ChildProcessWithoutNullStreams;
     /**
      * Settles once the connection has handled every message that the process wrote before its stdout ended.
@@ -186,12 +186,8 @@ function startRawCodexConnection(
 
     attachLogs(codex);
     // A write to a process that is dying fails with EPIPE. Without a listener that error would end the adapter.
-    codex.stdin.on("error", (error) =>
-        logger.log(`[STDIN ERROR] ${error.message}`),
-    );
-    codex.stdout.on("error", (error) =>
-        logger.log(`[STDOUT ERROR] ${error.message}`),
-    );
+    codex.stdin.on("error", (error) => logger.log(`[STDIN ERROR] ${error.message}`));
+    codex.stdout.on("error", (error) => logger.log(`[STDOUT ERROR] ${error.message}`));
 
     const reader = createJSONRPCReader(codex.stdout);
     const writer = createJSONRPCWriter(codex.stdin);
@@ -202,19 +198,14 @@ function startRawCodexConnection(
 
     // vscode-jsonrpc handles the messages that it read one by one, after the read. The marker comes after the last
     // message of the process, so its handler runs only when every earlier message was handled.
-    const drained = new Promise<void>((resolve) => {
+    const drained = new Promise<void>(resolve => {
         connection.onNotification(DRAINED_MARKER_METHOD, () => resolve());
     });
-    codex.stdout.on("end", () =>
-        reader.deliver?.({
-            jsonrpc: "2.0",
-            method: DRAINED_MARKER_METHOD,
-        } as Message),
-    );
+    codex.stdout.on("end", () => reader.deliver?.({jsonrpc: "2.0", method: DRAINED_MARKER_METHOD} as Message));
 
     if (options.disposeOnExit ?? true) {
         // Terminate all current activities on process termination
-        codex.on("exit", (_) => {
+        codex.on("exit", _ => {
             connection.dispose();
         });
     }
@@ -229,11 +220,7 @@ function startRawCodexConnection(
  */
 export function attachLogs(proc: ChildProcessWithoutNullStreams) {
     const originalWrite = proc.stdin.write.bind(proc.stdin);
-    proc.stdin.write = (
-        chunk: any,
-        encoding?: any,
-        callback?: any,
-    ): boolean => {
+    proc.stdin.write = (chunk: any, encoding?: any, callback?: any): boolean => {
         if (logger.enabled) logger.log(`[IN] ${chunk.toString()}`);
         return originalWrite(chunk, encoding, callback);
     };

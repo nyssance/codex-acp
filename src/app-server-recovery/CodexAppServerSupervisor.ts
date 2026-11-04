@@ -1,15 +1,8 @@
-import type { CodexConnection } from "../CodexJsonRpcConnection";
-import { startCodexConnection } from "../CodexJsonRpcConnection";
-import {
-    type ProviderStartupConfig,
-    NO_PROVIDER_STARTUP_CONFIG,
-} from "../CodexConfigOverride";
-import { logger } from "../Logger";
-import {
-    type AppServerExit,
-    describeExit,
-    likelyOutOfMemory,
-} from "./AppServerExit";
+import type {CodexConnection} from "../CodexJsonRpcConnection";
+import {startCodexConnection} from "../CodexJsonRpcConnection";
+import {type ProviderStartupConfig, NO_PROVIDER_STARTUP_CONFIG} from "../CodexConfigOverride";
+import {logger} from "../Logger";
+import {type AppServerExit, describeExit, likelyOutOfMemory} from "./AppServerExit";
 
 /** The part of `CodexProcessState` that the supervisor owns. */
 export interface SupervisedProcessState {
@@ -23,24 +16,12 @@ export interface SupervisedProcessState {
 }
 
 /** The arguments and the added environment that an app-server of `state` starts with. */
-export function appServerStartup(
-    state: Pick<
-        SupervisedProcessState,
-        "appServerStartupArgs" | "providerStartupConfig"
-    >,
-): {
+export function appServerStartup(state: Pick<SupervisedProcessState, "appServerStartupArgs" | "providerStartupConfig">): {
     args: string[];
     env: Record<string, string>;
 } {
-    const providerStartupConfig =
-        state.providerStartupConfig ?? NO_PROVIDER_STARTUP_CONFIG;
-    return {
-        args: [
-            ...(state.appServerStartupArgs ?? ["app-server"]),
-            ...providerStartupConfig.args,
-        ],
-        env: providerStartupConfig.env,
-    };
+    const providerStartupConfig = state.providerStartupConfig ?? NO_PROVIDER_STARTUP_CONFIG;
+    return {args: [...(state.appServerStartupArgs ?? ["app-server"]), ...providerStartupConfig.args], env: providerStartupConfig.env};
 }
 
 /** One Codex app-server child and its connection. */
@@ -91,10 +72,7 @@ const DEFAULT_TIMINGS: SupervisorTimings = {
     wedgedAfterMs: 5_000,
 };
 
-export type ExitListener = (
-    exit: AppServerExit,
-    child: SupervisedChild,
-) => void;
+export type ExitListener = (exit: AppServerExit, child: SupervisedChild) => void;
 
 /** At most this many exits are kept for the error messages of late failures. */
 const KEPT_EXITS = 16;
@@ -115,9 +93,7 @@ export class CodexAppServerSupervisor {
     private nextGeneration = 1;
     private isShuttingDown = false;
     private readonly exitListeners = new Set<ExitListener>();
-    private readonly deathListeners = new Set<
-        (child: SupervisedChild) => void
-    >();
+    private readonly deathListeners = new Set<(child: SupervisedChild) => void>();
     private readonly exits = new Map<number, AppServerExit>();
     private readonly timings: SupervisorTimings;
 
@@ -127,17 +103,13 @@ export class CodexAppServerSupervisor {
             codexPath: string | undefined,
             appServerStartupArgs: string[],
             env: Record<string, string>,
-        ) => CodexConnection = (codexPath, appServerStartupArgs, env) =>
-            startCodexConnection(
-                codexPath,
-                { ...process.env, ...env },
-                appServerStartupArgs,
-                { disposeOnExit: false },
-            ),
+        ) => CodexConnection =
+            (codexPath, appServerStartupArgs, env) =>
+                startCodexConnection(codexPath, {...process.env, ...env}, appServerStartupArgs, {disposeOnExit: false}),
         timings: Partial<SupervisorTimings> = {},
         private readonly now: () => number = Date.now,
     ) {
-        this.timings = { ...DEFAULT_TIMINGS, ...timings };
+        this.timings = {...DEFAULT_TIMINGS, ...timings};
         this.child = this.watch(state.connection);
     }
 
@@ -155,11 +127,7 @@ export class CodexAppServerSupervisor {
 
     /** True while the child of `generation` (default: the current one) runs and the agent is not shutting down. */
     isAlive(generation = this.child.generation): boolean {
-        return (
-            generation === this.child.generation &&
-            !this.child.dead &&
-            !this.isShuttingDown
-        );
+        return generation === this.child.generation && !this.child.dead && !this.isShuttingDown;
     }
 
     /** The exit of `generation`, while it is among the last kept exits. */
@@ -199,23 +167,13 @@ export class CodexAppServerSupervisor {
     /** Starts a new child. The current child must be gone. */
     spawn(): SupervisedChild {
         if (this.isShuttingDown) throw new Error("The agent is shutting down");
-        if (this.child.exit === null)
-            throw new Error(
-                "The Codex app-server is still running or draining",
-            );
+        if (this.child.exit === null) throw new Error("The Codex app-server is still running or draining");
         this.state.stderr = "";
-        const { args, env } = appServerStartup(this.state);
-        const connection = this.spawnConnection(
-            this.state.codexPath,
-            args,
-            env,
-        );
+        const {args, env} = appServerStartup(this.state);
+        const connection = this.spawnConnection(this.state.codexPath, args, env);
         this.state.connection = connection;
         this.child = this.watch(connection);
-        logger.log("[APP-SERVER START]", {
-            generation: this.child.generation,
-            pid: connection.process.pid ?? null,
-        });
+        logger.log("[APP-SERVER START]", {generation: this.child.generation, pid: connection.process.pid ?? null});
         return this.child;
     }
 
@@ -236,9 +194,7 @@ export class CodexAppServerSupervisor {
     shutdown(): void {
         if (this.isShuttingDown) return;
         this.isShuttingDown = true;
-        logger.log("[APP-SERVER SHUTDOWN]", {
-            generation: this.child.generation,
-        });
+        logger.log("[APP-SERVER SHUTDOWN]", {generation: this.child.generation});
         void this.stop(this.child);
     }
 
@@ -246,15 +202,14 @@ export class CodexAppServerSupervisor {
         const process = connection.process;
         const generation = this.nextGeneration++;
         let resolveExited: (exit: AppServerExit) => void = () => {};
-        const exited = new Promise<AppServerExit>((resolve) => {
+        const exited = new Promise<AppServerExit>(resolve => {
             resolveExited = resolve;
         });
         const child: SupervisedChild = {
             generation,
             connection,
             startedAt: this.now(),
-            providerStartupConfig:
-                this.state.providerStartupConfig ?? NO_PROVIDER_STARTUP_CONFIG,
+            providerStartupConfig: this.state.providerStartupConfig ?? NO_PROVIDER_STARTUP_CONFIG,
             exit: null,
             dead: false,
             intentional: false,
@@ -295,24 +250,17 @@ export class CodexAppServerSupervisor {
             resolveExited(exit);
         };
 
-        const record = (
-            code: number | null,
-            signal: NodeJS.Signals | null,
-            error?: string,
-        ): AppServerExit => {
+        const record = (code: number | null, signal: NodeJS.Signals | null, error?: string): AppServerExit => {
             const exit: AppServerExit = {
                 generation,
                 pid: process.pid,
                 code,
                 signal,
-                ...(error !== undefined ? { error } : {}),
+                ...(error !== undefined ? {error} : {}),
                 intentional: child.intentional,
                 at: this.now(),
                 uptimeMs: this.now() - child.startedAt,
-                stderrTail:
-                    this.state.connection === connection
-                        ? this.state.stderr
-                        : "",
+                stderrTail: this.state.connection === connection ? this.state.stderr : "",
             };
             // Known at once, also while the connection still drains, for the errors of requests that fail now.
             this.exits.set(generation, exit);
@@ -326,78 +274,61 @@ export class CodexAppServerSupervisor {
                 signal,
                 uptimeMs: exit.uptimeMs,
                 intentional: exit.intentional,
-                ...(error !== undefined ? { error } : {}),
+                ...(error !== undefined ? {error} : {}),
             };
             if (exit.intentional) {
                 logger.log("[APP-SERVER EXIT] stopped by the adapter", fields);
             } else {
-                logger.error(
-                    `[APP-SERVER EXIT] The Codex app-server ${describeExit(exit)}`,
-                    JSON.stringify({
-                        ...fields,
-                        likelyOutOfMemory: likelyOutOfMemory(exit),
-                        stderrTail: exit.stderrTail,
-                    }),
-                );
+                logger.error(`[APP-SERVER EXIT] The Codex app-server ${describeExit(exit)}`, JSON.stringify({
+                    ...fields,
+                    likelyOutOfMemory: likelyOutOfMemory(exit),
+                    stderrTail: exit.stderrTail,
+                }));
             }
             return exit;
         };
 
-        process.on(
-            "exit",
-            (code: number | null, signal: NodeJS.Signals | null) => {
-                if (exitSeen) return;
-                exitSeen = true;
-                markDead();
-                const exit = record(code, signal);
-                // Read what the child wrote before it died. A real connection says when it handled the last message.
-                // A grandchild that inherited the pipes can hold stdout open, so wait at most `closeGraceMs`.
-                if (connection.drained !== undefined) {
-                    // Once stdout ended, the marker is queued behind the last message and runs: wait for it however long
-                    // the backlog takes. Only a stdout that a grandchild holds open is bounded.
-                    let grace: ReturnType<typeof setTimeout> | undefined;
-                    const bound = () => {
-                        grace = setTimeout(
-                            () => finalize(exit),
-                            this.timings.closeGraceMs,
-                        );
-                    };
-                    if (!stdoutEnded) bound();
-                    const unbound = () => clearTimeout(grace);
-                    process.stdout?.once("end", unbound);
-                    void connection.drained.then(() => {
-                        clearTimeout(grace);
-                        process.stdout?.off("end", unbound);
-                        finalize(exit);
-                    });
-                    return;
-                }
-                // Without that signal: wait for `close`, then give the connection a moment to handle what it has read.
-                if (closed || !process.stdout) {
-                    setTimeout(
-                        () => finalize(exit),
-                        closed ? this.timings.drainMs : 0,
-                    );
-                    return;
-                }
-                const grace = setTimeout(
-                    () => finalize(exit),
-                    this.timings.closeGraceMs,
-                );
-                process.once("close", () => {
+        process.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
+            if (exitSeen) return;
+            exitSeen = true;
+            markDead();
+            const exit = record(code, signal);
+            // Read what the child wrote before it died. A real connection says when it handled the last message.
+            // A grandchild that inherited the pipes can hold stdout open, so wait at most `closeGraceMs`.
+            if (connection.drained !== undefined) {
+                // Once stdout ended, the marker is queued behind the last message and runs: wait for it however long
+                // the backlog takes. Only a stdout that a grandchild holds open is bounded.
+                let grace: ReturnType<typeof setTimeout> | undefined;
+                const bound = () => {
+                    grace = setTimeout(() => finalize(exit), this.timings.closeGraceMs);
+                };
+                if (!stdoutEnded) bound();
+                const unbound = () => clearTimeout(grace);
+                process.stdout?.once("end", unbound);
+                void connection.drained.then(() => {
                     clearTimeout(grace);
-                    setTimeout(() => finalize(exit), this.timings.drainMs);
+                    process.stdout?.off("end", unbound);
+                    finalize(exit);
                 });
-            },
-        );
+                return;
+            }
+            // Without that signal: wait for `close`, then give the connection a moment to handle what it has read.
+            if (closed || !process.stdout) {
+                setTimeout(() => finalize(exit), closed ? this.timings.drainMs : 0);
+                return;
+            }
+            const grace = setTimeout(() => finalize(exit), this.timings.closeGraceMs);
+            process.once("close", () => {
+                clearTimeout(grace);
+                setTimeout(() => finalize(exit), this.timings.drainMs);
+            });
+        });
         process.on("close", () => {
             closed = true;
         });
         process.on("error", (error: Error) => {
             if (process.pid !== undefined) {
-                logger.log(`[APP-SERVER ERROR] ${error.message}`, {
-                    generation,
-                });
+                logger.log(`[APP-SERVER ERROR] ${error.message}`, {generation});
                 return;
             }
             // The child never started (ENOENT, EACCES). Node may not emit `exit` then.
@@ -412,10 +343,7 @@ export class CodexAppServerSupervisor {
             // The child closed its protocol stream but runs on: it can never answer again.
             wedgedTimer = setTimeout(() => {
                 if (exitSeen) return;
-                logger.error(
-                    "[APP-SERVER WEDGED] stdout ended but the process runs on; stopping it",
-                    JSON.stringify({ generation }),
-                );
+                logger.error("[APP-SERVER WEDGED] stdout ended but the process runs on; stopping it", JSON.stringify({generation}));
                 child.failing = true;
                 this.terminate(child);
             }, this.timings.wedgedAfterMs);
@@ -432,10 +360,7 @@ export class CodexAppServerSupervisor {
             }
             setTimeout(() => {
                 if (exitSeen) return;
-                logger.log(
-                    "[APP-SERVER STOP] still running after the end of stdin; sending SIGTERM",
-                    { generation },
-                );
+                logger.log("[APP-SERVER STOP] still running after the end of stdin; sending SIGTERM", {generation});
                 try {
                     process.kill("SIGTERM");
                 } catch {
@@ -445,13 +370,8 @@ export class CodexAppServerSupervisor {
                     if (exitSeen) return;
                     exitSeen = true;
                     markDead();
-                    logger.error(
-                        "[APP-SERVER STOP] still running after SIGTERM; closing its pipes and moving on",
-                        JSON.stringify({ generation }),
-                    );
-                    finalize(
-                        record(null, null, "it did not stop after SIGTERM"),
-                    );
+                    logger.error("[APP-SERVER STOP] still running after SIGTERM; closing its pipes and moving on", JSON.stringify({generation}));
+                    finalize(record(null, null, "it did not stop after SIGTERM"));
                 }, this.timings.abandonAfterMs);
             }, this.timings.terminateAfterMs);
         };
@@ -467,7 +387,7 @@ function destroyPipes(connection: CodexConnection): void {
     const process = connection.process;
     for (const stream of [process.stdin, process.stdout, process.stderr]) {
         try {
-            (stream as { destroy?: () => void } | undefined)?.destroy?.();
+            (stream as {destroy?: () => void} | undefined)?.destroy?.();
         } catch {
             // Already closed.
         }

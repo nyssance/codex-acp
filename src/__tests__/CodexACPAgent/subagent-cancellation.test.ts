@@ -1,30 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { RequestError } from "@agentclientprotocol/sdk/unstable";
-import type { SubagentUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type { ServerNotification } from "../../app-server";
+import {afterEach, describe, expect, it, vi} from "vitest";
+import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import type {SubagentUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type {ServerNotification} from "../../app-server";
 import {
-    connectSession,
-    createThread,
-    createTurn,
-    cwd,
-    itemStarted,
-    sessionId,
-    turnCompleted,
-    turnStarted,
-    type PromptSession,
+    connectSession, createThread, createTurn, cwd, itemStarted, sessionId, turnCompleted, turnStarted, type PromptSession,
 } from "./v2-prompt-harness";
-import { expectConformingV2SessionUpdates } from "./v2-session-update-guard";
+import {expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 const id = (thread: string) => `${sessionId}:subagent:${thread}`;
 const on = (thread: string, event: ServerNotification): ServerNotification =>
-    ({
-        ...event,
-        params: { ...event.params, threadId: thread },
-    }) as ServerNotification;
-async function flush(h: PromptSession) {
-    await h.waitForNotifications();
-    await h.request("session/list", {});
-}
+    ({...event, params: {...event.params, threadId: thread}} as ServerNotification);
+async function flush(h: PromptSession) { await h.waitForNotifications(); await h.request("session/list", {}); }
 
 describe.each([1, 2] as const)(
     "ACP v%s direct child cancellation",

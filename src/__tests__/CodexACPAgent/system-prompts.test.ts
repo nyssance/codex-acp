@@ -1,17 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {
-    codexResponse,
-    connectSession,
-    createThread,
-    createTurn,
-    cwd,
-    sessionId,
-    settle,
+    codexResponse, connectSession, createThread, createTurn, cwd, sessionId, settle,
     type PromptSession,
     createReplacementCodexAcpClient,
 } from "./v2-prompt-harness";
-import type { Thread } from "../../app-server/v2";
-import { stubGatewayModelListing } from "../acp-test-utils";
+import type {Thread} from "../../app-server/v2";
+import {stubGatewayModelListing} from "../acp-test-utils";
 
 stubGatewayModelListing(["gpt-5"]);
 

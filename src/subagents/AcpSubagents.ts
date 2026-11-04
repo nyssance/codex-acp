@@ -25,8 +25,7 @@ export type SubagentSpawnedUpdate = {
     _meta?: Record<string, unknown> | null;
 };
 
-export type SubagentState =
-    "completed" | "failed" | "cancelled" | "disconnected";
+export type SubagentState = "completed" | "failed" | "cancelled" | "disconnected";
 
 export type SubagentStateUpdate = {
     sessionUpdate: "subagent_state_update";
@@ -39,10 +38,7 @@ export type SubagentAwareSessionCapabilities = SessionCapabilities & {
     subagents?: Record<string, never>;
 };
 
-export type StandardSubagentUpdate = Omit<
-    acpV2.SubagentUpdate,
-    "capabilities"
-> & {
+export type StandardSubagentUpdate = Omit<acpV2.SubagentUpdate, "capabilities"> & {
     sessionUpdate: "subagent_update";
     capabilities?: Pick<acpV2.SubagentSessionCapabilities, "cancel">;
 };
@@ -52,22 +48,12 @@ export function subagentProtocol(
     version: 1 | 2 = 1,
 ): "hidden" | "air" | "standard" {
     const subagents = (
-        capabilities as
-            (ClientCapabilities & { subagents?: unknown }) | null | undefined
+        capabilities as (ClientCapabilities & { subagents?: unknown }) | null | undefined
     )?.subagents;
-    const standard =
-        typeof subagents === "object" &&
-        subagents !== null &&
-        !Array.isArray(subagents);
+    const standard = typeof subagents === "object" && subagents !== null && !Array.isArray(subagents);
     const air = isAirClient(capabilities);
-    if (
-        clientSupportsAirCapability(
-            capabilities,
-            AIR_NATIVE_SUBAGENT_SESSIONS_KEY,
-        ) ||
-        (version === 1 && air && standard)
-    )
-        return "air";
+    if (clientSupportsAirCapability(capabilities, AIR_NATIVE_SUBAGENT_SESSIONS_KEY)
+        || (version === 1 && air && standard)) return "air";
     if (air) return "hidden";
     return version === 2 || standard ? "standard" : "hidden";
 }

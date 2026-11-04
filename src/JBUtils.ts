@@ -1,8 +1,6 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 
-export function isJetBrains2026_1Client(
-    clientInfo: acp.Implementation | null,
-): boolean {
+export function isJetBrains2026_1Client(clientInfo: acp.Implementation | null): boolean {
     if (!clientInfo) {
         return false;
     }
@@ -10,8 +8,5 @@ export function isJetBrains2026_1Client(
     const platform = clientInfo._meta?.["platform"];
     const isIntelliJPlatform = platform === "intellij";
     const isJetBrainsClient = clientInfo.name.startsWith("JetBrains");
-    return (
-        (isIntelliJPlatform || isJetBrainsClient) &&
-        clientInfo.version.startsWith("2026.1")
-    );
+    return (isIntelliJPlatform || isJetBrainsClient) && clientInfo.version.startsWith("2026.1");
 }

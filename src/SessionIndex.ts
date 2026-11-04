@@ -9,20 +9,14 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import { RequestError } from "@agentclientprotocol/sdk/unstable";
-import { z } from "zod";
-import type { ServerNotification } from "./app-server";
-import type {
-    Thread,
-    ThreadListParams,
-    ThreadListResponse,
-    ThreadStatus,
-    Turn,
-} from "./app-server/v2";
-import { AIR_META_KEY, JETBRAINS_META_KEY, withAirMeta } from "./AirExtension";
-import { listedSessionTitle } from "./SessionTitle";
-import { isArchivedRolloutPath } from "./SessionIndexMutations";
-import { logger } from "./Logger";
+import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import {z} from "zod";
+import type {ServerNotification} from "./app-server";
+import type {Thread, ThreadListParams, ThreadListResponse, ThreadStatus, Turn} from "./app-server/v2";
+import {AIR_META_KEY, JETBRAINS_META_KEY, withAirMeta} from "./AirExtension";
+import {listedSessionTitle} from "./SessionTitle";
+import {isArchivedRolloutPath} from "./SessionIndexMutations";
+import {logger} from "./Logger";
 
 export const AIR_SESSION_INDEX_KEY = "sessionIndex";
 /** Agent capability: metadata for known IDs, including sessions outside the recent page. */
@@ -63,11 +57,7 @@ export const AIR_ARCHIVED_KEY = "archived";
 /** The `archived` list option: which Codex lists the session index reads. */
 export type SessionIndexArchivedFilter = "unarchived" | "archived" | "all";
 
-const ARCHIVED_FILTERS: readonly SessionIndexArchivedFilter[] = [
-    "unarchived",
-    "archived",
-    "all",
-];
+const ARCHIVED_FILTERS: readonly SessionIndexArchivedFilter[] = ["unarchived", "archived", "all"];
 
 /** The Codex lists of a filter, by their `thread/list` `archived` value, unarchived first. */
 function archivedSides(filter: SessionIndexArchivedFilter): boolean[] {
@@ -82,10 +72,7 @@ function archivedSides(filter: SessionIndexArchivedFilter): boolean[] {
 }
 
 function isArchivedFilter(value: unknown): value is SessionIndexArchivedFilter {
-    return (
-        typeof value === "string" &&
-        (ARCHIVED_FILTERS as readonly string[]).includes(value)
-    );
+    return typeof value === "string" && (ARCHIVED_FILTERS as readonly string[]).includes(value);
 }
 
 export interface SessionIndexListOptions {
@@ -112,33 +99,19 @@ export function isInteractiveSource(thread: Thread): boolean {
  * interactive source, with a first user message, which is its `preview`.
  */
 export function isListedThread(thread: Thread): boolean {
-    return (
-        !thread.ephemeral &&
-        isInteractiveSource(thread) &&
-        thread.preview !== "" &&
-        thread.path !== null
-    );
+    return !thread.ephemeral && isInteractiveSource(thread) && thread.preview !== "" && thread.path !== null;
 }
 
 /**
  * The entry of a `thread/read` result, or null when `session/list` would not show the thread. Codex reports the
  * archive state only through the rollout path.
  */
-export function listedThreadEntry(
-    thread: Thread,
-    codexHome: string | null,
-): SessionIndexThread | null {
+export function listedThreadEntry(thread: Thread, codexHome: string | null): SessionIndexThread | null {
     if (!isListedThread(thread)) return null;
-    return {
-        thread,
-        archived:
-            thread.path !== null &&
-            isArchivedRolloutPath(thread.path, codexHome),
-    };
+    return {thread, archived: thread.path !== null && isArchivedRolloutPath(thread.path, codexHome)};
 }
 
-export type SessionActivityState =
-    "running" | "idle" | "requires_action" | "reviewing" | "error";
+export type SessionActivityState = "running" | "idle" | "requires_action" | "reviewing" | "error";
 
 export interface SessionActivity {
     state?: SessionActivityState;
@@ -147,39 +120,24 @@ export interface SessionActivity {
 
 export type SessionRenameRequest = { sessionId: string; title: string };
 export type SessionArchiveRequest = { sessionId: string };
-export type SessionBatchGetRequest = { sessionIds: string[] };
+export type SessionBatchGetRequest = {sessionIds: string[]};
 export type SessionBatchGetResponse = {
     sessions: acp.SessionInfo[];
 };
 
 export const sessionBatchGetParamsParser = z.strictObject({
-    sessionIds: z
-        .array(
-            z
-                .string()
-                .refine(
-                    (id) => id.trim().length > 0,
-                    "sessionIds must not be blank",
-                ),
-        )
-        .refine(
-            (ids) => new Set(ids).size === ids.length,
-            "sessionIds must be distinct",
-        ),
+    sessionIds: z.array(z.string().refine(id => id.trim().length > 0, "sessionIds must not be blank"))
+        .refine(ids => new Set(ids).size === ids.length, "sessionIds must be distinct"),
 });
 
-export const sessionRenameParamsParser = z
-    .object({
-        sessionId: z.string(),
-        title: z.string(),
-    })
-    .passthrough();
+export const sessionRenameParamsParser = z.object({
+    sessionId: z.string(),
+    title: z.string(),
+}).passthrough();
 
-export const sessionArchiveParamsParser = z
-    .object({
-        sessionId: z.string(),
-    })
-    .passthrough();
+export const sessionArchiveParamsParser = z.object({
+    sessionId: z.string(),
+}).passthrough();
 
 /** The params of `_session/list/subscribe` and `_session/list/unsubscribe`, which the service validates. */
 export const sessionListSubscriptionParamsParser = z.preprocess(
@@ -194,13 +152,9 @@ export const sessionListSubscriptionParamsParser = z.preprocess(
  *   not `"unarchived"`, `"archived"` or `"all"`, or an `includeWorktrees` that is not a boolean. Omitted and
  *   `null` mean the default for each.
  */
-export function readSessionIndexListOptions(
-    meta: Record<string, unknown> | null | undefined,
-): SessionIndexListOptions {
+export function readSessionIndexListOptions(meta: Record<string, unknown> | null | undefined): SessionIndexListOptions {
     const jetbrains = asRecord(asRecord(meta)[JETBRAINS_META_KEY]);
-    const list = asRecord(
-        asRecord(jetbrains[AIR_META_KEY])[AIR_SESSION_LIST_KEY],
-    );
+    const list = asRecord(asRecord(jetbrains[AIR_META_KEY])[AIR_SESSION_LIST_KEY]);
     return {
         limit: readLimit(list["limit"]),
         archived: readArchivedFilter(list["archived"]),
@@ -212,10 +166,7 @@ export function readSessionIndexListOptions(
 function readBoolean(list: Record<string, unknown>, key: string): boolean {
     const value = list[key] ?? false;
     if (typeof value !== "boolean") {
-        throw RequestError.invalidParams(
-            { [key]: value },
-            `${key} must be a boolean`,
-        );
+        throw RequestError.invalidParams({[key]: value}, `${key} must be a boolean`);
     }
     return value;
 }
@@ -224,23 +175,16 @@ function readBoolean(list: Record<string, unknown>, key: string): boolean {
 function readArchivedFilter(value: unknown): SessionIndexArchivedFilter {
     if (value === undefined || value === null) return "unarchived";
     if (!isArchivedFilter(value)) {
-        throw RequestError.invalidParams(
-            { archived: value },
-            `archived must be one of ${ARCHIVED_FILTERS.map((filter) => `"${filter}"`).join(", ")}`,
-        );
+        throw RequestError.invalidParams({archived: value}, `archived must be one of ${ARCHIVED_FILTERS.map(filter => `"${filter}"`).join(", ")}`);
     }
     return value;
 }
 
 /** `limit`: omitted or `null` is the default, an integer of at least 1 is clamped to the maximum. */
 function readLimit(value: unknown): number {
-    if (value === undefined || value === null)
-        return DEFAULT_SESSION_INDEX_LIMIT;
+    if (value === undefined || value === null) return DEFAULT_SESSION_INDEX_LIMIT;
     if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-        throw RequestError.invalidParams(
-            { limit: value },
-            "limit must be an integer of at least 1",
-        );
+        throw RequestError.invalidParams({limit: value}, "limit must be an integer of at least 1");
     }
     return Math.min(MAX_SESSION_INDEX_LIMIT, value);
 }
@@ -268,7 +212,7 @@ export function sessionIndexThreadListParams(
         archived,
         sourceKinds: [],
         modelProviders: [],
-        ...(cwds === null ? {} : { cwd: cwds.length === 1 ? cwds[0]! : cwds }),
+        ...(cwds === null ? {} : {cwd: cwds.length === 1 ? cwds[0]! : cwds}),
         useStateDbOnly: true,
     };
 }
@@ -305,7 +249,7 @@ interface AdapterCursor {
     /** One per Codex list of the filter, in the order of {@link archivedSides}. */
     sides: SideCursor[];
     /** The recency of the last row that the client has, and the ids of its rows with that recency. */
-    after: { recency: number; ids: string[] } | null;
+    after: {recency: number, ids: string[]} | null;
 }
 
 interface SidePage {
@@ -343,37 +287,27 @@ export async function readSessionIndexPage(
     cursor: string | null,
     keep?: (thread: Thread) => boolean,
     scope: string | null = null,
-): Promise<{ threads: SessionIndexThread[]; nextCursor: string | null }> {
+): Promise<{threads: SessionIndexThread[], nextCursor: string | null}> {
     const filtered = keep !== undefined;
-    const state: AdapterCursor =
-        cursor === null
-            ? {
-                  scope,
-                  archived: options.archived,
-                  includeWorktrees: options.includeWorktrees,
-                  filtered,
-                  sides: archivedSides(options.archived).map(() => ({
-                      codexCursor: null,
-                      done: false,
-                  })),
-                  after: null,
-              }
-            : decodeAdapterCursor(cursor);
-    if (
-        state.scope !== scope ||
-        state.archived !== options.archived ||
-        state.includeWorktrees !== options.includeWorktrees ||
-        state.filtered !== filtered
-    ) {
+    const state: AdapterCursor = cursor === null
+        ? {
+            scope,
+            archived: options.archived,
+            includeWorktrees: options.includeWorktrees,
+            filtered,
+            sides: archivedSides(options.archived).map(() => ({codexCursor: null, done: false})),
+            after: null,
+        }
+        : decodeAdapterCursor(cursor);
+    if (state.scope !== scope || state.archived !== options.archived
+        || state.includeWorktrees !== options.includeWorktrees || state.filtered !== filtered) {
         throw invalidCursorError(cursor!);
     }
 
     const pageLimit = filtered ? MAX_SESSION_INDEX_LIMIT : options.limit;
     const sideFlags = archivedSides(state.archived);
     const sideArchived = (index: number): boolean => sideFlags[index]!;
-    const readCursors = state.sides.map(
-        (side) => new Set(side.codexCursor === null ? [] : [side.codexCursor]),
-    );
+    const readCursors = state.sides.map(side => new Set(side.codexCursor === null ? [] : [side.codexCursor]));
     const pages = new Map<number, SidePage>();
     /** Moves a Codex list on to its next page, or ends it. */
     const advanceSide = (index: number, nextCursor: string | null): void => {
@@ -381,10 +315,7 @@ export async function readSessionIndexPage(
         if (nextCursor === null) {
             side.done = true;
         } else if (readCursors[index]!.has(nextCursor)) {
-            logger.log("thread/list repeats its cursor; that list ends here", {
-                cursor: nextCursor,
-                archived: sideArchived(index),
-            });
+            logger.log("thread/list repeats its cursor; that list ends here", {cursor: nextCursor, archived: sideArchived(index)});
             side.done = true;
         } else {
             readCursors[index]!.add(nextCursor);
@@ -395,80 +326,46 @@ export async function readSessionIndexPage(
     // A filtered list gathers rows from several Codex pages to fill the page: its matches can be sparse.
     const collected: SessionIndexThread[] = [];
     const startedAt = Date.now();
-    const answer = (): {
-        threads: SessionIndexThread[];
-        nextCursor: string | null;
-    } => ({
+    const answer = (): {threads: SessionIndexThread[], nextCursor: string | null} => ({
         threads: collected,
-        nextCursor: state.sides.every((side) => side.done)
-            ? null
-            : encodeAdapterCursor(state),
+        nextCursor: state.sides.every(side => side.done) ? null : encodeAdapterCursor(state),
     });
     const overBudget = (round: number): boolean => {
-        if (
-            round < SESSION_INDEX_SCAN_BUDGET_PAGES &&
-            Date.now() - startedAt < SESSION_INDEX_SCAN_BUDGET_MS
-        )
-            return false;
+        if (round < SESSION_INDEX_SCAN_BUDGET_PAGES && Date.now() - startedAt < SESSION_INDEX_SCAN_BUDGET_MS) return false;
         if (collected.length === 0) {
-            logger.log(
-                "The session list read its scan budget; the client continues from the cursor",
-                { rounds: round },
-            );
+            logger.log("The session list read its scan budget; the client continues from the cursor", {rounds: round});
         }
         return true;
     };
 
     for (let round = 1; ; round++) {
         // With `all`, the unarchived and the archived lists are read at the same time.
-        await Promise.all(
-            [...state.sides.entries()].map(async ([index, side]) => {
-                if (side.done || pages.has(index)) return;
-                const response = await threadList(
-                    sessionIndexThreadListParams(
-                        cwds,
-                        pageLimit,
-                        sideArchived(index),
-                        side.codexCursor,
-                    ),
-                );
-                const recencies = response.data.map(recencyOf);
-                pages.set(index, {
-                    rows: rowsAfter(
-                        keep === undefined
-                            ? response.data
-                            : response.data.filter(keep),
-                        state.after,
-                    ),
-                    nextCursor: response.nextCursor ?? null,
-                    oldest:
-                        recencies.length === 0 ? null : Math.min(...recencies),
-                });
-            }),
-        );
+        await Promise.all([...state.sides.entries()].map(async ([index, side]) => {
+            if (side.done || pages.has(index)) return;
+            const response = await threadList(sessionIndexThreadListParams(cwds, pageLimit, sideArchived(index), side.codexCursor));
+            const recencies = response.data.map(recencyOf);
+            pages.set(index, {
+                rows: rowsAfter(keep === undefined ? response.data : response.data.filter(keep), state.after),
+                nextCursor: response.nextCursor ?? null,
+                oldest: recencies.length === 0 ? null : Math.min(...recencies),
+            });
+        }));
         // An empty Codex page with more pages says nothing about how new the rows of its list are, so no row of
         // the other list can be answered before that list's next page is read.
-        const unresolved = [...pages].filter(
-            ([, page]) => page.oldest === null && page.nextCursor !== null,
-        );
+        const unresolved = [...pages].filter(([, page]) => page.oldest === null && page.nextCursor !== null);
         if (unresolved.length > 0) {
             for (const [index, page] of unresolved) {
                 pages.delete(index);
                 advanceSide(index, page.nextCursor!);
             }
-            if (state.sides.every((side) => side.done) || overBudget(round))
-                return answer();
+            if (state.sides.every(side => side.done) || overBudget(round)) return answer();
             continue;
         }
         // A row older than the oldest row of a Codex page with more pages could still come after a newer row
         // of that list's next page.
         let bound = -Infinity;
         for (const [index, page] of pages) {
-            if (
-                !state.sides[index]!.done &&
-                page.nextCursor !== null &&
-                page.oldest !== null
-            ) {
+            if (!state.sides[index]!.done && page.nextCursor !== null && page.oldest !== null) {
                 bound = Math.max(bound, page.oldest);
             }
         }
@@ -485,17 +382,13 @@ export async function readSessionIndexPage(
                     })),
             );
         // A stable sort: rows as recent as each other keep the Codex order, unarchived first.
-        candidates.sort(
-            (left, right) => recencyOf(right.thread) - recencyOf(left.thread),
-        );
+        candidates.sort((left, right) => recencyOf(right.thread) - recencyOf(left.thread));
         const taken = candidates.slice(0, options.limit - collected.length);
-        const takenIds = new Set(taken.map((row) => row.thread.id));
+        const takenIds = new Set(taken.map(row => row.thread.id));
 
         // A Codex page whose rows the client now has, or which had none to give, is done with.
         for (const [index, page] of [...pages]) {
-            const allTaken =
-                (page.oldest === null || page.oldest >= bound) &&
-                page.rows.every((row) => takenIds.has(row.id));
+            const allTaken = (page.oldest === null || page.oldest >= bound) && page.rows.every(row => takenIds.has(row.id));
             if (!allTaken) continue;
             pages.delete(index);
             advanceSide(index, page.nextCursor);
@@ -507,27 +400,16 @@ export async function readSessionIndexPage(
                 .map((row) => row.thread.id);
             state.after = {
                 recency: last,
-                ids:
-                    state.after?.recency === last
-                        ? [...state.after.ids, ...ids]
-                        : ids,
+                ids: state.after?.recency === last ? [...state.after.ids, ...ids] : ids,
             };
-            collected.push(
-                ...taken.map(({ thread, archived }) => ({ thread, archived })),
-            );
+            collected.push(...taken.map(({thread, archived}) => ({thread, archived})));
             // The Codex pages kept for the next round still hold no taken row: those were all at or above
             // the bound, and a page is kept only for its rows below it.
-            for (const page of pages.values())
-                page.rows = rowsAfter(page.rows, state.after);
+            for (const page of pages.values()) page.rows = rowsAfter(page.rows, state.after);
         }
-        const finished = state.sides.every((side) => side.done);
+        const finished = state.sides.every(side => side.done);
         // An unfiltered list answers after the first round that gives rows: its Codex pages are full.
-        if (
-            finished ||
-            collected.length >= options.limit ||
-            (collected.length > 0 && !filtered)
-        )
-            return answer();
+        if (finished || collected.length >= options.limit || (collected.length > 0 && !filtered)) return answer();
         if (overBudget(round)) return answer();
     }
 }
@@ -541,11 +423,7 @@ function recencyOf(thread: Thread): number {
 function rowsAfter(rows: Thread[], after: AdapterCursor["after"]): Thread[] {
     if (after === null) return rows;
     const seen = new Set(after.ids);
-    return rows.filter(
-        (row) =>
-            recencyOf(row) < after.recency ||
-            (recencyOf(row) === after.recency && !seen.has(row.id)),
-    );
+    return rows.filter(row => recencyOf(row) < after.recency || (recencyOf(row) === after.recency && !seen.has(row.id)));
 }
 
 function encodeAdapterCursor(cursor: AdapterCursor): string {
@@ -554,81 +432,45 @@ function encodeAdapterCursor(cursor: AdapterCursor): string {
         cursor.archived,
         cursor.includeWorktrees,
         cursor.filtered,
-        cursor.sides.map((side) => (side.done ? 0 : [side.codexCursor])),
+        cursor.sides.map(side => side.done ? 0 : [side.codexCursor]),
         cursor.after === null ? null : [cursor.after.recency, cursor.after.ids],
     ];
-    return (
-        ADAPTER_CURSOR_PREFIX +
-        Buffer.from(JSON.stringify(value)).toString("base64url")
-    );
+    return ADAPTER_CURSOR_PREFIX + Buffer.from(JSON.stringify(value)).toString("base64url");
 }
 
 /** Reads an adapter cursor. A Codex cursor, or any other string, is an error. */
 function decodeAdapterCursor(cursor: string): AdapterCursor {
-    if (!cursor.startsWith(ADAPTER_CURSOR_PREFIX))
-        throw invalidCursorError(cursor);
+    if (!cursor.startsWith(ADAPTER_CURSOR_PREFIX)) throw invalidCursorError(cursor);
     let value: unknown;
     try {
-        value = JSON.parse(
-            Buffer.from(
-                cursor.slice(ADAPTER_CURSOR_PREFIX.length),
-                "base64url",
-            ).toString("utf8"),
-        );
+        value = JSON.parse(Buffer.from(cursor.slice(ADAPTER_CURSOR_PREFIX.length), "base64url").toString("utf8"));
     } catch {
         throw invalidCursorError(cursor);
     }
-    if (!Array.isArray(value) || value.length !== 6)
-        throw invalidCursorError(cursor);
-    const [scope, archived, includeWorktrees, filtered, sides, after] =
-        value as unknown[];
-    if (
-        (scope !== null && typeof scope !== "string") ||
-        !isArchivedFilter(archived) ||
-        typeof includeWorktrees !== "boolean" ||
-        typeof filtered !== "boolean" ||
-        !Array.isArray(sides) ||
-        sides.length !== archivedSides(archived).length
-    ) {
+    if (!Array.isArray(value) || value.length !== 6) throw invalidCursorError(cursor);
+    const [scope, archived, includeWorktrees, filtered, sides, after] = value as unknown[];
+    if ((scope !== null && typeof scope !== "string") || !isArchivedFilter(archived) || typeof includeWorktrees !== "boolean" || typeof filtered !== "boolean"
+        || !Array.isArray(sides) || sides.length !== archivedSides(archived).length) {
         throw invalidCursorError(cursor);
     }
     const sideCursors = sides.map((side: unknown): SideCursor => {
-        if (side === 0) return { codexCursor: null, done: true };
-        if (
-            Array.isArray(side) &&
-            side.length === 1 &&
-            (side[0] === null || typeof side[0] === "string")
-        ) {
-            return { codexCursor: side[0] as string | null, done: false };
+        if (side === 0) return {codexCursor: null, done: true};
+        if (Array.isArray(side) && side.length === 1 && (side[0] === null || typeof side[0] === "string")) {
+            return {codexCursor: side[0] as string | null, done: false};
         }
         throw invalidCursorError(cursor);
     });
-    const common = {
-        scope: scope as string | null,
-        archived,
-        includeWorktrees,
-        filtered,
-        sides: sideCursors,
-    };
-    if (after === null) return { ...common, after: null };
-    if (
-        Array.isArray(after) &&
-        after.length === 2 &&
-        typeof after[0] === "number" &&
-        Number.isFinite(after[0]) &&
-        Array.isArray(after[1]) &&
-        after[1].every((id: unknown) => typeof id === "string")
-    ) {
-        return {
-            ...common,
-            after: { recency: after[0], ids: after[1] as string[] },
-        };
+    const common = {scope: scope as string | null, archived, includeWorktrees, filtered, sides: sideCursors};
+    if (after === null) return {...common, after: null};
+    if (Array.isArray(after) && after.length === 2 && typeof after[0] === "number" && Number.isFinite(after[0])
+        && Array.isArray(after[1]) && after[1].every((id: unknown) => typeof id === "string")) {
+        return {...common, after: {recency: after[0], ids: after[1] as string[]}};
     }
     throw invalidCursorError(cursor);
 }
 
 function invalidCursorError(cursor: string): RequestError {
-    return RequestError.invalidParams({ cursor }, "invalid cursor");
+    return RequestError.invalidParams({cursor}, "invalid cursor");
 }
 
 /** The session list row of a thread. */
@@ -638,18 +480,14 @@ export function sessionIndexSessionInfo(
     activity: SessionActivity | null,
     agentWorktree = false,
 ): acp.SessionInfo {
-    const airFields: Record<string, unknown> = { [AIR_ARCHIVED_KEY]: archived };
+    const airFields: Record<string, unknown> = {[AIR_ARCHIVED_KEY]: archived};
     // Codex moves `recencyAt` when a turn starts and orders threads by it: the time of the last prompt.
-    if (thread.recencyAt !== null)
-        airFields[AIR_LAST_PROMPT_AT_KEY] = isoTime(thread.recencyAt);
+    if (thread.recencyAt !== null) airFields[AIR_LAST_PROMPT_AT_KEY] = isoTime(thread.recencyAt);
     if (thread.model) airFields[AIR_MODEL_KEY] = thread.model;
-    if (thread.forkedFromId)
-        airFields[AIR_FORKED_FROM_KEY] = thread.forkedFromId;
+    if (thread.forkedFromId) airFields[AIR_FORKED_FROM_KEY] = thread.forkedFromId;
     // `state` is omitted when unknown, never "unknown".
-    if (activity?.state !== undefined)
-        airFields[AIR_STATE_KEY] = activity.state;
-    if (activity?.lastTurnEndedAt !== undefined)
-        airFields[AIR_LAST_TURN_ENDED_AT_KEY] = activity.lastTurnEndedAt;
+    if (activity?.state !== undefined) airFields[AIR_STATE_KEY] = activity.state;
+    if (activity?.lastTurnEndedAt !== undefined) airFields[AIR_LAST_TURN_ENDED_AT_KEY] = activity.lastTurnEndedAt;
     if (agentWorktree) airFields[AIR_AGENT_WORKTREE_KEY] = true;
     let meta: Record<string, unknown> | undefined;
     for (const [key, value] of Object.entries(airFields)) {
@@ -663,7 +501,7 @@ export function sessionIndexSessionInfo(
         // kind. The list is ordered by `lastPromptAt ?? updatedAt` instead. Known deviation from #2161: Codex also
         // moves it on `thread/unarchive`, which sets the rollout mtime to now (thread-store unarchive_thread.rs).
         updatedAt: isoTime(thread.updatedAt),
-        ...(meta ? { _meta: meta } : {}),
+        ...(meta ? {_meta: meta} : {}),
     };
 }
 
@@ -683,8 +521,7 @@ export function activityStateOf(
 ): SessionActivityState | undefined {
     if (status.type === "notLoaded") return undefined;
     // requires_action > reviewing > running > error > idle.
-    if (status.type === "active" && status.activeFlags.length > 0)
-        return "requires_action";
+    if (status.type === "active" && status.activeFlags.length > 0) return "requires_action";
     if (status.type === "active") return reviewing ? "reviewing" : "running";
     if (status.type === "systemError" || lastTurnFailed) return "error";
     return "idle";
@@ -692,12 +529,7 @@ export function activityStateOf(
 
 /** A turn that ended with an error rather than a user cancel: `failed`, or another end with an error. */
 export function turnFailed(turn: Turn): boolean {
-    return (
-        turn.status === "failed" ||
-        (turn.status !== "interrupted" &&
-            turn.status !== "inProgress" &&
-            turn.error !== null)
-    );
+    return turn.status === "failed" || (turn.status !== "interrupted" && turn.status !== "inProgress" && turn.error !== null);
 }
 
 /**
@@ -716,33 +548,22 @@ export class SessionIndexActivity {
      * @param isSession true for a thread that is a session of this connection. Only those are recorded: the
      *   ephemeral threads of the title generation and other helper threads never show in the list.
      */
-    constructor(
-        private readonly isSession: (threadId: string) => boolean = () => true,
-    ) {}
+    constructor(private readonly isSession: (threadId: string) => boolean = () => true) {}
 
     observe(notification: ServerNotification): void {
         if (notification.method === "thread/deleted") {
             this.forget(notification.params.threadId);
             return;
         }
-        if (
-            notification.method === "item/started" ||
-            notification.method === "item/completed"
-        ) {
+        if (notification.method === "item/started" || notification.method === "item/completed") {
             const type = notification.params.item.type;
-            if (type === "enteredReviewMode")
-                this.reviewing.add(notification.params.threadId);
-            if (type === "exitedReviewMode")
-                this.reviewing.delete(notification.params.threadId);
+            if (type === "enteredReviewMode") this.reviewing.add(notification.params.threadId);
+            if (type === "exitedReviewMode") this.reviewing.delete(notification.params.threadId);
             return;
         }
         // A new turn, and a thread that is no longer loaded here, start over: the thread can go on elsewhere.
-        if (
-            notification.method === "turn/started" ||
-            notification.method === "thread/closed" ||
-            (notification.method === "thread/status/changed" &&
-                notification.params.status.type === "notLoaded")
-        ) {
+        if (notification.method === "turn/started" || notification.method === "thread/closed"
+            || (notification.method === "thread/status/changed" && notification.params.status.type === "notLoaded")) {
             this.failed.delete(notification.params.threadId);
             this.reviewing.delete(notification.params.threadId);
             return;
@@ -750,30 +571,21 @@ export class SessionIndexActivity {
         if (notification.method !== "turn/completed") return;
         // A review ends with its turn, also one that failed or was cancelled before its exit item.
         this.reviewing.delete(notification.params.threadId);
-        if (turnFailed(notification.params.turn))
-            this.failed.add(notification.params.threadId);
+        if (turnFailed(notification.params.turn)) this.failed.add(notification.params.threadId);
         else this.failed.delete(notification.params.threadId);
         if (!this.isSession(notification.params.threadId)) return;
         const completedAt = notification.params.turn.completedAt;
-        const endedAt =
-            completedAt === null ? new Date() : new Date(completedAt * 1000);
-        this.lastTurnEndedAt.set(
-            notification.params.threadId,
-            endedAt.toISOString(),
-        );
+        const endedAt = completedAt === null ? new Date() : new Date(completedAt * 1000);
+        this.lastTurnEndedAt.set(notification.params.threadId, endedAt.toISOString());
     }
 
     activityOf(thread: Thread): SessionActivity | null {
-        const state = activityStateOf(
-            thread.status,
-            this.failed.has(thread.id),
-            this.reviewing.has(thread.id),
-        );
+        const state = activityStateOf(thread.status, this.failed.has(thread.id), this.reviewing.has(thread.id));
         const lastTurnEndedAt = this.lastTurnEndedAt.get(thread.id);
         if (state === undefined && lastTurnEndedAt === undefined) return null;
         return {
-            ...(state !== undefined ? { state } : {}),
-            ...(lastTurnEndedAt !== undefined ? { lastTurnEndedAt } : {}),
+            ...(state !== undefined ? {state} : {}),
+            ...(lastTurnEndedAt !== undefined ? {lastTurnEndedAt} : {}),
         };
     }
 
@@ -797,9 +609,7 @@ export class SessionIndexActivity {
  * `title` and the AIR fields `lastPromptAt`, `state`, `lastTurnEndedAt`, `model`, `forkedFrom` and `archived`.
  */
 export function sessionIndexRowSignature(row: acp.SessionInfo): string {
-    const air = asRecord(
-        asRecord(asRecord(row._meta)[JETBRAINS_META_KEY])[AIR_META_KEY],
-    );
+    const air = asRecord(asRecord(asRecord(row._meta)[JETBRAINS_META_KEY])[AIR_META_KEY]);
     return JSON.stringify([
         row.title ?? null,
         air[AIR_LAST_PROMPT_AT_KEY] ?? null,
@@ -814,14 +624,12 @@ export function sessionIndexRowSignature(row: acp.SessionInfo): string {
 
 /** The AIR field `forkedFrom` of a row: the thread that its thread was forked from, else `null`. */
 export function sessionIndexRowForkedFrom(row: acp.SessionInfo): string | null {
-    const forkedFrom = asRecord(
-        asRecord(asRecord(row._meta)[JETBRAINS_META_KEY])[AIR_META_KEY],
-    )[AIR_FORKED_FROM_KEY];
+    const forkedFrom = asRecord(asRecord(asRecord(row._meta)[JETBRAINS_META_KEY])[AIR_META_KEY])[AIR_FORKED_FROM_KEY];
     return typeof forkedFrom === "string" ? forkedFrom : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value)
-        ? (value as Record<string, unknown>)
+        ? value as Record<string, unknown>
         : {};
 }

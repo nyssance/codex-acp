@@ -1,28 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import * as acp from "@agentclientprotocol/sdk/unstable";
-import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { createAcpAgentRouter } from "../../AcpAgentRouter";
-import {
-    ACPSessionConnection,
-    AcpV2Connection,
-} from "../../ACPSessionConnection";
-import { AgentMode, MODE_CONFIG_ID } from "../../AgentMode";
-import { CodexAcpServer } from "../../CodexAcpServer";
-import { CodexAcpClient } from "../../CodexAcpClient";
-import { CodexAppServerClient } from "../../CodexAppServerClient";
-import { FAST_MODE_CONFIG_ID } from "../../FastModeConfig";
-import type { ReasoningEffortOption } from "../../app-server/v2";
-import { createTestModel, createTestSessionState } from "../acp-test-utils";
-import { createMockConnections } from "./test-utils";
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import * as acp from '@agentclientprotocol/sdk/unstable';
+import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import {createAcpAgentRouter} from '../../AcpAgentRouter';
+import {ACPSessionConnection, AcpV2Connection} from '../../ACPSessionConnection';
+import {AgentMode, MODE_CONFIG_ID} from '../../AgentMode';
+import {CodexAcpServer} from '../../CodexAcpServer';
+import {CodexAcpClient} from '../../CodexAcpClient';
+import {CodexAppServerClient} from '../../CodexAppServerClient';
+import {FAST_MODE_CONFIG_ID} from '../../FastModeConfig';
+import type {ReasoningEffortOption} from '../../app-server/v2';
+import {createTestModel, createTestSessionState} from '../acp-test-utils';
+import {createMockConnections} from './test-utils';
 
-const lowEffort: ReasoningEffortOption = {
-    reasoningEffort: "low",
-    description: "Fast",
-};
-const mediumEffort: ReasoningEffortOption = {
-    reasoningEffort: "medium",
-    description: "Balanced",
-};
+const lowEffort: ReasoningEffortOption = {reasoningEffort: "low", description: "Fast"};
+const mediumEffort: ReasoningEffortOption = {reasoningEffort: "medium", description: "Balanced"};
 
 function createSessionState() {
     const fast = createTestModel({
@@ -32,11 +23,7 @@ function createSessionState() {
         supportedReasoningEfforts: [lowEffort, mediumEffort],
         additionalSpeedTiers: ["fast"],
     });
-    const slow = createTestModel({
-        id: "slow-model",
-        displayName: "Slow model",
-        isDefault: false,
-    });
+    const slow = createTestModel({id: "slow-model", displayName: "Slow model", isDefault: false});
     return createTestSessionState({
         sessionId: "session-1",
         currentModelId: "fast-model[medium]",
@@ -73,46 +60,33 @@ async function connectV2Client() {
     });
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
-    router.connect(
-        acp.ndJsonStream(agentToClient.writable, clientToAgent.readable),
-    );
+    router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
 
     const updates: unknown[] = [];
-    const connection = acpV2
-        .client({ name: "test-client" })
+    const connection = acpV2.client({name: "test-client"})
         .onNotification(acpV2.methods.client.session.update, (ctx) => {
             updates.push(ctx.params);
         })
-        .connect(
-            acp.ndJsonStream(clientToAgent.writable, agentToClient.readable),
-        );
+        .connect(acp.ndJsonStream(clientToAgent.writable, agentToClient.readable));
     await connection.agent.request(acpV2.methods.agent.initialize, {
         protocolVersion: 2,
-        info: { name: "test-client", version: "1.0.0" },
+        info: {name: "test-client", version: "1.0.0"},
     });
 
     const sessionState = createSessionState();
     // @ts-expect-error - register a session without a v2 `session/new`
     agent!.sessions.set(sessionState.sessionId, sessionState);
     if (!(agentConnection instanceof AcpV2Connection)) {
-        throw new Error(
-            "expected the router to hand the agent a v2 connection",
-        );
+        throw new Error("expected the router to hand the agent a v2 connection");
     }
-    return {
-        connection,
-        agent: agent!,
-        sessionState,
-        updates,
-        view: agentConnection.extensionOnlyV1View(),
-    };
+    return {connection, agent: agent!, sessionState, updates, view: agentConnection.extensionOnlyV1View()};
 }
 
 function dump(value: unknown): string {
     return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-describe("Session config options over ACP v2", () => {
+describe('Session config options over ACP v2', () => {
     let closeClient: (() => void) | null = null;
 
     afterEach(() => {
@@ -121,21 +95,18 @@ describe("Session config options over ACP v2", () => {
         vi.clearAllMocks();
     });
 
-    it("builds the v2 config option list with configId and a boolean fast-mode option", async () => {
-        const { connection, agent, sessionState } = await connectV2Client();
+    it('builds the v2 config option list with configId and a boolean fast-mode option', async () => {
+        const {connection, agent, sessionState} = await connectV2Client();
         closeClient = () => connection.close();
 
         // @ts-expect-error - private method, called directly to test the response shape in isolation
         const response = agent.createSessionSetupResponseV2(sessionState);
 
-        await expect(dump(response)).toMatchFileSnapshot(
-            "data/session-config-options-v2-list.json",
-        );
+        await expect(dump(response)).toMatchFileSnapshot('data/session-config-options-v2-list.json');
     });
 
-    it("sends config_option_update in the v2 shape", async () => {
-        const { connection, agent, sessionState, updates, view } =
-            await connectV2Client();
+    it('sends config_option_update in the v2 shape', async () => {
+        const {connection, agent, sessionState, updates, view} = await connectV2Client();
         closeClient = () => connection.close();
         const session = new ACPSessionConnection(view, sessionState.sessionId);
 
@@ -149,67 +120,46 @@ describe("Session config options over ACP v2", () => {
                     name: "Grouped",
                     type: "select",
                     currentValue: "a",
-                    options: [
-                        {
-                            group: "letters",
-                            name: "Letters",
-                            options: [{ value: "a", name: "A" }],
-                        },
-                    ],
+                    options: [{group: "letters", name: "Letters", options: [{value: "a", name: "A"}]}],
                 },
             ],
         });
 
         await vi.waitFor(() => expect(updates).toHaveLength(1));
-        await expect(dump(updates)).toMatchFileSnapshot(
-            "data/session-config-options-v2-update.json",
-        );
+        await expect(dump(updates)).toMatchFileSnapshot('data/session-config-options-v2-update.json');
     });
 
-    it("rejects current_mode_update on v2", async () => {
-        const { connection, updates, view } = await connectV2Client();
+    it('rejects current_mode_update on v2', async () => {
+        const {connection, updates, view} = await connectV2Client();
         closeClient = () => connection.close();
         const session = new ACPSessionConnection(view, "session-1");
 
-        await expect(
-            session.update({
-                sessionUpdate: "current_mode_update",
-                currentModeId: "agent",
-            }),
-        ).rejects.toThrow(
-            "'current_mode_update' session update does not exist in ACP v2",
-        );
+        await expect(session.update({sessionUpdate: "current_mode_update", currentModeId: "agent"}))
+            .rejects.toThrow("'current_mode_update' session update does not exist in ACP v2");
         expect(updates).toEqual([]);
     });
 
-    it("applies session/set_config_option and answers with v2 config options", async () => {
-        const { connection, sessionState } = await connectV2Client();
+    it('applies session/set_config_option and answers with v2 config options', async () => {
+        const {connection, sessionState} = await connectV2Client();
         closeClient = () => connection.close();
 
-        const fastModeResponse = await connection.agent.request(
-            acpV2.methods.agent.session.setConfigOption,
-            {
-                sessionId: sessionState.sessionId,
-                configId: FAST_MODE_CONFIG_ID,
-                type: "boolean",
-                value: true,
-            },
-        );
-        const modeResponse = await connection.agent.request(
-            acpV2.methods.agent.session.setConfigOption,
-            {
-                sessionId: sessionState.sessionId,
-                configId: MODE_CONFIG_ID,
-                type: "id",
-                value: AgentMode.ReadOnly.id,
-            },
-        );
+        const fastModeResponse = await connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
+            sessionId: sessionState.sessionId,
+            configId: FAST_MODE_CONFIG_ID,
+            type: "boolean",
+            value: true,
+        });
+        const modeResponse = await connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
+            sessionId: sessionState.sessionId,
+            configId: MODE_CONFIG_ID,
+            type: "id",
+            value: AgentMode.ReadOnly.id,
+        });
 
         expect(sessionState.fastModeEnabled).toBe(true);
         expect(sessionState.agentMode).toBe(AgentMode.ReadOnly);
-        await expect(
-            dump({ fastModeResponse, modeResponse }),
-        ).toMatchFileSnapshot("data/session-config-options-v2-set.json");
+        await expect(dump({fastModeResponse, modeResponse}))
+            .toMatchFileSnapshot('data/session-config-options-v2-set.json');
     });
 
     it('lists and selects allowed custom permission profiles over v2', async () => {
@@ -238,39 +188,29 @@ describe("Session config options over ACP v2", () => {
     });
 
     it.each([
-        { configId: MODE_CONFIG_ID, type: "boolean", value: true },
-        { configId: FAST_MODE_CONFIG_ID, type: "_custom", value: true },
-        { configId: FAST_MODE_CONFIG_ID, type: "id", value: "on" },
-        { configId: "missing", type: "id", value: "anything" },
-    ] as const)(
-        "rejects a value type that does not match the advertised option: $configId/$type",
-        async (params) => {
-            const { connection, sessionState } = await connectV2Client();
-            closeClient = () => connection.close();
-
-            await expect(
-                connection.agent.request(
-                    acpV2.methods.agent.session.setConfigOption,
-                    {
-                        sessionId: sessionState.sessionId,
-                        ...params,
-                    },
-                ),
-            ).rejects.toMatchObject({ code: -32602 });
-            expect(sessionState.agentMode).toBe(AgentMode.DEFAULT_AGENT_MODE);
-            expect(sessionState.fastModeEnabled).toBe(false);
-        },
-    );
-
-    it("does not register session/set_mode on v2", async () => {
-        const { connection, sessionState } = await connectV2Client();
+        {configId: MODE_CONFIG_ID, type: "boolean", value: true},
+        {configId: FAST_MODE_CONFIG_ID, type: "_custom", value: true},
+        {configId: FAST_MODE_CONFIG_ID, type: "id", value: "on"},
+        {configId: "missing", type: "id", value: "anything"},
+    ] as const)('rejects a value type that does not match the advertised option: $configId/$type', async params => {
+        const {connection, sessionState} = await connectV2Client();
         closeClient = () => connection.close();
 
-        await expect(
-            connection.agent.request("session/set_mode", {
-                sessionId: sessionState.sessionId,
-                modeId: AgentMode.ReadOnly.id,
-            }),
-        ).rejects.toMatchObject({ code: -32601 });
+        await expect(connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
+            sessionId: sessionState.sessionId,
+            ...params,
+        })).rejects.toMatchObject({code: -32602});
+        expect(sessionState.agentMode).toBe(AgentMode.DEFAULT_AGENT_MODE);
+        expect(sessionState.fastModeEnabled).toBe(false);
+    });
+
+    it('does not register session/set_mode on v2', async () => {
+        const {connection, sessionState} = await connectV2Client();
+        closeClient = () => connection.close();
+
+        await expect(connection.agent.request("session/set_mode", {
+            sessionId: sessionState.sessionId,
+            modeId: AgentMode.ReadOnly.id,
+        })).rejects.toMatchObject({code: -32601});
     });
 });

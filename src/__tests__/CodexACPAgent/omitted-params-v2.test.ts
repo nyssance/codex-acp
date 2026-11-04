@@ -57,13 +57,8 @@ function connectRaw() {
     );
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
-    router.connect(
-        acpV2.ndJsonStream(agentToClient.writable, clientToAgent.readable),
-    );
-    const clientStream = acpV2.ndJsonStream(
-        clientToAgent.writable,
-        agentToClient.readable,
-    );
+    router.connect(acpV2.ndJsonStream(agentToClient.writable, clientToAgent.readable));
+    const clientStream = acpV2.ndJsonStream(clientToAgent.writable, agentToClient.readable);
     const writer = clientStream.writable.getWriter();
     const reader = clientStream.readable.getReader();
     return {
@@ -71,11 +66,9 @@ function connectRaw() {
         /** Reads messages until a response arrives, skipping notifications. */
         nextResponse: async (): Promise<AnyMessage> => {
             while (true) {
-                const { value, done } = await reader.read();
-                if (done)
-                    throw new Error("stream closed before a response arrived");
-                const isResponse =
-                    "id" in value && ("result" in value || "error" in value);
+                const {value, done} = await reader.read();
+                if (done) throw new Error("stream closed before a response arrived");
+                const isResponse = "id" in value && ("result" in value || "error" in value);
                 if (isResponse) return value;
             }
         },
@@ -90,10 +83,7 @@ async function initializeV2(raw: ReturnType<typeof connectRaw>) {
         jsonrpc: "2.0",
         id: "init",
         method: acpV2.methods.agent.initialize,
-        params: {
-            protocolVersion: 2,
-            info: { name: "test-client", version: "1.0.0" },
-        },
+        params: {protocolVersion: 2, info: {name: "test-client", version: "1.0.0"}},
     });
     await raw.nextResponse();
 }
@@ -103,7 +93,7 @@ async function initializeV1(raw: ReturnType<typeof connectRaw>) {
         jsonrpc: "2.0",
         id: "init",
         method: acp.methods.agent.initialize,
-        params: { protocolVersion: 1 },
+        params: {protocolVersion: 1},
     });
     await raw.nextResponse();
 }
@@ -114,181 +104,106 @@ function dump(value: unknown): string {
 
 /** Keeps only the fields that stay stable across SDK/zod versions. */
 function errorShape(response: AnyMessage): unknown {
-    const error = (response as { error?: { code: number } }).error;
-    return error ? { code: error.code } : undefined;
+    const error = (response as {error?: {code: number}}).error;
+    return error ? {code: error.code} : undefined;
 }
 
-describe("v2 requests with omitted params", () => {
+describe('v2 requests with omitted params', () => {
     afterEach(() => {
         vi.clearAllMocks();
         expectConformingV2SessionUpdates();
     });
 
-    it("accepts session/list with no params member", async () => {
+    it('accepts session/list with no params member', async () => {
         const raw = connectRaw();
         await initializeV2(raw);
 
-        await raw.send({
-            jsonrpc: "2.0",
-            id: 1,
-            method: acpV2.methods.agent.session.list,
-        });
+        await raw.send({jsonrpc: "2.0", id: 1, method: acpV2.methods.agent.session.list});
         const response = await raw.nextResponse();
 
-        await expect(dump(response)).toMatchFileSnapshot(
-            "data/omitted-params-v2-session-list.json",
-        );
+        await expect(dump(response)).toMatchFileSnapshot('data/omitted-params-v2-session-list.json');
     });
 
-    it("accepts auth/logout with no params member", async () => {
+    it('accepts auth/logout with no params member', async () => {
         const raw = connectRaw();
         await initializeV2(raw);
 
-        await raw.send({
-            jsonrpc: "2.0",
-            id: 1,
-            method: acpV2.methods.agent.auth.logout,
-        });
+        await raw.send({jsonrpc: "2.0", id: 1, method: acpV2.methods.agent.auth.logout});
         const response = await raw.nextResponse();
 
-        await expect(dump(response)).toMatchFileSnapshot(
-            "data/omitted-params-v2-auth-logout.json",
-        );
+        await expect(dump(response)).toMatchFileSnapshot('data/omitted-params-v2-auth-logout.json');
     });
 
-    it.each([1, 2])(
-        "rejects batches without processing entries and keeps v%s usable",
-        async (version) => {
-            const raw = connectRaw();
-            if (version === 1) await initializeV1(raw);
-            else await initializeV2(raw);
+    it.each([1, 2])('rejects batches without processing entries and keeps v%s usable', async version => {
+        const raw = connectRaw();
+        if (version === 1) await initializeV1(raw);
+        else await initializeV2(raw);
 
-            await raw.send([
-                {
-                    jsonrpc: "2.0",
-                    id: "a",
-                    method: acpV2.methods.agent.session.list,
-                },
-                {
-                    jsonrpc: "2.0",
-                    id: "b",
-                    method: acpV2.methods.agent.session.list,
-                    params: {},
-                },
-                {
-                    jsonrpc: "2.0",
-                    id: "c",
-                    method: acpV2.methods.agent.session.list,
-                    params: null,
-                },
-            ] as unknown as AnyMessage);
-            const response = await raw.nextResponse();
+        await raw.send([
+            {jsonrpc: "2.0", id: "a", method: acpV2.methods.agent.session.list},
+            {jsonrpc: "2.0", id: "b", method: acpV2.methods.agent.session.list, params: {}},
+            {jsonrpc: "2.0", id: "c", method: acpV2.methods.agent.session.list, params: null},
+        ] as unknown as AnyMessage);
+        const response = await raw.nextResponse();
 
-            expect(response).toMatchObject({
-                id: null,
-                error: { code: -32600 },
-            });
-            await raw.send({ jsonrpc: "2.0", id: 1, method: "session/list" });
-            await expect(dump(await raw.nextResponse())).toMatchFileSnapshot(
-                "data/omitted-params-v2-session-list.json",
-            );
-            raw.close();
-        },
-    );
+        expect(response).toMatchObject({id: null, error: {code: -32600}});
+        await raw.send({jsonrpc: "2.0", id: 1, method: "session/list"});
+        await expect(dump(await raw.nextResponse())).toMatchFileSnapshot('data/omitted-params-v2-session-list.json');
+        raw.close();
+    });
 
     it.each([
-        {
-            method: acpV2.methods.agent.session.list,
-            snapshot: "data/omitted-params-v2-session-list.json",
-        },
-        {
-            method: acpV2.methods.agent.auth.logout,
-            snapshot: "data/omitted-params-v2-auth-logout.json",
-        },
-    ])("accepts $method with null params", async ({ method, snapshot }) => {
+        {method: acpV2.methods.agent.session.list, snapshot: 'data/omitted-params-v2-session-list.json'},
+        {method: acpV2.methods.agent.auth.logout, snapshot: 'data/omitted-params-v2-auth-logout.json'},
+    ])('accepts $method with null params', async ({method, snapshot}) => {
         const raw = connectRaw();
         await initializeV2(raw);
 
-        await raw.send({ jsonrpc: "2.0", id: 1, method, params: null });
+        await raw.send({jsonrpc: "2.0", id: 1, method, params: null});
         const response = await raw.nextResponse();
 
         await expect(dump(response)).toMatchFileSnapshot(snapshot);
     });
 
-    it.each([undefined, null])(
-        "still rejects session/new with %s params",
-        async (params) => {
-            const raw = connectRaw();
-            await initializeV2(raw);
+    it.each([undefined, null])('still rejects session/new with %s params', async (params) => {
+        const raw = connectRaw();
+        await initializeV2(raw);
 
-            await raw.send({
-                jsonrpc: "2.0",
-                id: 1,
-                method: acpV2.methods.agent.session.new,
-                ...(params === undefined ? {} : { params }),
-            });
-            const response = await raw.nextResponse();
+        await raw.send({
+            jsonrpc: "2.0", id: 1, method: acpV2.methods.agent.session.new,
+            ...(params === undefined ? {} : {params}),
+        });
+        const response = await raw.nextResponse();
 
-            expect(errorShape(response)).toEqual({ code: -32602 });
-        },
-    );
+        expect(errorShape(response)).toEqual({code: -32602});
+    });
 
     it.each([
-        {
-            method: acp.methods.agent.session.list,
-            snapshot: "data/omitted-params-v2-session-list.json",
-        },
-        {
-            method: acp.methods.agent.logout,
-            snapshot: "data/omitted-params-v2-auth-logout.json",
-        },
-    ])(
-        "also accepts v1 $method with omitted or null params",
-        async ({ method, snapshot }) => {
-            const raw = connectRaw();
-            await initializeV1(raw);
+        {method: acp.methods.agent.session.list, snapshot: 'data/omitted-params-v2-session-list.json'},
+        {method: acp.methods.agent.logout, snapshot: 'data/omitted-params-v2-auth-logout.json'},
+    ])('also accepts v1 $method with omitted or null params', async ({method, snapshot}) => {
+        const raw = connectRaw();
+        await initializeV1(raw);
 
-            for (const params of [undefined, null]) {
-                await raw.send({
-                    jsonrpc: "2.0",
-                    id: 1,
-                    method,
-                    ...(params === undefined ? {} : { params }),
-                });
-                await expect(
-                    dump(await raw.nextResponse()),
-                ).toMatchFileSnapshot(snapshot);
-            }
-        },
-    );
+        for (const params of [undefined, null]) {
+            await raw.send({jsonrpc: "2.0", id: 1, method, ...(params === undefined ? {} : {params})});
+            await expect(dump(await raw.nextResponse())).toMatchFileSnapshot(snapshot);
+        }
+    });
 
-    it.each([1, 2])(
-        "v%s still rejects malformed optional params and missing required fields",
-        async (version) => {
-            const raw = connectRaw();
-            await (version === 1 ? initializeV1(raw) : initializeV2(raw));
-            for (const params of [false, [], 5, "invalid"]) {
-                await raw.send({
-                    jsonrpc: "2.0",
-                    id: 1,
-                    method: "session/list",
-                    params,
-                });
-                expect(errorShape(await raw.nextResponse())).toEqual({
-                    code: -32602,
-                });
-            }
-            for (const params of [undefined, null]) {
-                await raw.send({
-                    jsonrpc: "2.0",
-                    id: 1,
-                    method: "session/new",
-                    ...(params === undefined ? {} : { params }),
-                });
-                expect(errorShape(await raw.nextResponse())).toEqual({
-                    code: -32602,
-                });
-            }
-        },
-    );
+    it.each([1, 2])('v%s still rejects malformed optional params and missing required fields', async (version) => {
+        const raw = connectRaw();
+        await (version === 1 ? initializeV1(raw) : initializeV2(raw));
+        for (const params of [false, [], 5, "invalid"]) {
+            await raw.send({jsonrpc: "2.0", id: 1, method: "session/list", params});
+            expect(errorShape(await raw.nextResponse())).toEqual({code: -32602});
+        }
+        for (const params of [undefined, null]) {
+            await raw.send({
+                jsonrpc: "2.0", id: 1, method: "session/new",
+                ...(params === undefined ? {} : {params}),
+            });
+            expect(errorShape(await raw.nextResponse())).toEqual({code: -32602});
+        }
+    });
 });

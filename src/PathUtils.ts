@@ -2,10 +2,7 @@ import path from "node:path";
 
 /** ACP paths are native POSIX or fully qualified Windows paths, never file URIs. */
 export function isAbsoluteProtocolPath(value: string): boolean {
-    return (
-        !value.includes("\0") &&
-        (path.posix.isAbsolute(value) || isWindowsAbsolutePath(value))
-    );
+    return !value.includes("\0") && (path.posix.isAbsolute(value) || isWindowsAbsolutePath(value));
 }
 
 export function isAbsolutePathLike(value: string): boolean {
@@ -13,18 +10,13 @@ export function isAbsolutePathLike(value: string): boolean {
 }
 
 export function arePathsEqual(left: string, right: string): boolean {
-    return (
-        normalizePathForComparison(left) === normalizePathForComparison(right)
-    );
+    return normalizePathForComparison(left) === normalizePathForComparison(right);
 }
 
 export function arePathBasenamesEqual(left: string, right: string): boolean {
     const leftBase = path.posix.basename(normalizePathForComparison(left));
     const rightBase = path.posix.basename(normalizePathForComparison(right));
-    if (
-        shouldComparePathCaseInsensitive(left) ||
-        shouldComparePathCaseInsensitive(right)
-    ) {
+    if (shouldComparePathCaseInsensitive(left) || shouldComparePathCaseInsensitive(right)) {
         return leftBase.toLowerCase() === rightBase.toLowerCase();
     }
     return leftBase === rightBase;
@@ -57,11 +49,7 @@ function isWindowsAbsolutePath(value: string): boolean {
 }
 
 function shouldComparePathCaseInsensitive(value: string): boolean {
-    return (
-        isWindowsAbsolutePath(value) ||
-        /^[A-Za-z]:/.test(value) ||
-        value.includes("\\")
-    );
+    return isWindowsAbsolutePath(value) || /^[A-Za-z]:/.test(value) || value.includes("\\");
 }
 
 function trimTrailingPathSeparators(value: string): string {
@@ -73,9 +61,7 @@ function trimTrailingPathSeparators(value: string): string {
 }
 
 function isRootPath(value: string): boolean {
-    return (
-        value === "/" ||
-        /^[A-Za-z]:\/$/.test(value) ||
-        /^\/\/[^/]+\/[^/]+\/$/.test(value)
-    );
+    return value === "/"
+        || /^[A-Za-z]:\/$/.test(value)
+        || /^\/\/[^/]+\/[^/]+\/$/.test(value);
 }

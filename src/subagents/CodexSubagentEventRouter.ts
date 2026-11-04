@@ -1,18 +1,14 @@
-import type { ServerNotification } from "../app-server";
-import type { Model, ThreadItem } from "../app-server/v2";
-import type { ACPSessionConnection } from "../ACPSessionConnection";
-import { logger } from "../Logger";
-import { createSubagentModelConfigOption } from "../ModelConfigOption";
-import { CollabAgentReporter } from "../tool-calls/reporters/CollabAgentReporter";
-import { SubagentActivityReporter } from "../tool-calls/reporters/SubagentActivityReporter";
-import type { ToolFacts } from "../tool-calls/ToolFacts";
-import type { SubagentState } from "./AcpSubagents";
-import { PendingNotificationBuffer } from "./PendingNotificationBuffer";
-import {
-    isRootAgentPath,
-    nameFromAgentPath,
-    normalizeAgentPath,
-} from "./CodexAgentPath";
+import type {ServerNotification} from "../app-server";
+import type {Model, ThreadItem} from "../app-server/v2";
+import type {ACPSessionConnection} from "../ACPSessionConnection";
+import {logger} from "../Logger";
+import {createSubagentModelConfigOption} from "../ModelConfigOption";
+import {CollabAgentReporter} from "../tool-calls/reporters/CollabAgentReporter";
+import {SubagentActivityReporter} from "../tool-calls/reporters/SubagentActivityReporter";
+import type {ToolFacts} from "../tool-calls/ToolFacts";
+import type {SubagentState} from "./AcpSubagents";
+import {PendingNotificationBuffer} from "./PendingNotificationBuffer";
+import {isRootAgentPath, nameFromAgentPath, normalizeAgentPath} from "./CodexAgentPath";
 
 type NativeSubagent = {
     parentThreadId: string;
@@ -47,11 +43,7 @@ type EndedSpawn = {
  * spawn request or the parent. A source of a higher rank wins: at the creation the activity item names the resolved
  * model, and a settings change is a real change of the model.
  */
-export const MODEL_SOURCE_RANK = {
-    threadStarted: 0,
-    activity: 1,
-    settings: 2,
-} as const;
+export const MODEL_SOURCE_RANK = {threadStarted: 0, activity: 1, settings: 2} as const;
 
 export type ChildModel = {
     model: string;
@@ -59,22 +51,11 @@ export type ChildModel = {
 };
 
 /** A report of a lower rank does not replace the model, so a `thread/started` of a resume keeps the activity model. */
-export function preferredModel(
-    current: ChildModel | undefined,
-    next: ChildModel,
-): ChildModel;
-export function preferredModel(
-    current: ChildModel | undefined,
-    next: ChildModel | undefined,
-): ChildModel | undefined;
-export function preferredModel(
-    current: ChildModel | undefined,
-    next: ChildModel | undefined,
-): ChildModel | undefined {
+export function preferredModel(current: ChildModel | undefined, next: ChildModel): ChildModel;
+export function preferredModel(current: ChildModel | undefined, next: ChildModel | undefined): ChildModel | undefined;
+export function preferredModel(current: ChildModel | undefined, next: ChildModel | undefined): ChildModel | undefined {
     if (!current || !next) return current ?? next;
-    return MODEL_SOURCE_RANK[next.source] >= MODEL_SOURCE_RANK[current.source]
-        ? next
-        : current;
+    return MODEL_SOURCE_RANK[next.source] >= MODEL_SOURCE_RANK[current.source] ? next : current;
 }
 
 /** The models of the root session, which give the value and the name of a child model. */
@@ -97,24 +78,13 @@ export async function reportSubagentModel(
 ): Promise<void> {
     if (!model || !models) return;
     try {
-        await session.update(
-            {
-                sessionUpdate: "config_option_update",
-                configOptions: [
-                    createSubagentModelConfigOption(
-                        models.availableModels,
-                        models.currentModel,
-                        model,
-                    ),
-                ],
-            },
-            childSessionId,
-        );
-    } catch (error) {
-        logger.error(
-            `Failed to report the model of subagent session ${childSessionId}`,
-            error,
-        );
+        await session.update({
+            sessionUpdate: "config_option_update",
+            configOptions: [createSubagentModelConfigOption(models.availableModels, models.currentModel, model)],
+        }, childSessionId);
+    }
+    catch (error) {
+        logger.error(`Failed to report the model of subagent session ${childSessionId}`, error);
     }
 }
 
@@ -132,10 +102,7 @@ export class CodexSubagentEventRouter {
     private readonly pendingSpawns = new Map<string, PendingSubagent>();
     private readonly terminalPendingSpawns = new Map<string, EndedSpawn>();
     private readonly waiters = new Set<() => void>();
-    private readonly materializationWaiters = new Map<
-        string,
-        Set<(sessionId: string | null) => void>
-    >();
+    private readonly materializationWaiters = new Map<string, Set<(sessionId: string | null) => void>>();
     private readonly replayQueue: ServerNotification[] = [];
     private readonly activeLegacyActivities = new Set<string>();
     /**
@@ -170,37 +137,23 @@ export class CodexSubagentEventRouter {
             const thread = notification.params.thread;
             // Every session gets the thread starts of the app-server, so a thread that is not known yet must name
             // this root as its parent, or start while a spawn of this root is in flight.
-            const ofThisRoot =
-                thread.parentThreadId === this.rootSessionId ||
-                (thread.parentThreadId !== null &&
-                    this.children.has(thread.parentThreadId)) ||
-                this.spawnsInFlight.size > 0;
+            const ofThisRoot = thread.parentThreadId === this.rootSessionId
+                || (thread.parentThreadId !== null && this.children.has(thread.parentThreadId))
+                || this.spawnsInFlight.size > 0;
             if (thread.model) {
-                await this.applyThreadModel(
-                    thread.id,
-                    { model: thread.model, source: "threadStarted" },
-                    ofThisRoot,
-                );
+                await this.applyThreadModel(thread.id, {model: thread.model, source: "threadStarted"}, ofThisRoot);
             }
             return false;
         }
         // Read a settings change before the buffering below, so that a pending child announces with its model.
         // The buffered copy comes back after the announcement, and the router does not read it again.
-        if (
-            notification.method === "thread/settings/updated" &&
-            !this.appliedSettings.delete(notification.params)
-        ) {
+        if (notification.method === "thread/settings/updated" && !this.appliedSettings.delete(notification.params)) {
             const threadId = notification.params.threadId;
-            await this.applyThreadModel(
-                threadId,
-                {
-                    model: notification.params.threadSettings.model,
-                    source: "settings",
-                },
-                this.spawnsInFlight.size > 0,
-            );
-            if (this.pendingSpawns.has(threadId))
-                this.appliedSettings.add(notification.params);
+            await this.applyThreadModel(threadId, {
+                model: notification.params.threadSettings.model,
+                source: "settings",
+            }, this.spawnsInFlight.size > 0);
+            if (this.pendingSpawns.has(threadId)) this.appliedSettings.add(notification.params);
         }
         if (notification.method === "turn/started") {
             const childTurn = this.isKnownChild(notification.params.threadId);
@@ -214,37 +167,27 @@ export class CodexSubagentEventRouter {
                 this.spawnsInFlight.clear();
             }
             const childTurn = this.isKnownChild(notification.params.threadId);
-            const state = terminalStateFromTurn(
-                notification.params.turn.status,
-            );
+            const state = terminalStateFromTurn(notification.params.turn.status);
             if (!state) return childTurn;
             if (notification.params.threadId === this.rootSessionId) {
                 if (state !== "completed") await this.finishOutstanding(state);
-            } else {
+            }
+            else {
                 if (this.pendingSpawns.has(notification.params.threadId)) {
                     this.finishPending(notification.params.threadId);
-                } else {
+                }
+                else {
                     await this.finish(notification.params.threadId, state);
                 }
             }
             return childTurn;
         }
-        const notificationThreadId = (
-            notification.params as { threadId?: unknown }
-        ).threadId;
-        if (
-            typeof notificationThreadId === "string" &&
-            this.pendingSpawns.has(notificationThreadId)
-        ) {
-            this.pendingSpawns
-                .get(notificationThreadId)!
-                .buffered.push(notification);
+        const notificationThreadId = (notification.params as {threadId?: unknown}).threadId;
+        if (typeof notificationThreadId === "string" && this.pendingSpawns.has(notificationThreadId)) {
+            this.pendingSpawns.get(notificationThreadId)!.buffered.push(notification);
             return true;
         }
-        if (
-            notification.method !== "item/started" &&
-            notification.method !== "item/completed"
-        ) {
+        if (notification.method !== "item/started" && notification.method !== "item/completed") {
             return false;
         }
         const item = notification.params.item;
@@ -259,21 +202,12 @@ export class CodexSubagentEventRouter {
             // shape as children. It is the parent conversation, not a subagent.
             if (isRootAgentPath(item.agentPath)) return true;
             if (this.terminalPendingSpawns.has(item.agentThreadId)) {
-                if (item.model)
-                    await this.applyThreadModel(
-                        item.agentThreadId,
-                        { model: item.model, source: "activity" },
-                        false,
-                    );
+                if (item.model) await this.applyThreadModel(item.agentThreadId, {model: item.model, source: "activity"}, false);
                 return true;
             }
             let hasNativeRepresentation = this.children.has(item.agentThreadId);
             if (!hasNativeRepresentation) {
-                await this.materialize(
-                    item.agentThreadId,
-                    item.agentPath,
-                    item.model,
-                );
+                await this.materialize(item.agentThreadId, item.agentPath, item.model);
                 hasNativeRepresentation = this.children.has(item.agentThreadId);
             }
             if (hasNativeRepresentation && item.kind === "interrupted") {
@@ -284,18 +218,9 @@ export class CodexSubagentEventRouter {
         if (item.type !== "collabAgentToolCall") return false;
 
         // These tools start a turn of an idle child. A `sendMessage` only queues the message and starts no turn.
-        if (
-            item.tool === "resumeAgent" ||
-            item.tool === "sendInput" ||
-            item.tool === "followupTask"
-        ) {
-            for (const [childThreadId, state] of Object.entries(
-                item.agentsStates,
-            )) {
-                if (
-                    state?.status === "running" ||
-                    state?.status === "pendingInit"
-                ) {
+        if (item.tool === "resumeAgent" || item.tool === "sendInput" || item.tool === "followupTask") {
+            for (const [childThreadId, state] of Object.entries(item.agentsStates)) {
+                if (state?.status === "running" || state?.status === "pendingInit") {
                     await this.reopen(childThreadId);
                 }
             }
@@ -303,35 +228,23 @@ export class CodexSubagentEventRouter {
 
         let representedSpawn = false;
         if (item.tool === "spawnAgent") {
-            if (notification.method === "item/started")
-                this.spawnsInFlight.add(item.id);
+            if (notification.method === "item/started") this.spawnsInFlight.add(item.id);
             else this.spawnsInFlight.delete(item.id);
             const parent = this.children.get(item.senderThreadId);
-            const parentThreadId = parent
-                ? item.senderThreadId
-                : this.rootSessionId;
+            const parentThreadId = parent ? item.senderThreadId : this.rootSessionId;
             const parentSessionId = parent?.sessionId ?? this.rootSessionId;
             for (const childSessionId of item.receiverThreadIds) {
                 if (childSessionId.trim().length === 0) {
-                    logger.log(
-                        "Ignoring spawned subagent with an empty thread id",
-                    );
+                    logger.log("Ignoring spawned subagent with an empty thread id");
                     continue;
                 }
-                if (
-                    childSessionId === parentSessionId ||
-                    childSessionId === this.rootSessionId
-                ) {
-                    logger.log(
-                        `Ignoring self-referential spawned subagent ${childSessionId}`,
-                    );
+                if (childSessionId === parentSessionId || childSessionId === this.rootSessionId) {
+                    logger.log(`Ignoring self-referential spawned subagent ${childSessionId}`);
                     continue;
                 }
-                if (
-                    this.children.has(childSessionId) ||
-                    this.pendingSpawns.has(childSessionId) ||
-                    this.terminalPendingSpawns.has(childSessionId)
-                ) {
+                if (this.children.has(childSessionId)
+                    || this.pendingSpawns.has(childSessionId)
+                    || this.terminalPendingSpawns.has(childSessionId)) {
                     representedSpawn = true;
                     continue;
                 }
@@ -340,27 +253,22 @@ export class CodexSubagentEventRouter {
                     parentThreadId,
                     parentSessionId,
                     task: item.prompt?.trim() || "Delegated task",
-                    ...(model ? { model } : {}),
+                    ...(model ? {model} : {}),
                     buffered: new PendingNotificationBuffer(childSessionId),
                 });
                 representedSpawn = true;
             }
         }
 
-        for (const [childSessionId, state] of Object.entries(
-            item.agentsStates,
-        )) {
+        for (const [childSessionId, state] of Object.entries(item.agentsStates)) {
             const terminalState = state && terminalStateOf(state.status);
             if (!terminalState) continue;
-            if (this.children.has(childSessionId))
-                await this.finish(childSessionId, terminalState);
-            else if (this.pendingSpawns.has(childSessionId))
-                this.finishPending(childSessionId);
+            if (this.children.has(childSessionId)) await this.finish(childSessionId, terminalState);
+            else if (this.pendingSpawns.has(childSessionId)) this.finishPending(childSessionId);
         }
         if (item.tool === "spawnAgent" && item.status === "failed") {
             for (const childSessionId of item.receiverThreadIds) {
-                if (this.pendingSpawns.has(childSessionId))
-                    this.finishPending(childSessionId);
+                if (this.pendingSpawns.has(childSessionId)) this.finishPending(childSessionId);
             }
         }
         // `updated` is intentionally not synthesized: the portable protocol
@@ -369,14 +277,11 @@ export class CodexSubagentEventRouter {
     }
 
     shouldIgnore(notification: ServerNotification): boolean {
-        const threadId = (notification.params as { threadId?: unknown })
-            .threadId;
-        const ignored =
-            typeof threadId === "string" &&
-            (this.children.get(threadId)?.terminalState !== undefined ||
-                this.terminalPendingSpawns.has(threadId));
-        if (ignored)
-            logger.log(`Ignoring update for terminal subagent ${threadId}`);
+        const threadId = (notification.params as {threadId?: unknown}).threadId;
+        const ignored = typeof threadId === "string"
+            && (this.children.get(threadId)?.terminalState !== undefined
+                || this.terminalPendingSpawns.has(threadId));
+        if (ignored) logger.log(`Ignoring update for terminal subagent ${threadId}`);
         return ignored;
     }
 
@@ -386,45 +291,26 @@ export class CodexSubagentEventRouter {
     }
 
     notificationSessionId(notification: ServerNotification): string {
-        const threadId = (notification.params as { threadId?: unknown })
-            .threadId;
+        const threadId = (notification.params as {threadId?: unknown}).threadId;
         return typeof threadId === "string" && this.children.has(threadId)
             ? this.children.get(threadId)!.sessionId
             : this.rootSessionId;
     }
 
-    closingChildSessions(
-        notification: ServerNotification,
-    ): ClosingChildSession[] {
+    closingChildSessions(notification: ServerNotification): ClosingChildSession[] {
         if (!this.supported) return [];
         if (notification.method === "turn/completed") {
-            const state = terminalStateFromTurn(
-                notification.params.turn.status,
-            );
+            const state = terminalStateFromTurn(notification.params.turn.status);
             if (state === undefined) return [];
-            if (
-                notification.params.threadId === this.rootSessionId &&
-                state !== "completed"
-            ) {
-                return [...this.children.keys()].flatMap((threadId) =>
-                    this.closingChildSession(threadId, state),
-                );
+            if (notification.params.threadId === this.rootSessionId && state !== "completed") {
+                return [...this.children.keys()].flatMap(threadId => this.closingChildSession(threadId, state));
             }
-            return this.closingChildSession(
-                notification.params.threadId,
-                state,
-            );
+            return this.closingChildSession(notification.params.threadId, state);
         }
-        if (
-            notification.method !== "item/started" &&
-            notification.method !== "item/completed"
-        )
-            return [];
+        if (notification.method !== "item/started" && notification.method !== "item/completed") return [];
         const item = notification.params.item;
         if (item.type === "subAgentActivity") {
-            return item.kind === "interrupted"
-                ? this.closingChildSession(item.agentThreadId, "cancelled")
-                : [];
+            return item.kind === "interrupted" ? this.closingChildSession(item.agentThreadId, "cancelled") : [];
         }
         if (item.type !== "collabAgentToolCall") return [];
 
@@ -432,11 +318,7 @@ export class CodexSubagentEventRouter {
         for (const [threadId, state] of Object.entries(item.agentsStates)) {
             const terminalState = state && terminalStateOf(state.status);
             if (!terminalState) continue;
-            for (const child of this.closingChildSession(
-                threadId,
-                terminalState,
-            ))
-                closing.set(threadId, child);
+            for (const child of this.closingChildSession(threadId, terminalState)) closing.set(threadId, child);
         }
         return [...closing.values()];
     }
@@ -444,55 +326,41 @@ export class CodexSubagentEventRouter {
     /** The ACP session ids of the native subagent sessions that have not ended. */
     childSessionIds(): string[] {
         return [...this.children.values()]
-            .filter((child) => child.terminalState === undefined)
-            .map((child) => child.sessionId);
+            .filter(child => child.terminalState === undefined)
+            .map(child => child.sessionId);
     }
 
     takeBufferedNotifications(): ServerNotification[] {
         return this.replayQueue.splice(0);
     }
 
-    async waitForMaterializedSession(
-        childThreadId: string,
-    ): Promise<string | null> {
+    async waitForMaterializedSession(childThreadId: string): Promise<string | null> {
         const child = this.children.get(childThreadId);
-        if (child)
-            return child.terminalState === undefined ? child.sessionId : null;
+        if (child) return child.terminalState === undefined ? child.sessionId : null;
         if (this.terminalPendingSpawns.has(childThreadId)) return null;
         if (!this.pendingSpawns.has(childThreadId)) return null;
-        return await new Promise((resolve) => {
-            const waiters =
-                this.materializationWaiters.get(childThreadId) ?? new Set();
+        return await new Promise(resolve => {
+            const waiters = this.materializationWaiters.get(childThreadId) ?? new Set();
             waiters.add(resolve);
             this.materializationWaiters.set(childThreadId, waiters);
         });
     }
 
-    legacyActivityStarted(
-        item: ThreadItem & { type: "subAgentActivity" },
-    ): ToolFacts {
+    legacyActivityStarted(item: ThreadItem & {type: "subAgentActivity"}): ToolFacts {
         this.activeLegacyActivities.add(item.id);
         return SubagentActivityReporter.activity(item, "in_progress", "start");
     }
 
-    legacyCollaborationStarted(
-        item: ThreadItem & { type: "collabAgentToolCall" },
-    ): ToolFacts {
+    legacyCollaborationStarted(item: ThreadItem & {type: "collabAgentToolCall"}): ToolFacts {
         return CollabAgentReporter.started(item);
     }
 
-    legacyCollaborationCompleted(
-        item: ThreadItem & { type: "collabAgentToolCall" },
-    ): ToolFacts {
+    legacyCollaborationCompleted(item: ThreadItem & {type: "collabAgentToolCall"}): ToolFacts {
         return CollabAgentReporter.completed(item);
     }
 
-    legacyActivityCompleted(
-        item: ThreadItem & { type: "subAgentActivity" },
-    ): ToolFacts {
-        const report = this.activeLegacyActivities.delete(item.id)
-            ? "update"
-            : "start";
+    legacyActivityCompleted(item: ThreadItem & {type: "subAgentActivity"}): ToolFacts {
+        const report = this.activeLegacyActivities.delete(item.id) ? "update" : "start";
         return SubagentActivityReporter.activity(item, "completed", report);
     }
 
@@ -506,9 +374,7 @@ export class CodexSubagentEventRouter {
             if (signal.aborted) return "aborted";
             const remainingMs = deadline - Date.now();
             if (remainingMs <= 0) {
-                logger.log(
-                    `Timed out waiting for subagents in session ${this.rootSessionId}; marking them failed`,
-                );
+                logger.log(`Timed out waiting for subagents in session ${this.rootSessionId}; marking them failed`);
                 return "timed_out";
             }
             const changed = await new Promise<boolean>((resolve) => {
@@ -528,12 +394,10 @@ export class CodexSubagentEventRouter {
                     resolve(true);
                 };
                 this.waiters.add(onChange);
-                signal.addEventListener("abort", onAbort, { once: true });
+                signal.addEventListener("abort", onAbort, {once: true});
             });
             if (!changed) {
-                logger.log(
-                    `Timed out waiting for subagents in session ${this.rootSessionId}; marking them failed`,
-                );
+                logger.log(`Timed out waiting for subagents in session ${this.rootSessionId}; marking them failed`);
                 return "timed_out";
             }
         }
@@ -552,54 +416,38 @@ export class CodexSubagentEventRouter {
     }
 
     private isKnownChild(threadId: string): boolean {
-        return (
-            threadId !== this.rootSessionId &&
-            (this.children.has(threadId) ||
-                this.pendingSpawns.has(threadId) ||
-                this.terminalPendingSpawns.has(threadId))
-        );
+        return threadId !== this.rootSessionId
+            && (this.children.has(threadId)
+                || this.pendingSpawns.has(threadId)
+                || this.terminalPendingSpawns.has(threadId));
     }
 
-    private closingChildSession(
-        threadId: string,
-        state: SubagentState,
-    ): ClosingChildSession[] {
+    private closingChildSession(threadId: string, state: SubagentState): ClosingChildSession[] {
         const child = this.children.get(threadId);
         return child && child.terminalState === undefined
-            ? [{ threadId, sessionId: child.sessionId, state }]
+            ? [{threadId, sessionId: child.sessionId, state}]
             : [];
     }
 
-    private async materialize(
-        childSessionId: string,
-        path: string,
-        resolvedModel: string | null,
-    ): Promise<void> {
+    private async materialize(childSessionId: string, path: string, resolvedModel: string | null): Promise<void> {
         if (this.children.has(childSessionId)) return;
         const pending = this.pendingSpawns.get(childSessionId);
         const name = nameFromAgentPath(path, fallbackName(childSessionId));
         const inferredParent = this.parentForPath(path);
-        const parentThreadId =
-            pending?.parentThreadId ?? inferredParent.threadId;
-        const parentSessionId =
-            pending?.parentSessionId ?? inferredParent.sessionId;
+        const parentThreadId = pending?.parentThreadId ?? inferredParent.threadId;
+        const parentSessionId = pending?.parentSessionId ?? inferredParent.sessionId;
         const task = pending?.task ?? `Delegated task for ${name}`;
         const model = preferredModel(
             pending ? pending.model : this.takeEarlyModel(childSessionId),
-            resolvedModel
-                ? { model: resolvedModel, source: "activity" }
-                : undefined,
+            resolvedModel ? {model: resolvedModel, source: "activity"} : undefined,
         );
-        await this.session.update(
-            {
-                sessionUpdate: "subagent_spawned",
-                subagentSessionId: childSessionId,
-                name,
-                task,
-                capabilities: {},
-            },
-            parentSessionId,
-        );
+        await this.session.update({
+            sessionUpdate: "subagent_spawned",
+            subagentSessionId: childSessionId,
+            name,
+            task,
+            capabilities: {},
+        }, parentSessionId);
         this.children.set(childSessionId, {
             parentThreadId,
             parentSessionId,
@@ -607,13 +455,12 @@ export class CodexSubagentEventRouter {
             name,
             task,
             path: normalizeAgentPath(path),
-            ...(model ? { model } : {}),
+            ...(model ? {model} : {}),
             generation: 1,
         });
         this.pendingSpawns.delete(childSessionId);
         // A loop, not push(...): a spread of a large buffer exceeds the argument limit and throws.
-        for (const notification of pending?.buffered.take() ?? [])
-            this.replayQueue.push(notification);
+        for (const notification of pending?.buffered.take() ?? []) this.replayQueue.push(notification);
         this.resolveMaterialization(childSessionId, childSessionId);
         await this.reportModel(childSessionId, childSessionId);
     }
@@ -627,30 +474,25 @@ export class CodexSubagentEventRouter {
         this.terminalPendingSpawns.set(childSessionId, {
             parentThreadId: pending.parentThreadId,
             task: pending.task,
-            ...(pending.model ? { model: pending.model } : {}),
+            ...(pending.model ? {model: pending.model} : {}),
         });
         this.onChildSessionEnded(childSessionId);
         this.resolveMaterialization(childSessionId, null);
         this.notifyWaiters();
     }
 
-    private async finish(
-        childSessionId: string,
-        state: SubagentState,
-    ): Promise<void> {
+    private async finish(childSessionId: string, state: SubagentState): Promise<void> {
         const child = this.children.get(childSessionId);
         if (!child || child.terminalState !== undefined) return;
         child.terminalState = state;
         try {
-            await this.session.update(
-                {
-                    sessionUpdate: "subagent_state_update",
-                    subagentSessionId: child.sessionId,
-                    state,
-                },
-                child.parentSessionId,
-            );
-        } catch (error) {
+            await this.session.update({
+                sessionUpdate: "subagent_state_update",
+                subagentSessionId: child.sessionId,
+                state,
+            }, child.parentSessionId);
+        }
+        catch (error) {
             if (child.terminalState === state) delete child.terminalState;
             throw error;
         }
@@ -663,28 +505,23 @@ export class CodexSubagentEventRouter {
         if (!child) {
             const pending = this.terminalPendingSpawns.get(childThreadId);
             if (!pending) return;
-            const parentSessionId =
-                this.children.get(pending.parentThreadId)?.sessionId ??
-                this.rootSessionId;
+            const parentSessionId = this.children.get(pending.parentThreadId)?.sessionId ?? this.rootSessionId;
             const reopened: NativeSubagent = {
                 parentThreadId: pending.parentThreadId,
                 parentSessionId,
                 sessionId: `${childThreadId}:generation:2`,
                 name: fallbackName(childThreadId),
                 task: pending.task,
-                ...(pending.model ? { model: pending.model } : {}),
+                ...(pending.model ? {model: pending.model} : {}),
                 generation: 2,
             };
-            await this.session.update(
-                {
-                    sessionUpdate: "subagent_spawned",
-                    subagentSessionId: reopened.sessionId,
-                    name: reopened.name,
-                    task: reopened.task,
-                    capabilities: {},
-                },
-                parentSessionId,
-            );
+            await this.session.update({
+                sessionUpdate: "subagent_spawned",
+                subagentSessionId: reopened.sessionId,
+                name: reopened.name,
+                task: reopened.task,
+                capabilities: {},
+            }, parentSessionId);
             this.children.set(childThreadId, reopened);
             this.terminalPendingSpawns.delete(childThreadId);
             await this.reportModel(childThreadId, reopened.sessionId);
@@ -694,24 +531,20 @@ export class CodexSubagentEventRouter {
         const previousSessionId = child.sessionId;
         const previousParentSessionId = child.parentSessionId;
         const previousState = child.terminalState;
-        child.parentSessionId =
-            this.children.get(child.parentThreadId)?.sessionId ??
-            this.rootSessionId;
+        child.parentSessionId = this.children.get(child.parentThreadId)?.sessionId ?? this.rootSessionId;
         child.generation += 1;
         child.sessionId = `${childThreadId}:generation:${child.generation}`;
         delete child.terminalState;
         try {
-            await this.session.update(
-                {
-                    sessionUpdate: "subagent_spawned",
-                    subagentSessionId: child.sessionId,
-                    name: child.name,
-                    task: child.task,
-                    capabilities: {},
-                },
-                child.parentSessionId,
-            );
-        } catch (error) {
+            await this.session.update({
+                sessionUpdate: "subagent_spawned",
+                subagentSessionId: child.sessionId,
+                name: child.name,
+                task: child.task,
+                capabilities: {},
+            }, child.parentSessionId);
+        }
+        catch (error) {
             child.generation -= 1;
             child.sessionId = previousSessionId;
             child.parentSessionId = previousParentSessionId;
@@ -722,15 +555,9 @@ export class CodexSubagentEventRouter {
     }
 
     /** Takes a model that Codex reports for a child thread, when its source does not rank below the known one. */
-    private async applyThreadModel(
-        threadId: string,
-        model: ChildModel,
-        mayBeEarly: boolean,
-    ): Promise<void> {
+    private async applyThreadModel(threadId: string, model: ChildModel, mayBeEarly: boolean): Promise<void> {
         if (!this.supported || threadId === this.rootSessionId) return;
-        const pending =
-            this.pendingSpawns.get(threadId) ??
-            this.terminalPendingSpawns.get(threadId);
+        const pending = this.pendingSpawns.get(threadId) ?? this.terminalPendingSpawns.get(threadId);
         if (pending) {
             pending.model = preferredModel(pending.model, model);
             return;
@@ -739,22 +566,14 @@ export class CodexSubagentEventRouter {
         if (!child) {
             // A spawn can name its child only when it completes, after the child thread started.
             if (mayBeEarly) {
-                this.earlyThreadModels.set(
-                    threadId,
-                    preferredModel(this.earlyThreadModels.get(threadId), model),
-                );
+                this.earlyThreadModels.set(threadId, preferredModel(this.earlyThreadModels.get(threadId), model));
             }
             return;
         }
         const previous = child.model;
         child.model = preferredModel(previous, model);
-        if (child.model === previous || child.terminalState !== undefined)
-            return;
-        if (
-            previous &&
-            this.modelValue(previous.model) === this.modelValue(model.model)
-        )
-            return;
+        if (child.model === previous || child.terminalState !== undefined) return;
+        if (previous && this.modelValue(previous.model) === this.modelValue(model.model)) return;
         await this.reportModel(threadId, child.sessionId);
     }
 
@@ -767,11 +586,7 @@ export class CodexSubagentEventRouter {
     /** The value of the model option for a model, which can differ from the model string that Codex reports. */
     private modelValue(model: string): string {
         const models = this.rootModels();
-        const option = createSubagentModelConfigOption(
-            models?.availableModels ?? [],
-            models?.currentModel ?? null,
-            model,
-        );
+        const option = createSubagentModelConfigOption(models?.availableModels ?? [], models?.currentModel ?? null, model);
         return String(option.currentValue);
     }
 
@@ -779,45 +594,23 @@ export class CodexSubagentEventRouter {
      * Sends the current model of a child session after its announcement. A child that ended, or that a reopen gave
      * another session, gets nothing: an end can come while the router waits for the client.
      */
-    private async reportModel(
-        childThreadId: string,
-        childSessionId: string,
-    ): Promise<void> {
+    private async reportModel(childThreadId: string, childSessionId: string): Promise<void> {
         const child = this.children.get(childThreadId);
-        if (
-            !child ||
-            child.terminalState !== undefined ||
-            child.sessionId !== childSessionId
-        )
-            return;
+        if (!child || child.terminalState !== undefined || child.sessionId !== childSessionId) return;
         // A pending child can end while the router waits for the client to take its announcement.
         if (this.terminalPendingSpawns.has(childThreadId)) return;
-        await reportSubagentModel(
-            this.session,
-            childSessionId,
-            this.rootModels(),
-            child.model?.model,
-        );
+        await reportSubagentModel(this.session, childSessionId, this.rootModels(), child.model?.model);
     }
 
-    private resolveMaterialization(
-        childThreadId: string,
-        sessionId: string | null,
-    ): void {
-        for (const resolve of this.materializationWaiters.get(childThreadId) ??
-            [])
-            resolve(sessionId);
+    private resolveMaterialization(childThreadId: string, sessionId: string | null): void {
+        for (const resolve of this.materializationWaiters.get(childThreadId) ?? []) resolve(sessionId);
         this.materializationWaiters.delete(childThreadId);
     }
 
     /** Some native subagent has not ended yet. */
     hasOutstanding(): boolean {
-        return (
-            this.pendingSpawns.size > 0 ||
-            [...this.children.values()].some(
-                (child) => child.terminalState === undefined,
-            )
-        );
+        return this.pendingSpawns.size > 0
+            || [...this.children.values()].some(child => child.terminalState === undefined);
     }
 
     private notifyWaiters(): void {
@@ -825,36 +618,20 @@ export class CodexSubagentEventRouter {
         this.waiters.clear();
     }
 
-    private parentForPath(path: string): {
-        threadId: string;
-        sessionId: string;
-    } {
+    private parentForPath(path: string): {threadId: string; sessionId: string} {
         const normalized = normalizeAgentPath(path);
         const separator = normalized.lastIndexOf("/");
-        if (separator <= 0)
-            return {
-                threadId: this.rootSessionId,
-                sessionId: this.rootSessionId,
-            };
+        if (separator <= 0) return {threadId: this.rootSessionId, sessionId: this.rootSessionId};
         const parentPath = normalized.slice(0, separator);
-        const parent = [...this.children.entries()].find(
-            ([, child]) => child.path === parentPath,
-        );
+        const parent = [...this.children.entries()].find(([, child]) => child.path === parentPath);
         return parent
-            ? { threadId: parent[0], sessionId: parent[1].sessionId }
-            : { threadId: this.rootSessionId, sessionId: this.rootSessionId };
+            ? {threadId: parent[0], sessionId: parent[1].sessionId}
+            : {threadId: this.rootSessionId, sessionId: this.rootSessionId};
     }
 }
 
 function terminalStateOf(
-    status:
-        | "pendingInit"
-        | "running"
-        | "completed"
-        | "errored"
-        | "shutdown"
-        | "notFound"
-        | "interrupted",
+    status: "pendingInit" | "running" | "completed" | "errored" | "shutdown" | "notFound" | "interrupted",
 ): SubagentState | undefined {
     switch (status) {
         case "completed":

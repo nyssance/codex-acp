@@ -10,9 +10,7 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        codexAcpClient.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
 
         const threadA: Thread = {
             environments: null,
@@ -101,15 +99,18 @@ describe("CodexACPAgent - list sessions", () => {
         };
         const response = await codexAcpAgent.listSessions(params);
 
-        expect(codexAppServerClient.threadList).toHaveBeenCalledWith(
-            expect.objectContaining({
-                sourceKinds: ["cli", "vscode", "appServer", "unknown"],
-                // Codex answers from the state DB instead of scanning every rollout file.
-                useStateDbOnly: true,
-            }),
-        );
+        expect(codexAppServerClient.threadList).toHaveBeenCalledWith(expect.objectContaining({
+            sourceKinds: [
+                "cli",
+                "vscode",
+                "appServer",
+                "unknown",
+            ],
+            // Codex answers from the state DB instead of scanning every rollout file.
+            useStateDbOnly: true,
+        }));
         await expect(JSON.stringify(response, null, 2)).toMatchFileSnapshot(
-            "data/list-sessions.json",
+            "data/list-sessions.json"
         );
     });
 
@@ -130,9 +131,7 @@ describe("CodexACPAgent - list sessions", () => {
             nextCursor: null,
         });
 
-        const response = await fixture
-            .getCodexAcpAgent()
-            .listSessions({ cwd: "/repo/project", cursor: null });
+        const response = await fixture.getCodexAcpAgent().listSessions({cwd: "/repo/project", cursor: null});
 
         expect(response.sessions).toEqual([]);
         expect(codexAppServerClient.threadList).toHaveBeenCalledTimes(1);
@@ -144,9 +143,7 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        codexAcpClient.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
 
         const matchingThread: Thread = {
             environments: null,
@@ -216,9 +213,7 @@ describe("CodexACPAgent - list sessions", () => {
             cursor: null,
         });
 
-        expect(
-            basenameResponse.sessions.map((session) => session.sessionId),
-        ).toEqual(["sess-win"]);
+        expect(basenameResponse.sessions.map(session => session.sessionId)).toEqual(["sess-win"]);
     });
 
     it("should prefer the explicit thread name as the session title", async () => {
@@ -227,9 +222,7 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        codexAcpClient.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
 
         const thread: Thread = {
             environments: null,
@@ -277,9 +270,9 @@ describe("CodexACPAgent - list sessions", () => {
             cursor: null,
         });
 
-        await expect(
-            `${JSON.stringify(response, null, 2)}\n`,
-        ).toMatchFileSnapshot("data/list-sessions-thread-name.json");
+        await expect(`${JSON.stringify(response, null, 2)}\n`).toMatchFileSnapshot(
+            "data/list-sessions-thread-name.json"
+        );
     });
 
     it("includes tracked additional directories for active sessions", async () => {
@@ -288,10 +281,7 @@ describe("CodexACPAgent - list sessions", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const codexAppServerClient = fixture.getCodexAppServerClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -300,31 +290,27 @@ describe("CodexACPAgent - list sessions", () => {
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId: "sess-1",
             currentModelId: "gpt-5[medium]",
-            models: [
-                {
-                    id: "gpt-5",
-                    model: "gpt-5",
-                    upgrade: null,
-                    upgradeInfo: null,
-                    availabilityNux: null,
-                    modelSpecialty: null,
-                    multiAgentVersion: null,
-                    availableAccessPrograms: null,
-                    displayName: "gpt-5",
-                    description: "test model",
-                    hidden: false,
-                    supportedReasoningEfforts: [
-                        { reasoningEffort: "medium", description: "balanced" },
-                    ],
-                    defaultReasoningEffort: "medium",
-                    inputModalities: ["text"],
-                    supportsPersonality: false,
-                    additionalSpeedTiers: [],
-                    serviceTiers: [],
-                    defaultServiceTier: null,
-                    isDefault: true,
-                },
-            ],
+            models: [{
+                id: "gpt-5",
+                model: "gpt-5",
+                upgrade: null,
+                upgradeInfo: null,
+                availabilityNux: null,
+                modelSpecialty: null,
+                multiAgentVersion: null,
+                availableAccessPrograms: null,
+                displayName: "gpt-5",
+                description: "test model",
+                hidden: false,
+                supportedReasoningEfforts: [{reasoningEffort: "medium", description: "balanced"}],
+                defaultReasoningEffort: "medium",
+                inputModalities: ["text"],
+                supportsPersonality: false,
+                additionalSpeedTiers: [],
+                serviceTiers: [],
+                defaultServiceTier: null,
+                isDefault: true,
+            }],
             collaborationMode: "default",
             currentServiceTier: null,
             additionalDirectories: ["/repo/extra"],
@@ -381,8 +367,6 @@ describe("CodexACPAgent - list sessions", () => {
             cursor: null,
         });
 
-        expect(response.sessions[0]?.additionalDirectories).toEqual([
-            "/repo/extra",
-        ]);
+        expect(response.sessions[0]?.additionalDirectories).toEqual(["/repo/extra"]);
     });
 });

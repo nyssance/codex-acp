@@ -37,15 +37,10 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [goalUpdatedNotification],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [goalUpdatedNotification]);
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/thread-goal-updated.json",
+            "data/thread-goal-updated.json"
         );
     });
 
@@ -68,15 +63,10 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [goalUpdatedNotification],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [goalUpdatedNotification]);
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/thread-goal-updated-multiline.json",
+            "data/thread-goal-updated-multiline.json"
         );
     });
 
@@ -88,15 +78,10 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [goalClearedNotification],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [goalClearedNotification]);
 
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/thread-goal-cleared.json",
+            "data/thread-goal-cleared.json"
         );
     });
 
@@ -159,23 +144,18 @@ describe("CodexEventHandler - thread goal events", () => {
         });
         expect(events[0]!.args[0].update).toEqual({
             sessionUpdate: "session_info_update",
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        goal: {
-                            objective: "Ship the goal update",
-                            status: "active",
-                            tokenBudget: null,
-                            tokensUsed: 42,
-                            timeUsedSeconds: 12,
-                            createdAt: 1710000000000,
-                            updatedAt: 1710000012000,
-                            controlMethod: "_session/goal",
-                        },
-                    },
+            _meta: {jetbrains: {air: {version: 1,
+                goal: {
+                    objective: "Ship the goal update",
+                    status: "active",
+                    tokenBudget: null,
+                    tokensUsed: 42,
+                    timeUsedSeconds: 12,
+                    createdAt: 1710000000000,
+                    updatedAt: 1710000012000,
+                    controlMethod: "_session/goal",
                 },
-            },
+            }}},
         });
     });
 
@@ -209,21 +189,14 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [firstGoal, replacementGoal],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [firstGoal, replacementGoal]);
 
         const events = mockFixture.getAcpConnectionEvents([]);
         expect(events).toHaveLength(2);
-        expect(
-            events.map(
-                (event) =>
-                    event.args[0].update._meta?.jetbrains?.air?.goal?.createdAt,
-            ),
-        ).toEqual([1710000000000, 1710000100000]);
+        expect(events.map(event => event.args[0].update._meta?.jetbrains?.air?.goal?.createdAt)).toEqual([
+            1710000000000,
+            1710000100000,
+        ]);
     });
 
     it("should not append completed goal updates to preceding agent text", async () => {
@@ -245,23 +218,18 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [
-                {
-                    method: "item/agentMessage/delta",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        itemId: "message-1",
-                        delta: "Because they kept losing interest in `any`.",
-                    },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [
+            {
+                method: "item/agentMessage/delta",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    itemId: "message-1",
+                    delta: "Because they kept losing interest in `any`.",
                 },
-                goalCompletedNotification,
-            ],
-        );
+            },
+            goalCompletedNotification,
+        ]);
 
         const events = mockFixture.getAcpConnectionEvents([]);
         expect(events).toHaveLength(2);
@@ -275,23 +243,18 @@ describe("CodexEventHandler - thread goal events", () => {
         });
         expect(events[1]!.args[0].update).toEqual({
             sessionUpdate: "session_info_update",
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        goal: {
-                            objective: "tell me a joke",
-                            status: "complete",
-                            tokenBudget: null,
-                            tokensUsed: 42,
-                            timeUsedSeconds: 12,
-                            createdAt: 1710000000000,
-                            updatedAt: 1710000012000,
-                            controlMethod: "_session/goal",
-                        },
-                    },
+            _meta: {jetbrains: {air: {version: 1,
+                goal: {
+                    objective: "tell me a joke",
+                    status: "complete",
+                    tokenBudget: null,
+                    tokensUsed: 42,
+                    timeUsedSeconds: 12,
+                    createdAt: 1710000000000,
+                    updatedAt: 1710000012000,
+                    controlMethod: "_session/goal",
                 },
-            },
+            }}},
         });
     });
 
@@ -303,18 +266,18 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [goalClearedNotification, goalClearedNotification],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [
+            goalClearedNotification,
+            goalClearedNotification,
+        ]);
 
         const events = mockFixture.getAcpConnectionEvents([]);
         expect(events).toHaveLength(1);
         expect(events[0]!.args[0].update).toEqual({
             sessionUpdate: "session_info_update",
-            _meta: { jetbrains: { air: { version: 1, goal: null } } },
+            _meta: {jetbrains: {air: {version: 1,
+                goal: null,
+            }}},
         });
     });
 

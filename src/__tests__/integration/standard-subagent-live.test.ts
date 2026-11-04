@@ -1,25 +1,15 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { Readable, Writable } from "node:stream";
-import { expect, it, vi } from "vitest";
-import { AgentMode } from "../../AgentMode";
-import {
-    removeDirectoryWithRetry,
-    writeCodexHomeConfig,
-} from "../acp-test-utils";
-import {
-    describeIntegration,
-    INTEGRATION_MODEL_ID,
-} from "./integration-fixture";
-import {
-    functionCallResponse,
-    startMockResponsesServer,
-    textResponse,
-} from "./mock-responses-server";
+import {spawn} from "node:child_process";
+import {once} from "node:events";
+import {appendFileSync, mkdirSync, mkdtempSync, writeFileSync} from "node:fs";
+import {join} from "node:path";
+import {Readable, Writable} from "node:stream";
+import {expect, it, vi} from "vitest";
+import {AgentMode} from "../../AgentMode";
+import {removeDirectoryWithRetry, writeCodexHomeConfig} from "../acp-test-utils";
+import {describeIntegration, INTEGRATION_MODEL_ID} from "./integration-fixture";
+import {functionCallResponse, startMockResponsesServer, textResponse} from "./mock-responses-server";
 
 describeIntegration("integration: live standard subagents", () => {
     it.each(

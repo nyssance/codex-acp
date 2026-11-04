@@ -8,14 +8,10 @@
  * found there is reported, see {@link SessionForkOriginsDeps.onFound}.
  */
 
-import type {
-    Thread,
-    ThreadReadParams,
-    ThreadReadResponse,
-} from "./app-server/v2";
-import { isThreadNotMaterializedError } from "./CodexThreadErrors";
-import { logger } from "./Logger";
-import { isMissingThreadError } from "./SessionIndexMutations";
+import type {Thread, ThreadReadParams, ThreadReadResponse} from "./app-server/v2";
+import {isThreadNotMaterializedError} from "./CodexThreadErrors";
+import {logger} from "./Logger";
+import {isMissingThreadError} from "./SessionIndexMutations";
 
 /** The app-server request that the fork origins need. */
 export interface SessionForkOriginsReader {
@@ -121,22 +117,12 @@ export class SessionForkOrigins {
                 const batch = [...this.pending.values()];
                 this.pending.clear();
                 const found: string[] = [];
-                for (
-                    let start = 0;
-                    start < batch.length && !this.disposed;
-                    start += READ_CONCURRENCY
-                ) {
-                    await Promise.all(
-                        batch
-                            .slice(start, start + READ_CONCURRENCY)
-                            .map(async (thread) => {
-                                if (await this.read(thread))
-                                    found.push(thread.id);
-                            }),
-                    );
+                for (let start = 0; start < batch.length && !this.disposed; start += READ_CONCURRENCY) {
+                    await Promise.all(batch.slice(start, start + READ_CONCURRENCY).map(async (thread) => {
+                        if (await this.read(thread)) found.push(thread.id);
+                    }));
                 }
-                if (found.length > 0 && !this.disposed)
-                    this.deps.onFound(found);
+                if (found.length > 0 && !this.disposed) this.deps.onFound(found);
             }
         } finally {
             this.running = false;
@@ -147,30 +133,17 @@ export class SessionForkOrigins {
     private async read(thread: Thread): Promise<boolean> {
         // A thread listed again while it was read waits for that read, which may have answered meanwhile.
         const known = this.origins.get(thread.id);
-        if (
-            typeof known === "string" ||
-            (known !== undefined && known.updatedAt >= thread.updatedAt)
-        )
-            return false;
+        if (typeof known === "string" || (known !== undefined && known.updatedAt >= thread.updatedAt)) return false;
         // Without an app-server, the thread is read when it is listed next.
         const reader = this.deps.reader();
         if (reader === null) return false;
         let parent: string | null;
         try {
-            parent =
-                (
-                    await reader.threadRead({
-                        threadId: thread.id,
-                        includeTurns: false,
-                    })
-                ).thread.forkedFromId || null;
+            parent = (await reader.threadRead({threadId: thread.id, includeTurns: false})).thread.forkedFromId || null;
         } catch (error) {
             if (!isNotReadableYet(error)) {
                 // Not cached: the thread is read again when it is listed next.
-                logger.log("Cannot read the fork parent of a thread", {
-                    threadId: thread.id,
-                    error: String(error),
-                });
+                logger.log("Cannot read the fork parent of a thread", {threadId: thread.id, error: String(error)});
                 return false;
             }
             parent = null;
@@ -188,12 +161,8 @@ export class SessionForkOrigins {
     /** Keeps that a read of the thread as it is gave no parent, unless a parent or a later such read is known. */
     private keepNoParent(thread: Thread): void {
         const known = this.origins.get(thread.id);
-        if (
-            typeof known === "string" ||
-            (known !== undefined && known.updatedAt > thread.updatedAt)
-        )
-            return;
-        remember(this.origins, thread.id, { updatedAt: thread.updatedAt });
+        if (typeof known === "string" || (known !== undefined && known.updatedAt > thread.updatedAt)) return;
+        remember(this.origins, thread.id, {updatedAt: thread.updatedAt});
     }
 }
 

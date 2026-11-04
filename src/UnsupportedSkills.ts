@@ -1,5 +1,5 @@
-import type { JsonValue } from "./app-server/serde_json/JsonValue";
-import type { SkillsListResponse } from "./app-server/v2";
+import type {JsonValue} from "./app-server/serde_json/JsonValue";
+import type {SkillsListResponse} from "./app-server/v2";
 
 /**
  * Skills that ACP clients cannot use.
@@ -10,9 +10,7 @@ import type { SkillsListResponse } from "./app-server/v2";
  * Skills are matched by their plugin-qualified name, so that a session needs no `skills/list` lookup. A skill of
  * another plugin with the same name, such as a `visualize` skill in some other `visualize` plugin, is disabled too.
  */
-const UNSUPPORTED_SKILL_NAMES: ReadonlySet<string> = new Set([
-    "visualize:visualize",
-]);
+const UNSUPPORTED_SKILL_NAMES: ReadonlySet<string> = new Set(["visualize:visualize"]);
 
 type JsonObject = { [key in string]?: JsonValue };
 
@@ -25,28 +23,18 @@ export function disableUnsupportedSkills(config: JsonObject): JsonObject {
         skills: {
             ...skills,
             // Last, because Codex lets a later rule for the same selector replace an earlier one.
-            config: [
-                ...rules,
-                ...Array.from(UNSUPPORTED_SKILL_NAMES, (name) => ({
-                    name,
-                    enabled: false,
-                })),
-            ],
+            config: [...rules, ...Array.from(UNSUPPORTED_SKILL_NAMES, name => ({name, enabled: false}))],
         },
     };
 }
 
 /** Removes the unsupported skills from a `skills/list` response. */
-export function withoutUnsupportedSkills(
-    response: SkillsListResponse,
-): SkillsListResponse {
+export function withoutUnsupportedSkills(response: SkillsListResponse): SkillsListResponse {
     return {
         ...response,
-        data: response.data.map((entry) => ({
+        data: response.data.map(entry => ({
             ...entry,
-            skills: entry.skills.filter(
-                (skill) => !UNSUPPORTED_SKILL_NAMES.has(skill.name),
-            ),
+            skills: entry.skills.filter(skill => !UNSUPPORTED_SKILL_NAMES.has(skill.name)),
         })),
     };
 }

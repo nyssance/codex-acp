@@ -44,10 +44,7 @@ type McpServerStartupWaiter = {
 export class McpStartupTracker {
     private currentVersion = 0;
     /** The last startup state of each MCP server, by server name and then by thread id. A `null` thread id is global. */
-    private readonly states = new Map<
-        string,
-        Map<string | null, McpServerStartupSnapshot>
-    >();
+    private readonly states = new Map<string, Map<string | null, McpServerStartupSnapshot>>();
     private readonly waiters: Array<McpServerStartupWaiter> = [];
     private closedError: Error | null = null;
 
@@ -70,11 +67,7 @@ export class McpStartupTracker {
             version: this.currentVersion,
         });
         for (const waiter of [...this.waiters]) {
-            const result = this.tryBuildResult(
-                waiter.serverNames,
-                waiter.afterVersion,
-                waiter.threadId,
-            );
+            const result = this.tryBuildResult(waiter.serverNames, waiter.afterVersion, waiter.threadId);
             if (result !== null) {
                 waiter.resolve(result);
             }
@@ -99,14 +92,10 @@ export class McpStartupTracker {
             ),
         ];
         if (uniqueServerNames.length === 0) {
-            return { ready: [], failed: [], cancelled: [] };
+            return {ready: [], failed: [], cancelled: []};
         }
-        const { threadId, signal } = options;
-        const result = this.tryBuildResult(
-            uniqueServerNames,
-            afterVersion,
-            threadId,
-        );
+        const {threadId, signal} = options;
+        const result = this.tryBuildResult(uniqueServerNames, afterVersion, threadId);
         if (result !== null) {
             return result;
         }
@@ -137,7 +126,7 @@ export class McpStartupTracker {
                     reject(error);
                 },
             };
-            signal?.addEventListener("abort", onAbort, { once: true });
+            signal?.addEventListener("abort", onAbort, {once: true});
             this.waiters.push(waiter);
         });
     }
@@ -154,22 +143,16 @@ export class McpStartupTracker {
 
     /** Rejects every wait, now and later, because the Codex connection closed. */
     dispose(): void {
-        this.closedError ??= new Error(
-            "Codex connection closed during the MCP server startup.",
-        );
+        this.closedError ??= new Error("Codex connection closed during the MCP server startup.");
         for (const waiter of [...this.waiters]) {
             waiter.reject(this.closedError);
         }
     }
 
     /** Returns the latest startup state of the server for the thread. A global state also counts. */
-    private latestState(
-        serverName: string,
-        threadId: string,
-    ): McpServerStartupSnapshot | undefined {
+    private latestState(serverName: string, threadId: string): McpServerStartupSnapshot | undefined {
         let latest: McpServerStartupSnapshot | undefined;
-        for (const [stateThreadId, state] of this.states.get(serverName) ??
-            []) {
+        for (const [stateThreadId, state] of this.states.get(serverName) ?? []) {
             if (stateThreadId !== null && stateThreadId !== threadId) {
                 continue;
             }
@@ -180,11 +163,7 @@ export class McpStartupTracker {
         return latest;
     }
 
-    private tryBuildResult(
-        serverNames: Array<string>,
-        afterVersion: number,
-        threadId: string,
-    ): McpStartupResult | null {
+    private tryBuildResult(serverNames: Array<string>, afterVersion: number, threadId: string): McpStartupResult | null {
         const ready: Array<string> = [];
         const failed: Array<McpStartupFailure> = [];
         const cancelled: Array<string> = [];
@@ -205,9 +184,7 @@ export class McpStartupTracker {
                     failed.push({
                         server: serverName,
                         error: state.error ?? "unknown MCP startup error",
-                        ...(state.failureReason === null
-                            ? {}
-                            : { failureReason: state.failureReason }),
+                        ...(state.failureReason === null ? {} : {failureReason: state.failureReason}),
                     });
                     break;
                 case "cancelled":
@@ -216,6 +193,6 @@ export class McpStartupTracker {
             }
         }
 
-        return { ready, failed, cancelled };
+        return {ready, failed, cancelled};
     }
 }

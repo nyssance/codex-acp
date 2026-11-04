@@ -1,4 +1,4 @@
-import type { SessionConfigOption } from "@agentclientprotocol/sdk/unstable";
+import type {SessionConfigOption} from "@agentclientprotocol/sdk/unstable";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 import type { Model } from "./app-server/v2";
 
@@ -24,16 +24,11 @@ export function resolveFastServiceTier(
     return fastModeEnabled && currentModelSupportsFast ? "priority" : null;
 }
 
-export function clientSupportsBooleanConfigOptions(
-    clientCapabilities?: acp.ClientCapabilities | null,
-): boolean {
+export function clientSupportsBooleanConfigOptions(clientCapabilities?: acp.ClientCapabilities | null): boolean {
     return clientCapabilities?.session?.configOptions?.boolean != null;
 }
 
-export function createFastModeConfigOption(
-    fastModeEnabled: boolean,
-    useBooleanConfigOption = false,
-): SessionConfigOption {
+export function createFastModeConfigOption(fastModeEnabled: boolean, useBooleanConfigOption = false): SessionConfigOption {
     if (useBooleanConfigOption) {
         return {
             id: FAST_MODE_CONFIG_ID,

@@ -42,9 +42,7 @@ export class CrashLoopGuard {
 
     private recent(key: string): number[] {
         const since = this.now() - this.windowMs;
-        const times = (this.crashes.get(key) ?? []).filter(
-            (time) => time > since,
-        );
+        const times = (this.crashes.get(key) ?? []).filter(time => time > since);
         if (times.length === 0) {
             this.crashes.delete(key);
         } else {

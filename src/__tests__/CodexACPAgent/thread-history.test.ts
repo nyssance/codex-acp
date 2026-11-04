@@ -1,13 +1,7 @@
 import { testThreadPermissions } from "../native-thread-permissions";
-import { describe, expect, it, vi } from "vitest";
-import type {
-    ThreadItem,
-    ThreadItemEntry,
-    ThreadItemsListParams,
-    ThreadTurnsListParams,
-    Turn,
-} from "../../app-server/v2";
-import { createCodexMockTestFixture, createTestModel } from "../acp-test-utils";
+import {describe, expect, it, vi} from "vitest";
+import type {ThreadItem, ThreadItemEntry, ThreadItemsListParams, ThreadTurnsListParams, Turn} from "../../app-server/v2";
+import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
 
 function messageTurn(id: string): Turn {
     return {
@@ -47,7 +41,7 @@ function messageTurn(id: string): Turn {
  * turn. An ascending read starts at the oldest turn.
  */
 function turnStore(stored: Turn[], pageSize = 2) {
-    return async ({ cursor, limit, sortDirection }: ThreadTurnsListParams) => {
+    return async ({cursor, limit, sortDirection}: ThreadTurnsListParams) => {
         if (sortDirection === "desc") {
             const index =
                 cursor === null || cursor === undefined
@@ -73,10 +67,7 @@ function turnStore(stored: Turn[], pageSize = 2) {
                 backwardsCursor: null,
             };
         }
-        const start =
-            cursor === null || cursor === undefined
-                ? 0
-                : Number(cursor.slice("asc:".length));
+        const start = cursor === null || cursor === undefined ? 0 : Number(cursor.slice("asc:".length));
         const end = start + Math.min(limit ?? pageSize, pageSize);
         return {
             readStates: null,
@@ -93,28 +84,12 @@ function turnStore(stored: Turn[], pageSize = 2) {
  * starts at that item. An ascending read starts at the oldest item.
  */
 function itemStore(turns: Turn[], pageSize = 2) {
-    const entries = turns.flatMap((turn) =>
-        turn.items.map((item) => ({
-            turnId: turn.id,
-            item,
-            startedAtMs: null,
-            completedAtMs: null,
-        })),
-    );
-    return async ({
-        turnId,
-        cursor,
-        limit,
-        sortDirection,
-    }: ThreadItemsListParams) => {
+    const entries = turns.flatMap(turn => turn.items.map(item => ({turnId: turn.id, item, startedAtMs: null, completedAtMs: null})));
+    return async ({turnId, cursor, limit, sortDirection}: ThreadItemsListParams) => {
         if (cursor !== null && typeof cursor === "object") {
-            throw new Error(
-                "This history fixture only supports opaque string cursors",
-            );
+            throw new Error("This history fixture only supports opaque string cursors");
         }
-        const scoped = entries.filter(
-            (entry) => !turnId || entry.turnId === turnId,
-        );
+        const scoped = entries.filter(entry => !turnId || entry.turnId === turnId);
         if (sortDirection === "desc") {
             const index =
                 cursor === null || cursor === undefined
@@ -129,10 +104,7 @@ function itemStore(turns: Turn[], pageSize = 2) {
                 backwardsCursor: null,
             };
         }
-        const start =
-            cursor === null || cursor === undefined
-                ? 0
-                : Number(cursor.slice("asc:".length));
+        const start = cursor === null || cursor === undefined ? 0 : Number(cursor.slice("asc:".length));
         const end = start + Math.min(limit ?? pageSize, pageSize);
         return {
             readStates: null,
@@ -143,14 +115,9 @@ function itemStore(turns: Turn[], pageSize = 2) {
     };
 }
 
-async function collect(
-    history: AsyncIterable<Array<ThreadItem | ThreadItemEntry>> | null,
-): Promise<string[]> {
+async function collect(history: AsyncIterable<Array<ThreadItem | ThreadItemEntry>> | null): Promise<string[]> {
     const ids: string[] = [];
-    for await (const page of history ?? [])
-        ids.push(
-            ...page.map((item) => ("turnId" in item ? item.item.id : item.id)),
-        );
+    for await (const page of history ?? []) ids.push(...page.map(item => "turnId" in item ? item.item.id : item.id));
     return ids;
 }
 
@@ -178,23 +145,13 @@ describe("paginated thread history", () => {
                 ]),
             );
 
-        const thread = (
-            await fixture
-                .getCodexAppServerClient()
-                .threadReadWithHistory("history")
-        ).thread;
+        const thread = (await fixture.getCodexAppServerClient().threadReadWithHistory("history")).thread;
 
-        await expect(
-            JSON.stringify(
-                {
-                    reads: metadataRead.mock.calls,
-                    pages: pages.mock.calls,
-                    thread,
-                },
-                null,
-                2,
-            ),
-        ).toMatchFileSnapshot("data/paginated-thread-history.json");
+        await expect(JSON.stringify({
+            reads: metadataRead.mock.calls,
+            pages: pages.mock.calls,
+            thread,
+        }, null, 2)).toMatchFileSnapshot("data/paginated-thread-history.json");
     });
 
     it.each([
@@ -270,37 +227,24 @@ describe("paginated thread history", () => {
                 .spyOn(appServer, "threadItemsList")
                 .mockImplementation(itemStore(stored));
 
-            const loaded = await client.loadSession({
-                sessionId: "history",
-                cwd: "/workspace",
-                mcpServers: [],
-            });
+        const loaded = await client.loadSession({sessionId: "history", cwd: "/workspace", mcpServers: []});
 
-            expect(loaded.thread.turns).toEqual([]);
-            expect(await collect(loaded.history)).toEqual(expectedIds);
-            expect(loaded.thread.name).toBe(
-                mode === "paginated" ? "Resume metadata" : "Later metadata",
-            );
-            expect(read.mock.calls).toEqual(
-                mode === "paginated"
-                    ? []
-                    : [
-                          [{ threadId: "history" }],
-                          [{ threadId: "history", includeTurns: true }],
-                      ],
-            );
-            expect(pages).toHaveBeenCalledTimes(pageCalls);
-        },
-    );
+        expect(loaded.thread.turns).toEqual([]);
+        expect(await collect(loaded.history)).toEqual(expectedIds);
+        expect(loaded.thread.name).toBe(mode === "paginated" ? "Resume metadata" : "Later metadata");
+        expect(read.mock.calls).toEqual(mode === "paginated" ? [] : [
+            [{threadId: "history"}],
+            [{threadId: "history", includeTurns: true}],
+        ]);
+        expect(pages).toHaveBeenCalledTimes(pageCalls);
+    });
 
     it("fails a history page that Codex does not answer instead of waiting forever", async () => {
         vi.useFakeTimers();
         try {
             const fixture = createCodexMockTestFixture();
             const appServer = fixture.getCodexAppServerClient();
-            vi.spyOn(appServer, "threadItemsList").mockReturnValue(
-                new Promise(() => {}),
-            );
+            vi.spyOn(appServer, "threadItemsList").mockReturnValue(new Promise(() => {}));
 
             const historyPages = appServer.threadItemPages("history");
             const pages = historyPages[Symbol.asyncIterator]();
@@ -325,14 +269,9 @@ describe("paginated thread history", () => {
             });
             const store = turnStore([messageTurn("first")]);
             // Only the first ascending page is lost.
-            vi.spyOn(appServer, "threadTurnsList").mockImplementation(
-                (params) =>
-                    params.sortDirection === "asc"
-                        ? new Promise(() => {})
-                        : store(params),
-            );
-            const error =
-                "Codex did not answer thread/turns/list for thread history within 60 s";
+            vi.spyOn(appServer, "threadTurnsList").mockImplementation(params =>
+                params.sortDirection === "asc" ? new Promise(() => {}) : store(params));
+            const error = "Codex did not answer thread/turns/list for thread history within 60 s";
 
             const history = expect(
                 appServer.threadReadWithHistory("history"),
@@ -354,18 +293,9 @@ describe("paginated thread history", () => {
         const fixture = createCodexMockTestFixture();
         const appServer = fixture.getCodexAppServerClient();
         const turn = messageTurn("large");
-        turn.items = Array.from({ length: 9 }, (_, index) => ({
-            ...turn.items[1]!,
-            id: `message-${index}`,
-        }));
-        const pages = vi
-            .spyOn(appServer, "threadItemsList")
-            .mockImplementation(itemStore([turn], 3));
-        const requestedPages = () =>
-            pages.mock.calls.map(
-                ([params]) =>
-                    `${params.sortDirection}:${params.cursor ?? "start"}`,
-            );
+        turn.items = Array.from({length: 9}, (_, index) => ({...turn.items[1]!, id: `message-${index}`}));
+        const pages = vi.spyOn(appServer, "threadItemsList").mockImplementation(itemStore([turn], 3));
+        const requestedPages = () => pages.mock.calls.map(([params]) => `${params.sortDirection}:${params.cursor ?? "start"}`);
 
         const historyPages = appServer.threadItemPages("history", {
             lastItemCursor: "item:message-4",
@@ -373,46 +303,28 @@ describe("paginated thread history", () => {
         const reader = historyPages[Symbol.asyncIterator]();
         const first = await reader.next();
         // The caller holds the first page. The second page is already requested.
-        expect(requestedPages()).toEqual([
-            "desc:item:message-4",
-            "asc:start",
-            "asc:asc:3",
-        ]);
+        expect(requestedPages()).toEqual(["desc:item:message-4", "asc:start", "asc:asc:3"]);
         const second = await reader.next();
         const end = await reader.next();
 
-        expect(
-            [first.value, second.value].map((page) =>
-                page?.map((item: ThreadItem) => item.id),
-            ),
-        ).toEqual([
+        expect([first.value, second.value].map(page => page?.map((item: ThreadItem) => item.id))).toEqual([
             ["message-0", "message-1", "message-2"],
             ["message-3", "message-4"],
         ]);
         expect(end.done).toBe(true);
         // The second page holds the boundary item, so the third page is never requested.
-        expect(requestedPages()).toEqual([
-            "desc:item:message-4",
-            "asc:start",
-            "asc:asc:3",
-        ]);
+        expect(requestedPages()).toEqual(["desc:item:message-4", "asc:start", "asc:asc:3"]);
     });
 
     it("pages the items of one large turn", async () => {
         const fixture = createCodexMockTestFixture();
         const appServer = fixture.getCodexAppServerClient();
         const turn = messageTurn("large");
-        turn.items = Array.from({ length: 7 }, (_, index) => ({
-            ...turn.items[1]!,
-            id: `message-${index}`,
-        }));
-        const pages = vi
-            .spyOn(appServer, "threadItemsList")
-            .mockImplementation(itemStore([turn], 3));
+        turn.items = Array.from({length: 7}, (_, index) => ({...turn.items[1]!, id: `message-${index}`}));
+        const pages = vi.spyOn(appServer, "threadItemsList").mockImplementation(itemStore([turn], 3));
 
         const received: number[] = [];
-        for await (const page of appServer.threadItemPages("history"))
-            received.push(page.length);
+        for await (const page of appServer.threadItemPages("history")) received.push(page.length);
 
         expect(received).toEqual([3, 3, 1]);
         expect(pages).toHaveBeenCalledTimes(4);
@@ -437,16 +349,10 @@ describe("paginated thread history", () => {
             .spyOn(appServer, "threadTurnsList")
             .mockRejectedValue(new Error("Method not found"));
 
-        expect(
-            (
-                await fixture
-                    .getCodexAppServerClient()
-                    .threadReadWithHistory("legacy")
-            ).thread,
-        ).toEqual(history);
+        expect((await fixture.getCodexAppServerClient().threadReadWithHistory("legacy")).thread).toEqual(history);
         expect(read.mock.calls).toEqual([
-            [{ threadId: "legacy" }],
-            [{ threadId: "legacy", includeTurns: true }],
+            [{threadId: "legacy"}],
+            [{threadId: "legacy", includeTurns: true}],
         ]);
         expect(pages).not.toHaveBeenCalled();
     });
@@ -460,24 +366,14 @@ describe("paginated thread history", () => {
         });
         const stored = [messageTurn("first"), messageTurn("second")];
         const store = turnStore(stored, 1);
-        vi.spyOn(appServer, "threadTurnsList").mockImplementation(
-            async (params) => {
-                const page = await store(params);
-                if (params.sortDirection === "desc")
-                    stored.push(messageTurn("appended-during-read"));
-                return page;
-            },
-        );
+        vi.spyOn(appServer, "threadTurnsList").mockImplementation(async (params) => {
+            const page = await store(params);
+            if (params.sortDirection === "desc") stored.push(messageTurn("appended-during-read"));
+            return page;
+        });
 
-        const thread = (
-            await fixture
-                .getCodexAppServerClient()
-                .threadReadWithHistory("history")
-        ).thread;
-        expect(thread.turns.map((turn) => turn.id)).toEqual([
-            "first",
-            "second",
-        ]);
+        const thread = (await fixture.getCodexAppServerClient().threadReadWithHistory("history")).thread;
+        expect(thread.turns.map(turn => turn.id)).toEqual(["first", "second"]);
         expect(stored).toHaveLength(3);
     });
 
@@ -518,13 +414,7 @@ describe("paginated thread history", () => {
             backwardsCursor: null,
         });
 
-        expect(
-            (
-                await fixture
-                    .getCodexAppServerClient()
-                    .threadReadWithHistory("empty")
-            ).thread,
-        ).toEqual({ id: "empty", turns: [] });
+        expect((await fixture.getCodexAppServerClient().threadReadWithHistory("empty")).thread).toEqual({id: "empty", turns: []});
         expect(pages).toHaveBeenCalledTimes(1);
     });
 
@@ -556,16 +446,10 @@ describe("paginated thread history", () => {
                 });
             }
 
-            await expect(
-                fixture
-                    .getCodexAppServerClient()
-                    .threadReadWithHistory("history"),
-            ).rejects.toThrow(
-                "Codex returned a repeated thread history cursor",
-            );
-            expect(pages).toHaveBeenCalledTimes(cursors.length + 1);
-        },
-    );
+        await expect(fixture.getCodexAppServerClient().threadReadWithHistory("history"))
+            .rejects.toThrow("Codex returned a repeated thread history cursor");
+        expect(pages).toHaveBeenCalledTimes(cursors.length + 1);
+    });
 
     it("rejects an incomplete history if a later page fails", async () => {
         const fixture = createCodexMockTestFixture();
@@ -575,20 +459,10 @@ describe("paginated thread history", () => {
             thread: { id: "history", turns: [] } as any,
         });
         vi.spyOn(appServer, "threadTurnsList")
-            .mockResolvedValueOnce({
-                data: [messageTurn("last")],
-                nextCursor: null,
-                backwardsCursor: null,
-            })
-            .mockResolvedValueOnce({
-                data: [messageTurn("first")],
-                nextCursor: "next-page",
-                backwardsCursor: null,
-            })
+            .mockResolvedValueOnce({data: [messageTurn("last")], nextCursor: null, backwardsCursor: null})
+            .mockResolvedValueOnce({data: [messageTurn("first")], nextCursor: "next-page", backwardsCursor: null})
             .mockRejectedValueOnce(new Error("History unavailable"));
 
-        await expect(
-            fixture.getCodexAppServerClient().threadReadWithHistory("history"),
-        ).rejects.toThrow("History unavailable");
+        await expect(fixture.getCodexAppServerClient().threadReadWithHistory("history")).rejects.toThrow("History unavailable");
     });
 });

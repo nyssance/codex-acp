@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { FileCitationStream, renderFileCitations } from "../CodexFileCitations";
+import {describe, expect, it} from "vitest";
+import {FileCitationStream, renderFileCitations} from "../CodexFileCitations";
 
 const cwd = "/repo";
 
@@ -86,28 +86,21 @@ describe("renderFileCitations", () => {
     });
 
     it("renders a citation after a closed code span", () => {
-        expect(
-            renderFileCitations('`x` :codex-file-citation{path="a.txt"}', cwd),
-        ).toBe("`x` [a.txt](/repo/a.txt)");
+        expect(renderFileCitations('`x` :codex-file-citation{path="a.txt"}', cwd))
+            .toBe("`x` [a.txt](/repo/a.txt)");
     });
 });
 
 describe("FileCitationStream", () => {
     it("renders a citation split across deltas at any point", () => {
-        const text =
-            'See :codex-file-citation{path="a.txt" purpose="source"} and ``:codex-file-citation{path="b"}``.';
+        const text = 'See :codex-file-citation{path="a.txt" purpose="source"} and ``:codex-file-citation{path="b"}``.';
         const expected = renderFileCitations(text, cwd);
         for (let split = 0; split <= text.length; split++) {
             const stream = new FileCitationStream(cwd);
-            const output =
-                stream.push(text.slice(0, split)) +
-                stream.push(text.slice(split)) +
-                stream.flush();
+            const output = stream.push(text.slice(0, split)) + stream.push(text.slice(split)) + stream.flush();
             expect(output).toBe(expected);
         }
-        expect(expected).toBe(
-            'See [a.txt](/repo/a.txt) and ``:codex-file-citation{path="b"}``.',
-        );
+        expect(expected).toBe('See [a.txt](/repo/a.txt) and ``:codex-file-citation{path="b"}``.');
     });
 
     it("passes an unfinished directive through once it gets too long", () => {
