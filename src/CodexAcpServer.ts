@@ -3231,15 +3231,18 @@ export class CodexAcpServer {
                         (model) =>
                             model.id === (selections.get(session) ?? old.model),
                     );
-                    if (selected)
-                        this.applyModelAndEffort(
-                            session,
-                            selected,
-                            findSupportedEffort(
-                                selected.supportedReasoningEfforts,
-                                old.effort,
-                            ) ?? selected.defaultReasoningEffort,
+                    if (selected === undefined)
+                        throw new Error(
+                            `Session ${session.sessionId} uses model ${old.model}, which the updated catalog no longer has`,
                         );
+                    this.applyModelAndEffort(
+                        session,
+                        selected,
+                        findSupportedEffort(
+                            selected.supportedReasoningEfforts,
+                            old.effort,
+                        ) ?? selected.defaultReasoningEffort,
+                    );
                 }
                 for (const session of this.sessions.values()) {
                     await new ACPSessionConnection(
@@ -3320,23 +3323,12 @@ export class CodexAcpServer {
                     !isThreadNotMaterializedError(error)
                 )
                     throw error;
+                // A provider is fixed when a thread is resumed, and only a thread with a rollout
+                // can be resumed. Codex writes the rollout of a thread placed in a section; a thread
+                // without a rollout has never been placed, so this changes nothing else.
                 await client.appServerClient.connection.sendRequest(
-                    "thread/inject_items",
-                    {
-                        threadId: session.sessionId,
-                        items: [
-                            {
-                                type: "message",
-                                role: "developer",
-                                content: [
-                                    {
-                                        type: "input_text",
-                                        text: "The user changed this conversation's model before sending a message.",
-                                    },
-                                ],
-                            },
-                        ],
-                    },
+                    "thread/section/move",
+                    { threadId: session.sessionId, sectionId: null },
                 );
             }
             let unloaded = false;
@@ -4659,7 +4651,7 @@ export class CodexAcpServer {
         switch (metadata.permissionProfile) {
             case undefined:
             case null:
-                return metadata.agentMode ?? initialMode;
+                return initialMode;
             case ":read-only":
                 return AgentMode.ReadOnly;
             case ":workspace":

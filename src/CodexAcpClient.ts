@@ -126,7 +126,7 @@ type ResumedThread = {
     agentMode?: AgentMode | undefined;
     permissionProfile?: string | null | undefined;
     approvalsReviewer?: ApprovalsReviewer | undefined;
-    readOnly?: boolean;
+    readOnly: boolean;
     thread: Thread;
     model: string | null;
     modelProvider: string;
@@ -712,6 +712,7 @@ export class CodexAcpClient {
         try {
             const response = await this.codexClient.threadResume(params);
             return {
+                readOnly: false,
                 thread: response.thread,
                 agentMode: AgentMode.fromThread(response),
                 permissionProfile: response.activePermissionProfile?.id,
@@ -760,6 +761,7 @@ export class CodexAcpClient {
                 threadId: params.threadId,
             });
             return {
+                readOnly: false,
                 thread: response.thread,
                 model: response.thread.model,
                 modelProvider: response.thread.modelProvider,
@@ -851,7 +853,7 @@ export class CodexAcpClient {
         ).toString();
         return {
             sessionId: request.sessionId,
-            readOnly: response.readOnly ?? false,
+            readOnly: response.readOnly,
             agentMode: response.agentMode,
             currentModelId,
             models: codexModels,
@@ -1086,7 +1088,7 @@ export class CodexAcpClient {
         ).toString();
         return {
             sessionId: request.sessionId,
-            readOnly: response.readOnly ?? false,
+            readOnly: response.readOnly,
             agentMode: response.agentMode,
             currentModelId,
             models: codexModels,
