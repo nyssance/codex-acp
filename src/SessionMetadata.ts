@@ -1,8 +1,10 @@
 import type { AgentMode } from "./AgentMode";
-import type { ApprovalsReviewer } from "./app-server/v2/ApprovalsReviewer";
 import type { ModeKind } from "./app-server/ModeKind";
 import type {
+    ApprovalsReviewer,
+    AskForApproval,
     Model,
+    PermissionProfileSummary,
     Thread,
     ThreadItemEntry,
     ThreadStatus,
@@ -32,6 +34,9 @@ export type SessionMetadata = {
     skippedMcpServers?: string[];
     instructions?: SessionInstructions;
     sessionTitle?: string | null;
+    activePermissionProfileId?: string | null;
+    approvalPolicy?: AskForApproval;
+    permissionProfiles?: PermissionProfileSummary[];
 };
 
 export type SessionMetadataWithThread = SessionMetadata & {

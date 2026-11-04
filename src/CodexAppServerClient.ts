@@ -19,6 +19,7 @@ import type {
     ServerNotification,
 } from "./app-server";
 import type {
+    ActivePermissionProfile,
     CancelLoginAccountParams,
     CancelLoginAccountResponse,
     ConfigReadParams,
@@ -43,6 +44,8 @@ import type {
     McpServerStatusUpdatedNotification,
     ModelListParams,
     ModelListResponse,
+    PermissionProfileListParams,
+    PermissionProfileListResponse,
     ReviewStartParams,
     ReviewStartResponse,
     SkillsExtraRootsSetParams,
@@ -434,7 +437,7 @@ export class CodexAppServerClient {
     }
 
     async runTurn(
-        params: TurnStartParams,
+        params: ExperimentalTurnStartParams,
         onTurnStarted?: (turnId: string) => void,
     ): Promise<TurnCompletedNotification> {
         const capturedCompletions: Array<TurnCompletedNotification> = [];
@@ -1366,6 +1369,15 @@ export class CodexAppServerClient {
         return await this.sendRequest({ method: "model/list", params });
     }
 
+    async listPermissionProfiles(
+        params: PermissionProfileListParams,
+    ): Promise<PermissionProfileListResponse> {
+        return await this.sendRequest({
+            method: "permissionProfile/list",
+            params,
+        });
+    }
+
     async skillsExtraRootsSet(
         params: SkillsExtraRootsSetParams,
     ): Promise<void> {
@@ -1883,6 +1895,23 @@ export interface ExperimentalThreadSettingsUpdateParams {
         };
     };
 }
+
+// These fields are generated with `generate-ts --experimental`; `npm run generate-types` uses the stable schema.
+type ExperimentalThreadPermissions = {
+    activePermissionProfile?: ActivePermissionProfile | null;
+};
+
+export type ExperimentalThreadStartResponse = ThreadStartResponse &
+    ExperimentalThreadPermissions;
+export type ExperimentalThreadResumeResponse = ThreadResumeResponse &
+    ExperimentalThreadPermissions;
+export type ExperimentalThreadForkResponse = ThreadForkResponse &
+    ExperimentalThreadPermissions;
+
+export type ExperimentalTurnStartParams = TurnStartParams & {
+    permissions?: string | null;
+    runtimeWorkspaceRoots?: string[] | null;
+};
 
 function isMcpServerStatusUpdatedNotification(
     notification: ServerNotification,

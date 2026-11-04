@@ -1,5 +1,5 @@
 import type { JsonObject } from "./CodexAcpClient";
-import type { JsonValue } from "./app-server/serde_json/JsonValue";
+import { configOverride } from "./CodexConfigOverride";
 
 export type PreparedCodexHookConfig = {
     sessionConfig: JsonObject | undefined;
@@ -18,17 +18,6 @@ export function prepareCodexHookConfig(
     const { hooks, ...sessionConfig } = config;
     return {
         sessionConfig,
-        appServerStartupArgs: ["app-server", "-c", `hooks=${toToml(hooks)}`],
+        appServerStartupArgs: ["app-server", ...configOverride("hooks", hooks)],
     };
-}
-
-// JSON strings, numbers, booleans, and arrays are already valid TOML; only objects need `key = value` syntax.
-function toToml(value: JsonValue | undefined): string {
-    if (Array.isArray(value)) return `[${value.map(toToml).join(", ")}]`;
-    if (value !== null && typeof value === "object") {
-        return `{ ${Object.entries(value)
-            .map(([key, item]) => `${JSON.stringify(key)} = ${toToml(item)}`)
-            .join(", ")} }`;
-    }
-    return JSON.stringify(value);
 }

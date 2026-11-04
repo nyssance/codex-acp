@@ -6,9 +6,10 @@ describe.each([1, 2] as const)(
     "ACP v%s session interaction teardown",
     (version) => {
         it.each(["session/close", "session/delete"])(
-            "withdraws idle session elicitations before %s responds",
+            "withdraws idle session interactions before %s responds",
             async (method) => {
                 const aborted: boolean[] = [];
+                const replies: Array<() => void> = [];
                 const h = await connectSession(version, {
                     clientCapabilities: { elicitation: { form: {}, url: {} } },
                     v1ClientCapabilities: {
@@ -18,11 +19,31 @@ describe.each([1, 2] as const)(
                     onElicitation: async (_request, signal) => {
                         const index = aborted.push(false) - 1;
                         return await new Promise((resolve) => {
+                            replies.push(() => resolve({ action: "accept" }));
                             signal.addEventListener(
                                 "abort",
                                 () => {
                                     aborted[index] = true;
-                                    resolve({ action: "cancel" });
+                                },
+                                { once: true },
+                            );
+                        });
+                    },
+                    onRequestPermission: async (_request, signal) => {
+                        const index = aborted.push(false) - 1;
+                        return await new Promise((resolve) => {
+                            replies.push(() =>
+                                resolve({
+                                    outcome: {
+                                        outcome: "selected",
+                                        optionId: "allow",
+                                    },
+                                }),
+                            );
+                            signal.addEventListener(
+                                "abort",
+                                () => {
+                                    aborted[index] = true;
                                 },
                                 { once: true },
                             );
@@ -75,14 +96,33 @@ describe.each([1, 2] as const)(
                             )
                             .catch(() => null),
                     );
+                    const permission = connection
+                        .request(acp.methods.client.session.requestPermission, {
+                            sessionId,
+                            toolCall: {
+                                toolCallId: "idle-tool",
+                                title: "Idle permission",
+                            },
+                            options: [
+                                {
+                                    optionId: "allow",
+                                    name: "Allow",
+                                    kind: "allow_once",
+                                },
+                            ],
+                        })
+                        .catch(() => null);
                     await vi.waitFor(() =>
-                        expect(aborted).toEqual([false, false, false]),
+                        expect(aborted).toEqual([false, false, false, false]),
                     );
                     const frameStart = h.wireMessages.length;
                     await h.request(method, { sessionId });
                     await vi.waitFor(() =>
-                        expect(aborted).toEqual([true, true, true]),
+                        expect(aborted).toEqual([true, true, true, true]),
                     );
+                    // Permission waits end without a response. Elicitations may still inspect a late answer.
+                    await permission;
+                    for (const reply of replies) reply();
                     await Promise.all(pending);
                     const frames = h.wireMessages.slice(frameStart);
                     const responseIndex = frames.findIndex(
@@ -93,7 +133,7 @@ describe.each([1, 2] as const)(
                             ? [index]
                             : [],
                     );
-                    expect(cancels).toHaveLength(3);
+                    expect(cancels).toHaveLength(4);
                     expect(
                         cancels.every((index) => index < responseIndex),
                     ).toBe(true);

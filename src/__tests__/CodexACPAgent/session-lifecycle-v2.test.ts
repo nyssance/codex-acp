@@ -8,10 +8,12 @@ import { CodexAcpServer, type SessionFailure } from "../../CodexAcpServer";
 import { CodexAcpClient } from "../../CodexAcpClient";
 import { CodexAppServerClient } from "../../CodexAppServerClient";
 import type {
+    PermissionProfileSummary,
     SkillsListParams,
     SkillsListResponse,
     Thread,
 } from "../../app-server/v2";
+import { MODE_CONFIG_ID } from "../../AgentMode";
 import { createTestModel } from "../acp-test-utils";
 import { createMockConnections, mockInitializeResponse } from "./test-utils";
 import {
@@ -66,7 +68,7 @@ function codexResponse(
     method: string,
     replayTurns: Thread["turns"] = [],
     thread?: Partial<Thread>,
-): unknown {
+): Record<string, unknown> {
     switch (method) {
         case "project/list":
             return { data: [], nextCursor: null };
@@ -145,6 +147,9 @@ async function connectV2Client(options?: {
     air?: boolean;
     thread?: Partial<Thread>;
     beforeThreadRead?: () => Promise<void>;
+    permissionProfiles?: PermissionProfileSummary[];
+    activePermissionProfileId?: string;
+    defaultPermissionProfileId?: string;
 }) {
     const mocks = createMockConnections();
     const codexRequests: Array<{ method: string; params: unknown }> = [];
@@ -160,7 +165,44 @@ async function connectV2Client(options?: {
                 return options.listSkills(params as SkillsListParams);
             }
             if (method === "thread/read") await options?.beforeThreadRead?.();
-            return codexResponse(method, options?.replayTurns, options?.thread);
+            if (method === "permissionProfile/list") {
+                return {
+                    data: options?.permissionProfiles ?? [],
+                    nextCursor: null,
+                };
+            }
+            if (
+                method === "config/read" &&
+                options?.defaultPermissionProfileId !== undefined
+            ) {
+                return {
+                    config: {
+                        default_permissions: options.defaultPermissionProfileId,
+                    },
+                    origins: {},
+                    layers: [],
+                };
+            }
+            const response = codexResponse(
+                method,
+                options?.replayTurns,
+                options?.thread,
+            );
+            if (
+                options?.activePermissionProfileId &&
+                ["thread/start", "thread/resume", "thread/fork"].includes(
+                    method,
+                )
+            ) {
+                return {
+                    ...response,
+                    activePermissionProfile: {
+                        id: options.activePermissionProfileId,
+                        extends: null,
+                    },
+                };
+            }
+            return response;
         },
     );
     const codexAcpClient = new CodexAcpClient(
@@ -335,6 +377,76 @@ describe("Session lifecycle over ACP v2", () => {
             "data/session-lifecycle-v2-new-mcp-servers.json",
         );
     });
+
+    it.each([
+        { operation: "new", replayFrom: undefined },
+        { operation: "resume", replayFrom: null },
+        { operation: "resume", replayFrom: { type: "start" } },
+        { operation: "fork", replayFrom: undefined },
+    ] as const)(
+        "restores the active profile over v2 $operation with replayFrom=$replayFrom",
+        async ({ operation, replayFrom }) => {
+            const { connection } = await connectV2Client({
+                permissionProfiles: [
+                    { id: "team-default", description: null, allowed: true },
+                ],
+                activePermissionProfileId: "team-default",
+            });
+            closeClient = () => connection.close();
+
+            const response = await connection.agent.request(
+                acpV2.methods.agent.session[operation],
+                {
+                    sessionId,
+                    cwd,
+                    ...(replayFrom === undefined ? {} : { replayFrom }),
+                },
+            );
+
+            expect(
+                response.configOptions?.find(
+                    (option) => option.configId === MODE_CONFIG_ID,
+                ),
+            ).toMatchObject({
+                type: "select",
+                currentValue: "permission-profile:team-default",
+            });
+        },
+    );
+
+    it.each([null, { type: "start" }] as const)(
+        "preserves the default profile on an unprompted v2 resume with replayFrom=%s",
+        async (replayFrom) => {
+            const { connection } = await connectV2Client({
+                permissionProfiles: [
+                    { id: "dev", description: null, allowed: true },
+                ],
+                activePermissionProfileId: "dev",
+                defaultPermissionProfileId: "dev",
+                failMethod: {
+                    method: "thread/resume",
+                    error: new Error(
+                        `no rollout found for thread id ${sessionId}`,
+                    ),
+                },
+            });
+            closeClient = () => connection.close();
+            await connection.agent.request(acpV2.methods.agent.session.new, {
+                cwd,
+            });
+
+            const response = await connection.agent.request(
+                acpV2.methods.agent.session.resume,
+                { sessionId, cwd, replayFrom },
+            );
+
+            expect(
+                response.configOptions?.find(
+                    (option) => option.configId === MODE_CONFIG_ID,
+                )?.currentValue,
+            ).toBe("permission-profile:dev");
+        },
+    );
 
     const skills = (name: string): SkillsListResponse => ({
         data: [

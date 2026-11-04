@@ -95,6 +95,6 @@ it("keeps a named profile instead of replacing it with a preset", () => {
         ...testThreadPermissions(),
         activePermissionProfile: { id: "team" },
     });
-    expect(mode.permissionProfile).toBe("team");
-    expect(mode.id).toBe("profile:team");
+    expect(mode.permissionProfileId).toBe("team");
+    expect(mode.id).toBe("permission-profile:team");
 });

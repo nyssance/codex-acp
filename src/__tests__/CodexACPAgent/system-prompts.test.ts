@@ -262,6 +262,7 @@ describe.each([1, 2] as const)(
                 mode: "append",
                 content: [{ type: "image", data: "", mimeType: "image/png" }],
             },
+            { mode: "append", content: [] },
         ])(
             "rejects unsupported system prompts before any lifecycle operation",
             async (systemPrompt) => {
@@ -351,7 +352,7 @@ describe.each([1, 2] as const)(
             ).toBeUndefined();
         });
 
-        it("clears the client addition with empty content without clearing AIR instructions", async () => {
+        it("rejects an empty prompt without clearing existing client or AIR instructions", async () => {
             const { calls } = await connect();
             await client.request("session/new", {
                 cwd,
@@ -360,18 +361,22 @@ describe.each([1, 2] as const)(
                 ...air,
             });
             calls.length = 0;
-            await client.request("session/resume", {
-                sessionId,
-                cwd,
-                mcpServers: [],
-                systemPrompt: { mode: "append", content: [] },
-            });
-            expect(calls.at(-1)?.params.developerInstructions).toBe(
-                "AIR instructions",
-            );
+            await expect(
+                client.request("session/resume", {
+                    sessionId,
+                    cwd,
+                    mcpServers: [],
+                    systemPrompt: { mode: "append", content: [] },
+                }),
+            ).rejects.toMatchObject({ code: -32602 });
+            expect(calls).toEqual([]);
             expect(
                 client.agent.getSessionState(sessionId).instructions?.text,
-            ).toBe("");
+            ).toBe("Old");
+            expect(
+                client.agent.getSessionState(sessionId).instructions
+                    ?.airInstructions,
+            ).toBe("AIR instructions");
         });
 
         it("checks materialization rather than trusting a planned rollout path", async () => {

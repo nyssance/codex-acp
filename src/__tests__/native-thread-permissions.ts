@@ -5,7 +5,7 @@ export function testThreadPermissions(mode = AgentMode.Agent) {
     return {
         approvalPolicy: mode.approvalPolicy,
         approvalsReviewer: mode.approvalsReviewer,
-        sandbox: mode.sandboxPolicy,
+        sandbox: mode.sandboxPolicy!,
         activePermissionProfile: null,
     };
 }

@@ -122,6 +122,8 @@ export interface RecoveryFixture {
     /** Every app-server, the initial one first. */
     servers: FakeAppServer[];
     current(): FakeAppServer;
+    /** The arguments and the added environment of every app-server that the supervisor started. */
+    launches: Array<{ args: string[]; env: Record<string, string> }>;
     acp: {
         notify: ReturnType<typeof vi.fn>;
         request: ReturnType<typeof vi.fn>;
@@ -153,6 +155,7 @@ export function createRecoveryFixture(
         return server;
     };
     const initial = makeServer();
+    const launches: RecoveryFixture["launches"] = [];
     const state: CodexProcessState = {
         connection: initial.connection,
         codexPath: undefined,
@@ -163,7 +166,10 @@ export function createRecoveryFixture(
     };
     state.supervisor = new CodexAppServerSupervisor(
         state,
-        () => makeServer().connection,
+        (_codexPath, args, env) => {
+            launches.push({ args, env });
+            return makeServer().connection;
+        },
         {
             closeGraceMs: 5,
             drainMs: 1,
@@ -203,6 +209,7 @@ export function createRecoveryFixture(
         supervisor: state.supervisor,
         servers,
         current: () => servers.at(-1)!,
+        launches,
         acp: acpConnection,
         updates: () =>
             acpConnection.notify.mock.calls

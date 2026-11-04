@@ -1,5 +1,4 @@
 import { projectsFor } from "./projects/registry";
-import type { ApprovalsReviewer } from "./app-server/v2/ApprovalsReviewer";
 import { readSessionLineage } from "./alwith/sessionLineage";
 import { replayEntriesOfTurn, withReplayTurnMetadata } from "./ReplayHistory";
 import {
@@ -43,6 +42,7 @@ import type { JsonValue } from "./app-server/serde_json/JsonValue";
 import { ModelId } from "./ModelId";
 import { AgentMode } from "./AgentMode";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { logger } from "./Logger";
 import {
     isModelProviderRouteError,
@@ -58,6 +58,9 @@ import {
 } from "./McpServerConfig";
 import type {
     AccountUpdatedNotification,
+    ApprovalsReviewer,
+    AskForApproval,
+    ConfigReadResponse,
     GetAccountRateLimitsResponse,
     GetAccountResponse,
     ListMcpServerStatusParams,
@@ -66,6 +69,7 @@ import type {
     McpServerOauthLoginParams,
     McpServerOauthLoginResponse,
     Model,
+    PermissionProfileSummary,
     ReviewTarget,
     SkillsListParams,
     SkillsListResponse,
@@ -127,6 +131,11 @@ import {
 } from "./GatewayModelDiscovery";
 import { findSupportedEffort } from "./ModelConfigOption";
 import {
+    type ProviderStartupConfig,
+    configOverride,
+    NO_PROVIDER_STARTUP_CONFIG,
+} from "./CodexConfigOverride";
+import {
     disableUnsupportedSkills,
     withoutUnsupportedSkills,
 } from "./UnsupportedSkills";
@@ -153,6 +162,7 @@ type ResumedThread = {
     modelProvider: string;
     reasoningEffort: ReasoningEffort | null;
     serviceTier: string | null;
+    activePermissionProfileId: string | null;
     itemsBackwardsCursor: string | null;
     turnsBackwardsCursor: string | null;
     materialized: boolean;
@@ -635,19 +645,16 @@ export class CodexAcpClient {
         }
         // Reuse needs the very same headers, so a rotated token lists again, and a failed listing then fails that
         // `providers/set`. Deliberate: AIR keeps its proxy key for the IDE's lifetime and does not rotate it.
-        const previous =
-            this.gatewayConfigSource === "acpProviders"
-                ? this.gatewayConfig
-                : null;
+        const previousListing = this.hasProviderRouting(gatewayConfig)
+            ? (this.gatewayConfig?.listedModels ?? null)
+            : null;
         try {
             gatewayConfig.listedModels =
-                previous?.listedModels &&
-                sameGatewayRouting(previous, gatewayConfig)
-                    ? previous.listedModels
-                    : await listGatewayModels(
-                          gatewayConfig.config.base_url,
-                          gatewayConfig.config.http_headers,
-                      );
+                previousListing ??
+                (await listGatewayModels(
+                    gatewayConfig.config.base_url,
+                    gatewayConfig.config.http_headers,
+                ));
         } catch (error) {
             if (error instanceof GatewayListingError) {
                 throw RequestError.internalError(
@@ -662,6 +669,15 @@ export class CodexAcpClient {
             throw error;
         }
         return gatewayConfig;
+    }
+
+    /** Whether `providers/set` already applied the provider config of `gatewayConfig`. */
+    hasProviderRouting(gatewayConfig: GatewayConfig): boolean {
+        return (
+            this.gatewayConfigSource === "acpProviders" &&
+            this.gatewayConfig !== null &&
+            sameProviderConfig(this.gatewayConfig, gatewayConfig)
+        );
     }
 
     /** `providers/set`: replaces the routing with a configuration from {@link prepareProvider}. */
@@ -842,6 +858,8 @@ export class CodexAcpClient {
                 modelProvider: response.modelProvider,
                 reasoningEffort: response.reasoningEffort,
                 serviceTier: response.serviceTier,
+                activePermissionProfileId:
+                    response.activePermissionProfile?.id ?? null,
                 itemsBackwardsCursor: response.itemsBackwardsCursor ?? null,
                 turnsBackwardsCursor: response.turnsBackwardsCursor ?? null,
                 materialized: true,
@@ -862,6 +880,7 @@ export class CodexAcpClient {
                     modelProvider: thread.modelProvider,
                     reasoningEffort: thread.reasoningEffort,
                     serviceTier: null,
+                    activePermissionProfileId: null,
                     itemsBackwardsCursor: null,
                     turnsBackwardsCursor: null,
                     materialized: true,
@@ -890,6 +909,8 @@ export class CodexAcpClient {
                 modelProvider: response.thread.modelProvider,
                 reasoningEffort: response.thread.reasoningEffort,
                 serviceTier: null,
+                // thread/read omits permissions; callers restore the config default before the first prompt.
+                activePermissionProfileId: null,
                 // An unmaterialized thread has no persisted history to hydrate:
                 // `thread/turns/list` rejects it outright ("not materialized
                 // yet"), and there is nothing to list either way.
@@ -935,7 +956,12 @@ export class CodexAcpClient {
         await this.refreshSkills(request.cwd, additionalDirectories);
 
         const route = await this.sessionRoute(request);
-        const sessionConfig = await this.createSessionConfig(
+        const {
+            config,
+            skippedMcpServers,
+            defaultPermissionProfileId,
+            ...permissionProfileMetadata
+        } = await this.createSessionConfig(
             request.cwd,
             additionalDirectories,
             request.mcpServers ?? [],
@@ -947,7 +973,7 @@ export class CodexAcpClient {
             {
                 ...hostThreadOptions(request._meta),
                 excludeTurns: true,
-                config: sessionConfig.config,
+                config,
                 cwd: request.cwd,
                 modelProvider: route.modelProvider,
                 ...(route.model ? { model: route.model } : {}),
@@ -1000,8 +1026,12 @@ export class CodexAcpClient {
             permissionProfile: response.permissionProfile,
             approvalsReviewer: response.approvalsReviewer,
             additionalDirectories,
-            skippedMcpServers: sessionConfig.skippedMcpServers,
+            skippedMcpServers,
             ...(instructions ? { instructions } : {}),
+            activePermissionProfileId: response.materialized
+                ? response.activePermissionProfileId
+                : (defaultPermissionProfileId ?? null),
+            ...permissionProfileMetadata,
         };
     }
 
@@ -1120,7 +1150,12 @@ export class CodexAcpClient {
         await this.refreshSkills(request.cwd, additionalDirectories);
 
         const route = await this.sessionRoute(request);
-        const sessionConfig = await this.createSessionConfig(
+        const {
+            config,
+            skippedMcpServers,
+            defaultPermissionProfileId,
+            ...permissionProfileMetadata
+        } = await this.createSessionConfig(
             request.cwd,
             additionalDirectories,
             request.mcpServers ?? [],
@@ -1132,7 +1167,7 @@ export class CodexAcpClient {
             {
                 ...hostThreadOptions(request._meta),
                 excludeTurns: true,
-                config: sessionConfig.config,
+                config,
                 cwd: request.cwd,
                 modelProvider: route.modelProvider,
                 ...(route.model ? { model: route.model } : {}),
@@ -1236,8 +1271,12 @@ export class CodexAcpClient {
             thread,
             history,
             additionalDirectories,
-            skippedMcpServers: sessionConfig.skippedMcpServers,
+            skippedMcpServers,
             ...(instructions ? { instructions } : {}),
+            activePermissionProfileId: response.materialized
+                ? response.activePermissionProfileId
+                : (defaultPermissionProfileId ?? null),
+            ...permissionProfileMetadata,
         };
     }
 
@@ -1384,7 +1423,12 @@ export class CodexAcpClient {
         await this.refreshSkills(request.cwd, additionalDirectories);
 
         const route = await this.sessionRoute(request);
-        const sessionConfig = await this.createSessionConfig(
+        const {
+            config,
+            skippedMcpServers,
+            defaultPermissionProfileId: _defaultPermissionProfileId,
+            ...permissionProfileMetadata
+        } = await this.createSessionConfig(
             request.cwd,
             additionalDirectories,
             request.mcpServers ?? [],
@@ -1405,7 +1449,7 @@ export class CodexAcpClient {
             ),
             ...(tools ? { dynamicTools: dynamicTools(tools) } : {}),
             projectId,
-            config: sessionConfig.config,
+            config,
             modelProvider: route.modelProvider,
             ...(route.model ? { model: route.model } : {}),
             cwd: request.cwd,
@@ -1455,8 +1499,11 @@ export class CodexAcpClient {
             permissionProfile: response.activePermissionProfile?.id,
             approvalsReviewer: response.approvalsReviewer,
             additionalDirectories,
-            skippedMcpServers: sessionConfig.skippedMcpServers,
+            skippedMcpServers,
             ...(instructions ? { instructions } : {}),
+            activePermissionProfileId:
+                response.activePermissionProfile?.id ?? null,
+            ...permissionProfileMetadata,
         };
     }
 
@@ -1883,8 +1930,34 @@ export class CodexAcpClient {
             transportConfig,
             additionalDirectories,
         );
+        const permissionProfiles =
+            await this.fetchPermissionProfiles(projectPath);
+        const effectiveConfig = await this.codexClient.configRead({
+            includeLayers: true,
+            cwd: projectPath,
+        });
+        const defaultPermissionProfileId =
+            effectiveConfig?.config?.["default_permissions"];
+        // Thread responses retain per-turn overrides; profile modes use the configured approval defaults.
+        const permissionProfileMetadata = {
+            permissionProfiles,
+            defaultPermissionProfileId:
+                typeof defaultPermissionProfileId === "string"
+                    ? defaultPermissionProfileId
+                    : null,
+            ...(effectiveConfig?.config?.approval_policy != null && {
+                approvalPolicy: effectiveConfig.config.approval_policy,
+            }),
+            ...(effectiveConfig?.config?.approvals_reviewer != null && {
+                approvalsReviewer: effectiveConfig.config.approvals_reviewer,
+            }),
+        };
         if (mcpServers.length === 0) {
-            return { config: configWithWorkspaceRoots, skippedMcpServers: [] };
+            return {
+                config: configWithWorkspaceRoots,
+                skippedMcpServers: [],
+                ...permissionProfileMetadata,
+            };
         }
 
         const requestedServers = normalizeMcpServers(mcpServers).map(
@@ -1893,8 +1966,7 @@ export class CodexAcpClient {
         let serversToConfigure = requestedServers;
         if (shouldDeduplicateMcpConflicts()) {
             // Prevents Codex from deep-merging incompatible field types, such as url and stdio schemas.
-            const existingNames =
-                await this.getConfigMcpServerNames(projectPath);
+            const existingNames = this.getConfigMcpServerNames(effectiveConfig);
             serversToConfigure = requestedServers.filter(
                 (mcp) => !existingNames.has(mcp.name),
             );
@@ -1912,7 +1984,11 @@ export class CodexAcpClient {
             );
         }
         if (serversToConfigure.length === 0) {
-            return { config: configWithWorkspaceRoots, skippedMcpServers };
+            return {
+                config: configWithWorkspaceRoots,
+                skippedMcpServers,
+                ...permissionProfileMetadata,
+            };
         }
 
         return {
@@ -1926,16 +2002,11 @@ export class CodexAcpClient {
                 ),
             },
             skippedMcpServers,
+            ...permissionProfileMetadata,
         };
     }
 
-    private async getConfigMcpServerNames(
-        projectPath: string,
-    ): Promise<Set<string>> {
-        const response = await this.codexClient.configRead({
-            includeLayers: true,
-            cwd: projectPath,
-        });
+    private getConfigMcpServerNames(response: ConfigReadResponse): Set<string> {
         const effectiveMcpServers = response?.config?.["mcp_servers"];
         const configLayers = response?.layers ?? [];
         const layerMcpServers = configLayers.map((layer) => {
@@ -1955,8 +2026,33 @@ export class CodexAcpClient {
         );
     }
 
+    private async fetchPermissionProfiles(
+        projectPath: string,
+    ): Promise<PermissionProfileSummary[]> {
+        const profiles: PermissionProfileSummary[] = [];
+        let cursor: string | null = null;
+        do {
+            const response = await this.codexClient.listPermissionProfiles({
+                cwd: projectPath,
+                cursor,
+            });
+            profiles.push(...(response?.data ?? []));
+            cursor = response?.nextCursor ?? null;
+        } while (cursor !== null);
+        return profiles;
+    }
+
     getModelProvider(): string | null {
         return this.gatewayConfig?.modelProvider ?? this.modelProvider;
+    }
+
+    /** The provider routing that the app-server of this client must start with, see {@link providerStartupConfig}. */
+    providerStartupConfig(): ProviderStartupConfig {
+        return providerStartupConfig(
+            this.modelProvider,
+            this.config,
+            this.gatewayConfig,
+        );
     }
 
     private async getResumeModelProvider(): Promise<string> {
@@ -2176,6 +2272,7 @@ export class CodexAcpClient {
         const retryTrigger = (
             request._meta?.["alwith"] as { retryTrigger?: unknown } | undefined
         )?.retryTrigger;
+        const permissionProfileId = agentMode.permissionProfileId;
         return await this.codexClient.runTurn(
             {
                 ...(retryTrigger === "capacity_retry_manual" ||
@@ -2184,17 +2281,23 @@ export class CodexAcpClient {
                     : {}),
                 threadId: request.sessionId,
                 input,
-                ...(agentMode.permissionProfile === null
+                approvalPolicy: agentMode.approvalPolicy,
+                approvalsReviewer: agentMode.approvalsReviewer,
+                ...(permissionProfileId
                     ? {
-                          approvalPolicy: agentMode.approvalPolicy,
-                          approvalsReviewer: agentMode.approvalsReviewer,
+                          permissions: permissionProfileId,
+                          runtimeWorkspaceRoots: [
+                              cwd,
+                              ...additionalDirectories,
+                          ],
+                      }
+                    : {
                           sandboxPolicy:
                               addAdditionalDirectoriesToSandboxPolicy(
-                                  agentMode.sandboxPolicy,
+                                  agentMode.sandboxPolicy!,
                                   additionalDirectories,
                               ),
-                      }
-                    : { permissions: agentMode.permissionProfile }),
+                      }),
                 summary: disableSummary ? "none" : "auto",
                 effort,
                 model: this.nativeModel(modelId.model, request.sessionId),
@@ -2216,10 +2319,14 @@ export class CodexAcpClient {
             threadId: sessionId,
             approvalPolicy: mode.approvalPolicy,
             approvalsReviewer: mode.approvalsReviewer,
-            sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(
-                mode.sandboxPolicy,
-                additionalDirectories,
-            ),
+            ...(mode.permissionProfileId
+                ? { permissions: mode.permissionProfileId }
+                : {
+                      sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(
+                          mode.sandboxPolicy!,
+                          additionalDirectories,
+                      ),
+                  }),
         });
     }
 
@@ -2584,6 +2691,10 @@ export type JsonObject = { [key in string]?: JsonValue };
 export type SessionConfig = {
     config: JsonObject;
     skippedMcpServers: string[];
+    defaultPermissionProfileId?: string | null;
+    approvalPolicy?: AskForApproval;
+    approvalsReviewer?: ApprovalsReviewer;
+    permissionProfiles?: PermissionProfileSummary[];
 };
 
 function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
@@ -2693,6 +2804,10 @@ type WireApi = "responses";
 
 type GatewayConfigSource = "authentication" | "acpProviders";
 
+/**
+ * Everything that the gateway routing gives Codex. A setting that `providers/set` changes belongs here: an unchanged
+ * configuration, compared by {@link sameProviderConfig}, does not restart the app-server.
+ */
 export interface GatewayConfig {
     modelProvider: string;
     config: {
@@ -2752,17 +2867,17 @@ function buildGatewayConfig(params: GatewayRoutingParams): GatewayConfig {
     };
 }
 
-function sameGatewayRouting(
+/**
+ * Whether Codex gets the same provider config from both, compared by value with keys in any order.
+ * The model listing is a result of the config, not a part of it.
+ */
+function sameProviderConfig(
     left: GatewayConfig,
     right: GatewayConfig,
 ): boolean {
-    const leftHeaders = Object.entries(left.config.http_headers);
-    const rightHeaders = right.config.http_headers;
     return (
-        left.config.base_url === right.config.base_url &&
-        left.config.wire_api === right.config.wire_api &&
-        leftHeaders.length === Object.keys(rightHeaders).length &&
-        leftHeaders.every(([name, value]) => rightHeaders[name] === value)
+        left.modelProvider === right.modelProvider &&
+        isDeepStrictEqual(left.config, right.config)
     );
 }
 
@@ -2933,6 +3048,60 @@ function mergeGatewayConfig(
     } else {
         return config;
     }
+}
+
+/**
+ * The provider that threads get (the gateway, the launch option, or `model_provider` of the session config) as
+ * app-server overrides. Codex accepts input only for threads of the provider that its app-server started with, and the
+ * `-c` overrides set it for that process alone, without a write to the user's `config.toml`. Header values go in
+ * environment variables, through `env_http_headers`, so that a gateway key is not in the process arguments.
+ */
+export function providerStartupConfig(
+    modelProvider: string | null,
+    config: JsonObject,
+    gatewayConfig: GatewayConfig | null,
+): ProviderStartupConfig {
+    const configuredProvider =
+        typeof config["model_provider"] === "string"
+            ? config["model_provider"]
+            : null;
+    const effectiveProvider =
+        gatewayConfig?.modelProvider ?? modelProvider ?? configuredProvider;
+    if (effectiveProvider === null) return NO_PROVIDER_STARTUP_CONFIG;
+
+    const args = configOverride("model_provider", effectiveProvider);
+    const providers = mergeGatewayConfig(config, gatewayConfig)[
+        "model_providers"
+    ];
+    const providerDefinition = isJsonObject(providers)
+        ? providers[effectiveProvider]
+        : undefined;
+    // Without a definition here, the provider is a built-in one or comes from the user's Codex config.
+    if (!isJsonObject(providerDefinition)) return { args, env: {} };
+
+    const { http_headers: headers, ...provider } = providerDefinition;
+    const env: Record<string, string> = {};
+    const envHeaders: JsonObject = isJsonObject(provider["env_http_headers"])
+        ? { ...provider["env_http_headers"] }
+        : {};
+    if (isJsonObject(headers)) {
+        for (const [name, value] of Object.entries(headers)) {
+            if (typeof value !== "string") continue;
+            const variable = `CODEX_ACP_PROVIDER_HEADER_${Object.keys(env).length}`;
+            env[variable] = value;
+            envHeaders[name] = variable;
+        }
+    }
+    if (Object.keys(envHeaders).length > 0)
+        provider["env_http_headers"] = envHeaders;
+
+    return {
+        args: [
+            ...args,
+            ...configOverride(`model_providers.${effectiveProvider}`, provider),
+        ],
+        env,
+    };
 }
 
 async function* noItems<T>(): AsyncGenerator<T[]> {}

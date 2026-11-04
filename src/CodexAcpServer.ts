@@ -51,6 +51,8 @@ import {
     isCodexAuthRequest,
 } from "./CodexAuthMethod";
 import { clientSupportsUrlElicitation } from "./ElicitationCapabilities";
+import type { ProviderStartupConfig } from "./CodexConfigOverride";
+import { isDeepStrictEqual } from "node:util";
 import {
     createMcpServerSignIn,
     type McpServerSignIn,
@@ -345,6 +347,7 @@ export interface SessionState extends SessionIndexTitleState {
     supportedReasoningEfforts: Array<ReasoningEffortOption>;
     supportedInputModalities: Array<InputModality>;
     agentMode: AgentMode;
+    availableAgentModes: AgentMode[];
     collaborationMode: ModeKind;
     /** The active turn: its completion, errors and stop reason are matched against this id. */
     currentTurnId: string | null;
@@ -597,6 +600,8 @@ export interface CodexProcessState {
     codexPath: string | undefined;
     config: JsonObject | undefined;
     appServerStartupArgs: string[];
+    /** The provider routing of the next app-server; see `CodexAcpClient.providerStartupConfig`. */
+    providerStartupConfig?: ProviderStartupConfig;
     modelProvider: string | undefined;
     stderr: string;
     stderrProcess?: CodexConnection["process"];
@@ -765,6 +770,8 @@ export class CodexAcpServer {
         "clientInfo"
     > | null = null;
     private providerUpdate: Promise<void> | null = null;
+    /** The last provider update failed, so the app-server may not run the routing of the agent. */
+    private providerUpdateFailed = false;
     /**
      * Numbers `providers/set` and `providers/disable` requests in arrival order. A listing finishing after a newer
      * request was applied is dropped; a newer request that failed drops nothing.
@@ -1201,6 +1208,7 @@ export class CodexAcpServer {
             close: {},
             delete: {},
             fork: {},
+            title: {},
             additionalDirectories: {},
             subagents: {},
             systemPrompt: {},
@@ -1340,6 +1348,7 @@ export class CodexAcpServer {
                     delete: {},
                     additionalDirectories: {},
                     fork: {},
+                    title: {},
                     systemPrompt: {},
                 },
             },
@@ -2337,14 +2346,14 @@ export class CodexAcpServer {
         const modeHint = (
             request._meta?.["codex"] as { mode?: unknown } | undefined
         )?.mode;
-        const initialMode =
+        const usesInitialMode =
             modeHint === undefined ||
-            (modeHint === "custom" && "sessionId" in request)
-                ? AgentMode.getInitialAgentMode()
-                : typeof modeHint === "string"
-                  ? AgentMode.find(modeHint)
-                  : null;
-        if (!initialMode)
+            (modeHint === "custom" && "sessionId" in request);
+        const hintedMode =
+            !usesInitialMode && typeof modeHint === "string"
+                ? AgentMode.find(modeHint)
+                : null;
+        if (!usesInitialMode && !hintedMode)
             throw RequestError.invalidParams(
                 undefined,
                 "Unknown Codex session mode",
@@ -2496,6 +2505,17 @@ export class CodexAcpServer {
         const currentModelSupportsFast = modelSupportsFast(currentModel);
         if (this.setupResponseOrdering && operation !== "resume")
             this.clientDelivery.beginSessionSetup(sessionId);
+        const availableAgentModes = AgentMode.all(
+            sessionMetadata.permissionProfiles,
+            sessionMetadata.approvalPolicy,
+            sessionMetadata.approvalsReviewer,
+        );
+        const initialMode =
+            hintedMode ??
+            AgentMode.getInitialAgentMode(
+                availableAgentModes,
+                sessionMetadata.activePermissionProfileId,
+            );
         const sessionState: SessionState = {
             sessionId,
             readOnly: sessionMetadata.readOnly ?? false,
@@ -2514,6 +2534,7 @@ export class CodexAcpServer {
                 operation !== "new" || modeHint === undefined
                     ? this.restoredAgentMode(sessionMetadata, initialMode)
                     : initialMode,
+            availableAgentModes,
             ...(clientTools ? { clientTools } : {}),
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
@@ -2627,6 +2648,7 @@ export class CodexAcpServer {
         const sessionModeState: SessionModeState =
             sessionState.agentMode.toSessionModeState(
                 sessionState.clientCapabilities.airClient,
+                sessionState.availableAgentModes,
             );
 
         return [sessionId, sessionModelState, sessionModeState];
@@ -3755,6 +3777,13 @@ export class CodexAcpServer {
                     "Sign-in did not complete",
                 );
             }
+            if (this.providerStartupConfigChanged()) {
+                // The `gateway` method sets the provider, and every other method clears it.
+                await withRequestCancellation(
+                    this.enqueueProviderUpdate(() => {}),
+                    signal,
+                );
+            }
             await withRequestCancellation(
                 this.refreshAuthState(
                     this.getAuthProviderForAuthenticateRequest(_params),
@@ -3883,6 +3912,18 @@ export class CodexAcpServer {
             return {};
         }
         this.appliedProviderRequest = request;
+        if (
+            this.codexAcpClient.hasProviderRouting(gatewayConfig) &&
+            !this.providerUpdateFailed
+        ) {
+            // The same routing again needs no restart. A restart would lose every session that Codex has not
+            // persisted yet (no model turn). An update in flight that applies this routing still has to finish.
+            logger.log(
+                "providers/set unchanged: the app-server is not restarted",
+            );
+            await this.waitForProviderUpdate();
+            return {};
+        }
         this.codexAcpClient.setProvider(gatewayConfig);
         // The restarted app-server takes the listing too and does not list the models again.
         await this.enqueueProviderUpdate((client) =>
@@ -4256,6 +4297,14 @@ export class CodexAcpServer {
             this.replaceProviderConnection(apply),
         );
         this.providerUpdate = update;
+        update.then(
+            () => {
+                this.providerUpdateFailed = false;
+            },
+            () => {
+                this.providerUpdateFailed = true;
+            },
+        );
         this.recovery?.settleReplacement(update);
         try {
             await update;
@@ -4272,7 +4321,10 @@ export class CodexAcpServer {
         apply: (client: CodexAcpClient) => void,
         selections: ReadonlyMap<string, string> = new Map(),
     ): Promise<void> {
-        if (this.sessions.size === 0) {
+        if (
+            this.sessions.size === 0 &&
+            !this.providerStartupConfigChanged()
+        ) {
             return;
         }
 
@@ -4479,10 +4531,27 @@ export class CodexAcpServer {
     }
 
     private async restartCodexClient(): Promise<CodexAcpClient> {
-        if (this.recovery === null) {
+        if (this.recovery === null || this.codexProcessState === null) {
             throw new Error("Codex process state is unavailable");
         }
+        this.codexProcessState.providerStartupConfig =
+            this.codexAcpClient.providerStartupConfig();
         return await this.recovery.beginReplacement();
+    }
+
+    /**
+     * Whether the app-server runs with other provider routing than the agent has now. Codex 0.166 refuses input for a
+     * thread whose provider is not the one that its app-server started with, so the app-server has to restart.
+     */
+    private providerStartupConfigChanged(): boolean {
+        const supervisor = this.codexProcessState?.supervisor;
+        return (
+            supervisor !== undefined &&
+            !isDeepStrictEqual(
+                supervisor.current.providerStartupConfig,
+                this.codexAcpClient.providerStartupConfig(),
+            )
+        );
     }
 
     /**
@@ -5035,60 +5104,12 @@ export class CodexAcpServer {
         sessionState: SessionState,
         value: string,
     ): Promise<void> {
-        if (value.startsWith("profile:")) {
-            const id = value.slice("profile:".length);
-            const ready = this.ensureSessionReady(sessionState);
-            if (ready) await ready;
-            let cursor: string | null = null;
-            do {
-                const page: PermissionProfileListResponse =
-                    await this.runWithProcessCheck(() =>
-                        this.codexAcpClient.appServerClient.connection.sendRequest(
-                            "permissionProfile/list",
-                            { cwd: sessionState.cwd, cursor },
-                        ),
-                    );
-                const profile = page.data.find((profile) => profile.id === id);
-                if (profile !== undefined) {
-                    if (!profile.allowed)
-                        throw RequestError.invalidParams(
-                            undefined,
-                            "Permission profile is disallowed by policy",
-                        );
-                    await this.runWithProcessCheck(() =>
-                        this.codexAcpClient.appServerClient.threadSettingsUpdate(
-                            {
-                                threadId: sessionState.sessionId,
-                                permissions: id,
-                            },
-                        ),
-                    );
-                    if (
-                        this.sessions.get(sessionState.sessionId) !==
-                            sessionState ||
-                        this.sessionIsClosing(sessionState.sessionId)
-                    ) {
-                        throw RequestError.invalidRequest(
-                            undefined,
-                            "Permission selection belongs to a closed session",
-                        );
-                    }
-                    sessionState.agentMode = AgentMode.fromPermissionProfile(
-                        id,
-                        profile.description,
-                    );
-                    return;
-                }
-                cursor = page.nextCursor;
-            } while (cursor !== null);
-            throw RequestError.invalidParams(
-                undefined,
-                "Unknown permission profile",
-            );
-        }
         if (value === "custom" && sessionState.agentMode.id === "custom")
             return;
-        const newMode = AgentMode.find(value);
+        const newMode = AgentMode.find(
+            value,
+            sessionState.availableAgentModes,
+        );
         if (!newMode) {
             throw RequestError.invalidParams();
         }
@@ -5719,6 +5740,7 @@ export class CodexAcpServer {
         const configOptions = [
             sessionState.agentMode.toConfigOption(
                 sessionState.clientCapabilities.airClient,
+                sessionState.availableAgentModes,
             ),
             createCollaborationModeConfigOption(sessionState.collaborationMode),
         ];
@@ -6152,6 +6174,11 @@ export class CodexAcpServer {
         );
         const currentModel = this.findCurrentModel(models, currentModelId);
         const currentModelSupportsFast = modelSupportsFast(currentModel);
+        const availableAgentModes = AgentMode.all(
+            sessionMetadata.permissionProfiles,
+            sessionMetadata.approvalPolicy,
+            sessionMetadata.approvalsReviewer,
+        );
         const sessionState: SessionState = {
             sessionId,
             readOnly: sessionMetadata.readOnly ?? false,
@@ -6168,8 +6195,12 @@ export class CodexAcpServer {
             ],
             agentMode: this.restoredAgentMode(
                 sessionMetadata,
-                AgentMode.getInitialAgentMode(),
+                AgentMode.getInitialAgentMode(
+                    availableAgentModes,
+                    sessionMetadata.activePermissionProfileId,
+                ),
             ),
+            availableAgentModes,
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
             interruptTurnId: null,
@@ -6264,6 +6295,7 @@ export class CodexAcpServer {
         const sessionModeState: SessionModeState =
             sessionState.agentMode.toSessionModeState(
                 sessionState.clientCapabilities.airClient,
+                sessionState.availableAgentModes,
             );
 
         return {

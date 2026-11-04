@@ -260,11 +260,7 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
     };
 }
 
-/**
- * Creates a test fixture with a real Codex connection.
- * Use for integration tests that need to interact with the actual Codex binary.
- */
-export function createTestFixture(): TestFixture {
+function bundledCodexPath(): string {
     const packageFile = createRequire(import.meta.url).resolve(
         `@openai/codex-${process.platform}-${process.arch}/package.json`,
     );
@@ -278,7 +274,15 @@ export function createTestFixture(): TestFixture {
     const manifest = JSON.parse(
         fs.readFileSync(path.join(target, "codex-package.json"), "utf8"),
     ) as { entrypoint: string };
-    const pathToCodex = path.join(target, manifest.entrypoint);
+    return path.join(target, manifest.entrypoint);
+}
+
+/**
+ * Creates a test fixture with a real Codex connection.
+ * Use for integration tests that need to interact with the actual Codex binary.
+ */
+export function createTestFixture(): TestFixture {
+    const pathToCodex = process.env["CODEX_PATH"] ?? bundledCodexPath();
     fs.accessSync(pathToCodex, fs.constants.X_OK);
 
     const codexHome = createTestCodexHome();
@@ -631,6 +635,7 @@ export function createTestSessionState(
         supportedReasoningEfforts: [],
         supportedInputModalities: ["text", "image"],
         agentMode: AgentMode.DEFAULT_AGENT_MODE,
+        availableAgentModes: AgentMode.all(),
         collaborationMode: DEFAULT_COLLABORATION_MODE,
         fastModeEnabled: false,
         currentModelSupportsFast: false,

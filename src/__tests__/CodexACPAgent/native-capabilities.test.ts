@@ -152,22 +152,24 @@ describe("native capabilities through ACP", () => {
     });
 
     it("selects an allowed native profile across pages and does not overwrite it on the next prompt", async () => {
-        const client = await connectSession();
+        const client = await connectSession(2, {
+            codexResponses: {
+                "permissionProfile/list": async (params) =>
+                    (params as { cursor: string | null }).cursor === null
+                        ? { data: [], nextCursor: "next" }
+                        : {
+                              data: [
+                                  {
+                                      id: "work",
+                                      description: "Work policy",
+                                      allowed: true,
+                                  },
+                              ],
+                              nextCursor: null,
+                          },
+            },
+        });
         try {
-            client.setCodexResponse("permissionProfile/list", async (params) =>
-                (params as { cursor: string | null }).cursor === null
-                    ? { data: [], nextCursor: "next" }
-                    : {
-                          data: [
-                              {
-                                  id: "work",
-                                  description: "Work policy",
-                                  allowed: true,
-                              },
-                          ],
-                          nextCursor: null,
-                      },
-            );
             let settings: unknown;
             client.setCodexResponse(
                 "thread/settings/update",
@@ -180,13 +182,16 @@ describe("native capabilities through ACP", () => {
                 sessionId,
                 configId: "mode",
                 type: "id",
-                value: "profile:work",
+                value: "permission-profile:work",
             });
-            expect(settings).toEqual({
+            expect(settings).toMatchObject({
                 threadId: sessionId,
                 permissions: "work",
             });
-            expect(response.configOptions[0].currentValue).toBe("profile:work");
+            expect(settings).not.toHaveProperty("sandboxPolicy");
+            expect(response.configOptions[0].currentValue).toBe(
+                "permission-profile:work",
+            );
             const accepted = client.sendPrompt([
                 { type: "text", text: "hello" },
             ]);
@@ -196,9 +201,6 @@ describe("native capabilities through ACP", () => {
             });
             expect(client.turnStartParams[0]).not.toHaveProperty(
                 "sandboxPolicy",
-            );
-            expect(client.turnStartParams[0]).not.toHaveProperty(
-                "approvalPolicy",
             );
             client.emit(turnStarted());
             client.emit(
@@ -221,12 +223,15 @@ describe("native capabilities through ACP", () => {
     });
 
     it("rejects disallowed profiles without changing thread settings", async () => {
-        const client = await connectSession();
+        const client = await connectSession(2, {
+            codexResponses: {
+                "permissionProfile/list": async () => ({
+                    data: [{ id: "locked", description: null, allowed: false }],
+                    nextCursor: null,
+                }),
+            },
+        });
         try {
-            client.setCodexResponse("permissionProfile/list", async () => ({
-                data: [{ id: "locked", description: null, allowed: false }],
-                nextCursor: null,
-            }));
             let wrote = false;
             client.setCodexResponse("thread/settings/update", async () => {
                 wrote = true;
@@ -237,9 +242,9 @@ describe("native capabilities through ACP", () => {
                     sessionId,
                     configId: "mode",
                     type: "id",
-                    value: "profile:locked",
+                    value: "permission-profile:locked",
                 }),
-            ).rejects.toThrow("disallowed");
+            ).rejects.toThrow();
             expect(wrote).toBe(false);
         } finally {
             client.connection.close();

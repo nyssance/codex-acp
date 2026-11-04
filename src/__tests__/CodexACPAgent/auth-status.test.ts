@@ -869,9 +869,9 @@ describe("accountFromUpdated", () => {
             ),
         ).toEqual({
             type: "chatgpt",
-            workspaceName: null,
             email: null,
             planType: "unknown",
+            workspaceName: null,
         });
     });
 

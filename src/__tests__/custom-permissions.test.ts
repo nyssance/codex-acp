@@ -38,7 +38,7 @@ describe("restored custom permissions", () => {
             AgentMode.fromThread({
                 approvalPolicy: mode.approvalPolicy,
                 approvalsReviewer: mode.approvalsReviewer,
-                sandbox: mode.sandboxPolicy,
+                sandbox: mode.sandboxPolicy!,
             }),
         ).toBe(mode);
     });

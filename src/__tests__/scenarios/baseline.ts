@@ -180,7 +180,7 @@ const MCP_COMMAND = {
 /**
  * The feature changes of the compatibility rule that change the messages of the scenarios:
  * the `/mcp` command has a new description and an input hint.
- * Initialize also advertises text-only append system prompts.
+ * Initialize also advertises text-only append system prompts and client-set titles.
  * Only a command that equals the baseline `/mcp` command changes.
  */
 export function withFeatureChanges(
@@ -207,6 +207,7 @@ export function withFeatureChanges(
                             sessionCapabilities: {
                                 ...session,
                                 systemPrompt: {},
+                                title: {},
                             },
                         },
                     },

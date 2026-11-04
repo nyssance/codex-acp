@@ -2029,7 +2029,7 @@ describe("_session/rename", () => {
 
     it("writes an explicit title after an automatic title that Codex is still writing", async () => {
         vi.useFakeTimers();
-        const { fixture, agent, appServer } = await createAgent("sessionIndex");
+        const { fixture, agent, appServer } = await createAgent("plain");
         await openLocalSession(fixture, threadId);
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
             readState: null,
@@ -2062,7 +2062,7 @@ describe("_session/rename", () => {
         await vi.advanceTimersByTimeAsync(0);
         expect(started).toEqual(["Automatic"]);
 
-        const rename = agent.sessionIndex.rename({
+        const rename = agent.sessionIndex.setTitle({
             sessionId: threadId,
             title: "Explicit",
         });
@@ -2079,7 +2079,7 @@ describe("_session/rename", () => {
     });
 
     it("skips an automatic title that is generated after an explicit rename", async () => {
-        const { fixture, agent, appServer } = await createAgent("sessionIndex");
+        const { fixture, agent, appServer } = await createAgent("plain");
         await openLocalSession(fixture, threadId);
         const turn = deferred<unknown>();
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
@@ -2093,7 +2093,7 @@ describe("_session/rename", () => {
         const titleGen = agent.getSessionState(threadId).titleGen!;
         titleGen.onTurnCompleted("Fix the build");
 
-        await agent.sessionIndex.rename({
+        await agent.sessionIndex.setTitle({
             sessionId: threadId,
             title: "Explicit",
         });
