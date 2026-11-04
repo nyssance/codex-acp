@@ -470,9 +470,7 @@ export class CodexClient<
             do {
                 const response = await agent.request("session/list", {
                     ...(queryCwd === undefined ? {} : { cwd: queryCwd }),
-                    ...(archived
-                        ? { _meta: { codex: { archived: true } } }
-                        : {}),
+                    ...(archived ? { archived: "only" as const } : {}),
                     ...(cursor === undefined ? {} : { cursor }),
                 });
                 for (const info of response.sessions) {
