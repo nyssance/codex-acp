@@ -2,6 +2,7 @@ import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type { ThreadItem } from "../../app-server/v2";
 import { withTurnId } from "./turnMetadata";
+import { withQuestionReplies } from "../codex/questionReplies";
 import { hydrateLocalImages } from "../codex/userImages";
 
 /** Renders one native item as `session/load` replays it, in the ACP v2 wire shape. */
@@ -32,7 +33,10 @@ export async function projectHistoryItem(
     let updates = await render(item, cwd);
     // A history reader may run on another machine, so local images are sent inline.
     if (item.type === "userMessage")
-        updates = await hydrateLocalImages(updates, item.content, signal);
+        updates = withQuestionReplies(
+            await hydrateLocalImages(updates, item.content, signal),
+            item.content,
+        );
     const omissions: HistoryOmission[] = [];
     if (!updates.length)
         omissions.push({

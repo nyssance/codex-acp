@@ -79,7 +79,7 @@ it("keeps question-only native messages structured without waiting for user inte
     client.emit(turnCompleted());
     await client.promptRunFinished();
 });
-it("reads question messages and replies from history as session/load replays them", async () => {
+it("reads question messages and structured replies from history", async () => {
     const client = await connectSession();
     clients.push(client);
     const replies = [
@@ -130,11 +130,25 @@ it("reads question messages and replies from history as session/load replays the
             }),
         }),
     );
+    // Same shape as the live path, so the client can tell which question was answered.
     expect(answered!.updates).toContainEqual(
         expect.objectContaining({
-            sessionUpdate: "user_message_chunk",
+            sessionUpdate: "user_message",
             messageId: "reply",
-            content: { type: "text", text: "> Which environment?\n\nRemote" },
+            content: [
+                {
+                    type: "text",
+                    text: "Which environment?\nRemote",
+                    _meta: { codex: { questionReply: replies[0] } },
+                },
+            ],
+            _meta: expect.objectContaining({
+                codex: expect.objectContaining({
+                    questionReplyParts: [
+                        { questionItemId: replies[0]!.questionItemId, question: "Which environment?", text: "Remote" },
+                    ],
+                }),
+            }),
         }),
     );
 });
