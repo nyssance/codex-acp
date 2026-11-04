@@ -1972,11 +1972,10 @@ export class CodexAcpClient {
                     await this.codexClient.threadRead({ threadId: sessionId })
                 ).thread.model;
             } catch (readError) {
-                logger.error(
-                    `Could not inspect historical provider route for ${sessionId}`,
-                    readError,
+                throw new AggregateError(
+                    [error, readError],
+                    `Could not read the persisted provider route of ${sessionId}`,
                 );
-                throw error;
             }
             if (!model?.startsWith("native:") && !model?.startsWith("gateway:"))
                 throw error;

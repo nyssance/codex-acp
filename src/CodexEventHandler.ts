@@ -670,13 +670,13 @@ export class CodexEventHandler {
             case "error":
                 return await this.createErrorEvent(notification.params);
             case "turn/started":
-                if (this.session.protocolVersion === 2) {
+                // Without Codex's start time the turn carries no timing.
+                if (
+                    this.session.protocolVersion === 2 &&
+                    notification.params.turn.startedAt !== null
+                ) {
                     this.liveTurnTiming.set(notification.params.turn.id, {
-                        startedAt:
-                            typeof notification.params.turn.startedAt ===
-                            "number"
-                                ? notification.params.turn.startedAt * 1000
-                                : Date.now(),
+                        startedAt: notification.params.turn.startedAt * 1000,
                         workEndedAt: null,
                         message: null,
                     });
@@ -692,15 +692,10 @@ export class CodexEventHandler {
                     const turn = notification.params.turn;
                     const timing = this.liveTurnTiming.get(turn.id);
                     this.liveTurnTiming.delete(turn.id);
-                    if (timing?.message) {
-                        const completedAt =
-                            typeof turn.completedAt === "number"
-                                ? turn.completedAt * 1000
-                                : Date.now();
+                    if (timing?.message && turn.completedAt !== null) {
+                        const completedAt = turn.completedAt * 1000;
                         const durationMs =
-                            typeof turn.durationMs === "number"
-                                ? turn.durationMs
-                                : Math.max(0, completedAt - timing.startedAt);
+                            turn.durationMs ?? completedAt - timing.startedAt;
                         await this.session.updateV2(
                             {
                                 ...timing.message,
@@ -713,13 +708,13 @@ export class CodexEventHandler {
                                         ...(timing.workEndedAt === null
                                             ? {}
                                             : {
+                                                  // Codex reports the start in whole seconds and the final
+                                                  // answer in milliseconds, so the difference can exceed the
+                                                  // turn's own millisecond duration by under a second.
                                                   workDurationMs: Math.min(
                                                       durationMs,
-                                                      Math.max(
-                                                          0,
-                                                          timing.workEndedAt -
-                                                              timing.startedAt,
-                                                      ),
+                                                      timing.workEndedAt -
+                                                          timing.startedAt,
                                                   ),
                                               }),
                                     },
@@ -1093,7 +1088,7 @@ export class CodexEventHandler {
         ) {
             const timing = this.liveTurnTiming.get(event.turnId);
             if (timing?.workEndedAt === null)
-                timing.workEndedAt = event.startedAtMs ?? Date.now();
+                timing.workEndedAt = event.startedAtMs;
         }
         switch (event.item.type) {
             case "fileChange":
@@ -1228,8 +1223,7 @@ export class CodexEventHandler {
                             codex: {
                                 turnId: event.turnId,
                                 messageCompleted: true,
-                                messageCompletedAt:
-                                    event.completedAtMs ?? Date.now(),
+                                messageCompletedAt: event.completedAtMs,
                                 phase: event.item.phase,
                                 delivery: event.item.delivery,
                                 questions: event.item.questions,

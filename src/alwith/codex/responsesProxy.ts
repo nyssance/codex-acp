@@ -487,7 +487,7 @@ export class ResponsesProxy {
                         }
                         const requestId = incoming.headers["x-request-id"];
                         diagnostic.headers(
-                            incoming.statusCode ?? 502,
+                            incoming.statusCode!,
                             typeof requestId === "string" ? requestId : null,
                             upstream.reusedSocket,
                         );
@@ -495,7 +495,7 @@ export class ResponsesProxy {
                             diagnostic.received(chunk.length),
                         );
                         response.writeHead(
-                            incoming.statusCode ?? 502,
+                            incoming.statusCode!,
                             forwardingHeaders(incoming.headers, false),
                         );
                         pipeline(incoming, response, (error) =>
@@ -562,7 +562,7 @@ export class ResponsesProxy {
             }
             const requestId = incoming.headers["x-request-id"];
             diagnostic.headers(
-                incoming.statusCode ?? 502,
+                incoming.statusCode!,
                 typeof requestId === "string" ? requestId : null,
             );
             incoming.once("end", () => diagnostic.end("completed"));
@@ -576,7 +576,7 @@ export class ResponsesProxy {
                       ),
             );
             socket.write(
-                `HTTP/1.1 ${incoming.statusCode ?? 502} Upstream rejected\r\n${lines.join("\r\n")}\r\nConnection: close\r\n\r\n`,
+                `HTTP/1.1 ${incoming.statusCode!} Upstream rejected\r\n${lines.join("\r\n")}\r\nConnection: close\r\n\r\n`,
             );
             pipeline(incoming, socket, () => upstream.terminate());
         });
@@ -637,18 +637,27 @@ export class ResponsesProxy {
                 downstream.close(1007, "Invalid Responses JSON");
                 return;
             }
-            if (upstream.readyState === WebSocket.OPEN) {
-                diagnostic.sent(Buffer.byteLength(message));
-                upstream.send(message, (error) => {
-                    if (error) fail(error);
-                });
-                // Bound pending writes while retaining ws's ordered send queue.
-                if (upstream.bufferedAmount > MAX_BODY_BYTES) fail();
+            if (upstream.readyState !== WebSocket.OPEN) {
+                fail(new Error("A client frame arrived after the upstream closed"));
+                return;
             }
+            diagnostic.sent(Buffer.byteLength(message));
+            upstream.send(message, (error) => {
+                if (error) fail(error);
+            });
+            // Bound pending writes while retaining ws's ordered send queue.
+            if (upstream.bufferedAmount > MAX_BODY_BYTES) fail();
         });
         upstream.on("message", (data, binary) => {
             diagnostic.received(messageBytes(data).length);
-            if (downstream.readyState !== WebSocket.OPEN) return;
+            if (downstream.readyState !== WebSocket.OPEN) {
+                diagnostic.end(
+                    "failed",
+                    new Error("An upstream frame arrived after the client closed"),
+                );
+                upstream.terminate();
+                return;
+            }
             downstream.send(data, { binary }, (error) => {
                 if (error) upstream.terminate();
             });

@@ -67,12 +67,10 @@ async function readImage(path: string): Promise<acp.ContentBlock> {
         );
         try {
             const stat = await file.stat();
-            if (
-                !stat.isFile() ||
-                stat.size === 0 ||
-                stat.size > MAX_IMAGE_BYTES
-            )
-                return unavailable();
+            if (!stat.isFile()) return unavailable("not a regular file");
+            if (stat.size === 0) return unavailable("empty file");
+            if (stat.size > MAX_IMAGE_BYTES)
+                return unavailable(`larger than ${MAX_IMAGE_BYTES} bytes`);
             const data = Buffer.alloc(stat.size);
             let offset = 0;
             while (offset < data.length) {
@@ -82,28 +80,30 @@ async function readImage(path: string): Promise<acp.ContentBlock> {
                     data.length - offset,
                     offset,
                 );
-                if (bytesRead === 0) return unavailable();
+                if (bytesRead === 0)
+                    return unavailable("file shrank while it was read");
                 offset += bytesRead;
             }
             const mimeType = imageMimeType(data);
             return mimeType
                 ? { type: "image", mimeType, data: data.toString("base64") }
-                : unavailable();
+                : unavailable("not a PNG, JPEG, GIF, WebP or BMP image");
         } finally {
             await file.close();
         }
-    } catch {
-        // Clipboard files can expire. A missing attachment must not hide the turn.
-        return unavailable();
+    } catch (error) {
+        // Clipboard files can expire. An unreadable attachment must not hide the turn, so
+        // it is replayed as an unavailable image that names the cause.
+        return unavailable(error instanceof Error ? error.message : String(error));
     }
 }
 
-function unavailable(): acp.ContentBlock {
+function unavailable(reason: string): acp.ContentBlock {
     return {
         type: "resource_link",
         name: "Image unavailable",
         uri: "codex-image:unavailable",
-        _meta: { codex: { imageUnavailable: true } },
+        _meta: { codex: { imageUnavailable: true, reason } },
     };
 }
 

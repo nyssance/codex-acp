@@ -46,18 +46,10 @@ export class NativeNetworkTransport {
     }
 }
 
+/** The error the native transport reported in `x-alwith-native-error`; null when it reported none. */
 export function nativeNetworkError(value: unknown): Error | null {
-    const codes = [
-        "NATIVE_NETWORK_CONNECT_FAILED",
-        "NATIVE_PROXY_RESOLUTION_FAILED",
-        "NATIVE_NETWORK_AUTH_FAILED",
-        "NATIVE_NETWORK_PROTOCOL_ERROR",
-        "NATIVE_NETWORK_CANCELLED",
-        "ETIMEDOUT",
-    ];
-    return typeof value === "string" && codes.includes(value)
-        ? Object.assign(new Error("Native network request failed"), {
-              code: value,
-          })
-        : null;
+    if (value === undefined || value === null) return null;
+    return Object.assign(new Error("Native network request failed"), {
+        code: typeof value === "string" ? value : JSON.stringify(value),
+    });
 }

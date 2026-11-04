@@ -36,12 +36,16 @@ export class ModelAliases {
                 });
         }
         for (const alias of aliases) {
+            // As at registration: the gateway's catalog file describes the model, or Codex does.
             const candidates = alias.catalog ? read(alias.catalog) : models;
             const entry =
                 candidates.find((model) => model["slug"] === alias.upstream) ??
                 models.find((model) => model["slug"] === alias.upstream);
-            // Unknown models retain Codex's existing unknown-model defaults.
-            if (entry) models.push({ ...entry, slug: alias.id });
+            if (entry === undefined)
+                throw new Error(
+                    `Gateway model "${alias.upstream}" is in no model catalog`,
+                );
+            models.push({ ...entry, slug: alias.id });
         }
         const body = JSON.stringify({ models });
         const digest = createHash("sha256").update(body).digest("hex");
