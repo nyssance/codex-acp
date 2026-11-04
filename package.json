@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "0.7.53",
+    "version": "0.7.54",
     "description": "ACP adapter for Codex with ALwith client extensions",
     "main": "dist/index.js",
     "bin": {

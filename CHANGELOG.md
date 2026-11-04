@@ -1,3 +1,14 @@
+## 0.7.54 (2026-11-04)
+
+- Replace `_codex/session_rename`, `_codex/session_archive`, `_codex/session_unarchive` and `_meta.codex.archived` with the standard ACP `session/set_title`, `session/archive`, `session/unarchive` and the `session/list` `archived` filter.
+- Render `_codex/session_history` with the same upstream path as `session/load`; the adapter fits history pages to `maxBytes`. Structured async question replies are kept in history.
+- Reject incomplete gateway registrations: `providers/set` requires `_meta.codex.id` and `name`, and each model requires a label.
+- Report protocol facts without filling them in: tools still open at turn end are `interrupted`, a disconnected session is `unknown`, message frames without a `messageId` are rejected, and an omitted `availableCommands` list means none.
+- Composer prediction failures carry a `message`.
+- The exported client uses the generated Codex types for skills, plugins, account and file search; `fuzzyFileSearch` takes `cancellationToken` and accounts carry `workspaceRouting`.
+- Remove unused extensions: config snapshots, read state, Bedrock, the permission list, `seedHistory`, the `includeNative` and `anchorItemId` history parameters, `state_update` message ids and the capability flags no client reads.
+- Register the remaining Codex and backend workarounds in `docs/fallbacks.md`.
+
 ## 0.7.51 (2026-11-02)
 
 - Route Responses HTTP/SSE and WebSocket traffic through an authenticated native network host when configured, allowing Windows clients to use native TLS and system proxy resolution.
