@@ -63,13 +63,13 @@ const alwith: FoldPolicy = {
 };
 
 describe("turn sealing", () => {
-    test("tools still open when the turn ends become completed; the protocol does not guarantee a final frame for every tool", () => {
+    test("tools still open when the turn ends become interrupted; the protocol does not guarantee a final frame for every tool, and none says they completed", () => {
         let session = createSession("s", "/tmp");
         session = startTool(session, "t1");
         expect(tool(session, "t1").status).toBe("in_progress");
 
         session = idle(session);
-        expect(tool(session, "t1").status).toBe("completed");
+        expect(tool(session, "t1").status).toBe("interrupted");
     });
 
     test("tools that already reached a final state are not rewritten", () => {
@@ -94,7 +94,7 @@ describe("turn sealing", () => {
 
         expect(tool(session, "bg").status).toBe("in_progress");
         expect(tool(session, "watch").status).toBe("in_progress");
-        expect(tool(session, "plain").status).toBe("completed");
+        expect(tool(session, "plain").status).toBe("interrupted");
     });
 
     test("without a rule all tools are treated alike; the package does not guess dialects", () => {
@@ -103,7 +103,7 @@ describe("turn sealing", () => {
             _meta: { alwith: { runInBackground: true } },
         });
         session = idle(session);
-        expect(tool(session, "bg").status).toBe("completed");
+        expect(tool(session, "bg").status).toBe("interrupted");
     });
 });
 
@@ -325,7 +325,7 @@ describe("outliving the turn is inherited along the parent chain", () => {
             alwithWithParents,
         );
         session = idle(session, alwithWithParents);
-        expect(tool(session, "step").status).toBe("completed");
+        expect(tool(session, "step").status).toBe("interrupted");
     });
 
     test("a parentage cycle does not loop forever", () => {

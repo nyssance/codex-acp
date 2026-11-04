@@ -78,7 +78,7 @@ export type Terminal = {
  * remain separate so clients can present the error without interpreting an engine dialect.
  */
 export type TurnError = {
-    /** Standard failure/limit reason, a legacy implementation-specific `_error`, or `DISCONNECTED`, which this library synthesizes. */
+    /** Standard failure/limit reason, or `DISCONNECTED`, which this library synthesizes. */
     stopReason: string;
     error: acp.Error | null;
     /** The idle frame's `_meta`, as-is. */
@@ -356,17 +356,6 @@ function appendBlock(
     return [...content, block];
 }
 
-/** Which message a chunk without messageId belongs to: the immediately preceding message of the same kind (not the locally pre-displayed one), otherwise a new one. */
-function anonymousMessageId(
-    session: Session,
-    kind: MessageItem["kind"],
-): string {
-    const last = session.items.at(-1);
-    return last?.kind === kind && last.echo === null
-        ? last.id
-        : crypto.randomUUID();
-}
-
 const MESSAGE_KINDS: Record<string, MessageItem["kind"]> = {
     user_message: "user",
     user_message_chunk: "user",
@@ -438,10 +427,10 @@ function mapTools(
 }
 
 /**
- * Turn close: tools still pending / in_progress are set to completed.
+ * Turn close: tools still pending / in_progress are marked interrupted.
  *
  * The basis is fact, not guesswork: this turn has ended and no more frames belonging to it will come. The protocol does not guarantee every tool receives a
- * terminal frame (a cancelled one does not), and missing one leaves the UI spinning forever.
+ * terminal frame (a cancelled one does not), and missing one leaves the UI spinning forever. Without that frame nothing says the tool completed.
  *
  * Tools that outlive the turn are excluded: their real terminal state comes by an out-of-band frame, and sealing here would tell the user "this one finished",
  * and once status enters a terminal state, the `tool_call_update` lock below never lets go again.
@@ -452,7 +441,7 @@ function sealTurn(session: Session, policy: FoldPolicy | undefined): Session {
     const now = nextStamp(session);
     const sealed = mapTools(session, (tool) =>
         isRunning(tool) && !outlivesTurn(tool, session, policy)
-            ? { ...tool, status: "completed", endedAt: now }
+            ? { ...tool, status: INTERRUPTED, endedAt: now }
             : tool,
     );
     return sealed === session ? session : { ...sealed, clock: now };
@@ -681,13 +670,12 @@ function fold(
         const frame = update as acp.UserMessage &
             acp.ContentChunk & { sessionUpdate: string };
         const isChunk = update.sessionUpdate.endsWith("_chunk");
-        // The protocol requires every chunk to carry a messageId (chunks of one message share one, a new one means a new message). For those without,
-        // fall back to adjacency: if the immediately preceding one is a message of the same kind, merge into it, otherwise start a new one; upserting by id would stuff the whole turn's
-        // text into the first message, with everything after it landing before the tools. Recordings from before v2 look like this, and sloppy engines may too.
-        const messageId =
-            typeof frame.messageId === "string" && frame.messageId.length > 0
-                ? frame.messageId
-                : anonymousMessageId(session, messageKind);
+        // ACP v2 requires every message frame to carry its messageId.
+        if (typeof frame.messageId !== "string" || frame.messageId.length === 0)
+            throw new Error(
+                `${update.sessionUpdate} without a messageId in session ${session.id}`,
+            );
+        const messageId = frame.messageId;
         if (messageKind === "user") {
             const acknowledged = session.items.find(
                 (item) =>
@@ -769,7 +757,6 @@ function fold(
                 const stopReason = idle.stopReason ?? null;
                 const failed =
                     stopReason === "error" ||
-                    stopReason === "_error" ||
                     stopReason === "refusal" ||
                     stopReason === "max_tokens" ||
                     stopReason === "max_turn_requests";
@@ -783,7 +770,7 @@ function fold(
                     ...sealed,
                     clock: endedAt,
                     state: "idle",
-                    lastTurnUsage: usage ?? session.lastTurnUsage,
+                    lastTurnUsage: usage,
                     turnUsage:
                         usage === null || turnUser === undefined
                             ? session.turnUsage
@@ -1056,6 +1043,7 @@ function fold(
         }
         case "usage_update": {
             const usage = update as acp.UsageUpdate;
+            // ACP: an omitted cost leaves the last reported one unchanged; null clears it.
             return {
                 ...session,
                 usage: {
@@ -1083,7 +1071,7 @@ export const DISCONNECTED = "disconnected";
 
 /**
  * The connection to the agent is gone. A turn that was running there may still be running, but its outcome can no longer reach this
- * session, so it stops showing as running and the turn records why. A later `session/resume` replaces this with what the agent recorded.
+ * session: its state is unknown, not idle, and the turn records why. A later `session/resume` replaces this with what the agent recorded.
  */
 export function markDisconnected(session: Session): Session {
     return {
@@ -1091,7 +1079,7 @@ export function markDisconnected(session: Session): Session {
         attached: false,
         restoring: false,
         readOnly: false,
-        state: "idle",
+        state: "unknown",
         error:
             session.state === "running"
                 ? { stopReason: DISCONNECTED, error: null, meta: null }

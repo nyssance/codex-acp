@@ -120,7 +120,7 @@ describe("ACP transcript", () => {
         session = applyUpdate(session, {
             sessionUpdate: "state_update",
             state: "idle",
-            stopReason: "_error",
+            stopReason: "error",
             _meta: {
                 codex: {
                     error: {
@@ -131,10 +131,10 @@ describe("ACP transcript", () => {
                 },
             },
         });
-        // The package states only what the protocol knows: this turn ended with `_error`, and `_meta` is passed through as is.
+        // The package states only what the protocol knows: this turn ended with `error`, and `_meta` is passed through as is.
         // "boom / network / retryable" is Codex's dialect; the app reads it itself.
         expect(session.error).toEqual({
-            stopReason: "_error",
+            stopReason: "error",
             error: null,
             meta: {
                 codex: {
@@ -188,60 +188,14 @@ describe("ACP transcript", () => {
     });
 });
 
-describe("chunks without a messageId", () => {
-    test("adjacent messages of the same kind merge; anything in between starts a new item, so later text never jumps ahead of a tool", () => {
-        let session = createSession("s", "/tmp");
-        const feed = (update: Record<string, unknown>) =>
-            (session = applyUpdate(session, update as never));
-        feed({
-            sessionUpdate: "agent_thought_chunk",
-            content: { type: "text", text: "先读" },
-        });
-        feed({
-            sessionUpdate: "agent_thought_chunk",
-            content: { type: "text", text: "文件" },
-        });
-        feed({
-            sessionUpdate: "tool_call_update",
-            toolCallId: "t",
-            name: "Read",
-            status: "completed",
-        });
-        feed({
-            sessionUpdate: "agent_thought_chunk",
-            content: { type: "text", text: "再搜" },
-        });
-        feed({
-            sessionUpdate: "agent_message_chunk",
-            content: { type: "text", text: "完成" },
-        });
-        const shape = session.items.map((item) =>
-            item.kind === "user" ||
-            item.kind === "assistant" ||
-            item.kind === "thought"
-                ? `${item.kind}:${textOf(item.content)}`
-                : item.kind,
-        );
-        expect(shape).toEqual([
-            "thought:先读文件",
-            "tool",
-            "thought:再搜",
-            "assistant:完成",
-        ]);
-    });
-
-    test("does not merge into the locally shown user message", () => {
-        let session = addPrompt(
-            createSession("s", "/tmp"),
-            [{ type: "text", text: "hi" }],
-            "local",
-        );
-        session = applyUpdate(session, {
-            sessionUpdate: "user_message_chunk",
-            content: { type: "text", text: "x" },
-        } as never);
-        expect(session.items).toHaveLength(2);
-        expect(session.items[0]?.id).toBe("local");
+describe("message frames without a messageId", () => {
+    test("are rejected: ACP v2 requires every message frame to name its message", () => {
+        expect(() =>
+            applyUpdate(createSession("s", "/tmp"), {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "完成" },
+            } as never),
+        ).toThrow("agent_message_chunk without a messageId in session s");
     });
 });
 
@@ -428,14 +382,14 @@ describe("ACP alpha.8", () => {
 });
 
 describe("markDisconnected", () => {
-    test("a running turn is recorded as disconnected; an idle session only loses its attachment", () => {
+    test("a running turn is recorded as disconnected and its state becomes unknown; an idle session keeps no error", () => {
         let session = createSession("s", "/tmp");
         session = applyUpdate(session, {
             sessionUpdate: "state_update",
             state: "running",
         } as never);
         const lost = markDisconnected(session);
-        expect(lost.state).toBe("idle");
+        expect(lost.state).toBe("unknown");
         expect(lost.attached).toBe(false);
         expect(lost.error).toEqual({
             stopReason: DISCONNECTED,

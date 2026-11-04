@@ -471,7 +471,12 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
             return { agent: await this.adopt(info.agentId, info.engine), info };
         } catch (error) {
             // Claimed but the handshake failed: release the claim so other windows are not locked out for good
-            await this.port.releaseSession(sessionId).catch(() => undefined);
+            await this.port.releaseSession(sessionId).catch((released: unknown) => {
+                throw new AggregateError(
+                    [error, released],
+                    `Session ${sessionId} could be neither adopted nor released`,
+                );
+            });
             throw error;
         }
     }

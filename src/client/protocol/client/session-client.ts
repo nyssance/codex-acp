@@ -252,9 +252,12 @@ export class SessionClient<State extends ClientState = ClientState> {
     protected readonly options: ClientOptions;
     protected readonly sessions: SessionStore;
     /** Agent requests awaiting user input (permissions, questionnaires), including answers, cancellation on Stop, and agent withdrawals. */
-    protected readonly requests = new AgentRequests(
-        (id, result, error) => void this.agent?.respond(id, result, error),
-    );
+    // The ledger is released when the agent goes away, so a reply always has an agent to go to.
+    protected readonly requests = new AgentRequests((id, result, error) => {
+        if (this.agent === null)
+            throw new Error(`Reply to agent request ${String(id)} without an agent`);
+        void this.agent.respond(id, result, error);
+    });
     /** open / close / delete lane per session: adjacent equal opens share one replay; close and delete revoke queued opens. */
     protected readonly lifecycle = new SessionLifecycle();
     protected readonly updates = new UpdateScheduler<Session>((snapshots) => {
@@ -480,8 +483,11 @@ export class SessionClient<State extends ClientState = ClientState> {
                     if (payload.agentId === agentId) exitedNow();
                 });
                 try {
-                    await port.stop(agentId).catch(() => {
-                        throw refused;
+                    await port.stop(agentId).catch((stopError: unknown) => {
+                        throw new AggregateError(
+                            [refused, stopError],
+                            `Agent ${agentId} could be neither adopted nor stopped`,
+                        );
                     });
                     // The Runtime starts the same id again only after the old process has exited.
                     await exited;
@@ -1060,12 +1066,9 @@ export class SessionClient<State extends ClientState = ClientState> {
                 cwd,
                 readOnly: this.resumeReadOnly(response),
                 configOptions: response.configOptions ?? [],
-                commands:
-                    response.availableCommands ??
-                    this.sessions.get(id).commands,
-                configRevision:
-                    configRevisionOf(response) ??
-                    this.sessions.get(id).configRevision,
+                // ACP: omitted means no commands; later available_commands_update replaces them.
+                commands: response.availableCommands ?? [],
+                configRevision: configRevisionOf(response),
                 error: null,
             });
             this.onReplayed(id, response);
@@ -1463,8 +1466,8 @@ export class SessionClient<State extends ClientState = ClientState> {
             attached: true,
             restoring: false,
             configOptions: response.configOptions ?? [],
-            commands: response.availableCommands ?? forked.commands,
-            configRevision: configRevisionOf(response) ?? forked.configRevision,
+            commands: response.availableCommands ?? [],
+            configRevision: configRevisionOf(response),
         });
         this.listSession({
             ...this.summaryOf({
