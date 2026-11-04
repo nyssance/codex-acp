@@ -919,11 +919,8 @@ export class CodexEventHandler {
             case "process/exited":
             case "thread/prediction/updated":
             case "autoApprovalReview/strictReviewRequired":
-                return null;
             case "thread/readState/changed":
-                return this.createCodexSessionInfoUpdate({
-                    readState: notification.params.readState,
-                });
+                return null;
         }
     }
 

@@ -6,8 +6,6 @@ type Activity = "idle" | "running" | "requires_action" | "unknown";
 /** Session state and its wire order are independent of prompt acceptance and individual requests. */
 export class AcpV2ForegroundState {
     private activity: Activity;
-    private messageId: string | undefined;
-    private generation = 0;
     private readonly items = new Set<string>();
     private readonly actions = new Map<symbol, string | undefined>();
     private sending: Promise<void> = Promise.resolve();
@@ -30,18 +28,12 @@ export class AcpV2ForegroundState {
             if (this.activity === state.state) return this.sending;
             this.activity = state.state;
         }
-        const generation = this.generation;
         await this.publish(state);
-        if (state.state === "idle" && this.generation === generation)
-            this.messageId = undefined;
     }
 
     /** A newly accepted runtime turn or local command is evidence of foreground work. */
-    async start(messageId?: string): Promise<void> {
-        this.generation += 1;
-        this.messageId = messageId;
-        if (this.activity === "idle" || this.actions.size === 0)
-            await this.update({ state: "running" });
+    async start(): Promise<void> {
+        if (this.activity === "idle" || this.actions.size === 0) await this.update({state: "running"});
     }
 
     /** Snapshots never repeat completion usage or failure metadata. */
@@ -85,8 +77,6 @@ export class AcpV2ForegroundState {
     }
 
     dispose(): void {
-        this.generation += 1;
-        this.messageId = undefined;
         this.disposed = true;
         this.activity = "idle";
         this.items.clear();
@@ -117,22 +107,7 @@ export class AcpV2ForegroundState {
     }
 
     private publish(state: acpV2.StateUpdate): Promise<void> {
-        // Capture ownership before queueing; a later prompt cannot relabel an older frame.
-        const meta = state._meta as Record<string, unknown> | null | undefined;
-        const correlated =
-            this.messageId === undefined
-                ? state
-                : {
-                      ...state,
-                      _meta: {
-                          ...meta,
-                          alwith: {
-                              ...(meta?.["alwith"] as object | undefined),
-                              messageId: this.messageId,
-                          },
-                      },
-                  };
-        return this.serializePublication(() => this.notify(correlated));
+        return this.serializePublication(() => this.notify(state));
     }
 
     serializePublication(publish: () => Promise<void>): Promise<void> {

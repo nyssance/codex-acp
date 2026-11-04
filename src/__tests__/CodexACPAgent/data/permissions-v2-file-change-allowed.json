@@ -1,11 +1,6 @@
 [
   {
     "sessionUpdate": {
-      "_meta": {
-        "alwith": {
-          "messageId": "<messageId>"
-        }
-      },
       "state": "requires_action",
       "sessionUpdate": "state_update"
     }

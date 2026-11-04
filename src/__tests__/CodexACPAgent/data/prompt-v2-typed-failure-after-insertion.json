@@ -31,11 +31,6 @@
   },
   {
     "sessionUpdate": {
-      "_meta": {
-        "alwith": {
-          "messageId": "<messageId>"
-        }
-      },
       "state": "running",
       "sessionUpdate": "state_update"
     }
@@ -96,9 +91,6 @@
               "actions": []
             }
           }
-        },
-        "alwith": {
-          "messageId": "<messageId>"
         }
       },
       "state": "idle",

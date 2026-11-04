@@ -14,43 +14,16 @@ const clients: PromptSession[] = [];
 afterEach(() => {
     for (const client of clients.splice(0)) client.connection.close();
 });
-it("injects seeded history into the native thread and advertises the requested mode", async () => {
+it("starts the native thread in the requested mode", async () => {
     const start = vi.fn(async () => codexResponse("thread/start"));
-    const inject = vi.fn(async () => ({}));
     const client = await connectSession(2, {
-        newSessionMeta: {
-            codex: {
-                mode: "read-only",
-                seedHistory: [
-                    { role: "user", text: "prior question" },
-                    { role: "assistant", text: "prior answer" },
-                ],
-            },
-        },
-        codexResponses: {
-            "thread/start": start,
-            "thread/inject_items": inject,
-        },
+        newSessionMeta: { codex: { mode: "read-only" } },
+        codexResponses: { "thread/start": start },
     });
     clients.push(client);
     expect(start).toHaveBeenCalledWith(
         expect.objectContaining({ sandbox: "read-only" }),
     );
-    expect(inject).toHaveBeenCalledWith({
-        threadId: sessionId,
-        items: [
-            {
-                type: "message",
-                role: "user",
-                content: [{ type: "input_text", text: "prior question" }],
-            },
-            {
-                type: "message",
-                role: "assistant",
-                content: [{ type: "output_text", text: "prior answer" }],
-            },
-        ],
-    });
     expect(client.agent.getSessionState(sessionId).agentMode.id).toBe(
         "read-only",
     );

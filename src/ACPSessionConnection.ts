@@ -162,8 +162,8 @@ export class AcpV2Connection {
         await this.foregroundFor(sessionId).update(state);
     }
 
-    startForegroundWork(sessionId: string, messageId?: string): Promise<void> {
-        return this.foregroundFor(sessionId).start(messageId);
+    startForegroundWork(sessionId: string): Promise<void> {
+        return this.foregroundFor(sessionId).start();
     }
 
     snapshotForegroundState(sessionId: string): Promise<void> {

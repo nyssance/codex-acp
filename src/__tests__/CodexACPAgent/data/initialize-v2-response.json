@@ -30,20 +30,11 @@
     "providers": {},
     "_meta": {
       "alwith": {
-        "tools": {
-          "version": 1
-        },
-        "turns": {
-          "version": 2
-        },
         "configRevision": {
           "version": 1
         }
       },
       "codex": {
-        "shellCommand": {
-          "version": 1
-        },
         "sessionHistory": {
           "version": 2,
           "items": true,
@@ -54,7 +45,6 @@
         },
         "skills": true,
         "plugins": true,
-        "pluginEnable": true,
         "account": true,
         "fuzzyFileSearch": true,
         "realtime": {
@@ -76,19 +66,13 @@
             "clear"
           ]
         },
-        "sessionList": {
-          "version": 1
-        },
-        "archive": true,
         "rename": true,
-        "readState": true,
         "providerCatalog": true,
         "forkAtTurn": true,
         "sessionLineage": true,
         "sessionRetry": {
           "version": 1
         },
-        "seedHistory": true,
         "composerPredictions": true
       }
     }

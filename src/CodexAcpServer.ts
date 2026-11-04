@@ -1045,12 +1045,9 @@ export class CodexAcpServer {
             capabilities: {
                 _meta: {
                     alwith: {
-                        tools: { version: 1 },
-                        turns: { version: 2 },
                         configRevision: { version: 1 },
                     },
                     codex: {
-                        shellCommand: { version: 1 },
                         sessionHistory: {
                             version: 2,
                             items: true,
@@ -1058,7 +1055,6 @@ export class CodexAcpServer {
                         },
                         skills: true,
                         plugins: true,
-                        pluginEnable: true,
                         account: true,
                         fuzzyFileSearch: true,
                         realtime: {
@@ -1075,15 +1071,11 @@ export class CodexAcpServer {
                             controlMethod: GOAL_CONTROL_METHOD,
                             actions: [...GOAL_CONTROL_ACTIONS],
                         },
-                        sessionList: { version: 1 },
-                        archive: true,
                         rename: true,
-                        readState: true,
                         providerCatalog: true,
                         forkAtTurn: true,
                         sessionLineage: true,
                         sessionRetry: { version: 1 },
-                        seedHistory: true,
                         composerPredictions: true,
                     },
                 },
@@ -6300,10 +6292,7 @@ export class CodexAcpServer {
         const startWork = async () => {
             if (this.getSessionGeneration(sessionId) !== generation) return;
             try {
-                await AcpV2Connection.of(this.connection)?.startForegroundWork(
-                    sessionId,
-                    messageId,
-                );
+                await AcpV2Connection.of(this.connection)?.startForegroundWork(sessionId);
             } catch (error) {
                 logger.error(`Failed to report foreground work for session ${sessionId}`, error);
             }

@@ -14,14 +14,12 @@ export interface HistoryParams {
     mode?: "browse" | "export";
     sortDirection?: "asc" | "desc";
     maxBytes?: number;
-    includeNative?: boolean;
 }
 export interface SessionHistoryParams extends HistoryParams {
     itemsView?: "summary" | "full";
 }
 export interface SessionHistoryItemsParams extends HistoryParams {
     turnId?: string;
-    anchorItemId?: string;
 }
 export interface HistoryPage {
     sessionId: string;
@@ -69,9 +67,8 @@ function parse(raw: unknown, items: boolean): Record<string, unknown> {
         "mode",
         "sortDirection",
         "maxBytes",
-        "includeNative",
         "_meta",
-        ...(items ? ["turnId", "anchorItemId"] : ["itemsView"]),
+        ...(items ? ["turnId"] : ["itemsView"]),
     ]);
     for (const key of Object.keys(p))
         if (!allowed.has(key)) invalid(`Unknown history parameter: ${key}`);
@@ -110,35 +107,17 @@ function parse(raw: unknown, items: boolean): Record<string, unknown> {
     )
         invalid("sortDirection must be asc or desc");
     if (
-        p["includeNative"] !== undefined &&
-        typeof p["includeNative"] !== "boolean"
-    )
-        invalid("includeNative must be a boolean");
-    if (
         !items &&
         p["itemsView"] !== undefined &&
         p["itemsView"] !== "summary" &&
         p["itemsView"] !== "full"
     )
         invalid("itemsView must be summary or full");
-    if (!items && p["includeNative"] === true && p["itemsView"] !== "full")
-        invalid(
-            "includeNative requires itemsView: full; use the items endpoint for details",
-        );
-    for (const key of ["turnId", "anchorItemId"]) {
-        if (
-            p[key] !== undefined &&
-            (typeof p[key] !== "string" || !p[key].trim())
-        )
-            invalid(`${key} must be a non-empty string`);
-    }
     if (
-        p["anchorItemId"] !== undefined &&
-        (p["turnId"] === undefined || p["cursor"] != null)
+        p["turnId"] !== undefined &&
+        (typeof p["turnId"] !== "string" || !p["turnId"].trim())
     )
-        invalid(
-            "anchorItemId requires turnId and cannot be combined with cursor",
-        );
+        invalid("turnId must be a non-empty string");
     return p;
 }
 export function parseSessionHistoryParams(raw: unknown): SessionHistoryParams {
@@ -235,7 +214,6 @@ export class HistoryRead {
             sessionId: params.sessionId,
             mode: this.mode,
             sortDirection: this.direction,
-            includeNative: params.includeNative ?? false,
             ...scope,
         });
         this.previous = this.decode(params.cursor);

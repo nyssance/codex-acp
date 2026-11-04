@@ -24,9 +24,6 @@
           ]
         }
       }
-    },
-    "alwith": {
-      "messageId": "<messageId>"
     }
   },
   "state": "idle",

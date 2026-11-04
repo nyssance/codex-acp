@@ -4,7 +4,6 @@ import { replayEntriesOfTurn, withReplayTurnMetadata } from "./ReplayHistory";
 import {
     hostThreadOptions,
     hostThreadSource,
-    seedHistory,
 } from "./alwith/hostSession";
 import { ResponsesRoutes } from "./alwith/codex/responsesRoutes";
 import { ProviderRouting } from "./alwith/agent/providers";
@@ -1221,7 +1220,6 @@ export class CodexAcpClient {
         request: WithAcpMcpServers<acp.NewSessionRequest>,
     ): Promise<SessionMetadata> {
         const tools = clientToolsOf(request._meta);
-        const seed = seedHistory(request._meta);
         const instructions = await this.resolveSessionInstructions(
             request,
             undefined,
@@ -1269,17 +1267,6 @@ export class CodexAcpClient {
             ...(developerInstructions !== undefined && {developerInstructions}),
         });
 
-        if (seed.length > 0) {
-            try {
-                await this.codexClient.connection.sendRequest(
-                    "thread/inject_items",
-                    { threadId: response.thread.id, items: seed },
-                );
-            } catch (error) {
-                await this.closeSession(response.thread.id);
-                throw error;
-            }
-        }
         if (route.catalog) this.catalogSessions.add(response.thread.id);
         const codexModels = await this.fetchAvailableModels();
         if (codexModels.length === 0 && !this.isNarrowedByGateway()) {

@@ -34,7 +34,6 @@ export interface SessionHistoryTurn {
     itemsView: Turn["itemsView"];
     updates: acp.SessionUpdate[];
     omissions: HistoryOmission[];
-    _meta?: { codex: { items: ThreadItem[] } };
 }
 export interface SessionHistoryResponse extends HistoryPage {
     turns: SessionHistoryTurn[];
@@ -46,7 +45,6 @@ export interface SessionHistoryItem {
     completedAtMs: number | null;
     updates: acp.SessionUpdate[];
     omissions: HistoryOmission[];
-    _meta?: { codex: { item: ThreadItem } };
 }
 export interface SessionHistoryItemsResponse extends HistoryPage {
     items: SessionHistoryItem[];
@@ -122,9 +120,6 @@ export async function readSessionHistory(
                                 : []),
                         ],
                         omissions: projections.flatMap((p) => p.omissions),
-                        ...(params.includeNative
-                            ? { _meta: { codex: { items: turn.items } } }
-                            : {}),
                     };
                 }),
             ),
@@ -160,11 +155,7 @@ export async function readSessionHistoryItems(
             codex.threadItemsList({
                 threadId: params.sessionId,
                 turnId: params.turnId ?? null,
-                cursor:
-                    read.after ??
-                    (params.anchorItemId
-                        ? { type: "item", itemId: params.anchorItemId }
-                        : null),
+                cursor: read.after,
                 limit,
                 sortDirection: read.direction,
             }),
@@ -184,9 +175,6 @@ export async function readSessionHistoryItems(
                         null,
                         signal,
                     )),
-                    ...(params.includeNative
-                        ? { _meta: { codex: { item: entry.item } } }
-                        : {}),
                 })),
             ),
         );
