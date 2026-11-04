@@ -1,4 +1,8 @@
 import { isRecord } from "./permissions/json";
+import {
+    questionReplyContent,
+    withQuestionReplyParts,
+} from "./alwith/codex/questionReplies";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {
@@ -99,6 +103,29 @@ export class AcpV2Connection {
         metadata?: acpV2.UpdateSessionNotification["_meta"],
     ): Promise<void> {
         for (let v2Update of toV2SessionUpdates(update)) {
+            if (
+                acpV2.SessionUpdate.isUserMessageChunk(v2Update) &&
+                acpV2.ContentBlock.isText(v2Update.content)
+            ) {
+                const content = questionReplyContent(v2Update.content.text);
+                if (content) {
+                    const meta = withQuestionReplyParts(
+                        content,
+                        v2Update._meta as Record<string, unknown> | undefined,
+                    );
+                    const reply: acpV2.SessionUpdate = {
+                        sessionUpdate: "user_message",
+                        messageId: v2Update.messageId,
+                        content,
+                        ...(meta ? { _meta: meta } : {}),
+                    };
+                    await this.client.notify(
+                        acpV2.methods.client.session.update,
+                        { sessionId, update: reply },
+                    );
+                    continue;
+                }
+            }
             const configRevision =
                 v2Update.sessionUpdate === "config_option_update"
                     ? this.configRevision?.(sessionId)

@@ -5,7 +5,7 @@ import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type { JsonValue } from "../../app-server/serde_json/JsonValue";
 import type { UserInput } from "../../app-server/v2";
-import { renderAsyncQuestionReply } from "../../CodexAsyncQuestions";
+import { questionReplyContent } from "./questionReplies";
 import { localImageContent } from "./userImages";
 
 export type JsonObject = { [key in string]?: JsonValue };
@@ -15,6 +15,7 @@ export function fromUserInput(input: UserInput): acp.ContentBlock[] {
     switch (input.type) {
         case "text":
             return (
+                questionReplyContent(input.text) ??
                 (input.text.length > 0
                     ? [
                           fileReference(input.text) ?? {
@@ -105,7 +106,9 @@ export function promptTitle(
 ): string | null {
     for (const block of prompt) {
         if (!acp.ContentBlock.isText(block)) continue;
-        const line = (renderAsyncQuestionReply(block.text) ?? block.text)
+        const replies = questionReplyContent(block.text);
+        if (replies) return promptTitle(replies);
+        const line = block.text
             .split(/\r?\n/)
             .map((part) => part.trim())
             .find((part) => part.length > 0);
