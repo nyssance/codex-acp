@@ -3361,7 +3361,7 @@ export class CodexAcpServer {
                 if (
                     detached.status === "unsubscribed" &&
                     !unloaded &&
-                    client.providerCatalog.mode === "catalog"
+                    client.providerCatalog.hasGateways
                 ) {
                     if (
                         (await settledWithin(unloadedReady, 10_000)) ===

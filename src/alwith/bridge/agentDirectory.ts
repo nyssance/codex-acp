@@ -1,6 +1,5 @@
 import type { ReasoningEffort } from "../../app-server/ReasoningEffort";
 import type { CollabAgentState, Thread, ThreadItem } from "../../app-server/v2";
-import { logger } from "../util/logger";
 
 type CollabItem = Extract<ThreadItem, { type: "collabAgentToolCall" }>;
 
@@ -17,21 +16,12 @@ export type CollabAgent = AgentIdentity & {
     state: CollabAgentState | null;
 };
 
-const UNKNOWN: AgentIdentity = {
-    nickname: null,
-    role: null,
-    model: null,
-    reasoningEffort: null,
-};
-
 /**
  * Collaboration items name receivers only by thread id; their nickname, role and model live on the
  * receiving thread. A spawned agent keeps those for life, so identities are cached by thread id.
  */
 export class AgentDirectory {
     private readonly identities = new Map<string, AgentIdentity>();
-    /** Receivers whose read failed are shown without identity and read again on their next frame. */
-    private readonly unreadable = new Set<string>();
 
     constructor(private readonly read: (threadId: string) => Promise<Thread>) {}
 
@@ -44,20 +34,10 @@ export class AgentDirectory {
         }
         await Promise.all(
             [...missing].map(async (threadId) => {
-                try {
-                    this.identities.set(
-                        threadId,
-                        identityOf(await this.read(threadId)),
-                    );
-                    this.unreadable.delete(threadId);
-                } catch (error) {
-                    logger.error(
-                        "could not read a collaborating agent's thread",
-                        error,
-                        { threadId },
-                    );
-                    this.unreadable.add(threadId);
-                }
+                this.identities.set(
+                    threadId,
+                    identityOf(await this.read(threadId)),
+                );
             }),
         );
     }
@@ -65,13 +45,13 @@ export class AgentDirectory {
     agents(item: CollabItem): CollabAgent[] {
         return receivers(item).map((threadId) => {
             const identity = this.identities.get(threadId);
-            if (!identity && !this.unreadable.has(threadId))
+            if (!identity)
                 throw new Error(
                     `Collaborating agent ${threadId} was not loaded`,
                 );
             return {
                 threadId,
-                ...(identity ?? UNKNOWN),
+                ...identity,
                 state: item.agentsStates[threadId] ?? null,
             };
         });

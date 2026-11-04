@@ -1,6 +1,6 @@
 import type { ReasoningEffort } from "../../app-server/ReasoningEffort";
 import type { AppServerClient } from "../codex/AppServerClient";
-import { logger } from "../util/logger";
+import { logger } from "../../Logger";
 import type { SessionUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 type ClientSession = { update(value: SessionUpdate): Promise<void> };
 
@@ -33,7 +33,7 @@ export class ComposerPredictions {
             lifetime,
             job,
             effort,
-        ).catch((error) => logger.error("prediction failed", error));
+        ).catch((error) => logger.error("Composer prediction failed", error));
     }
 
     private async generate(
@@ -46,7 +46,10 @@ export class ComposerPredictions {
     ): Promise<void> {
         const codex = this.codex.snapshot();
         const timeout = new AbortController();
-        const timer = setTimeout(() => timeout.abort(), 60_000);
+        const timer = setTimeout(
+            () => timeout.abort(new Error("Prediction timed out after 60 seconds")),
+            60_000,
+        );
         const signal = AbortSignal.any([
             job.signal,
             lifetime,
@@ -65,9 +68,8 @@ export class ComposerPredictions {
             }
         });
         let result:
-            { type: "completed"; text: string | null } | { type: "failed" } = {
-            type: "failed",
-        };
+            | { type: "completed"; text: string | null }
+            | { type: "failed"; message: string };
         try {
             signal.throwIfAborted();
             const fork = await codex.threadFork({
@@ -114,20 +116,16 @@ export class ComposerPredictions {
                 text: suggestion === null ? null : suggestion.trim() || null,
             };
         } catch (error) {
-            if (!signal.aborted)
-                logger.error("generating composer prediction failed", error);
+            result = {
+                type: "failed",
+                message: error instanceof Error ? error.message : String(error),
+            };
         } finally {
             clearTimeout(timer);
             stop();
-            if (forkId) {
-                // Unsubscribe also tears down any still-running ephemeral turn.
-                await codex
-                    .threadUnsubscribe({ threadId: forkId })
-                    .catch((error) =>
-                        logger.error("closing prediction thread failed", error),
-                    );
-            }
         }
+        // Unsubscribe also tears down any still-running ephemeral turn.
+        if (forkId) await codex.threadUnsubscribe({ threadId: forkId });
         const current = this.jobs.get(sessionId) === job;
         if (current) this.jobs.delete(sessionId);
         if (

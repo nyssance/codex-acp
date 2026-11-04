@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import {
     connectSession,
     codexResponse,
@@ -14,12 +17,37 @@ const clients: PromptSession[] = [];
 afterEach(() => {
     for (const client of clients.splice(0)) client.connection.close();
 });
+const catalogDirectory = mkdtempSync(join(tmpdir(), "codex-acp-catalog-"));
+afterAll(() => rmSync(catalogDirectory, { recursive: true, force: true }));
+function catalogFile(model: string): string {
+    const path = join(catalogDirectory, `${model}.json`);
+    writeFileSync(
+        path,
+        JSON.stringify({
+            models: [
+                {
+                    slug: model,
+                    supported_reasoning_levels: [
+                        { effort: "medium", description: "Medium" },
+                    ],
+                    default_reasoning_level: "medium",
+                },
+            ],
+        }),
+    );
+    return path;
+}
 const provider = (id: string, model: string) => ({
     providerId: "openai",
     apiType: "openai",
     baseUrl: `https://${id}.example/v1`,
     _meta: {
-        codex: { id, mode: "catalog", name: id },
+        codex: {
+            id,
+            mode: "catalog",
+            name: id,
+            config: { model_catalog_json: catalogFile(model) },
+        },
         alwith: { models: [{ id: model, label: model }] },
     },
 });
@@ -377,3 +405,48 @@ it.each([1, 2] as const)(
         );
     },
 );
+
+describe("ALwith providers/set validation", () => {
+    const invalid = async (change: (request: ReturnType<typeof provider>) => unknown) => {
+        const { client } = await connect();
+        const request = provider("one", "model-a");
+        const changed = change(request) ?? request;
+        await expect(client.request("providers/set", changed)).rejects.toThrow();
+        const listed = (await client.request("providers/list", {})) as {
+            providers: Array<{ _meta?: unknown }>;
+        };
+        expect(listed.providers[0]!._meta).toBeUndefined();
+    };
+
+    it("rejects a gateway without an id", () =>
+        invalid((request) => {
+            delete (request._meta.codex as { id?: string }).id;
+        }));
+
+    it("rejects a gateway without a name", () =>
+        invalid((request) => {
+            delete (request._meta.codex as { name?: string }).name;
+        }));
+
+    it("rejects a model without a label", () =>
+        invalid((request) => ({
+            ...request,
+            _meta: { ...request._meta, alwith: { models: [{ id: "model-a" }] } },
+        })));
+
+    it("rejects a model that neither the catalog file nor Codex describes", () =>
+        invalid((request) => ({
+            ...request,
+            _meta: {
+                ...request._meta,
+                alwith: { models: [{ id: "unknown-model", label: "Unknown" }] },
+            },
+        })));
+
+    it("rejects a catalog entry without a slug", () =>
+        invalid((request) => {
+            const path = join(catalogDirectory, "bad.json");
+            writeFileSync(path, JSON.stringify({ models: [{ supported_reasoning_levels: [] }] }));
+            request._meta.codex.config.model_catalog_json = path;
+        }));
+});

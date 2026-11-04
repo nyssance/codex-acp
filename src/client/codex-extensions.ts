@@ -207,7 +207,9 @@ type SessionMeta = Record<string, unknown> | null;
 
 export type ComposerPrediction = {
     sourceTurnId: string;
-    result: { type: "completed"; text: string | null } | { type: "failed" };
+    result:
+        | { type: "completed"; text: string | null }
+        | { type: "failed"; message: string };
 };
 
 export function composerPrediction(
@@ -228,8 +230,11 @@ export function composerPrediction(
     )
         throw new Error("Invalid composer prediction");
     const value = result as Record<string, unknown>;
-    if (value.type === "failed")
-        return { sourceTurnId, result: { type: "failed" } };
+    if (value.type === "failed" && typeof value.message === "string")
+        return {
+            sourceTurnId,
+            result: { type: "failed", message: value.message },
+        };
     if (
         value.type === "completed" &&
         (value.text === null || typeof value.text === "string")

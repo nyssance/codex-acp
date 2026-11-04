@@ -1575,7 +1575,7 @@ export class CodexAcpClient {
         mcpServers: Array<AcpMcpServer>,
         gatewayId: string | null = null,
         transportProvider: string | null = null,
-        catalog = this.providerCatalog.mode === "catalog",
+        catalog = this.providerCatalog.hasGateways,
     ): Promise<SessionConfig> {
         const sessionRoots = [projectPath, ...additionalDirectories];
         const activeProvider = this.gatewayConfig
@@ -1988,7 +1988,7 @@ export class CodexAcpClient {
     private nativeModel(selection: string, sessionId: string): string {
         return this.providerCatalog.nativeModel(
             selection,
-            this.providerCatalog.mode === "catalog" ||
+            this.providerCatalog.hasGateways ||
                 this.catalogSessions.has(sessionId),
         );
     }
@@ -2023,7 +2023,7 @@ export class CodexAcpClient {
             );
         }
         const catalog =
-            this.providerCatalog.mode === "catalog" ||
+            this.providerCatalog.hasGateways ||
             (request.sessionId !== undefined &&
                 this.catalogSessions.has(request.sessionId));
         const persisted =

@@ -11,8 +11,6 @@ import { isRecord } from "../permissions/json";
 
 /** The one provider slot Codex exposes: where its OpenAI-protocol traffic goes. */
 export const OPENAI_PROVIDER_ID = "openai";
-/** Default id of a gateway: the Codex `model_providers` entry it is written to and its select group. */
-export const GATEWAY_MODEL_PROVIDER = "custom-gateway";
 export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 /** Select group of the models Codex serves through the ChatGPT sign-in: named after the models, not the CLI. */
 export const NATIVE_GROUP_ID = "chatgpt";
@@ -21,14 +19,6 @@ const GATEWAY_ID_PATTERN = /^[a-z0-9-]+$/;
 export function gatewayModelId(connectionId: string, modelId: string): string {
     return `gateway:${encodeURIComponent(connectionId)}:${encodeURIComponent(modelId)}`;
 }
-
-/**
- * `route`: the gateway takes over Codex's OpenAI slot for every session (the original
- * behaviour). `catalog`: nothing is re-routed; the gateway's models are offered next to
- * Codex's in every session's `model` option and a session moves to the gateway only
- * when one of them is selected.
- */
-export type RoutingMode = "route" | "catalog";
 
 export interface GatewayModel {
     id: string;
@@ -66,7 +56,6 @@ export interface Gateway {
     bearerToken: string | null;
     /** Extra top-level Codex thread-config keys that ride along with the gateway (`_meta.codex.config`). */
     config: JsonObject;
-    mode: RoutingMode;
     /** Entries of `config.model_catalog_json`, keyed by slug, when the client pointed at one. */
     catalogEntries: Map<string, CatalogEntry>;
 }
@@ -76,7 +65,9 @@ export interface Gateway {
  *
  * Gateway credentials are applied per thread through `model_providers` and `modelProvider`.
  * The native connection layer keeps a separate app-server for each provider identity.
- * Route mode holds one gateway; catalog mode holds any number, each under its own id.
+ * Nothing is re-routed: each gateway's models are offered next to Codex's in every
+ * session's `model` option, and a session moves to a gateway only when one of them is
+ * selected. Global routing of Codex's OpenAI slot is upstream's `providers/set`.
  */
 export class ProviderRouting {
     private gateways = new Map<string, Gateway>();
@@ -95,7 +86,7 @@ export class ProviderRouting {
         return copy;
     }
 
-    /** The first registered gateway (the only one in route mode), or null. */
+    /** The first registered gateway, or null. */
     get active(): Gateway | null {
         return this.gateways.values().next().value ?? null;
     }
@@ -104,15 +95,24 @@ export class ProviderRouting {
         return id === null ? null : (this.gateways.get(id) ?? null);
     }
 
+    private requireGateway(id: string): Gateway {
+        const gateway = this.gateways.get(id);
+        if (gateway === undefined)
+            throw acp.RequestError.invalidParams(
+                { gatewayId: id },
+                `Gateway "${id}" is not registered`,
+            );
+        return gateway;
+    }
+
     hasGateway(id: string | null): boolean {
         return id !== null && this.gateways.has(id);
     }
 
     list(): acp.ListProvidersResponse {
-        // Catalog mode re-routes nothing by itself, so `current` stays native; the registered
+        // Gateways re-route nothing by themselves, so `current` stays native; the registered
         // gateways are reported under `_meta.codex` for clients that want to show them.
         const first = this.active;
-        const routed = first !== null && first.mode === "route";
         const summary = (gateway: Gateway) => ({
             id: gateway.id,
             name: gateway.name,
@@ -125,14 +125,11 @@ export class ProviderRouting {
                     providerId: OPENAI_PROVIDER_ID,
                     supported: ["openai"],
                     required: false,
-                    current:
-                        routed && first
-                            ? { apiType: "openai", baseUrl: first.baseUrl }
-                            : {
-                                  apiType: "openai",
-                                  baseUrl: this.nativeBaseUrl(),
-                              },
-                    ...(first && !routed
+                    current: {
+                        apiType: "openai",
+                        baseUrl: this.nativeBaseUrl(),
+                    },
+                    ...(first
                         ? {
                               _meta: {
                                   codex: {
@@ -181,36 +178,29 @@ export class ProviderRouting {
                 `_meta.codex.id "${hints.id}" is Codex's own provider; pick another gateway id`,
             );
         }
-        // Route mode owns the slot outright; a mode change replaces whatever was registered.
-        if (hints.mode === "route" || this.mode !== hints.mode)
-            this.gateways.clear();
         this.gateways.set(hints.id, {
             id: hints.id,
             baseUrl,
             headers: { ...(request.headers ?? {}) },
-            name: hints.name ?? "Client-configured gateway",
+            name: hints.name,
             models: hints.models,
             model: hints.model,
             bearerToken: hints.bearerToken,
             config: hints.config,
-            mode: hints.mode,
             catalogEntries: hints.catalogEntries,
         });
     }
 
-    get mode(): RoutingMode {
-        return this.active?.mode ?? "route";
+    get hasGateways(): boolean {
+        return this.gateways.size > 0;
     }
 
-    /** The gateway serving `modelId`, when one does (catalog mode). */
+    /** The gateway serving `modelId`, when one does. */
     gatewayFor(modelId: string): Gateway | null {
         for (const gateway of this.gateways.values()) {
             if (
                 gateway.models.some(
-                    (model) =>
-                        (this.mode === "catalog"
-                            ? gatewayModelId(gateway.id, model.id)
-                            : model.id) === modelId,
+                    (model) => gatewayModelId(gateway.id, model.id) === modelId,
                 )
             )
                 return gateway;
@@ -222,14 +212,13 @@ export class ProviderRouting {
         return this.gatewayFor(modelId)?.id ?? null;
     }
 
-    /** True when `modelId` is served by one of the gateways (catalog mode). */
+    /** True when `modelId` is served by one of the gateways. */
     isGatewayModel(modelId: string): boolean {
         return this.gatewayFor(modelId) !== null;
     }
 
     /** The select groups the gateways' models sit in, when they share a catalog with Codex's. */
     gatewayGroups(): GatewayGroup[] {
-        if (this.mode !== "catalog") return [];
         return [...this.gateways.values()]
             .filter((gateway) => gateway.models.length > 0)
             .map((gateway) => ({
@@ -249,14 +238,14 @@ export class ProviderRouting {
         if (modelId === null) return modelId;
         if (modelId.startsWith("native:"))
             return decodeURIComponent(modelId.slice("native:".length));
-        if (modelId.startsWith("gateway:") || this.mode !== "catalog")
+        if (modelId.startsWith("gateway:") || !this.hasGateways)
             return modelId;
         return this.hasGateway(provider)
             ? gatewayModelId(provider!, modelId)
             : modelId;
     }
 
-    nativeModel(selection: string, catalog = this.mode === "catalog"): string {
+    nativeModel(selection: string, catalog = this.hasGateways): string {
         return !catalog
             ? this.upstreamModel(selection)!
             : selection.startsWith("gateway:")
@@ -277,7 +266,6 @@ export class ProviderRouting {
     }
 
     modelAliases(): Array<{ id: string; upstream: string; catalog?: string }> {
-        if (this.mode !== "catalog") return [];
         return [...this.gateways.values()].flatMap((gateway) =>
             gateway.models.map((model) => ({
                 id: gatewayModelId(gateway.id, model.id),
@@ -315,29 +303,10 @@ export class ProviderRouting {
         else this.gateways.delete(id);
     }
 
-    /** Codex `modelProvider` for new and resumed threads that are not explicitly on a gateway. */
-    modelProvider(): string | null {
-        return this.defaultGatewayId() ?? this.configuredProvider;
-    }
-
-    /** Whether a thread opened now, with no model asked for, runs on the gateway. */
-    routesByDefault(): boolean {
-        return this.defaultGatewayId() !== null;
-    }
-
-    /** The gateway every thread runs on in route mode; null in catalog mode or with none registered. */
-    defaultGatewayId(): string | null {
-        const first = this.active;
-        return first !== null && first.mode === "route" ? first.id : null;
-    }
-
     /** Base thread config; with a gateway's overrides and `model_providers` entry when the thread runs on it. */
-    threadConfig(
-        gatewayId: string | null = this.defaultGatewayId(),
-    ): JsonObject {
-        const gateway = this.gateway(gatewayId);
-        if (!gateway) return this.baseConfig;
-        return this.applyGateway(this.baseConfig, gateway);
+    threadConfig(gatewayId: string | null): JsonObject {
+        if (gatewayId === null) return this.baseConfig;
+        return this.applyGateway(this.baseConfig, this.requireGateway(gatewayId));
     }
 
     /**
@@ -367,7 +336,7 @@ export class ProviderRouting {
     rebind(
         config: JsonObject,
         previous: ProviderRouting,
-        gatewayId: string | null = this.defaultGatewayId(),
+        gatewayId: string | null,
     ): JsonObject {
         const next: JsonObject = { ...config };
         for (const key of previous.overrideKeys()) {
@@ -379,8 +348,8 @@ export class ProviderRouting {
         delete next["model_providers"];
         if (isRecord(this.baseConfig["model_providers"]))
             next["model_providers"] = this.baseConfig["model_providers"];
-        const gateway = this.gateway(gatewayId);
-        return gateway ? this.applyGateway(next, gateway) : next;
+        if (gatewayId === null) return next;
+        return this.applyGateway(next, this.requireGateway(gatewayId));
     }
 
     private applyGateway(config: JsonObject, gateway: Gateway): JsonObject {
@@ -408,30 +377,16 @@ export class ProviderRouting {
     }
 
     /**
-     * The catalog a session should show. Route mode: the gateway's models when known, else
-     * Codex's. Catalog mode: Codex's models followed by every gateway's, in registration order.
+     * The catalog a session should show: Codex's models followed by every gateway's, in
+     * registration order.
      */
     catalog(codexCatalog: Model[]): Model[] {
-        const first = this.active;
-        if (first === null) return codexCatalog;
-        if (first.mode === "route") {
-            if (first.models.length === 0) return codexCatalog;
-            return first.models.map((model, index) =>
-                gatewayModel(
-                    model,
-                    index === 0,
-                    codexCatalog.find((entry) => entry.model === model.id),
-                    first.catalogEntries.get(model.id),
-                ),
-            );
-        }
         const own: Model[] = [];
         for (const gateway of this.gateways.values()) {
             for (const model of gateway.models)
                 own.push({
                     ...gatewayModel(
                         model,
-                        false,
                         codexCatalog.find((entry) => entry.model === model.id),
                         gateway.catalogEntries.get(model.id),
                     ),
@@ -464,36 +419,41 @@ function readHints(meta: unknown): {
     id: string;
     models: GatewayModel[];
     model: string | null;
-    name: string | null;
+    name: string;
     bearerToken: string | null;
     config: JsonObject;
-    mode: RoutingMode;
     catalogEntries: Map<string, CatalogEntry>;
 } {
     const root = isRecord(meta) ? meta : {};
     const alwith = isRecord(root["alwith"]) ? root["alwith"] : {};
     const codex = isRecord(root["codex"]) ? root["codex"] : {};
-    const id = readGatewayId(meta) ?? GATEWAY_MODEL_PROVIDER;
+    const id = readGatewayId(meta);
+    if (id === null)
+        throw acp.RequestError.invalidParams(
+            undefined,
+            "providers/set needs _meta.codex.id: the gateway id",
+        );
     const models: GatewayModel[] = [];
     if (Array.isArray(alwith["models"])) {
-        for (const entry of alwith["models"]) {
+        for (const [index, entry] of alwith["models"].entries()) {
             if (
                 !isRecord(entry) ||
                 typeof entry["id"] !== "string" ||
-                entry["id"].length === 0
+                entry["id"].length === 0 ||
+                typeof entry["label"] !== "string" ||
+                entry["label"].length === 0 ||
+                (entry["description"] !== undefined &&
+                    entry["description"] !== null &&
+                    typeof entry["description"] !== "string")
             )
-                continue;
+                throw acp.RequestError.invalidParams(
+                    { index, entry },
+                    "_meta.alwith.models entries need a non-empty id and label, and a string or null description",
+                );
             models.push({
                 id: entry["id"],
-                name:
-                    typeof entry["label"] === "string" &&
-                    entry["label"].length > 0
-                        ? entry["label"]
-                        : entry["id"],
-                description:
-                    typeof entry["description"] === "string"
-                        ? entry["description"]
-                        : null,
+                name: entry["label"],
+                description: entry["description"] ?? null,
             });
         }
     }
@@ -501,10 +461,12 @@ function readHints(meta: unknown): {
         typeof alwith["model"] === "string" && alwith["model"].length > 0
             ? alwith["model"]
             : null;
-    const name =
-        typeof codex["name"] === "string" && codex["name"].length > 0
-            ? codex["name"]
-            : null;
+    const name = codex["name"];
+    if (typeof name !== "string" || name.length === 0)
+        throw acp.RequestError.invalidParams(
+            { name },
+            "providers/set needs _meta.codex.name: the gateway's display name",
+        );
     const bearerToken =
         typeof codex["bearerToken"] === "string" &&
         codex["bearerToken"].length > 0
@@ -528,15 +490,7 @@ function readHints(meta: unknown): {
             config[key] = value as JsonObject[string];
         }
     }
-    const rawMode = codex["mode"];
-    if (rawMode !== undefined && rawMode !== "route" && rawMode !== "catalog") {
-        throw acp.RequestError.invalidParams(
-            { mode: rawMode },
-            '_meta.codex.mode must be "route" or "catalog"',
-        );
-    }
-    const mode: RoutingMode = rawMode === "catalog" ? "catalog" : "route";
-    if (mode === "catalog" && models.length === 0) {
+    if (models.length === 0) {
         throw acp.RequestError.invalidParams(
             undefined,
             '_meta.codex.mode "catalog" needs _meta.alwith.models: the models offered next to Codex\'s',
@@ -554,7 +508,6 @@ function readHints(meta: unknown): {
         name,
         bearerToken,
         config,
-        mode,
         catalogEntries,
     };
 }
@@ -608,29 +561,47 @@ function readCatalogFile(catalogPath: string): Map<string, CatalogEntry> {
             "model_catalog_json must be {models: [...]} as Codex expects",
         );
     const entries = new Map<string, CatalogEntry>();
-    for (const entry of models) {
-        if (!isRecord(entry) || typeof entry["slug"] !== "string") continue;
-        const levels = Array.isArray(entry["supported_reasoning_levels"])
-            ? entry["supported_reasoning_levels"]
-            : [];
-        const efforts: ReasoningEffortOption[] = [];
-        for (const level of levels) {
-            if (!isRecord(level) || typeof level["effort"] !== "string")
-                continue;
-            efforts.push({
+    const invalid = (index: number, reason: string) =>
+        acp.RequestError.invalidParams(
+            { model_catalog_json: catalogPath, index },
+            `model_catalog_json entry ${index} ${reason}`,
+        );
+    for (const [index, entry] of models.entries()) {
+        if (!isRecord(entry) || typeof entry["slug"] !== "string")
+            throw invalid(index, "needs a string slug");
+        const levels = entry["supported_reasoning_levels"];
+        if (!Array.isArray(levels))
+            throw invalid(index, "needs a supported_reasoning_levels array");
+        const efforts: ReasoningEffortOption[] = levels.map((level) => {
+            if (
+                !isRecord(level) ||
+                typeof level["effort"] !== "string" ||
+                typeof level["description"] !== "string"
+            )
+                throw invalid(
+                    index,
+                    "has a reasoning level without a string effort and description",
+                );
+            return {
                 reasoningEffort: level["effort"],
-                description:
-                    typeof level["description"] === "string"
-                        ? level["description"]
-                        : "",
-            });
+                description: level["description"],
+            };
+        });
+        const rawModalities = entry["input_modalities"];
+        let modalities: InputModality[] | null = null;
+        if (rawModalities !== undefined) {
+            if (
+                !Array.isArray(rawModalities) ||
+                !rawModalities.every(
+                    (value) => value === "text" || value === "image",
+                )
+            )
+                throw invalid(
+                    index,
+                    'needs input_modalities of "text" and "image" only',
+                );
+            modalities = rawModalities;
         }
-        const modalities = Array.isArray(entry["input_modalities"])
-            ? entry["input_modalities"].filter(
-                  (value): value is InputModality =>
-                      value === "text" || value === "image",
-              )
-            : null;
         entries.set(entry["slug"], {
             displayName:
                 typeof entry["display_name"] === "string"
@@ -654,15 +625,19 @@ function readCatalogFile(catalogPath: string): Map<string, CatalogEntry> {
 /** Synthesizes a Codex `Model` for a gateway model so the session catalog stays one shape. */
 function gatewayModel(
     model: GatewayModel,
-    isDefault: boolean,
     template: Model | undefined,
     entry: CatalogEntry | undefined,
 ): Model {
-    const efforts = entry
-        ? entry.efforts
-        : (template?.supportedReasoningEfforts ?? []);
-    const defaultEffort =
-        entry?.defaultEffort ?? template?.defaultReasoningEffort ?? "medium";
+    if (entry === undefined && template === undefined)
+        throw acp.RequestError.invalidParams(
+            { model: model.id },
+            `Gateway model "${model.id}" is neither in the gateway's model_catalog_json nor a Codex model`,
+        );
+    // Mirrors Codex's ModelInfo -> ModelPreset conversion for catalog entries.
+    const efforts = entry ? entry.efforts : template!.supportedReasoningEfforts;
+    const defaultEffort = entry
+        ? (entry.defaultEffort ?? "none")
+        : template!.defaultReasoningEffort;
     return {
         id: model.id,
         model: model.id,
@@ -673,18 +648,22 @@ function gatewayModel(
             model.name !== model.id
                 ? model.name
                 : (entry?.displayName ?? model.name),
-        description: model.description ?? entry?.description ?? "",
+        description:
+            model.description ??
+            (entry ? (entry.description ?? "") : template!.description),
         modelSpecialty: null,
         hidden: false,
         supportedReasoningEfforts: efforts,
         defaultReasoningEffort: defaultEffort,
-        inputModalities: entry?.inputModalities ?? ["text", "image"],
+        inputModalities: entry
+            ? (entry.inputModalities ?? ["text", "image"])
+            : template!.inputModalities,
         supportsPersonality: false,
         multiAgentVersion: null,
         additionalSpeedTiers: [],
         serviceTiers: [],
         defaultServiceTier: null,
         availableAccessPrograms: null,
-        isDefault,
+        isDefault: false,
     };
 }
