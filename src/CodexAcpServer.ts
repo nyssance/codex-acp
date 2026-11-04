@@ -2764,17 +2764,19 @@ export class CodexAcpServer {
                 ),
             };
         }
+        let response: acp.ListSessionsResponse;
         if (this.protocolVersion === 2) {
-            return this.runWithProcessCheck(() =>
+            response = await this.runWithProcessCheck(() =>
                 readSessionList(
                     this.codexAcpClient.appServerClient,
                     params,
                     false,
                 ),
             );
+        } else {
+            await this.checkAuthorization();
+            response = await this.runWithProcessCheck(() => this.codexAcpClient.listSessions(params));
         }
-        await this.checkAuthorization();
-        const response = await this.runWithProcessCheck(() => this.codexAcpClient.listSessions(params));
         return {
             ...response,
             sessions: response.sessions.filter(session => !this.isRestrictedChild(session.sessionId)).map((session) => {
