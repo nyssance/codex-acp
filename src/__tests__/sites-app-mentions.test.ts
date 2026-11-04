@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { toUserInput } from "../alwith/codex/sessionConfig";
+import { buildPromptItems } from "../CodexAcpClient";
 
 test("app references are native mentions; ordinary file links remain text", () => {
-    const result = toUserInput([
+    const result = buildPromptItems([
         { type: "resource_link", name: "Sites", uri: "app://connector_sites" },
         { type: "resource_link", name: "notes", uri: "file:///tmp/notes" },
     ]);

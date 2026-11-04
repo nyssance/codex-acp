@@ -11,7 +11,6 @@ import { fromUserInput, fromUserMessage } from "../codex/sessionConfig";
 import { hydrateUserImages, localImageContent } from "../codex/userImages";
 import {
     type CommandReceipt,
-    isInternalPlanMessageId,
 } from "./commandReceipts";
 
 export interface HistoryOmission {
@@ -100,33 +99,24 @@ export async function projectHistoryItem(
     const omissions: HistoryOmission[] = [];
     let updates: acp.SessionUpdate[];
     if (item.type === "userMessage") {
-        if (isInternalPlanMessageId(item.clientId)) {
-            updates = [];
-            omissions.push({
-                itemId: item.id,
-                field: "*",
-                reason: "internal_command",
-            });
-        } else {
-            updates = [
-                {
-                    sessionUpdate: "user_message",
-                    messageId: command?.messageId ?? item.clientId ?? item.id,
-                    content:
-                        command?.content ??
-                        (await hydrateUserImages(
-                            fromUserMessage(item.content, (input) =>
-                                input.type === "text"
-                                    ? (questionReplyContent(input.text) ?? [
-                                          inputBlock(input),
-                                      ])
-                                    : [inputBlock(input)],
-                            ),
-                            signal,
-                        )),
-                },
-            ];
-        }
+        updates = [
+            {
+                sessionUpdate: "user_message",
+                messageId: command?.messageId ?? item.clientId ?? item.id,
+                content:
+                    command?.content ??
+                    (await hydrateUserImages(
+                        fromUserMessage(item.content, (input) =>
+                            input.type === "text"
+                                ? (questionReplyContent(input.text) ?? [
+                                      inputBlock(input),
+                                  ])
+                                : [inputBlock(input)],
+                        ),
+                        signal,
+                    )),
+            },
+        ];
     } else {
         updates = itemSnapshot(item, agents);
         if (!updates.length)

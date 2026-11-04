@@ -2273,7 +2273,7 @@ export type SessionConfig = {
     permissionProfiles?: PermissionProfileSummary[],
 }
 
-function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
+export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
     return prompt
         .map((block): UserInput | null => {
             switch (block.type) {

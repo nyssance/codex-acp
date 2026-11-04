@@ -19,16 +19,6 @@ export interface CommandHistoryGuard {
     id: string;
 }
 
-const INTERNAL_PLAN_PREFIX = "codex-acp-internal-plan:";
-
-export function internalPlanMessageId(): string {
-    return `${INTERNAL_PLAN_PREFIX}${randomUUID()}`;
-}
-
-export function isInternalPlanMessageId(messageId: string | null): boolean {
-    return messageId?.startsWith(INTERNAL_PLAN_PREFIX) ?? false;
-}
-
 /** A native user item ID survives resume and fork, unlike an in-memory command echo. */
 export class CommandReceipts {
     private readonly memory = new Map<string, CommandReceipt>();

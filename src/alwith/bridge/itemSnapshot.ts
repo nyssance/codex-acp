@@ -2,7 +2,6 @@ import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import {
     type CommandReceipt,
-    isInternalPlanMessageId,
 } from "../agent/commandReceipts";
 import type { ThreadItem } from "../../app-server/v2";
 import { fromUserMessage } from "../codex/sessionConfig";
@@ -18,7 +17,6 @@ export function itemSnapshot(
 ): acp.SessionUpdate[] {
     switch (item.type) {
         case "userMessage": {
-            if (isInternalPlanMessageId(item.clientId)) return [];
             if (command)
                 return [
                     {

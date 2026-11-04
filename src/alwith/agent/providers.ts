@@ -16,7 +16,6 @@ export const GATEWAY_MODEL_PROVIDER = "custom-gateway";
 export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 /** Select group of the models Codex serves through the ChatGPT sign-in: named after the models, not the CLI. */
 export const NATIVE_GROUP_ID = "chatgpt";
-export const NATIVE_GROUP_NAME = "ChatGPT";
 const GATEWAY_ID_PATTERN = /^[a-z0-9-]+$/;
 
 export function gatewayModelId(connectionId: string, modelId: string): string {

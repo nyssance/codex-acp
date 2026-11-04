@@ -3,21 +3,11 @@ import path from "node:path";
 
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type {
-    FuzzyFileSearchSessionCompletedNotification,
-    FuzzyFileSearchSessionUpdatedNotification,
-} from "../../app-server";
 import type { JsonValue } from "../../app-server/serde_json/JsonValue";
 import type {
     CollabAgentToolCallStatus,
-    CommandAction,
     CommandExecutionStatus,
     DynamicToolCallStatus,
-    GuardianApprovalReview,
-    GuardianApprovalReviewAction,
-    GuardianApprovalReviewStatus,
-    ItemGuardianApprovalReviewCompletedNotification,
-    ItemGuardianApprovalReviewStartedNotification,
     McpToolCallError,
     McpToolCallResult,
     McpToolCallStatus,
@@ -76,10 +66,6 @@ export function toAcpStatus(status: CodexStatus): acp.ToolCallStatus {
     }
 }
 
-export function toolCallCancelled(toolCallId: string): ToolCallFrame {
-    return frame({ toolCallId, status: "cancelled" });
-}
-
 function frame(fields: acp.ToolCallUpdate): ToolCallFrame {
     return { sessionUpdate: "tool_call_update", ...fields };
 }
@@ -99,23 +85,6 @@ export function fileChangeStarted(item: Item<"fileChange">): ToolCallFrame {
         status: toAcpStatus(item.status),
         content: item.changes.map(diffContent),
         locations: changePaths(item.changes).map((p) => ({ path: p })),
-    });
-}
-
-export function fileChangePatched(item: Item<"fileChange">): ToolCallFrame {
-    return frame({
-        toolCallId: item.id,
-        title: fileChangeTitle(item),
-        content: item.changes.map(diffContent),
-        locations: changePaths(item.changes).map((p) => ({ path: p })),
-    });
-}
-
-export function fileChangeCompleted(item: Item<"fileChange">): ToolCallFrame {
-    return frame({
-        toolCallId: item.id,
-        status: toAcpStatus(item.status),
-        content: item.changes.map(diffContent),
     });
 }
 
@@ -245,21 +214,6 @@ export function commandCompleted(
     });
 }
 
-export function commandActionPaths(
-    actions: readonly CommandAction[] | null | undefined,
-): string[] {
-    const paths: string[] = [];
-    for (const action of actions ?? []) {
-        if (action.type === "read") paths.push(action.path);
-        else if (
-            (action.type === "search" || action.type === "listFiles") &&
-            action.path
-        )
-            paths.push(action.path);
-    }
-    return [...new Set(paths)];
-}
-
 export function searchTitle(
     query: string | null,
     searchPath: string | null,
@@ -284,25 +238,6 @@ export function mcpToolCallStarted(item: Item<"mcpToolCall">): ToolCallFrame {
             ? {}
             : { rawOutput: mcpRawOutput(item) }),
         _meta: { codex: { mcp: { server: item.server, tool: item.tool } } },
-    });
-}
-
-export function mcpToolCallCompleted(item: Item<"mcpToolCall">): ToolCallFrame {
-    return frame({
-        toolCallId: item.id,
-        status: toAcpStatus(item.status),
-        rawOutput: mcpRawOutput(item),
-        ...(item.error ? { content: [textContent(item.error.message)] } : {}),
-    });
-}
-
-export function mcpToolCallProgress(
-    itemId: string,
-    message: string,
-): ToolCallFrame {
-    return frame({
-        toolCallId: itemId,
-        content: [textContent(message.trim())],
     });
 }
 
@@ -361,18 +296,6 @@ export function webSearchStarted(item: Item<"webSearch">): ToolCallFrame {
         kind: "fetch",
         status: "in_progress",
         rawInput: { query: item.query, action: item.action },
-    });
-}
-
-export function webSearchCompleted(item: Item<"webSearch">): ToolCallFrame {
-    return frame({
-        toolCallId: item.id,
-        title: webSearchTitle(item),
-        status: "completed",
-        rawInput: { query: item.query, action: item.action },
-        ...(item.results === null
-            ? {}
-            : { rawOutput: { results: item.results } }),
     });
 }
 
@@ -611,135 +534,10 @@ export function fuzzySearchToolCallId(searchSessionId: string): string {
     return `fuzzy-file-search:${searchSessionId}`;
 }
 
-export function fuzzySearchUpdated(
-    event: FuzzyFileSearchSessionUpdatedNotification,
-    create: boolean,
-): ToolCallFrame {
-    return frame({
-        toolCallId: fuzzySearchToolCallId(event.sessionId),
-        ...(create ? { name: ToolName.FuzzySearch, kind: "search" } : {}),
-        title: searchTitle(event.query, null),
-        status: "in_progress",
-        locations: event.files.map((file) => ({
-            path: path.isAbsolute(file.path)
-                ? file.path
-                : path.join(file.root, file.path),
-        })),
-        rawInput: { query: event.query },
-    });
-}
-
-export function fuzzySearchCompleted(
-    event: FuzzyFileSearchSessionCompletedNotification,
-    create = false,
-): ToolCallFrame {
-    return frame({
-        toolCallId: fuzzySearchToolCallId(event.sessionId),
-        ...(create
-            ? {
-                  name: ToolName.FuzzySearch,
-                  title: "File search",
-                  kind: "search",
-              }
-            : {}),
-        status: "completed",
-    });
-}
-
 // ---- guardian review -----------------------------------------------------------
-
-type GuardianReviewEvent =
-    | ItemGuardianApprovalReviewStartedNotification
-    | ItemGuardianApprovalReviewCompletedNotification;
 
 export function guardianReviewToolCallId(reviewId: string): string {
     return `guardian-review:${reviewId}`;
 }
 
-export function guardianReview(
-    event: GuardianReviewEvent,
-    create: boolean,
-): ToolCallFrame {
-    return frame({
-        toolCallId: guardianReviewToolCallId(event.reviewId),
-        ...(create
-            ? {
-                  name: ToolName.GuardianReview,
-                  title: "Guardian review",
-                  kind: "think",
-              }
-            : {}),
-        status: guardianStatus(event.review.status),
-        content: [textContent(guardianReviewText(event.review, event.action))],
-        rawOutput: event,
-    });
-}
-
-function guardianStatus(
-    status: GuardianApprovalReviewStatus,
-): acp.ToolCallStatus {
-    switch (status) {
-        case "inProgress":
-            return "in_progress";
-        case "approved":
-            return "completed";
-        case "denied":
-        case "aborted":
-        case "timedOut":
-            return "failed";
-    }
-}
-
-function guardianReviewText(
-    review: GuardianApprovalReview,
-    action: GuardianApprovalReviewAction,
-): string {
-    const lines = [`Status: ${review.status}`];
-    const summary = guardianActionSummary(action);
-    if (summary) lines.push(`Action: ${summary}`);
-    if (review.riskLevel) lines.push(`Risk: ${review.riskLevel}`);
-    if (review.userAuthorization)
-        lines.push(`Authorization: ${review.userAuthorization}`);
-    if (review.rationale?.trim()) lines.push(`Rationale: ${review.rationale}`);
-    return lines.join("\n");
-}
-
-function guardianActionSummary(
-    action: GuardianApprovalReviewAction,
-): string | null {
-    switch (action.type) {
-        case "command":
-            return `${action.source} ${action.command}`;
-        case "execve":
-            return `${action.source} ${(action.argv.length > 0 ? action.argv : [action.program]).join(" ")}`;
-        case "applyPatch":
-            return action.files.length === 1
-                ? `apply_patch touching ${action.files[0]}`
-                : `apply_patch touching ${action.files.length} files`;
-        case "networkAccess":
-            return `network access to ${action.target.length > 0 ? action.target : action.host}`;
-        case "writeStdin":
-            return `write stdin to process ${action.processId}`;
-        case "mcpToolCall":
-            return `MCP ${action.toolName} on ${action.connectorName ?? action.server}`;
-        case "requestPermissions":
-            return action.reason ?? "request additional permissions";
-    }
-}
-
 // ---- MCP startup ------------------------------------------------------------------
-
-export function mcpStartupFailed(
-    serverName: string,
-    message: string,
-): ToolCallFrame {
-    return frame({
-        toolCallId: `mcp-startup:${encodeURIComponent(serverName)}`,
-        name: ToolName.McpStartup,
-        title: `Start MCP server ${serverName}`,
-        kind: "other",
-        status: "failed",
-        content: [textContent(message)],
-        rawInput: { server: serverName },
-    });
-}

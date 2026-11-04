@@ -15,38 +15,6 @@ export function usesTerminal(item: CommandExecutionItem): boolean {
     return action === undefined || action.type === "unknown";
 }
 
-export function terminalStarted(item: CommandExecutionItem): acp.SessionUpdate {
-    return {
-        sessionUpdate: "terminal_update",
-        terminalId: item.id,
-        command: item.command,
-        cwd: item.cwd,
-    };
-}
-
-export function terminalOutputChunk(
-    terminalId: string,
-    data: string,
-): acp.SessionUpdate {
-    return {
-        sessionUpdate: "terminal_output_chunk",
-        terminalId,
-        data: encode(data),
-    };
-}
-
-/** Final state: the aggregated output is an authoritative snapshot, so clients that missed chunks still converge. */
-export function terminalExited(item: CommandExecutionItem): acp.SessionUpdate {
-    return {
-        sessionUpdate: "terminal_update",
-        terminalId: item.id,
-        ...(item.aggregatedOutput === null
-            ? {}
-            : { output: { data: encode(item.aggregatedOutput) } }),
-        exitStatus: { exitCode: item.exitCode, signal: null },
-    };
-}
-
 /** Whole-terminal snapshot for history replay: command, full output, and exit status in one frame. */
 export function terminalSnapshot(
     item: CommandExecutionItem,
