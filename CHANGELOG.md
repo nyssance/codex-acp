@@ -1,3 +1,12 @@
+## 0.7.55 (2026-11-04)
+
+- Filter restricted subagent sessions from the ACP v2 `session/list` and overlay their `additionalDirectories`, as the other list paths do.
+- Send `useStateDbOnly` with `thread/list`, matching upstream.
+- ACP v1 session responses no longer carry `_meta.codex` lineage, matching upstream; v2 keeps it.
+- Remove fork copies of upstream helpers and the unused `CodexImportClient.detect` and `readHistories` wrappers.
+- `codexExtensionCapabilities` also reports `providerCatalog`, `realtime` and `sessionHistory`; `supportsCodexRealtime` takes the initialize response.
+- Document every fork-only method, its native counterpart and consumer in `docs/ALWITH-MIGRATION.md`.
+
 ## 0.7.54 (2026-11-04)
 
 - Replace `_codex/session_rename`, `_codex/session_archive`, `_codex/session_unarchive` and `_meta.codex.archived` with the standard ACP `session/set_title`, `session/archive`, `session/unarchive` and the `session/list` `archived` filter.
