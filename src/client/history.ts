@@ -101,7 +101,9 @@ export async function exportConversation(
                 if (type === null) continue;
                 if (typeof update.messageId !== "string")
                     throw new Error("Invalid history message");
-                const blocks = update.sessionUpdate.endsWith("_chunk")
+                const blocks =
+                    update.sessionUpdate === "user_message_chunk" ||
+                    update.sessionUpdate === "agent_message_chunk"
                     ? [update.content]
                     : update.content;
                 if (!Array.isArray(blocks))

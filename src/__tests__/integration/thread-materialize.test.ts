@@ -17,15 +17,16 @@ describeIntegration("integration: rollout of a thread without turns", () => {
         const codex = startCodexConnection(path.resolve("node_modules/.bin/codex"), {...process.env, CODEX_HOME: home});
         const request = <T>(method: string, params: unknown) =>
             codex.connection.sendRequest(method, params) as Promise<T>;
+        // Codex reports notLoaded before teardown ends; thread/closed is sent once a resume can load it.
         const unloaded = async (threadId: string) => {
             const closed = new Promise<void>((resolve) => {
                 const listener = codex.connection.onNotification(
-                    "thread/status/changed",
-                    (params: {threadId: string; status: {type: string}}) => {
-                    if (params.threadId !== threadId || params.status.type !== "notLoaded") return;
-                    listener.dispose();
-                    resolve();
-                },
+                    "thread/closed",
+                    (params: {threadId: string}) => {
+                        if (params.threadId !== threadId) return;
+                        listener.dispose();
+                        resolve();
+                    },
                 );
             });
             await request("thread/unsubscribe", {threadId});
