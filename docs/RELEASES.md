@@ -21,7 +21,8 @@ Configure the package's npm Trusted Publisher once with:
 
 The workflow uses GitHub OIDC; do not add an npm token fallback. Binding is a
 registry-side setting and must be verified separately from the workflow file.
-Changing the binding requires npm account verification. 
+Changing the binding requires npm account verification.
+
 Update `package.json` and `bun.lock` together, choose an unused patch version
 newer than the published package, and review CI and the packed artifact before
 creating the release tag. Upstream release-please versions and preview
