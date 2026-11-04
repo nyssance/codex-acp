@@ -376,7 +376,9 @@ function createRouter(
         )
         // No `session/set_mode`: v2 removed the modes API; modes are config options.
         .onRequest(acpV2.methods.agent.session.setConfigOption, (ctx) => getAgent(ctx.params).setSessionConfigOptionV2(ctx.params))
-        .onRequest(acpV2.methods.agent.session.setTitle, (ctx) => getAgent(ctx.params).sessionIndex.setTitle(ctx.params))
+        .onRequest(acpV2.methods.agent.session.setTitle, (ctx) => getAgent(ctx.params).setSessionTitle(ctx.params))
+        .onRequest(acpV2.methods.agent.session.archive, (ctx) => getAgent(ctx.params).setSessionArchived(ctx.params, true))
+        .onRequest(acpV2.methods.agent.session.unarchive, (ctx) => getAgent(ctx.params).setSessionArchived(ctx.params, false))
         // The v1-only `authentication/status|logout` extensions are not registered on v2.
         .onRequest(acpV2.methods.agent.auth.login, (ctx) =>
             getAgent().authenticateV2(ctx.params, ctx.requestId, ctx.signal),

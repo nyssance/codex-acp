@@ -51,9 +51,6 @@ export const ALWITH_METHODS = [
     "_codex/session_list",
     "_codex/session_prediction_request",
     "_codex/session_retry",
-    "_codex/session_archive",
-    "_codex/session_unarchive",
-    "_codex/session_rename",
 ] as const;
 const MUTATIONS = new Set([
     "_codex/skills_config_write",

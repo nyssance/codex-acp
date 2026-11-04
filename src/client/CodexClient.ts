@@ -355,10 +355,7 @@ export class CodexClient<
 
     protected override summaryOf(info: acp.SessionInfo): SessionSummary {
         const codex = info._meta?.codex;
-        const archived =
-            typeof codex === "object" &&
-            codex !== null &&
-            (codex as { archived?: unknown }).archived === true;
+        const archived = info.archived === true;
         const projectId =
             typeof codex === "object" && codex !== null
                 ? (codex as { projectId?: unknown }).projectId
@@ -411,7 +408,7 @@ export class CodexClient<
         );
         const response = await this.live().request("session/list", {
             ...(cursor ? { cursor } : {}),
-            _meta: { codex: { archived: true } },
+            archived: "only",
         });
         if (generation !== this.archivedGeneration) return;
         const page = response.sessions
@@ -1201,7 +1198,7 @@ export class CodexClient<
         await this.lifecycle.operations.delete(id, async () => {
             // Host access is revoked before the lifecycle changes; a failed revocation leaves the session as it was.
             await this.options.revokeSessionAccess?.(id);
-            await this.live().request("_codex/session_archive", {
+            await this.live().request("session/archive", {
                 sessionId: id,
             });
             this.dropSession(id);
@@ -1227,7 +1224,7 @@ export class CodexClient<
     }
 
     async unarchive(id: string): Promise<void> {
-        await this.live().request("_codex/session_unarchive", {
+        await this.live().request("session/unarchive", {
             sessionId: id,
         });
         this.set((state) => {
@@ -1254,20 +1251,20 @@ export class CodexClient<
         }));
     }
 
-    /** Codex `thread/name/set`; the list is patched at once, the `session_info_update` confirms it. */
+    /** `session/set_title`; the list is patched with the stored title at once, the `session_info_update` confirms it. */
     async renameSession(id: string, name: string): Promise<void> {
-        await this.live().request("_codex/session_rename", {
+        const { title } = await this.live().request("session/set_title", {
             sessionId: id,
-            name,
+            title: name,
         });
         const rename = (item: SessionSummary) =>
-            item.sessionId === id ? { ...item, title: name } : item;
+            item.sessionId === id ? { ...item, title } : item;
         this.set((state) => ({
             sessionList: state.sessionList.map(rename),
             archivedSessions: state.archivedSessions.map(rename),
         }));
         const session = this.sessions.sessions.get(id);
-        if (session) this.publishSession({ ...session, title: name });
+        if (session) this.publishSession({ ...session, title });
     }
 
     retrySession(

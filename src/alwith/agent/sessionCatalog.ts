@@ -4,6 +4,11 @@ import { nativeHistoryMetadata } from "./forkIndex";
 import { listedSessionTitle } from "../../SessionTitle";
 import { historyTitle } from "./historyTitle";
 const run = <T>(operation: () => Promise<T>): Promise<T> => operation();
+/**
+ * `session/list` and the full `_codex/session_list`, with the ACP `archived` filter. Codex lists
+ * archived and other threads separately; `include` reads the other threads, then the archive, and
+ * its cursor names which of the two the next page comes from.
+ */
 export async function readSessionList(
     client: CodexAppServerClient,
     params: acp.ListSessionsRequest,
@@ -22,10 +27,64 @@ export async function readSessionList(
             "Expected string cwd and cursor",
         );
     }
+    const filter = params.archived ?? "exclude";
+    if (filter !== "exclude" && filter !== "only" && filter !== "include")
+        throw acp.RequestError.invalidParams(
+            undefined,
+            "Expected archived to be exclude, include or only",
+        );
     const cwd = params.cwd?.trim() || null;
-    const archived =
-        (params._meta as { codex?: { archived?: unknown } } | undefined)?.codex
-            ?.archived === true;
+    const cursor = params.cursor ?? null;
+    if (filter !== "include")
+        return readListPage(client, cwd, cursor, all, filter === "only");
+    if (all) {
+        const current = await readListPage(client, cwd, null, true, false);
+        const archived = await readListPage(client, cwd, null, true, true);
+        return { sessions: [...current.sessions, ...archived.sessions] };
+    }
+    const position = cursor === null ? { archived: false, cursor: null } : decodeIncludeCursor(cursor);
+    const page = await readListPage(client, cwd, position.cursor, false, position.archived);
+    const next =
+        page.nextCursor != null
+            ? { archived: position.archived, cursor: page.nextCursor }
+            : position.archived
+              ? null
+              : { archived: true, cursor: null };
+    return {
+        sessions: page.sessions,
+        nextCursor:
+            next === null
+                ? null
+                : Buffer.from(JSON.stringify(next)).toString("base64url"),
+    };
+}
+
+function decodeIncludeCursor(raw: string): {
+    archived: boolean;
+    cursor: string | null;
+} {
+    let value: unknown;
+    try {
+        value = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    } catch {
+        throw acp.RequestError.invalidParams(undefined, "Invalid session list cursor");
+    }
+    const position = value as { archived?: unknown; cursor?: unknown } | null;
+    if (
+        typeof position?.archived !== "boolean" ||
+        (position.cursor !== null && typeof position.cursor !== "string")
+    )
+        throw acp.RequestError.invalidParams(undefined, "Invalid session list cursor");
+    return { archived: position.archived, cursor: position.cursor };
+}
+
+async function readListPage(
+    client: CodexAppServerClient,
+    cwd: string | null,
+    cursor: string | null,
+    all: boolean,
+    archived: boolean,
+): Promise<acp.ListSessionsResponse> {
     const list = (cursor: string | null) =>
         run(() =>
             client.threadList({
@@ -39,21 +98,21 @@ export async function readSessionList(
                 ...(archived ? { archived: true } : {}),
             }),
         );
-    const response = await list(params.cursor ?? null);
+    const response = await list(cursor);
     if (all) {
         const threads = new Map(
             response.data.map((thread) => [thread.id, thread]),
         );
         const cursors = new Set<string>();
         while (response.nextCursor !== null) {
-            const cursor = response.nextCursor;
-            if (cursors.has(cursor))
+            const pageCursor = response.nextCursor;
+            if (cursors.has(pageCursor))
                 throw acp.RequestError.internalError(
                     undefined,
                     "Codex thread list repeated a cursor",
                 );
-            cursors.add(cursor);
-            const page = await list(cursor);
+            cursors.add(pageCursor);
+            const page = await list(pageCursor);
             for (const thread of page.data) threads.set(thread.id, thread);
             response.nextCursor = page.nextCursor;
         }
@@ -80,23 +139,23 @@ export async function readSessionList(
     response.data = response.data.map(
         (thread) => byId.get(thread.id) ?? thread,
     );
-    if (!params.cursor) {
+    if (cursor === null) {
         const missing = new Map(byId);
         for (const thread of response.data) missing.delete(thread.id);
         // thread/read may hydrate a non-empty preview while the native list index still
         // excludes it. Check actual pages, not the hydrated preview; avoid duplicate rows.
-        let cursor = response.nextCursor;
+        let next = response.nextCursor;
         const cursors = new Set<string>();
-        while (missing.size > 0 && cursor !== null) {
-            if (cursors.has(cursor))
+        while (missing.size > 0 && next !== null) {
+            if (cursors.has(next))
                 throw acp.RequestError.internalError(
                     undefined,
                     "Codex thread list repeated a cursor",
                 );
-            cursors.add(cursor);
-            const page = await list(cursor);
+            cursors.add(next);
+            const page = await list(next);
             for (const thread of page.data) missing.delete(thread.id);
-            cursor = page.nextCursor;
+            next = page.nextCursor;
         }
         response.data.push(...missing.values());
     }
@@ -134,6 +193,7 @@ export async function readSessionList(
                         updatedAt: new Date(
                             thread.updatedAt * 1000,
                         ).toISOString(),
+                        archived,
                         _meta: {
                             codex: {
                                 projectId: thread.projectId ?? null,
@@ -145,7 +205,6 @@ export async function readSessionList(
                                               sources.get(thread.id)!,
                                       }
                                     : {}),
-                                archived,
                                 nativeSessionId: thread.sessionId,
                                 forkedFromId: thread.forkedFromId,
                             },

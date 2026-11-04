@@ -143,6 +143,7 @@ async function connectV2Client(options?: {
     permissionProfiles?: PermissionProfileSummary[];
     activePermissionProfileId?: string;
     defaultPermissionProfileId?: string;
+    threadList?: (params: { archived?: boolean; cursor: string | null }) => unknown;
 }) {
     const mocks = createMockConnections();
     const codexRequests: Array<{ method: string; params: unknown }> = [];
@@ -158,6 +159,10 @@ async function connectV2Client(options?: {
                 return options.listSkills(params as SkillsListParams);
             }
             if (method === "thread/read") await options?.beforeThreadRead?.();
+            if (method === "thread/list" && options?.threadList)
+                return options.threadList(
+                    params as { archived?: boolean; cursor: string | null },
+                );
             if (method === "permissionProfile/list") {
                 return {
                     data: options?.permissionProfiles ?? [],
@@ -554,6 +559,45 @@ describe('Session lifecycle over ACP v2', () => {
         await expect(dump({ response, codexRequests })).toMatchFileSnapshot(
             "data/session-lifecycle-v2-list.json",
         );
+    });
+
+    it("filters the list by archive state and pages through both lists for include", async () => {
+        const { connection } = await connectV2Client({
+            threadList: ({ archived, cursor }) =>
+                archived
+                    ? { data: [createThread({ id: "archived", sessionId: "archived" })], nextCursor: null }
+                    : cursor === null
+                      ? { data: [createThread({ id: "first", sessionId: "first" })], nextCursor: "more" }
+                      : { data: [createThread({ id: "second", sessionId: "second" })], nextCursor: null },
+        });
+        closeClient = () => connection.close();
+        const list = (params: Record<string, unknown>) =>
+            connection.agent.request(acpV2.methods.agent.session.list, { cwd, ...params });
+        const rows = (response: acpV2.ListSessionsResponse) =>
+            response.sessions.map((session) => [session.sessionId, session.archived]);
+
+        const only = await list({ archived: "only" });
+        expect(rows(only)).toEqual([["archived", true]]);
+        expect(only.nextCursor).toBeNull();
+
+        const pages: Array<Array<unknown>> = [];
+        let cursor: string | null | undefined = null;
+        do {
+            const page: acpV2.ListSessionsResponse = await list({
+                archived: "include",
+                ...(cursor ? { cursor } : {}),
+            });
+            pages.push(rows(page));
+            cursor = page.nextCursor;
+        } while (cursor);
+        expect(pages).toEqual([
+            [["first", false]],
+            [["second", false]],
+            [["archived", true]],
+        ]);
+
+        await expect(list({ archived: "everything" })).rejects.toMatchObject({ code: -32602 });
+        await expect(list({ archived: "include", cursor: "more" })).rejects.toMatchObject({ code: -32602 });
     });
 
     it("closes a session", async () => {
@@ -1133,17 +1177,19 @@ describe("ALwith read-only ownership", () => {
                     ),
                 ).rejects.toThrow("another Codex client");
                 for (const method of [
-                    "_codex/session_archive",
-                    "_codex/session_unarchive",
-                    "_codex/session_rename",
+                    acpV2.methods.agent.session.archive,
+                    acpV2.methods.agent.session.unarchive,
                 ]) {
                     await expect(
-                        client.agent().alwithRequest(method, {
-                            sessionId,
-                            name: "forbidden rename",
-                        }),
+                        client.connection.agent.request(method, { sessionId }),
                     ).rejects.toThrow("another Codex client");
                 }
+                await expect(
+                    client.connection.agent.request(
+                        acpV2.methods.agent.session.setTitle,
+                        { sessionId, title: "forbidden rename" },
+                    ),
+                ).rejects.toThrow("another Codex client");
                 expect(
                     client.codexRequests.some((request) =>
                         [

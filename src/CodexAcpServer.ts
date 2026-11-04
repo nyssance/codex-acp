@@ -1103,6 +1103,7 @@ export class CodexAcpServer {
                         http: {},
                     },
                     delete: {},
+                    archive: {},
                     additionalDirectories: {},
                     fork: {},
                     title: {},
@@ -1482,34 +1483,6 @@ export class CodexAcpServer {
                     : undefined,
             );
             return {};
-        }
-        if (
-            [
-                "_codex/session_archive",
-                "_codex/session_unarchive",
-                "_codex/session_rename",
-            ].includes(method)
-        ) {
-            const sessionId = params["sessionId"];
-            if (typeof sessionId !== "string" || !sessionId)
-                throw RequestError.invalidParams(
-                    undefined,
-                    "Expected sessionId",
-                );
-            this.assertSessionWritable(sessionId);
-            if (method === "_codex/session_rename") {
-                const title = params["name"];
-                if (typeof title !== "string")
-                    throw RequestError.invalidParams(
-                        undefined,
-                        "Expected name",
-                    );
-                return this.sessionIndex.renameSession(sessionId, title);
-            }
-            const archived = method === "_codex/session_archive";
-            return this.sessionIndex.archiveSession(sessionId, archived, {
-                codex: { archived },
-            });
         }
         return this.runWithProcessCheck(() =>
             this.alwith.request(method, params, signal),
@@ -2818,6 +2791,23 @@ export class CodexAcpServer {
                 };
             }),
         };
+    }
+
+    /** `session/set_title`; a thread that another Codex client holds is not renamed from here. */
+    async setSessionTitle(
+        params: acp.SetSessionTitleRequest,
+    ): Promise<acp.SetSessionTitleResponse> {
+        this.assertSessionWritable(params.sessionId);
+        return this.sessionIndex.setTitle(params);
+    }
+
+    /** `session/archive` and `session/unarchive`, which `_session/archive` of AIR shares. */
+    async setSessionArchived(
+        { sessionId }: { sessionId: string },
+        archived: boolean,
+    ): Promise<Record<string, never>> {
+        this.assertSessionWritable(sessionId);
+        return this.sessionIndex.archiveSession(sessionId, archived, {});
     }
 
     async closeSession(
