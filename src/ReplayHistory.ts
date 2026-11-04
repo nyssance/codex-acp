@@ -75,32 +75,50 @@ async function* flatten<T>(pages: AsyncIterable<T[]>): AsyncGenerator<T> {
     for await (const page of pages) yield* page;
 }
 
-/** Join two chronological, snapshot-bounded streams without collecting the transcript. */
+/**
+ * Join two chronological, snapshot-bounded streams without collecting the transcript. Items are
+ * in rollout order, so an item can belong to an earlier turn: a subagent that finishes during the
+ * next turn records its completion under the turn that started it.
+ */
 export async function* withReplayTurnMetadata(
     itemPages: AsyncIterable<ThreadItemEntry[]>,
     turnPages: AsyncIterable<Turn[]>,
 ): AsyncGenerator<ReplayEntry[]> {
-    const items = flatten(itemPages);
-    let next = await items.next();
+    const turns = flatten(turnPages);
+    const seen = new Map<string, Turn>();
+    const opened = new Set<string>();
+    let current: Turn | null = null;
     try {
-        for await (const turn of flatten(turnPages)) {
-            let openingUser = true;
-            while (!next.done && next.value.turnId === turn.id) {
-                const entry = next.value;
-                const isOpeningUser =
-                    openingUser && entry.item.type === "userMessage";
-                if (isOpeningUser) openingUser = false;
-                yield [{ ...entry, replayMeta: metadata(turn, isOpeningUser) }];
-                next = await items.next();
+        for await (const entry of flatten(itemPages)) {
+            let turn = seen.get(entry.turnId);
+            while (turn === undefined) {
+                if (current !== null) {
+                    const failure = failureEntry(current);
+                    if (failure.length > 0) yield failure;
+                }
+                const next = await turns.next();
+                if (next.done)
+                    throw new Error(
+                        `History item has no matching turn metadata: ${entry.turnId}`,
+                    );
+                current = next.value;
+                seen.set(current.id, current);
+                if (current.id === entry.turnId) turn = current;
             }
+            const isOpeningUser =
+                !opened.has(turn.id) && entry.item.type === "userMessage";
+            if (isOpeningUser) opened.add(turn.id);
+            yield [{ ...entry, replayMeta: metadata(turn, isOpeningUser) }];
+        }
+        if (current !== null) {
+            const failure = failureEntry(current);
+            if (failure.length > 0) yield failure;
+        }
+        for await (const turn of turns) {
             const failure = failureEntry(turn);
             if (failure.length > 0) yield failure;
         }
-        if (!next.done)
-            throw new Error(
-                `History item has no matching turn metadata: ${next.value.turnId}`,
-            );
     } finally {
-        await items.return(undefined);
+        await turns.return(undefined);
     }
 }

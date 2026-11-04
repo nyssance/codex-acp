@@ -104,3 +104,26 @@ it("rejects history whose entries have no corresponding turn instead of silently
         collect(withReplayTurnMetadata(pages([entry]), pages([]))),
     ).rejects.toThrow("no matching turn metadata: missing");
 });
+
+it("keeps an item that a turn records after the next turn started under its own turn", async () => {
+    const entry = (turnId: string, id: string): ThreadItemEntry => ({
+        turnId,
+        item: { type: "userMessage", id, clientId: null, content: [] },
+        startedAtMs: null,
+        completedAtMs: null,
+    });
+    const replay = await collect(
+        withReplayTurnMetadata(
+            pages([entry("first", "ask"), entry("second", "next"), entry("first", "late")]),
+            pages([turn("first"), turn("second", { startedAt: 20 })]),
+        ),
+    );
+    expect(replay.map((item) => [item.item.id, item.replayMeta?.["turnId"], item.replayMeta?.["messageSentAt"]])).toEqual([
+        ["ask", "first", 10000],
+        ["next", "second", 20000],
+        ["late", "first", undefined],
+    ]);
+    await expect(
+        collect(withReplayTurnMetadata(pages([entry("missing", "x")]), pages([turn("first")]))),
+    ).rejects.toThrow("History item has no matching turn metadata: missing");
+});
