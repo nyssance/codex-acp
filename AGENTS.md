@@ -11,6 +11,7 @@
 ## Coding Style
 
 - Use `bun lint` and `bun ts7-lint`.
+- Type-check only with `bun run check` (Bun's checker over all three configs: the agent, `tsconfig.client-check.json` and `examples/`). Never run `tsc`, `bunx tsc` or `bun run typecheck` for verification.
 - Formatting matches upstream (agentclientprotocol/codex-acp). Upstream has no formatter configuration, so this fork has none either: no `[fmt]` in `bunfig.toml`, no prettier, biome, or other formatter. Never run `bun fmt` or any formatter on this repository. Write new code in the style of the surrounding upstream code (4-space indent, `{a}` without inner spaces in imports and object literals, long lines rather than 80-column wrapping), so upstream merges conflict only on real changes.
 - When adding env/config knobs, document them in `readme-dev.md`.
 - The adapter serves ACP v1 and v2. A change that is not meant for one protocol version only must work correctly in both.
