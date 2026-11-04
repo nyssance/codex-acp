@@ -1,6 +1,7 @@
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type { JsonValue } from "../../app-server/serde_json/JsonValue";
+import { isRecord as record } from "../../permissions/json";
 import type {
     DynamicToolCallResponse,
     DynamicToolSpec,
@@ -19,10 +20,6 @@ export type ClientToolSet = {
 };
 const PREFIX = "alwith_client_";
 const MAX_RESULT_BYTES = 16 * 1024 * 1024;
-
-function record(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 export function clientToolsOf(meta: unknown): ClientToolSet | undefined {
     if (

@@ -88,18 +88,6 @@ function toFileUri(value: string): string {
     return value.startsWith("file://") ? value : pathToFileURL(value).href;
 }
 
-export function formatUriAsLink(
-    name: string | null | undefined,
-    uri: string,
-): string {
-    if (name && name.length > 0) return `[@${name}](${uri})`;
-    if (uri.startsWith("file://")) {
-        const filePath = uri.slice("file://".length);
-        return `[@${filePath.split("/").pop() ?? filePath}](${uri})`;
-    }
-    return uri;
-}
-
 /** First line of the first text block, used as a session title until Codex names the thread. */
 export function promptTitle(
     prompt: readonly acp.ContentBlock[],

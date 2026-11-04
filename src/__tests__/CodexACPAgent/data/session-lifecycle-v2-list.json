@@ -31,7 +31,8 @@
           "appServer",
           "unknown"
         ],
-        "modelProviders": []
+        "modelProviders": [],
+        "useStateDbOnly": true
       }
     }
   ]

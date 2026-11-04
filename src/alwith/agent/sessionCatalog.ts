@@ -2,7 +2,6 @@ import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type { CodexAppServerClient } from "../../CodexAppServerClient";
 import { nativeHistoryMetadata } from "./forkIndex";
 import { sessionTitle } from "./historyTitle";
-const run = <T>(operation: () => Promise<T>): Promise<T> => operation();
 /**
  * `session/list` and the full `_codex/session_list`, with the ACP `archived` filter. Codex lists
  * archived and other threads separately; `include` reads the other threads, then the archive, and
@@ -85,18 +84,17 @@ async function readListPage(
     archived: boolean,
 ): Promise<acp.ListSessionsResponse> {
     const list = (cursor: string | null) =>
-        run(() =>
-            client.threadList({
-                cursor,
-                ...(all ? { limit: 100 } : {}),
-                ...(cwd ? { cwd } : {}),
-                sourceKinds: ["cli", "vscode", "exec", "appServer", "unknown"],
-                // Omitting this lets Codex hide threads created through another gateway.
-                modelProviders: [],
-                // Codex lists non-archived threads by default; the archive is a separate page.
-                ...(archived ? { archived: true } : {}),
-            }),
-        );
+        client.threadList({
+            cursor,
+            ...(all ? { limit: 100 } : {}),
+            ...(cwd ? { cwd } : {}),
+            sourceKinds: ["cli", "vscode", "exec", "appServer", "unknown"],
+            // Omitting this lets Codex hide threads created through another gateway.
+            modelProviders: [],
+            // Codex lists non-archived threads by default; the archive is a separate page.
+            ...(archived ? { archived: true } : {}),
+            useStateDbOnly: true,
+        });
     const response = await list(cursor);
     if (all) {
         const threads = new Map(
@@ -123,15 +121,13 @@ async function readListPage(
             undefined,
             "Codex home is unavailable after initialize",
         );
-    const { forks, sources } = await run(() =>
-        nativeHistoryMetadata(
-            home,
-            archived,
-            cwd,
-            async (id) =>
-                (await client.threadRead({ threadId: id, includeTurns: false }))
-                    .thread,
-        ),
+    const { forks, sources } = await nativeHistoryMetadata(
+        home,
+        archived,
+        cwd,
+        async (id) =>
+            (await client.threadRead({ threadId: id, includeTurns: false }))
+                .thread,
     );
     const byId = new Map(forks.map((thread) => [thread.id, thread]));
     // Native list rows can lose forkedFromId after unload; thread/read retains the rollout lineage.

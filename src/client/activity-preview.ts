@@ -3,6 +3,7 @@ import {
     SessionUpdate,
 } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import { type Item, textOf } from "./protocol";
+import { wireObject } from "./wire";
 
 export function latestAssistantReply(
     items: readonly Item[] | undefined,
@@ -17,11 +18,7 @@ export function latestAssistantReply(
     return undefined;
 }
 
-function object(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== "object" || Array.isArray(value))
-        throw new Error("Invalid activity preview");
-    return value as Record<string, unknown>;
-}
+const object = (value: unknown) => wireObject(value, "Invalid activity preview");
 
 /** Read newest items without resuming, marking read, or creating another transcript. */
 export async function readActivityReply(

@@ -5,7 +5,7 @@ import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type { Thread, Turn } from "../../app-server/v2";
 import type { AppServerClient } from "../codex/AppServerClient";
-import { abortable } from "../util/abort";
+import { withRequestCancellation } from "../../RequestCancellation";
 
 export interface HistoryParams {
     sessionId: string;
@@ -259,7 +259,7 @@ export class HistoryRead {
         check();
         try {
             const result = this.signal
-                ? await abortable(operation(), this.signal)
+                ? await withRequestCancellation(operation(), this.signal)
                 : await operation();
             check();
             return result;

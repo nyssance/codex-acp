@@ -1,5 +1,5 @@
 import type { Disposable, MessageConnection } from "vscode-jsonrpc/node";
-import { isRecord } from "./alwith/permissions/json";
+import { isRecord } from "./permissions/json";
 
 const registrations = new Set([
     "onRequest",

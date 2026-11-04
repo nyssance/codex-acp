@@ -18,6 +18,19 @@ export function configRevisionOf(
         : null;
 }
 
+/** The session setup a new, resume or fork response carries. ACP: omitted lists mean none. */
+export function sessionSetupOf(response: {
+    configOptions?: acp.SessionConfigOption[] | null;
+    availableCommands?: acp.AvailableCommand[] | null;
+    _meta?: unknown;
+}): Pick<Session, "configOptions" | "commands" | "configRevision"> {
+    return {
+        configOptions: response.configOptions ?? [],
+        commands: response.availableCommands ?? [],
+        configRevision: configRevisionOf(response),
+    };
+}
+
 /** Whether the agent numbers config revisions and checks `expectedConfigRevision` on prompts. */
 export function supportsConfigRevision(
     initialized: acp.InitializeResponse,

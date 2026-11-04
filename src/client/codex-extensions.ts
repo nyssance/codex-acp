@@ -57,6 +57,10 @@ export type CodexExtensionCapabilities = {
     rename: boolean;
     account: boolean;
     fuzzyFileSearch: boolean;
+    providerCatalog: boolean;
+    realtime: boolean;
+    /** `sessionHistory` version 2 with item pages, by mode. */
+    sessionHistory: { browse: boolean; export: boolean };
 };
 
 export function codexExtensionCapabilities(
@@ -80,7 +84,25 @@ export function codexExtensionCapabilities(
         rename: flags.rename === true,
         account: flags.account === true,
         fuzzyFileSearch: flags.fuzzyFileSearch === true,
+        providerCatalog: flags.providerCatalog === true,
+        realtime: versionOf(flags.realtime) === 1,
+        sessionHistory: {
+            browse: historyMode(flags.sessionHistory, "browse"),
+            export: historyMode(flags.sessionHistory, "export"),
+        },
     };
+}
+
+function versionOf(capability: unknown): unknown {
+    return typeof capability === "object" && capability !== null
+        ? (capability as { version?: unknown }).version
+        : undefined;
+}
+
+function historyMode(capability: unknown, mode: "browse" | "export"): boolean {
+    if (versionOf(capability) !== 2) return false;
+    const { items, modes } = capability as { items?: unknown; modes?: unknown };
+    return items === true && Array.isArray(modes) && modes.includes(mode);
 }
 
 export function codexTurnId(

@@ -22,7 +22,6 @@ import type {
     DynamicToolCallParams,
     DynamicToolCallResponse,
 } from "./app-server/v2";
-import { abortable } from "./alwith/util/abort";
 import { AlwithExtensions } from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {
@@ -610,7 +609,7 @@ export class CodexAcpServer {
                 }
             });
         try {
-            return await abortable(pending, signal);
+            return await withRequestCancellation(pending, signal);
         } catch (error) {
             if (signal.aborted) throw cancelled();
             throw error;
@@ -1242,7 +1241,7 @@ export class CodexAcpServer {
                 signal.throwIfAborted();
                 if (!prompt.currentTurn) {
                     const pending = this.pendingTurnStarts.get(params.threadId);
-                    if (pending) await abortable(pending.promise, signal);
+                    if (pending) await withRequestCancellation(pending.promise, signal);
                 }
                 const assertCurrent = () => {
                     signal.throwIfAborted();
@@ -1258,7 +1257,7 @@ export class CodexAcpServer {
                 };
                 assertCurrent();
                 if (session.agentMode.approvalPolicy !== "never") {
-                    const permission = await abortable(
+                    const permission = await withRequestCancellation(
                         this.connection.request<acp.RequestPermissionResponse>(
                             acp.methods.client.session.requestPermission,
                             {
@@ -1294,7 +1293,7 @@ export class CodexAcpServer {
                     }
                 }
                 assertCurrent();
-                const response = await abortable(
+                const response = await withRequestCancellation(
                     this.v2Connection!.request(
                         CLIENT_TOOLS_METHOD,
                         {
@@ -2839,13 +2838,6 @@ export class CodexAcpServer {
                         sessionState,
                         "Close",
                         true,
-                    );
-                if (
-                    sessionState.subagents instanceof
-                    StandardSubagentEventRouter
-                )
-                    await sessionState.subagents.finishOutstanding(
-                        "disconnected",
                     );
                 sessionState.promptSuggestions?.invalidate();
             } else {
@@ -4710,36 +4702,13 @@ export class CodexAcpServer {
     }
 
     private createSessionConfigOptionsResponse(sessionState: SessionState): {
-        _meta?: Record<string, unknown>;
         configOptions?: Array<acp.SessionConfigOption>;
     } {
+        if (!this.isSessionConfigEnabled()) {
+            return {};
+        }
         return {
-            ...(sessionState.lineage !== undefined
-                ? {
-                      _meta: {
-                          codex: {
-                              projectId: sessionState.lineage.projectId ?? null,
-                              ...(sessionState.lineage.threadSource !==
-                              undefined
-                                  ? {
-                                        threadSource:
-                                            sessionState.lineage.threadSource,
-                                    }
-                                  : {}),
-                              ...(sessionState.lineage.forkedAtTurnId !==
-                              undefined
-                                  ? sessionState.lineage
-                                  : {}),
-                          },
-                      },
-                  }
-                : {}),
-            ...(this.isSessionConfigEnabled()
-                ? {
-                      configOptions:
-                          this.createSessionConfigOptions(sessionState),
-                  }
-                : {}),
+            configOptions: this.createSessionConfigOptions(sessionState),
         };
     }
 

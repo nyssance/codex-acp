@@ -139,10 +139,11 @@ export class AlwithExtensions {
             method === "_codex/session_history" ||
             method === "_codex/session_history_items"
         ) {
-            const parsed =
+            const request =
                 method === "_codex/session_history"
-                    ? parseSessionHistoryParams(params)
-                    : parseSessionHistoryItemsParams(params);
+                    ? { items: false as const, params: parseSessionHistoryParams(params) }
+                    : { items: true as const, params: parseSessionHistoryItemsParams(params) };
+            const parsed = request.params;
             const assertIdle = () => {
                 if (
                     parsed.mode === "export" &&
@@ -156,20 +157,19 @@ export class AlwithExtensions {
                 }
             };
             assertIdle();
-            const response =
-                method === "_codex/session_history"
-                    ? await readSessionHistory(
-                          this.codex,
-                          this.render,
-                          parseSessionHistoryParams(params),
-                          signal,
-                      )
-                    : await readSessionHistoryItems(
-                          this.codex,
-                          this.render,
-                          parseSessionHistoryItemsParams(params),
-                          signal,
-                      );
+            const response = request.items
+                ? await readSessionHistoryItems(
+                      this.codex,
+                      this.render,
+                      request.params,
+                      signal,
+                  )
+                : await readSessionHistory(
+                      this.codex,
+                      this.render,
+                      request.params,
+                      signal,
+                  );
             assertIdle();
             return {
                 ...response,

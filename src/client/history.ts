@@ -1,3 +1,5 @@
+import { wireObject } from "./wire";
+
 /** Read-only export over codex-acp-v2's versioned history extension, without session/resume. */
 export interface HistoryRequest {
     sessionId: string;
@@ -17,11 +19,7 @@ type ArchiveContent =
 
 const MAX_ARCHIVE_BYTES = 25 * 1024 * 1024;
 
-function object(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== "object" || Array.isArray(value))
-        throw new Error("Invalid history response");
-    return value as Record<string, unknown>;
-}
+const object = (value: unknown) => wireObject(value, "Invalid history response");
 
 /** Dialogue-only JSONL, matching the legacy archive's user/assistant record contract. */
 export async function exportConversation(

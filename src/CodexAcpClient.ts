@@ -7,7 +7,7 @@ import {
 } from "./alwith/hostSession";
 import { ResponsesRoutes } from "./alwith/codex/responsesRoutes";
 import { ProviderRouting } from "./alwith/agent/providers";
-import { isRecord } from "./alwith/permissions/json";
+import { isRecord } from "./permissions/json";
 import { clientToolsOf, dynamicTools } from "./alwith/agent/clientTools";
 import {
     type ApiKeyAuthRequest,

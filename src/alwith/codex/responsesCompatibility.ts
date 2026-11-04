@@ -1,4 +1,4 @@
-import { isRecord } from "../permissions/json";
+import { isRecord } from "../../permissions/json";
 
 /** Native Responses rejects plaintext reasoning input, including foreign encrypted envelopes. */
 export function compatibleResponsesRequest(

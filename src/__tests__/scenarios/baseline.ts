@@ -258,28 +258,9 @@ export function expectedFromBaseline(
     scenario: string,
     baseline: RecordedMessage[],
 ): RecordedMessage[] {
-    const messages = withFeatureChanges(
+    return withFeatureChanges(
         withBugFixes(scenario, withoutAirOnlyMessages(baseline)),
     );
-    if (scenario !== "history-replay") return messages;
-    return messages.map((message) => {
-        if (
-            message.direction !== "response" ||
-            message.method !== "session/load"
-        )
-            return message;
-        const params = message.params as Json;
-        return {
-            ...message,
-            params: {
-                ...params,
-                _meta: {
-                    ...((params["_meta"] as Json) ?? {}),
-                    codex: { projectId: null },
-                },
-            },
-        };
-    });
 }
 
 /**

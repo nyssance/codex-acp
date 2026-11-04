@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bundledModels } from "./bundledModels";
-import { isRecord } from "../permissions/json";
+import { isRecord } from "../../permissions/json";
 
 export type ModelAlias = { id: string; upstream: string; catalog?: string };
 

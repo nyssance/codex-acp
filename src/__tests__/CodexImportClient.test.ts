@@ -4,7 +4,7 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { CodexImportClient } from "../import";
 
 const disposables: { dispose(): void }[] = [];
@@ -32,28 +32,6 @@ function setup() {
         connection: client,
     };
 }
-
-it.each(["claude-code", "cursor"] as const)(
-    "detects %s without creating a thread",
-    async (migrationSource) => {
-        const { client, server } = setup();
-        server.onRequest("externalAgentConfig/detect", (params) => {
-            expect(params).toEqual({
-                migrationSource,
-                includeHome: false,
-                cwds: ["/project"],
-            });
-            return { items: [], connectors: [] };
-        });
-        expect(
-            await client.detect({
-                migrationSource,
-                includeHome: false,
-                cwds: ["/project"],
-            }),
-        ).toEqual({ items: [], connectors: [] });
-    },
-);
 
 it("delivers early completion and progress independently of acceptance, retaining partial failures", async () => {
     const { client, server } = setup();
@@ -108,7 +86,7 @@ it("delivers early completion and progress independently of acceptance, retainin
     ]);
 });
 
-it("removes only the disposed subscription and reads persisted history", async () => {
+it("removes only the disposed subscription", async () => {
     const { client, server } = setup();
     const received: unknown[] = [];
     const removed = client.onCompleted(() => {
@@ -116,24 +94,12 @@ it("removes only the disposed subscription and reads persisted history", async (
     });
     disposables.push(client.onCompleted((event) => received.push(event)));
     removed.dispose();
-    server.onRequest("externalAgentConfig/import/readHistories", async () => {
-        await server.sendNotification("externalAgentConfig/import/completed", {
-            importId: "other",
-            itemTypeResults: [],
-        });
-        return { data: [], connectors: [] };
+    await server.sendNotification("externalAgentConfig/import/completed", {
+        importId: "other",
+        itemTypeResults: [],
     });
-    expect(await client.readHistories()).toEqual({ data: [], connectors: [] });
-    expect(received).toEqual([{ importId: "other", itemTypeResults: [] }]);
-});
-
-it("propagates request failures", async () => {
-    const { client, server } = setup();
-    server.onRequest("externalAgentConfig/detect", () => {
-        throw new Error("Detection denied");
-    });
-    await expect(client.detect({ migrationSource: "cursor" })).rejects.toThrow(
-        "Detection denied",
+    await vi.waitFor(() =>
+        expect(received).toEqual([{ importId: "other", itemTypeResults: [] }]),
     );
 });
 

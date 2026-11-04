@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import crossSpawn from "cross-spawn";
-import { isRecord } from "../permissions/json";
+import { isRecord } from "../../permissions/json";
 
 let cached: Record<string, unknown>[] | undefined;
 

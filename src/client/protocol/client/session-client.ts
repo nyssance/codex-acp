@@ -22,6 +22,7 @@ import { type SessionGeneration, SessionLifecycle } from "../lifecycle";
 import type { RuntimeClient, SessionRunState } from "@alwith/api";
 import {
     configRevisionOf,
+    sessionSetupOf,
     ConfigStaleError,
     configStaleOf,
     createSession,
@@ -186,7 +187,7 @@ function toAction(request: PendingRequest): PendingAction {
           };
 }
 
-function asError(error: unknown): Error {
+export function asError(error: unknown): Error {
     return error instanceof Error ? error : new Error(String(error));
 }
 
@@ -878,9 +879,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 const session: Session = {
                     ...createSession(response.sessionId, cwd),
                     attached: true,
-                    configOptions: response.configOptions ?? [],
-                    commands: response.availableCommands ?? [],
-                    configRevision: configRevisionOf(response),
+                    ...sessionSetupOf(response),
                 };
                 this.publishSession(session);
                 if (options.draft) {
@@ -1065,10 +1064,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 ...this.sessions.get(id),
                 cwd,
                 readOnly: this.resumeReadOnly(response),
-                configOptions: response.configOptions ?? [],
-                // ACP: omitted means no commands; later available_commands_update replaces them.
-                commands: response.availableCommands ?? [],
-                configRevision: configRevisionOf(response),
+                ...sessionSetupOf(response),
                 error: null,
             });
             this.onReplayed(id, response);
@@ -1465,9 +1461,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             cwd,
             attached: true,
             restoring: false,
-            configOptions: response.configOptions ?? [],
-            commands: response.availableCommands ?? [],
-            configRevision: configRevisionOf(response),
+            ...sessionSetupOf(response),
         });
         this.listSession({
             ...this.summaryOf({

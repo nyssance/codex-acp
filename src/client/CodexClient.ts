@@ -81,6 +81,7 @@ import {
     prependHistory,
     readHistoryPage,
 } from "./history-page";
+import { asError } from "./protocol/client/session-client";
 
 export type ForkOrigin = { sourceId: string; boundaryTurnId: string | null };
 
@@ -136,10 +137,6 @@ function sessionLineage(
     )
         throw new Error("Invalid session lineage from the agent");
     return { nativeSessionId, forkedFromId };
-}
-
-function asError(error: unknown): Error {
-    return error instanceof Error ? error : new Error(String(error));
 }
 
 export class CodexClient<
@@ -216,12 +213,7 @@ export class CodexClient<
 
     /** Whether the agent can host gateway models in the per-session model option. */
     get providerCatalog(): boolean {
-        const codex = this.state.agent?.capabilities?._meta?.codex;
-        return (
-            typeof codex === "object" &&
-            codex !== null &&
-            (codex as { providerCatalog?: unknown }).providerCatalog === true
-        );
+        return codexExtensionCapabilities(this.state.agent).providerCatalog;
     }
 
     // ── Connection hooks ──
@@ -505,9 +497,7 @@ export class CodexClient<
     private liveForks(cwd?: string): SessionSummary[] {
         return this.state.sessionList.filter(
             (item) =>
-                !item.archived &&
-                item.forkedFromId != null &&
-                this.state.sessions[item.sessionId]?.attached === true &&
+                this.keepUnlisted(item) &&
                 (cwd === undefined || item.cwd === this.projectPath(cwd)),
         );
     }
@@ -614,22 +604,7 @@ export class CodexClient<
     // ── Replay with history ──
 
     private historyCapability(mode: "browse" | "export"): boolean {
-        const codex = this.state.agent?.capabilities?._meta?.codex;
-        const capability =
-            codex && typeof codex === "object" && "sessionHistory" in codex
-                ? codex.sessionHistory
-                : null;
-        return !!(
-            capability &&
-            typeof capability === "object" &&
-            "version" in capability &&
-            capability.version === 2 &&
-            "items" in capability &&
-            capability.items === true &&
-            "modes" in capability &&
-            Array.isArray(capability.modes) &&
-            capability.modes.includes(mode)
-        );
+        return codexExtensionCapabilities(this.state.agent).sessionHistory[mode];
     }
 
     /** With history browsing the resume carries no replay; the first page is read instead. */
@@ -645,13 +620,45 @@ export class CodexClient<
         return isReadOnlyResume(response);
     }
 
-    protected override beforeReplay(id: string): void {
+    /** Pending history reads and the loaded-turn index of a session; its navigation epoch is the caller's. */
+    private forgetHistoryRequests(id: string): void {
         this.historyRequests.delete(id);
-        this.navigationEpochs.set(id, {});
         this.navigationRequests.delete(id);
         this.turnHistoryRequests.delete(id);
         this.previewHistoryRequests.delete(id);
         this.loadedHistoryTurns.delete(id);
+    }
+
+    /** The newest history page, read for a replay scope. */
+    private readFirstHistoryPage(id: string, cwd: string, scope: ReplayScope) {
+        return readHistoryPage(id, cwd, null, (params) =>
+            scope.agent.request("_codex/session_history", params, {
+                cancellationSignal: scope.signal,
+            }),
+        );
+    }
+
+    /** Prepends the newest history page under the replayed baseline and opens paging from its cursor. */
+    private applyFirstHistoryPage(
+        id: string,
+        page: Awaited<ReturnType<CodexClient["readFirstHistoryPage"]>>,
+        scope: ReplayScope,
+    ): void {
+        this.sessions.set(
+            prependHistory(this.sessions.get(id), page.session, scope.baseline),
+        );
+        this.noteLoadedHistory(id, page.turnIds);
+        this.set((state) => ({
+            historyPages: {
+                ...state.historyPages,
+                [id]: { cursor: page.cursor, loading: false, error: null },
+            },
+        }));
+    }
+
+    protected override beforeReplay(id: string): void {
+        this.forgetHistoryRequests(id);
+        this.navigationEpochs.set(id, {});
         this.set((state) => {
             const { [id]: _navigation, ...historyNavigation } =
                 state.historyNavigation;
@@ -665,24 +672,11 @@ export class CodexClient<
         scope: ReplayScope,
     ): Promise<void> {
         if (!this.historyCapability("browse")) return;
-        const page = await readHistoryPage(id, cwd, null, (params) =>
-            scope.agent.request("_codex/session_history", params, {
-                cancellationSignal: scope.signal,
-            }),
-        );
+        const page = await this.readFirstHistoryPage(id, cwd, scope);
         scope.signal.throwIfAborted();
         if (this.agent !== scope.agent)
             throw new Error("Codex disconnected during history load");
-        this.sessions.set(
-            prependHistory(this.sessions.get(id), page.session, scope.baseline),
-        );
-        this.noteLoadedHistory(id, page.turnIds);
-        this.set((state) => ({
-            historyPages: {
-                ...state.historyPages,
-                [id]: { cursor: page.cursor, loading: false, error: null },
-            },
-        }));
+        this.applyFirstHistoryPage(id, page, scope);
     }
 
     protected override onReplayed(
@@ -706,27 +700,10 @@ export class CodexClient<
             return false;
         let historyError: string | null = null;
         try {
-            const page = await readHistoryPage(id, cwd, null, (params) =>
-                scope.agent.request("_codex/session_history", params, {
-                    cancellationSignal: scope.signal,
-                }),
-            );
+            const page = await this.readFirstHistoryPage(id, cwd, scope);
             scope.signal.throwIfAborted();
             if (!this.current(scope) || !this.holds(id)) return true;
-            this.sessions.set(
-                prependHistory(
-                    this.sessions.get(id),
-                    page.session,
-                    scope.baseline,
-                ),
-            );
-            this.noteLoadedHistory(id, page.turnIds);
-            this.set((state) => ({
-                historyPages: {
-                    ...state.historyPages,
-                    [id]: { cursor: page.cursor, loading: false, error: null },
-                },
-            }));
+            this.applyFirstHistoryPage(id, page, scope);
         } catch (reason) {
             scope.signal.throwIfAborted();
             if (!this.current(scope) || !this.holds(id)) return true;
@@ -751,12 +728,8 @@ export class CodexClient<
     }
 
     protected override onSessionDropped(id: string): void {
-        this.historyRequests.delete(id);
+        this.forgetHistoryRequests(id);
         this.navigationEpochs.delete(id);
-        this.navigationRequests.delete(id);
-        this.turnHistoryRequests.delete(id);
-        this.previewHistoryRequests.delete(id);
-        this.loadedHistoryTurns.delete(id);
         this.set((state) => {
             const { [id]: _origin, ...forkOrigins } = state.forkOrigins;
             const { [id]: _history, ...historyPages } = state.historyPages;

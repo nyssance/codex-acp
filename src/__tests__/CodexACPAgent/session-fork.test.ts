@@ -147,9 +147,9 @@ function deferred<T>(): {promise: Promise<T>, resolve: (value: T) => void} {
 }
 
 describe("fork lineage response metadata", () => {
-    it.each([1, 2])(
-        "preserves the inherited boundary in ACP v%s",
-        async (version) => {
+    it(
+        "preserves the inherited boundary in ACP v2",
+        async () => {
             const fixture = createCodexMockTestFixture();
             const agent = fixture.getCodexAcpAgent();
             const client = fixture.getCodexAcpClient();
@@ -190,10 +190,7 @@ describe("fork lineage response metadata", () => {
                 cwd: "/workspace",
                 mcpServers: [],
             };
-            const response =
-                version === 1
-                    ? await agent.forkSession(params)
-                    : await agent.forkSessionV2(params);
+            const response = await agent.forkSessionV2(params);
             expect(response._meta).toMatchObject({ codex: lineage });
         },
     );

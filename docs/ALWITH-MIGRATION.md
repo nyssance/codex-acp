@@ -15,8 +15,8 @@
 - Catalog, account, plugin, skill and file search pass-throughs on the upstream app-server connection, rebound after recovery.
 - Client tools with per-prompt call deduplication, permission checks, cancellation and late-response rejection.
 - Session-scoped provider catalogs that keep native and gateway models together; model changes rebind the selected thread.
-- Configuration revisions on responses and updates; stale prompts are rejected after acquiring their queue slot. Client message IDs are retained.
-- Predictions, retries, history seeding, native turn IDs, fork boundaries and lineage.
+- Configuration revisions on responses and updates; stale prompts are rejected after acquiring their queue slot. Client message IDs are validated.
+- Predictions, retries, native turn IDs, fork boundaries and lineage.
 - The browser client export `@nyssance/codex-acp-v2/client`, consumed through `@alwith/module-chat/client`.
 
 ## Tests
@@ -26,13 +26,49 @@
 
 ## Native fork boundary metadata
 
-Fork, load, and context-only resume responses expose `_meta.codex.forkedAtTurnId`
-for forked sessions in both ACP v1 and v2. It is the latest native turn ID shared
+Over ACP v2, fork, load, and context-only resume responses expose `_meta.codex.forkedAtTurnId`
+for forked sessions. ACP v1 responses carry no lineage, as upstream's do. It is the latest native turn ID shared
 by the parent and child, or `null` when they share no turns. The adapter derives
 it from paginated `thread/turns/list` summaries, including after the child has
 continued and both processes have restarted. It does not store a second copy of
 conversation provenance. History failures are propagated rather than reported
 as an empty boundary.
+
+## Fork-only surface
+
+Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/session/goal_control`
+among `_codex/*` methods, and no `_alwith/*` method. Everything below is the fork's, kept because a
+consumer uses it. Where Codex has a native method, the fork passes through to it and adds only the
+ACP envelope. Workarounds for Codex gaps are listed separately in [fallbacks.md](fallbacks.md).
+
+| Surface | Methods | Native Codex | Consumer |
+|---|---|---|---|
+| History browse and export | `_codex/session_history`, `_codex/session_history_items` | `thread/turns/list`, `thread/items/list`; the byte limit is the fork's | module-chat history, export |
+| Session list with lineage | `_codex/session_list`, v2 `session/list` | `thread/list` plus rollout headers | module-chat sidebar |
+| Archive and title over v2 | `session/set_title`, `session/archive`, `session/unarchive` | `thread/name/set`, `thread/archive`, `thread/unarchive` | module-chat |
+| Gateway providers | `providers/set` (`mode: "catalog"`) and the per-session model option | none | U through `alwith-modules` `providers.rs` |
+| Client tools | `_alwith/tool/call` | dynamic tools | U, TV |
+| Configuration revisions | `_meta.alwith.configRevision`, `expectedConfigRevision` | none | module-chat, TV |
+| Composer predictions | `_codex/session_prediction_request` | `thread/prediction/request` still answers not implemented, so the fork runs an ephemeral fork turn; switch when it lands (Desktop `docs/plans/index.md`) | module-chat composer |
+| Retry | `_codex/session_retry` | none | module-chat |
+| Image generation | `_codex/images/generate` | ChatGPT backend images | module-chat |
+| Sites and connectors | `_codex/apps_*`, `_codex/mcp_status`, `_codex/mcp_tool_call` | `app/list`, `mcpServerStatus/list`, `mcpServer/tool/call` | U Sites |
+| Plugins, skills, marketplace | `_codex/plugin_*`, `_codex/skills_*`, `_codex/marketplace_*` | `plugin/*`, `skills/*`, `marketplace/*` | module-chat settings |
+| Realtime voice | `_codex/realtime/*` | `thread/realtime/*` | U, TV voice button |
+| Import | `_codex/import/*` | `externalAgentConfig/*` | U imports |
+| Account, rate limits, file search | `_codex/account_read`, `_codex/rate_limits`, `_codex/fuzzy_file_search` | `account/read`, `account/rateLimits/read`, `fuzzyFileSearch` | module-chat |
+| Shell, projects | `_codex/shell/execute`, `_codex/project_context` | `thread/shellCommand`, `project/*` | module-chat |
+| Async questions | question card over `session/request_permission` | `request_user_input` | module-chat |
+
+Hooks and goal control are upstream's; the fork only exposes them in its browser client.
+
+Two behaviors differ from upstream on purpose:
+
+- A permission-mode change is written to the thread with `thread/settings/update` before it is
+  confirmed, so it persists without a turn. Upstream records it and sends it with the next `turn/start`.
+- A failed turn carries `_meta.codex.error.{category,retryable,stopReason}` from `classifyTurnError`.
+  Upstream's `CodexEventHandler` has its own `CodexFailureKind` labels; module-chat reads the fork's.
+  Merging the two would change the labels clients show and is not done yet.
 
 ## Waiting on upstream
 

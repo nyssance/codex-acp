@@ -1,10 +1,7 @@
 import type { MessageConnection } from "vscode-jsonrpc";
 import type {
-    ExternalAgentConfigDetectParams,
-    ExternalAgentConfigDetectResponse,
     ExternalAgentConfigImportParams,
     ExternalAgentConfigImportResponse,
-    ExternalAgentConfigImportHistoriesReadResponse,
     ExternalAgentConfigImportProgressNotification,
     ExternalAgentConfigImportCompletedNotification,
 } from "../app-server/v2";
@@ -30,18 +27,6 @@ export type ImportConnection = Pick<
 /** Uses an initialized app-server connection; never creates a chat or owns the process. */
 export class CodexImportClient {
     constructor(private readonly connection: ImportConnection) {}
-
-    detect(
-        params: Omit<
-            ExternalAgentConfigDetectParams,
-            "migrationSource" | "source"
-        > & { migrationSource: ImportSource },
-    ): Promise<ExternalAgentConfigDetectResponse> {
-        return this.connection.sendRequest(
-            "externalAgentConfig/detect",
-            params,
-        );
-    }
 
     /** Acceptance only. Subscribe to completion before sending this request. */
     import(
@@ -123,12 +108,6 @@ export class CodexImportClient {
                     receive(item.completed, item.event);
             }, fail);
         });
-    }
-
-    readHistories(): Promise<ExternalAgentConfigImportHistoriesReadResponse> {
-        return this.connection.sendRequest(
-            "externalAgentConfig/import/readHistories",
-        );
     }
 
     onProgress(

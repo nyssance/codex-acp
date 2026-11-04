@@ -12,6 +12,8 @@ import type { ThreadRealtimeAppendTextParams } from "../app-server/v2/ThreadReal
 import type { ThreadRealtimeListVoicesResponse } from "../app-server/v2/ThreadRealtimeListVoicesResponse";
 import type { HooksListEntry } from "../app-server/v2/HooksListEntry";
 import type { GoalControlRequest, GoalSnapshot } from "../GoalExtension";
+import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import { codexExtensionCapabilities } from "./codex-extensions";
 
 export type { GoalSnapshot } from "../GoalExtension";
 export type { HooksListEntry } from "../app-server/v2/HooksListEntry";
@@ -225,31 +227,8 @@ export class CodexCapabilitiesClient {
 }
 
 /** Check the adapter contract before offering a native voice entry point. */
-export function supportsCodexRealtime(initialized: unknown): boolean {
-    if (
-        typeof initialized !== "object" ||
-        initialized === null ||
-        !("capabilities" in initialized)
-    )
-        return false;
-    const capabilities = initialized.capabilities;
-    if (
-        typeof capabilities !== "object" ||
-        capabilities === null ||
-        !("_meta" in capabilities)
-    )
-        return false;
-    const meta = capabilities._meta;
-    if (typeof meta !== "object" || meta === null || !("codex" in meta))
-        return false;
-    const codex = meta.codex;
-    if (typeof codex !== "object" || codex === null || !("realtime" in codex))
-        return false;
-    const realtime = codex.realtime;
-    return (
-        typeof realtime === "object" &&
-        realtime !== null &&
-        "version" in realtime &&
-        realtime.version === 1
-    );
+export function supportsCodexRealtime(
+    initialized: acp.InitializeResponse | null,
+): boolean {
+    return codexExtensionCapabilities(initialized).realtime;
 }

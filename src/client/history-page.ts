@@ -1,6 +1,7 @@
 import { SessionUpdate as UpdateGuard } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import { createSession, type Session, SessionStore } from "./protocol";
+import { wireObject } from "./wire";
 
 export type HistoryPageState = {
     cursor: string | null;
@@ -17,11 +18,7 @@ export type BrowseHistoryRequest = {
     cursor?: string;
 };
 
-function object(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== "object" || Array.isArray(value))
-        throw new Error("Invalid history page");
-    return value as Record<string, unknown>;
-}
+const object = (value: unknown) => wireObject(value, "Invalid history page");
 
 /** Fold one bounded page off-screen, then prepend once, preserving newer live upserts. */
 export async function readHistoryPage(

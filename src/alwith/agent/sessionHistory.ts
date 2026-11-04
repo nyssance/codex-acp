@@ -11,8 +11,6 @@ import {
     historyError,
     type HistoryPage,
     HistoryRead,
-    parseSessionHistoryItemsParams,
-    parseSessionHistoryParams,
     type SessionHistoryItemsParams,
     type SessionHistoryParams,
 } from "./historyProtocol";
@@ -53,10 +51,9 @@ export interface SessionHistoryItemsResponse extends HistoryPage {
 export async function readSessionHistory(
     codex: AppServerClient,
     render: HistoryRenderer,
-    raw: SessionHistoryParams,
+    params: SessionHistoryParams,
     signal: AbortSignal = new AbortController().signal,
 ): Promise<SessionHistoryResponse> {
-    const params = parseSessionHistoryParams(raw);
     const view = params.itemsView ?? "summary";
     const read = new HistoryRead(
         codex,
@@ -139,10 +136,9 @@ export async function readSessionHistory(
 export async function readSessionHistoryItems(
     codex: AppServerClient,
     render: HistoryRenderer,
-    raw: SessionHistoryItemsParams,
+    params: SessionHistoryItemsParams,
     signal: AbortSignal = new AbortController().signal,
 ): Promise<SessionHistoryItemsResponse> {
-    const params = parseSessionHistoryItemsParams(raw);
     const read = new HistoryRead(
         codex,
         params,

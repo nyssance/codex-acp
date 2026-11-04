@@ -7,7 +7,7 @@ import type {
     TurnStartParams,
     TurnCompletedNotification,
 } from "../../app-server/v2";
-import { abortable } from "../util/abort";
+import { withRequestCancellation } from "../../RequestCancellation";
 import { logger } from "../../Logger";
 import type { CodexAppServerClient } from "../../CodexAppServerClient";
 import type { GetAuthStatusParams } from "../../app-server/GetAuthStatusParams";
@@ -56,12 +56,12 @@ export class AppServerClient {
     threadTurnsList(
         params: ThreadTurnsListParams,
     ): Promise<ThreadTurnsListResponse> {
-        return this.request("thread/turns/list", params);
+        return this.current().threadTurnsList(params);
     }
     threadItemsList(
         params: ThreadItemsListParams,
     ): Promise<ThreadItemsListResponse> {
-        return this.request("thread/items/list", params);
+        return this.current().threadItemsList(params);
     }
     observeNotifications(
         callback: (notification: ServerNotification) => void,
@@ -101,13 +101,13 @@ export class AppServerClient {
             if (signal?.aborted) interrupt();
         });
         try {
-            return await (signal ? abortable(pending, signal) : pending);
+            return await withRequestCancellation(pending, signal);
         } finally {
             signal?.removeEventListener("abort", interrupt);
         }
     }
     accountRead(params: GetAccountParams): Promise<GetAccountResponse> {
-        return this.request("account/read", params);
+        return this.current().accountRead(params);
     }
     getAuthStatus(params: GetAuthStatusParams): Promise<GetAuthStatusResponse> {
         return this.request("getAuthStatus", params);

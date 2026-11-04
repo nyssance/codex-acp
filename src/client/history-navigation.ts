@@ -4,6 +4,7 @@ import { type Item, type Session, textOf } from "./protocol";
 
 import { codexMessageError } from "./codex-extensions";
 import { prependHistory, projectHistoryTurns } from "./history-page";
+import { wireObject } from "./wire";
 
 export type HistoryTurnSummary = {
     turnId: string;
@@ -31,11 +32,7 @@ type Request = (
     params: Record<string, unknown>,
 ) => Promise<unknown>;
 
-function object(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== "object" || Array.isArray(value))
-        throw new Error("Invalid history navigation response");
-    return value as Record<string, unknown>;
-}
+const object = (value: unknown) => wireObject(value, "Invalid history navigation response");
 
 function pageOf(
     raw: unknown,

@@ -116,9 +116,10 @@ export class ComposerPredictions {
                 text: suggestion === null ? null : suggestion.trim() || null,
             };
         } catch (error) {
+            const reason: unknown = signal.aborted ? signal.reason : error;
             result = {
                 type: "failed",
-                message: error instanceof Error ? error.message : String(error),
+                message: reason instanceof Error ? reason.message : String(reason),
             };
         } finally {
             clearTimeout(timer);
