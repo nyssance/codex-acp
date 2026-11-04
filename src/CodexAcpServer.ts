@@ -2028,7 +2028,10 @@ export class CodexAcpServer {
         const sessionMcpServers = this.resolveSessionMcpServers(requestedMcpServers, operation === "resume");
         const currentModel = this.findCurrentModel(models, currentModelId);
         const currentModelSupportsFast = modelSupportsFast(currentModel);
-        if (this.setupResponseOrdering && operation !== "resume") this.clientDelivery.beginSessionSetup(sessionId);
+        // A resume, and a v2 fork that replays its history, send updates before their response; their
+        // replayed subagents must not wait for that response.
+        const replaysBeforeResponse = operation === "resume" || (operation === "fork" && this.protocolVersion === 2);
+        if (this.setupResponseOrdering && !replaysBeforeResponse) this.clientDelivery.beginSessionSetup(sessionId);
         const availableAgentModes = AgentMode.all(
             sessionMetadata.permissionProfiles,
             sessionMetadata.approvalPolicy,
