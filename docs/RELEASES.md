@@ -21,12 +21,10 @@ Configure the package's npm Trusted Publisher once with:
 
 The workflow uses GitHub OIDC; do not add an npm token fallback. Binding is a
 registry-side setting and must be verified separately from the workflow file.
-Changing the binding requires npm account verification. The migration package
-must remain private until compatibility and release gates are complete.
-
-Update `package.json` and `package-lock.json` together, choose an unused patch
-version newer than the published package, and review CI and the packed artifact
-before creating the release tag. Upstream release-please versions and preview
+Changing the binding requires npm account verification. 
+Update `package.json` and `bun.lock` together, choose an unused patch version
+newer than the published package, and review CI and the packed artifact before
+creating the release tag. Upstream release-please versions and preview
 channels do not control this fork.
 
 ## Upstream synchronization
@@ -41,5 +39,6 @@ Review extension behavior, generated Codex schemas, and workflow changes togethe
 The GitHub repository must allow Actions to create pull requests. Check the sync
 run's results before merging; PR creation alone is not evidence that tests passed.
 
-Live integration and E2E tests require explicit authorization to create Agent
-sessions and are not part of unattended synchronization or publishing.
+Integration tests run a real Codex app-server against a local mock model and
+are part of CI. E2E tests use a real model; they require explicit authorization
+and are not part of unattended synchronization or publishing.
