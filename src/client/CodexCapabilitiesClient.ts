@@ -10,18 +10,11 @@ import type { ThreadRealtimeStartParams } from "../app-server/v2/ThreadRealtimeS
 import type { ThreadRealtimeAppendAudioParams } from "../app-server/v2/ThreadRealtimeAppendAudioParams";
 import type { ThreadRealtimeAppendTextParams } from "../app-server/v2/ThreadRealtimeAppendTextParams";
 import type { ThreadRealtimeListVoicesResponse } from "../app-server/v2/ThreadRealtimeListVoicesResponse";
-import type { BedrockDiscoverResponse } from "../app-server/v2/BedrockDiscoverResponse";
-import type { BedrockSetupParams } from "../app-server/v2/BedrockSetupParams";
-import type { BedrockCheckGovCloudRequirementsResponse } from "../app-server/v2/BedrockCheckGovCloudRequirementsResponse";
-import type { PermissionProfileListResponse } from "../app-server/v2/PermissionProfileListResponse";
 import type { HooksListEntry } from "../app-server/v2/HooksListEntry";
 import type { GoalControlRequest, GoalSnapshot } from "../GoalExtension";
 
 export type { GoalSnapshot } from "../GoalExtension";
 export type { HooksListEntry } from "../app-server/v2/HooksListEntry";
-export type { BedrockDiscoverResponse } from "../app-server/v2/BedrockDiscoverResponse";
-export type { BedrockSetupParams } from "../app-server/v2/BedrockSetupParams";
-export type { PermissionProfileSummary } from "../app-server/v2/PermissionProfileSummary";
 export type RealtimeStart = Omit<ThreadRealtimeStartParams, "threadId">;
 export type RealtimeAudio = ThreadRealtimeAppendAudioParams["audio"];
 export type RealtimeTextRole = ThreadRealtimeAppendTextParams["role"];
@@ -160,21 +153,6 @@ export class CodexCapabilitiesClient {
         hooks: Array<{ key: string; currentHash: string }>,
     ): Promise<{ trusted: boolean }> {
         return this.request("_codex/hooks/trust", { cwd, hooks });
-    }
-    listPermissions(
-        cwd: string,
-        cursor: string | null = null,
-    ): Promise<PermissionProfileListResponse> {
-        return this.request("_codex/permissions/list", { cwd, cursor });
-    }
-    discoverBedrock(): Promise<BedrockDiscoverResponse> {
-        return this.request("_codex/bedrock/discover", {});
-    }
-    setupBedrock(params: BedrockSetupParams): Promise<Record<string, never>> {
-        return this.request("_codex/bedrock/setup", params);
-    }
-    checkGovCloudRequirements(): Promise<BedrockCheckGovCloudRequirementsResponse> {
-        return this.request("_codex/bedrock/checkGovCloudRequirements", {});
     }
     listVoices(): Promise<ThreadRealtimeListVoicesResponse> {
         return this.request("_codex/realtime/listVoices", {});

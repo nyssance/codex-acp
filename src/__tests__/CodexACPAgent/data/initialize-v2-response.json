@@ -60,12 +60,6 @@
           "version": 1,
           "notificationMethod": "_codex/realtime/update"
         },
-        "permissionProfiles": {
-          "version": 1
-        },
-        "bedrock": {
-          "version": 1
-        },
         "hooks": {
           "version": 1,
           "listMethod": "_codex/hooks/list",

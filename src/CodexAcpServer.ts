@@ -1064,8 +1064,6 @@ export class CodexAcpServer {
                             version: 1,
                             notificationMethod: CODEX_REALTIME_UPDATE,
                         },
-                        permissionProfiles: { version: 1 },
-                        bedrock: { version: 1 },
                         hooks: {
                             version: 1,
                             listMethod: "_codex/hooks/list",
@@ -1424,16 +1422,6 @@ export class CodexAcpServer {
                 },
             );
             return {};
-        }
-        if (method === "_alwith/config_snapshot") {
-            if (typeof params["sessionId"] !== "string")
-                throw RequestError.invalidParams(
-                    undefined,
-                    "Expected sessionId",
-                );
-            return this.configSnapshot(
-                this.getSessionState(params["sessionId"]),
-            );
         }
         if (method === "_codex/session_prediction_request") {
             const id = params["sessionId"],

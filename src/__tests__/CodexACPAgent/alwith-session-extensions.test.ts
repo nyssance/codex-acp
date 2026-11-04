@@ -51,14 +51,9 @@ it("injects seeded history into the native thread and advertises the requested m
             },
         ],
     });
-    const snapshot = await client.request("_alwith/config_snapshot", {
-        sessionId,
-    });
-    expect(
-        snapshot.configOptions.find(
-            (option: { configId: string }) => option.configId === "mode",
-        ).currentValue,
-    ).toBe("read-only");
+    expect(client.agent.getSessionState(sessionId).agentMode.id).toBe(
+        "read-only",
+    );
 });
 it("retries only the latest eligible failed turn without duplicating user input", async () => {
     const client = await connectSession();

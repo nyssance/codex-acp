@@ -131,26 +131,6 @@ describe("native capabilities through ACP", () => {
         }
     });
 
-    it("preserves native errors instead of claiming Bedrock setup succeeded", async () => {
-        const client = await connectSession();
-        try {
-            client.setCodexResponse("account/bedrock/setup", async () => {
-                throw new Error("AWS profile unavailable");
-            });
-            await expect(
-                client.request("_codex/bedrock/setup", {
-                    type: "profile",
-                    profile: "work",
-                    region: "us-west-2",
-                }),
-            ).rejects.toMatchObject({
-                data: { details: "AWS profile unavailable" },
-            });
-        } finally {
-            client.connection.close();
-        }
-    });
-
     it("selects an allowed native profile across pages and does not overwrite it on the next prompt", async () => {
         const client = await connectSession(2, {
             codexResponses: {

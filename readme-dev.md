@@ -340,7 +340,7 @@ importing it never starts a process. Pass the existing ACP connection, route all
 session operations by explicit session ID, and dispose the client when that
 connection closes. Consumers must use version 0.7.32 or later.
 
-Hooks, permission profiles, Bedrock setup, and experimental realtime requests use
+Hooks and experimental realtime requests use
 `_codex/*` extensions on that connection. Realtime notifications arrive through
 `_codex/realtime/update`; ACP v2 goal snapshots use `session_info_update` metadata
 at `_meta.codex.goal` (omitted preserves the prior value, null clears it).

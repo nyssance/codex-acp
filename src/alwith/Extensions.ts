@@ -50,12 +50,10 @@ export const ALWITH_METHODS = [
     "_codex/session_history_items",
     "_codex/session_list",
     "_codex/session_prediction_request",
-    "_alwith/config_snapshot",
     "_codex/session_retry",
     "_codex/session_archive",
     "_codex/session_unarchive",
     "_codex/session_rename",
-    "_codex/session_read_state_update",
 ] as const;
 const MUTATIONS = new Set([
     "_codex/skills_config_write",
@@ -145,24 +143,6 @@ export class AlwithExtensions {
                 params,
                 Object.keys(params).length === 0,
             );
-        if (method === "_codex/session_read_state_update") {
-            if (
-                typeof params["sessionId"] !== "string" ||
-                typeof params["expectedRevision"] !== "string" ||
-                (params["operation"] !== "read" &&
-                    params["operation"] !== "unread")
-            ) {
-                throw RequestError.invalidParams(
-                    undefined,
-                    "Expected sessionId, expectedRevision and read/unread operation",
-                );
-            }
-            return this.codex.request("thread/readState/update", {
-                threadId: params["sessionId"],
-                operation: { type: params["operation"] },
-                expectedRevision: params["expectedRevision"],
-            });
-        }
         if (
             method === "_codex/session_history" ||
             method === "_codex/session_history_items"

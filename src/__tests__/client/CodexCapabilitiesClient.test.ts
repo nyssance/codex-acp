@@ -95,16 +95,6 @@ describe("shared Codex capabilities client", () => {
             sessionId: "a",
             action: "pause",
         });
-        await peer.client.setupBedrock({
-            type: "profile",
-            profile: "work",
-            region: "us-west-2",
-        });
-        expect(peer.request).toHaveBeenLastCalledWith("_codex/bedrock/setup", {
-            type: "profile",
-            profile: "work",
-            region: "us-west-2",
-        });
         peer.client.dispose();
     });
 });

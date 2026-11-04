@@ -5,12 +5,9 @@ export {
     supportsCodexRealtime,
 } from "./CodexCapabilitiesClient";
 export type {
-    BedrockDiscoverResponse,
-    BedrockSetupParams,
     CodexCapabilitiesConnection,
     GoalSnapshot,
     HooksListEntry,
-    PermissionProfileSummary,
     RealtimeAudio,
     RealtimeEvent,
     RealtimeStart,

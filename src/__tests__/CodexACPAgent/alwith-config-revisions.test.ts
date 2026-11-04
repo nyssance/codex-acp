@@ -10,6 +10,11 @@ import {
     turnCompleted,
     type PromptSession,
 } from "./v2-prompt-harness";
+type ConfigSnapshot = { configRevision: number; configOptions: Array<{ configId: string; currentValue: unknown }> };
+function configSnapshot(client: PromptSession): ConfigSnapshot {
+    const agent = client.agent as unknown as { configSnapshot(session: unknown): ConfigSnapshot };
+    return agent.configSnapshot(client.agent.getSessionState(sessionId));
+}
 const clients: PromptSession[] = [];
 afterEach(() => {
     for (const client of clients.splice(0)) client.connection.close();
@@ -22,13 +27,9 @@ async function connect() {
 describe("ALwith configuration revisions", () => {
     it("keeps a stable revision until advertised options change and rejects stale prompts", async () => {
         const client = await connect();
-        const first = await client.request("_alwith/config_snapshot", {
-            sessionId,
-        });
+        const first = configSnapshot(client);
         expect(first.configRevision).toBe(0);
-        expect(
-            await client.request("_alwith/config_snapshot", { sessionId }),
-        ).toEqual(first);
+        expect(configSnapshot(client)).toEqual(first);
         const changed = await client.request("session/set_config_option", {
             sessionId,
             configId: "mode",
@@ -36,14 +37,12 @@ describe("ALwith configuration revisions", () => {
             value: "read-only",
         });
         expect(changed._meta.alwith.configRevision).toBe(1);
-        const snapshot = await client.request("_alwith/config_snapshot", {
-            sessionId,
-        });
+        const snapshot = configSnapshot(client);
         expect(snapshot.configRevision).toBe(1);
         expect(
             snapshot.configOptions.find(
                 (option: { configId: string }) => option.configId === "mode",
-            ).currentValue,
+            )!.currentValue,
         ).toBe("read-only");
         await expect(
             client.request("session/prompt", {

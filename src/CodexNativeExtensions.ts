@@ -14,11 +14,6 @@ export const CODEX_NATIVE_METHODS = {
     "_codex/realtime/appendSpeech": "thread/realtime/appendSpeech",
     "_codex/realtime/stop": "thread/realtime/stop",
     "_codex/realtime/listVoices": "thread/realtime/listVoices",
-    "_codex/permissions/list": "permissionProfile/list",
-    "_codex/bedrock/discover": "account/bedrock/discover",
-    "_codex/bedrock/setup": "account/bedrock/setup",
-    "_codex/bedrock/checkGovCloudRequirements":
-        "account/bedrock/checkGovCloudRequirements",
 } as const satisfies Record<string, ClientRequest["method"]>;
 
 export type CodexNativeMethod = keyof typeof CODEX_NATIVE_METHODS;
