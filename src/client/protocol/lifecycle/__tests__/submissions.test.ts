@@ -5,14 +5,14 @@ import type {
     SessionUpdate,
 } from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import { PromptTracker } from "../prompts";
+import { SubmissionLedger } from "../submissions";
 
 const idle = {
     sessionUpdate: "state_update",
     state: "idle",
     stopReason: "end_turn",
 } as const;
-function echo(tracker: PromptTracker, id: string) {
+function echo(tracker: SubmissionLedger, id: string) {
     tracker.accept("s", {
         sessionUpdate: "user_message",
         messageId: id,
@@ -25,7 +25,7 @@ function request() {
 const receipt = (id: string) => ({ messageId: id }) as PromptResponse;
 
 test("a receipt does not finish a turn", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const sent = request();
     const acknowledged = Promise.withResolvers<void>();
     let finished = false;
@@ -48,7 +48,7 @@ test("a receipt does not finish a turn", async () => {
 });
 
 test("echo and idle can both precede the response", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const sent = request();
     let acknowledged = "";
     const turn = tracker.run(
@@ -66,7 +66,7 @@ test("echo and idle can both precede the response", async () => {
 });
 
 test("queued prompts do not finish at the previous idle boundary", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const first = request();
     const second = request();
     const a = tracker.run(
@@ -98,7 +98,7 @@ test("queued prompts do not finish at the previous idle boundary", async () => {
 });
 
 test("multiple messages inserted into one turn share its idle boundary", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const first = request();
     const second = request();
     const a = tracker.run(
@@ -120,7 +120,7 @@ test("multiple messages inserted into one turn share its idle boundary", async (
 });
 
 test("notice and another session's idle cannot complete a prompt", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const acknowledged = Promise.withResolvers<void>();
     let completed = false;
     const turn = tracker
@@ -148,7 +148,7 @@ test("notice and another session's idle cannot complete a prompt", async () => {
 });
 
 test("disconnect rejects completion after a successful receipt", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const acknowledged = Promise.withResolvers<void>();
     const turn = tracker.run(
         "s",
@@ -162,7 +162,7 @@ test("disconnect rejects completion after a successful receipt", async () => {
 });
 
 test("a late response after failure cannot acknowledge or finish a replacement request", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const old = request();
     let acknowledged = false;
     const oldTurn = tracker.run(
@@ -188,7 +188,7 @@ test("a late response after failure cannot acknowledge or finish a replacement r
 });
 
 test("pre-insertion errors reject without waiting for idle", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     await expect(
         tracker.run(
             "s",
@@ -201,7 +201,7 @@ test("pre-insertion errors reject without waiting for idle", async () => {
 });
 
 test("a queued accepted message cannot finish at the preceding turn's idle", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const acknowledged = Promise.withResolvers<void>();
     let finished = false;
     const turn = tracker
@@ -226,7 +226,7 @@ test("a queued accepted message cannot finish at the preceding turn's idle", asy
 });
 
 test("retiring one session leaves its sibling and replacement usable", async () => {
-    const tracker = new PromptTracker();
+    const tracker = new SubmissionLedger();
     const response = request();
     let staleAcknowledged = false;
     const old = tracker.run(
@@ -264,7 +264,7 @@ test("retiring one session leaves its sibling and replacement usable", async () 
 });
 
 test("capacity rejects before dispatch and evidence overflow retires only that session", async () => {
-    const tracker = new PromptTracker({
+    const tracker = new SubmissionLedger({
         maxPendingPerSession: 1,
         maxObservedMessagesPerSession: 1,
     });

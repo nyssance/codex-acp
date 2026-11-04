@@ -1088,8 +1088,8 @@ export class CodexClient<
         ];
     }
 
-    /** Bounded transcript browsing never acquires a writer or opens another conversation. */
-    async readSessionHistory(
+    /** Bounded transcript browsing of a child session never acquires a writer or opens another conversation. */
+    async readSubagentHistory(
         threadId: string,
         cwd: string,
         cursor: string | null = null,
@@ -1103,15 +1103,6 @@ export class CodexClient<
         if (this.agent !== agent)
             throw new Error("Codex disconnected during history load");
         return { session: page.session, cursor: page.cursor };
-    }
-
-    /** Child transcripts use the same read-only history projection. */
-    async readSubagentHistory(
-        threadId: string,
-        cwd: string,
-        cursor: string | null = null,
-    ): Promise<{ session: Session; cursor: string | null }> {
-        return this.readSessionHistory(threadId, cwd, cursor);
     }
 
     async exportHistory(
