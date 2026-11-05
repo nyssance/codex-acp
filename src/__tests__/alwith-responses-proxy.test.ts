@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { once } from "node:events";
 import { createServer, type Server } from "node:http";
-import { zstdCompressSync } from "node:zlib";
+import { gzipSync, zstdCompressSync } from "node:zlib";
 
 import WebSocket, { type RawData, WebSocketServer } from "ws";
 
 import { PROXY_DIAGNOSTIC_PREFIX } from "../alwith/codex/proxyDiagnostics";
 
-import { ResponsesProxy } from "../alwith/codex/responsesProxy";
+import {
+    paymentRequiredNotice,
+    ResponsesProxy,
+} from "../alwith/codex/responsesProxy";
 
 const foreign = {
     type: "reasoning",
@@ -698,4 +701,156 @@ it("isolates gateway credentials on websocket upgrades", async () => {
     expect(await receive(socket)).toBe("ready");
     expect(headers["authorization"]).toBe("Bearer gateway-key");
     expect(headers["chatgpt-account-id"]).toBeUndefined();
+});
+
+describe("an exhausted balance reported as HTTP 402", () => {
+    // DeepSeek's documented response for an exhausted balance.
+    const deepSeekBody = JSON.stringify({
+        error: {
+            message: "Insufficient Balance",
+            type: "unknown_error",
+            param: null,
+            code: "invalid_request_error",
+        },
+    });
+    const notice =
+        "127.0.0.1 returned HTTP 402 Payment Required: Insufficient Balance";
+    function external(): ResponsesProxy {
+        const value = new ResponsesProxy("external");
+        cleanup.push(() => value.close());
+        return value;
+    }
+    function diagnostics(calls: unknown[][]) {
+        return calls
+            .map((call) => String(call[0]))
+            .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
+            .map((line) =>
+                JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)),
+            );
+    }
+
+    it("reaches Codex as its usage-limit error naming the provider, and keeps the upstream status in the diagnostic", async () => {
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        const server = createServer((_request, response) =>
+            response
+                .writeHead(402, { "content-type": "application/json" })
+                .end(deepSeekBody),
+        );
+        const route = await external().route(await listen(server));
+        const response = await fetch(`${route}/responses`, {
+            method: "POST",
+            body,
+        });
+        expect(response.status).toBe(429);
+        expect(response.headers.get("x-codex-promo-message")).toBe(notice);
+        expect(await response.json()).toEqual({
+            error: { type: "usage_limit_reached" },
+        });
+        await vi.waitFor(() =>
+            expect(diagnostics(log.mock.calls).at(-1)).toMatchObject({
+                phase: "completed",
+                destination: "external",
+                targetHost: "127.0.0.1",
+                status: 402,
+                forwardedStatus: 429,
+            }),
+        );
+    });
+
+    it("rewrites a rejected websocket handshake the same way", async () => {
+        const server = createServer();
+        server.on("upgrade", (_request, socket) =>
+            socket.end(
+                `HTTP/1.1 402 Payment Required\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(deepSeekBody)}\r\nConnection: close\r\n\r\n${deepSeekBody}`,
+            ),
+        );
+        const route = await external().route(await listen(server));
+        const client = new WebSocket(
+            `${route.replace("http:", "ws:")}/responses`,
+        );
+        cleanup.push(() => client.terminate());
+        const result = await new Promise<{
+            status: number | undefined;
+            notice: string | string[] | undefined;
+            body: string;
+        }>((resolve, reject) => {
+            client.on("error", reject);
+            client.on("open", () =>
+                reject(new Error("Proxy accepted a rejected handshake")),
+            );
+            client.on("unexpected-response", (_request, response) => {
+                const chunks: Buffer[] = [];
+                response.on("data", (data: Buffer) => chunks.push(data));
+                response.on("end", () =>
+                    resolve({
+                        status: response.statusCode,
+                        notice: response.headers["x-codex-promo-message"],
+                        body: Buffer.concat(chunks).toString(),
+                    }),
+                );
+            });
+        });
+        expect(result.status).toBe(429);
+        expect(result.notice).toBe(notice);
+        expect(JSON.parse(result.body)).toEqual({
+            error: { type: "usage_limit_reached" },
+        });
+    });
+
+    it("forwards a native 402 unchanged", async () => {
+        const server = createServer((_request, response) =>
+            response.writeHead(402).end("payment required"),
+        );
+        const route = await proxy().route(await listen(server));
+        const response = await fetch(`${route}/responses`, {
+            method: "POST",
+            body,
+        });
+        expect(response.status).toBe(402);
+        expect(await response.text()).toBe("payment required");
+    });
+
+    it("names the provider message from compressed, plain and non-ASCII bodies", () => {
+        expect(
+            paymentRequiredNotice(
+                "api.deepseek.com",
+                gzipSync(deepSeekBody),
+                "gzip",
+                "application/json",
+            ),
+        ).toBe(
+            "api.deepseek.com returned HTTP 402 Payment Required: Insufficient Balance",
+        );
+        expect(
+            paymentRequiredNotice(
+                "gateway.example",
+                Buffer.from("  balance\n exhausted "),
+                undefined,
+                "text/plain",
+            ),
+        ).toBe(
+            "gateway.example returned HTTP 402 Payment Required: balance exhausted",
+        );
+        expect(
+            paymentRequiredNotice(
+                "gateway.example",
+                Buffer.from(""),
+                undefined,
+                undefined,
+            ),
+        ).toBe("gateway.example returned HTTP 402 Payment Required");
+        expect(
+            paymentRequiredNotice(
+                "gateway.example",
+                Buffer.from('{"error":{"message":"余额不足"}}'),
+                undefined,
+                "application/json",
+            ),
+        ).toBe(
+            "gateway.example returned HTTP 402 Payment Required: \\u4f59\\u989d\\u4e0d\\u8db3",
+        );
+        expect(() =>
+            paymentRequiredNotice("gateway.example", Buffer.from("x"), "compress", undefined),
+        ).toThrow("Unsupported upstream content-encoding: compress");
+    });
 });

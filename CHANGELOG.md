@@ -1,3 +1,7 @@
+## 0.7.56 (2026-11-05)
+
+- An external provider's HTTP 402 (DeepSeek's exhausted balance) reaches Codex as its usage-limit error instead of a retried connection failure. The turn error names the provider host, the 402 and the provider's message, and the thread keeps it; the proxy diagnostic records the upstream status.
+
 ## 0.7.55 (2026-11-04)
 
 - Filter restricted subagent sessions from the ACP v2 `session/list` and overlay their `additionalDirectories`, as the other list paths do.

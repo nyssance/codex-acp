@@ -14,7 +14,12 @@ import {
     pipeline,
     Readable as ResponsesReadable,
 } from "node:stream";
-import { zstdDecompressSync } from "node:zlib";
+import {
+    brotliDecompressSync,
+    gunzipSync,
+    inflateSync,
+    zstdDecompressSync,
+} from "node:zlib";
 
 import WebSocket, { type RawData, WebSocketServer } from "ws-transport";
 
@@ -28,6 +33,76 @@ import { ProxyDiagnostics } from "./proxyDiagnostics";
 import { compatibleResponsesRequest } from "./responsesCompatibility";
 
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
+/**
+ * DeepSeek reports an exhausted balance as HTTP 402. Codex treats any status it does not know as a
+ * retryable connection failure, so the proxy forwards Codex's own usage-limit form instead: 429
+ * `usage_limit_reached`, with the upstream host, status and message in `x-codex-promo-message`,
+ * which Codex shows in the turn error and keeps in the thread. The diagnostic keeps the upstream
+ * status. See docs/fallbacks.md.
+ */
+const PAYMENT_REQUIRED = 402;
+const USAGE_LIMIT_BODY = JSON.stringify({
+    error: { type: "usage_limit_reached" },
+});
+
+function decodedBody(bytes: Buffer, encoding: string | undefined): Buffer {
+    switch (encoding?.trim().toLowerCase()) {
+        case undefined:
+        case "":
+        case "identity":
+            return bytes;
+        case "gzip":
+            return gunzipSync(bytes);
+        case "deflate":
+            return inflateSync(bytes);
+        case "br":
+            return brotliDecompressSync(bytes);
+        case "zstd":
+            return zstdDecompressSync(bytes);
+        default:
+            throw new Error(`Unsupported upstream content-encoding: ${encoding}`);
+    }
+}
+
+/** The text Codex shows for an upstream 402: who sent it, and what the provider said. */
+export function paymentRequiredNotice(
+    host: string,
+    bytes: Buffer,
+    encoding: string | undefined,
+    contentType: string | undefined,
+): string {
+    const text = decodedBody(bytes, encoding).toString("utf8").trim();
+    const json = contentType?.toLowerCase().includes("json") ?? false;
+    const parsed: unknown = json && text.length > 0 ? JSON.parse(text) : null;
+    const error =
+        typeof parsed === "object" && parsed !== null && "error" in parsed
+            ? (parsed as { error: unknown }).error
+            : null;
+    const message =
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof error.message === "string"
+            ? error.message
+            : text;
+    const notice = `${host} returned HTTP 402 Payment Required${message ? `: ${message}` : ""}`
+        .replace(/\s+/g, " ")
+        .slice(0, 512);
+    // A header value is ASCII; other characters are kept as escapes rather than dropped.
+    return notice.replace(
+        /[^\x20-\x7e]/g,
+        (character) =>
+            `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    );
+}
+
+function usageLimitHeaders(notice: string): Record<string, string> {
+    return {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(USAGE_LIMIT_BODY)),
+        "x-codex-promo-message": notice,
+    };
+}
 const HOP_HEADERS = new Set([
     "host",
     "connection",
@@ -437,6 +512,19 @@ export class ResponsesProxy {
                     incoming.status,
                     incoming.headers.get("x-request-id"),
                 );
+                if (this.paymentRequired(incoming.status)) {
+                    this.usageLimit(
+                        response,
+                        diagnostic,
+                        paymentRequiredNotice(
+                            target.hostname,
+                            Buffer.from(await incoming.arrayBuffer()),
+                            incoming.headers.get("content-encoding") ?? undefined,
+                            incoming.headers.get("content-type") ?? undefined,
+                        ),
+                    );
+                    return;
+                }
                 response.writeHead(
                     incoming.status,
                     forwardingHeaders(
@@ -491,6 +579,27 @@ export class ResponsesProxy {
                             typeof requestId === "string" ? requestId : null,
                             upstream.reusedSocket,
                         );
+                        if (this.paymentRequired(incoming.statusCode!)) {
+                            const chunks: Buffer[] = [];
+                            incoming.on("data", (chunk: Buffer) =>
+                                chunks.push(chunk),
+                            );
+                            incoming.once("error", reject);
+                            incoming.once("end", () => {
+                                this.usageLimit(
+                                    response,
+                                    diagnostic,
+                                    paymentRequiredNotice(
+                                        target.hostname,
+                                        Buffer.concat(chunks),
+                                        incoming.headers["content-encoding"],
+                                        incoming.headers["content-type"],
+                                    ),
+                                );
+                                resolve();
+                            });
+                            return;
+                        }
                         incoming.on("data", (chunk: Buffer) =>
                             diagnostic.received(chunk.length),
                         );
@@ -509,6 +618,20 @@ export class ResponsesProxy {
         } finally {
             this.aborts.delete(abort);
         }
+    }
+
+    private paymentRequired(status: number): boolean {
+        return this.destination === "external" && status === PAYMENT_REQUIRED;
+    }
+
+    private usageLimit(
+        response: ServerResponse,
+        diagnostic: ProxyDiagnostics,
+        notice: string,
+    ): void {
+        diagnostic.forwarded(429);
+        response.writeHead(429, usageLimitHeaders(notice));
+        response.end(USAGE_LIMIT_BODY);
     }
 
     private upgradeWebsocket(
@@ -567,6 +690,32 @@ export class ResponsesProxy {
             );
             incoming.once("end", () => diagnostic.end("completed"));
             incoming.once("error", (error) => diagnostic.end("failed", error));
+            if (this.paymentRequired(incoming.statusCode!)) {
+                const chunks: Buffer[] = [];
+                incoming.on("data", (chunk: Buffer) => chunks.push(chunk));
+                incoming.once("end", () => {
+                    diagnostic.forwarded(429);
+                    const headers = usageLimitHeaders(
+                        paymentRequiredNotice(
+                            target.hostname,
+                            Buffer.concat(chunks),
+                            incoming.headers["content-encoding"],
+                            incoming.headers["content-type"],
+                        ),
+                    );
+                    socket.end(
+                        `HTTP/1.1 429 Too Many Requests\r\n${Object.entries(
+                            headers,
+                        )
+                            .map(([name, value]) => `${name}: ${value}`)
+                            .join(
+                                "\r\n",
+                            )}\r\nConnection: close\r\n\r\n${USAGE_LIMIT_BODY}`,
+                    );
+                    upstream.terminate();
+                });
+                return;
+            }
             const headers = forwardingHeaders(incoming.headers, false);
             const lines = Object.entries(headers).flatMap(([name, value]) =>
                 value === undefined

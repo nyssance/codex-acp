@@ -68,6 +68,8 @@ export class ProxyDiagnostics {
         targetPort: null as number | null,
         endpoint: "other",
         status: null as number | null,
+        /** The status sent to Codex when it differs from the upstream `status`. */
+        forwardedStatus: null as number | null,
         closeCode: null as number | null,
         upstreamRequestId: null as string | null,
         sentBytes: 0,
@@ -155,6 +157,11 @@ export class ProxyDiagnostics {
         this.data.reusedSocket = reusedSocket ?? null;
         this.data.stage = "read_response";
         this.emit("headers");
+    }
+
+    /** The upstream status was replaced by a standard one before it reached Codex. */
+    forwarded(status: number): void {
+        this.data.forwardedStatus = status;
     }
 
     websocketClosed(code: number): void {
