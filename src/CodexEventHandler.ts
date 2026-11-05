@@ -50,7 +50,12 @@ import {ImageViewReporter} from "./tool-calls/reporters/ImageViewReporter";
 import {McpToolReporter} from "./tool-calls/reporters/McpToolReporter";
 import {WebSearchReporter} from "./tool-calls/reporters/WebSearchReporter";
 import {CodexPlanStream} from "./CodexPlanStream";
-import {isWorkspaceRoutingUnavailableMessage} from "./CodexThreadErrors";
+import {
+    type CodexFailureKind,
+    codexFailureKind,
+    isAuthenticationRequired,
+    SESSION_FAILURE_POLICY,
+} from "./CodexFailures";
 import {
     createMessagePhaseMeta,
     createAgentTextMessageChunk,
@@ -83,63 +88,7 @@ export type CompletedPlan = {
     text: string;
 };
 
-type CodexFailureKind =
-    | "transport_lost" | "auth_required" | "rate_limited" | "quota_exhausted" | "overloaded"
-    | "context_exhausted" | "budget_exhausted" | "policy_denied" | "bad_request"
-    | "provider_error" | "internal_error";
-
-type SessionFailurePolicy = {
-    category: SessionFailureCategory;
-    actions: SessionFailureAction[];
-};
-
 const MAX_SESSION_FAILURE_TITLE_LENGTH = 240;
-
-const SESSION_FAILURE_POLICY: Record<CodexFailureKind, SessionFailurePolicy> = {
-    transport_lost: {
-        category: "connection",
-        actions: ["retry", "new_session"],
-    },
-    auth_required: {
-        category: "access",
-        actions: ["login"],
-    },
-    rate_limited: {
-        category: "limit",
-        actions: ["retry"],
-    },
-    quota_exhausted: {
-        category: "limit",
-        actions: [],
-    },
-    overloaded: {
-        category: "service",
-        actions: ["retry"],
-    },
-    context_exhausted: {
-        category: "limit",
-        actions: ["new_session"],
-    },
-    budget_exhausted: {
-        category: "limit",
-        actions: ["new_session"],
-    },
-    policy_denied: {
-        category: "request",
-        actions: [],
-    },
-    bad_request: {
-        category: "request", actions: [],
-    },
-    provider_error: {
-        category: "service",
-        actions: ["retry"],
-    },
-    internal_error: {
-        category: "service",
-        actions: ["retry", "new_session"],
-    },
-};
 
 const SYNTHETIC_FAILURE_TITLE: Record<"transport_lost" | "internal_error", string> = {
     transport_lost: "Connection to Codex was lost.",
@@ -152,43 +101,6 @@ const SYNTHETIC_FAILURE_TITLE: Record<"transport_lost" | "internal_error", strin
 function nextSessionFailureRevision(previous: SessionFailure | undefined, id: string): number {
     return previous?.id === id ? previous.revision + 1 : 1;
 }
-
-type StringCodexErrorInfo = Extract<CodexErrorInfo, string>;
-type StructuredCodexErrorInfo = Exclude<CodexErrorInfo, string>;
-type KeysOfUnion<T> = T extends unknown ? keyof T : never;
-type StructuredCodexErrorKind = KeysOfUnion<StructuredCodexErrorInfo>;
-
-/**
- * Known error codes map to ACP categories; extensible upstream codes fall back to provider_error.
- */
-const STRING_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> =
-    {
-        contextWindowExceeded: "context_exhausted",
-        sessionBudgetExceeded: "budget_exhausted",
-        usageLimitExceeded: "quota_exhausted",
-        rateLimitExceeded: "rate_limited",
-        flexUnavailable: "provider_error",
-        serverOverloaded: "overloaded",
-        cyberPolicy: "policy_denied",
-        misalignmentPolicyViolation: "policy_denied",
-        tooManyDenials: "provider_error",
-        internalServerError: "internal_error",
-        unauthorized: "auth_required",
-        badRequest: "bad_request",
-        threadRollbackFailed: "provider_error",
-        sandboxError: "provider_error",
-        other: "provider_error",
-    } satisfies Record<StringCodexErrorInfo, CodexFailureKind>;
-
-const STRUCTURED_CODEX_ERROR_CATEGORIES: Partial<
-    Record<string, CodexFailureKind>
-> = {
-    httpConnectionFailed: "transport_lost",
-    responseStreamConnectionFailed: "transport_lost",
-    responseStreamDisconnected: "transport_lost",
-    responseTooManyFailedAttempts: "transport_lost",
-    activeTurnNotSteerable: "provider_error",
-} satisfies Record<StructuredCodexErrorKind, CodexFailureKind>;
 
 /** Prompt failures whose text the client has already received as an agent message. */
 const failuresShownAsMessages = new WeakSet<RequestError>();
@@ -1528,34 +1440,12 @@ export class CodexEventHandler {
         };
     }
 
-    private sessionFailureKind({message, codexErrorInfo: error}: ErrorNotification["error"]): CodexFailureKind {
-        if (this.isAuthenticationRequiredError(error)) return "auth_required";
-        if (isWorkspaceRoutingUnavailableMessage(message)) return "transport_lost";
-        if (this.getHttpStatusCode(error) === 429) return "rate_limited";
-        if (typeof error === "string") {
-            return Object.hasOwn(STRING_CODEX_ERROR_CATEGORIES, error)
-                ? STRING_CODEX_ERROR_CATEGORIES[error] ?? "provider_error"
-                : "provider_error";
-        }
-        if (error !== null) {
-            for (const kind of Object.keys(STRUCTURED_CODEX_ERROR_CATEGORIES) as StructuredCodexErrorKind[]) {
-                if (kind in error) {
-                    return STRUCTURED_CODEX_ERROR_CATEGORIES[kind] ?? "provider_error";
-                }
-            }
-        }
-        return "provider_error";
+    private sessionFailureKind(error: ErrorNotification["error"]): CodexFailureKind {
+        return codexFailureKind(error);
     }
 
     private isAuthenticationRequiredError(error: CodexErrorInfo | null): boolean {
-        return error === "unauthorized" || this.getHttpStatusCode(error) === 401;
-    }
-
-    private getHttpStatusCode(error: CodexErrorInfo | null): number | null {
-        if (error === null || typeof error !== "object") return null;
-        const details: unknown = Object.values(error)[0];
-        if (details === null || typeof details !== "object" || !("httpStatusCode" in details)) return null;
-        return typeof details.httpStatusCode === "number" ? details.httpStatusCode : null;
+        return isAuthenticationRequired(error);
     }
 
     private createTurnErrorData(error: ErrorNotification["error"]): {

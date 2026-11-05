@@ -83,9 +83,9 @@
             "codex": {
               "turnId": "turn-1",
               "error": {
-                "category": "usage_limit",
-                "retryable": false,
-                "stopReason": "error",
+                "kind": "quota_exhausted",
+                "category": "limit",
+                "actions": [],
                 "message": "You've hit your usage limit.",
                 "codexErrorInfo": "usageLimitExceeded",
                 "additionalDetails": null,
@@ -109,9 +109,9 @@
             "codex": {
               "turnId": "turn-1",
               "error": {
-                "category": "usage_limit",
-                "retryable": false,
-                "stopReason": "error",
+                "kind": "quota_exhausted",
+                "category": "limit",
+                "actions": [],
                 "message": "You've hit your usage limit.",
                 "codexErrorInfo": "usageLimitExceeded",
                 "additionalDetails": null,

@@ -45,6 +45,11 @@ export type {
     FuzzyFileSearchResult,
     FuzzyFileSearchSessionUpdatedNotification as FuzzyFileSearchSessionUpdated,
 } from "../app-server";
+import type {
+    CodexFailureKind,
+    SessionFailureAction,
+    SessionFailureCategory,
+} from "../CodexFailures";
 
 /** What the adapter advertised under `capabilities._meta.codex`. */
 export type CodexExtensionCapabilities = {
@@ -150,10 +155,14 @@ export function hasPluginStore(agent: acp.InitializeResponse | null): boolean {
     return capabilities.skills || capabilities.plugins;
 }
 
-/** Standard ACP errors carry the message; Codex data supplies retry classification. */
+/** Standard ACP errors carry the message; Codex data supplies the adapter's failure classification. */
 export type CodexTurnError = {
     message: string;
-    category: string | null;
+    /** `CodexFailures.CodexFailureKind` of codex-acp-v2, `null` for an error without Codex data. */
+    kind: CodexFailureKind | null;
+    category: SessionFailureCategory | null;
+    actions: SessionFailureAction[];
+    /** The adapter offers a retry for this failure. */
     retryable: boolean;
 };
 
@@ -173,6 +182,12 @@ export function codexTurnError(error: TurnError): CodexTurnError {
         typeof detail === "object" && detail !== null
             ? (detail as Record<string, unknown>)
             : undefined;
+    const actions = Array.isArray(fields?.actions)
+        ? (fields.actions.filter(
+              (action): action is SessionFailureAction =>
+                  typeof action === "string",
+          ) as SessionFailureAction[])
+        : [];
     return {
         message:
             error.error != null
@@ -182,8 +197,13 @@ export function codexTurnError(error: TurnError): CodexTurnError {
                   : error.stopReason === DISCONNECTED
                     ? "Codex disconnected while this turn was running"
                     : `Turn ended: ${error.stopReason}`,
-        category: typeof fields?.category === "string" ? fields.category : null,
-        retryable: fields?.retryable === true,
+        kind: typeof fields?.kind === "string" ? (fields.kind as CodexFailureKind) : null,
+        category:
+            typeof fields?.category === "string"
+                ? (fields.category as SessionFailureCategory)
+                : null,
+        actions,
+        retryable: actions.includes("retry"),
     };
 }
 
@@ -198,8 +218,7 @@ export function codexMessageError(
     const detail = error as Record<string, unknown>;
     if (typeof detail.message !== "string") return null;
     return {
-        stopReason:
-            typeof detail.stopReason === "string" ? detail.stopReason : "error",
+        stopReason: "error",
         error: {
             code: -32603,
             message: textOf(item.content),

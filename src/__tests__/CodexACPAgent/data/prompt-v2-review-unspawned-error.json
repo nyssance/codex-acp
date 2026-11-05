@@ -36,9 +36,11 @@
         "codex": {
           "turnId": "review-parent",
           "error": {
-            "category": "unknown",
-            "retryable": false,
-            "stopReason": "error",
+            "kind": "provider_error",
+            "category": "service",
+            "actions": [
+              "retry"
+            ],
             "message": "/test/cwd is not a git repository",
             "codexErrorInfo": null,
             "additionalDetails": null,

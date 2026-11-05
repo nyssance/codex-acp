@@ -65,9 +65,11 @@
       "codex": {
         "turnId": "turn-1",
         "error": {
-          "category": "unknown",
-          "retryable": false,
-          "stopReason": "error",
+          "kind": "provider_error",
+          "category": "service",
+          "actions": [
+            "retry"
+          ],
           "message": "Something went wrong",
           "codexErrorInfo": null,
           "additionalDetails": null,

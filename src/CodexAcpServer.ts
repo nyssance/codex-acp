@@ -7,7 +7,7 @@ import {
 } from "./CodexNativeExtensions";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ReplayEntry } from "./ReplayHistory";
-import { classifyTurnError } from "./alwith/agent/turnErrors";
+import { codexFailureKind, SESSION_FAILURE_POLICY } from "./CodexFailures";
 import { ConfigRevisions } from "./alwith/ConfigRevisions";
 import type { ProviderRouting } from "./alwith/agent/providers";
 import {
@@ -368,10 +368,8 @@ export interface SessionState extends SessionIndexTitleState {
     openToolCalls: CodexSessionToolCalls;
 }
 
-export type SessionFailureCategory =
-    | "connection" | "access" | "limit" | "request" | "service" | "unknown";
-
-export type SessionFailureAction = "retry" | "login" | "new_session";
+import type {SessionFailureAction, SessionFailureCategory} from "./CodexFailures";
+export type {SessionFailureAction, SessionFailureCategory};
 
 /**
  * How loudly the client should render the record. Absent on the wire means `error`, so an AIR build
@@ -1388,8 +1386,9 @@ export class CodexAcpServer {
                         );
                     }
                     if (
-                        !classifyTurnError(latest.error.codexErrorInfo)
-                            .retryable ||
+                        !SESSION_FAILURE_POLICY[
+                            codexFailureKind(latest.error)
+                        ].actions.includes("retry") ||
                         (trigger === "automatic" &&
                             latest.error.codexErrorInfo !== "serverOverloaded")
                     ) {

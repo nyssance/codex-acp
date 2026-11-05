@@ -80,9 +80,9 @@
         "codex": {
           "turnId": "turn-1",
           "error": {
-            "category": "invalid_request",
-            "retryable": false,
-            "stopReason": "error",
+            "kind": "bad_request",
+            "category": "request",
+            "actions": [],
             "message": "{\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"{\\\"error\\\":{\\\"message\\\":\\\"The encrypted content for item rs_1 could not be verified.\\\",\\\"code\\\":\\\"invalid_encrypted_content\\\"}}\",\"provider_name\":\"Azure\",\"provider_error_code\":\"invalid_encrypted_content\"}}}",
             "codexErrorInfo": "badRequest",
             "additionalDetails": null,
@@ -106,9 +106,9 @@
         "codex": {
           "turnId": "turn-1",
           "error": {
-            "category": "invalid_request",
-            "retryable": false,
-            "stopReason": "error",
+            "kind": "bad_request",
+            "category": "request",
+            "actions": [],
             "message": "{\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"{\\\"error\\\":{\\\"message\\\":\\\"The encrypted content for item rs_1 could not be verified.\\\",\\\"code\\\":\\\"invalid_encrypted_content\\\"}}\",\"provider_name\":\"Azure\",\"provider_error_code\":\"invalid_encrypted_content\"}}}",
             "codexErrorInfo": "badRequest",
             "additionalDetails": null,

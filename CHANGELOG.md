@@ -1,6 +1,7 @@
 ## 0.7.56 (2026-11-05)
 
 - `session/list` is answered by the upstream session index for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]`, with standard rows: top-level `archived`, `_meta.codex.{projectId,nativeSessionId,forkedFromId}`, titles repaired where the native preview starts with a prompt envelope. The exported client declares it. Removed: `_codex/session_list`, the fork's own list and rollout fork index, and `threadSource` on `session/new`, `session/fork`, lineage and `SessionSummary`. A v2 client that declares neither index gets upstream's legacy list and archive-on-delete.
+- A failed turn's `_meta.codex.error` carries the adapter's own failure classification, the one its AIR session failures use: `kind` (`CodexFailureKind`), `category` and `actions`. The fork's second taxonomy (`category` such as `usage_limit`, `retryable`, `stopReason`) is gone; `codexTurnError` returns `kind`, `category`, `actions` and `retryable` derived from `actions`. Retrying a failed turn follows the same policy.
 - An external provider's HTTP 402 (DeepSeek's exhausted balance) reaches Codex as its usage-limit error instead of a retried connection failure. The turn error names the provider host, the 402 and the provider's message, and the thread keeps it; the proxy diagnostic records the upstream status.
 
 ## 0.7.55 (2026-11-04)

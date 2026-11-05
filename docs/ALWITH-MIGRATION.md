@@ -62,13 +62,14 @@ ACP envelope. Workarounds for Codex gaps are listed separately in [fallbacks.md]
 
 Hooks and goal control are upstream's; the fork only exposes them in its browser client.
 
-Two behaviors differ from upstream on purpose:
+One behavior differs from upstream on purpose:
 
 - A permission-mode change is written to the thread with `thread/settings/update` before it is
   confirmed, so it persists without a turn. Upstream records it and sends it with the next `turn/start`.
-- A failed turn carries `_meta.codex.error.{category,retryable,stopReason}` from `classifyTurnError`.
-  Upstream's `CodexEventHandler` has its own `CodexFailureKind` labels; module-chat reads the fork's.
-  Merging the two would change the labels clients show and is not done yet.
+
+A failed turn over ACP v2 carries `_meta.codex.error.{kind,category,actions}` from upstream's own
+classification (`src/CodexFailures.ts`, the one its AIR session failures use); the fork only moves it
+into a module both the server and the exported client can import.
 
 ## Waiting on upstream
 
