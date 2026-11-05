@@ -6,7 +6,7 @@ import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type { InputModality } from "../../app-server/InputModality";
 import type { Model, ReasoningEffortOption } from "../../app-server/v2";
-import type { JsonObject } from "../codex/sessionConfig";
+import type { JsonObject } from "../../CodexAcpClient";
 import { isRecord } from "../../permissions/json";
 
 /** The one provider slot Codex exposes: where its OpenAI-protocol traffic goes. */

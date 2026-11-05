@@ -9,14 +9,6 @@ import { attachmentFileUri } from "../../DesktopAttachmentHistory";
 
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 
-export function localImageContent(path: string): acp.ContentBlock {
-    return {
-        type: "resource_link",
-        name: "Image",
-        uri: path.startsWith("file:") ? path : pathToFileURL(path).href,
-    };
-}
-
 /**
  * Replaces the links `session/load` replays for a message's native `localImage` inputs with the
  * image data. Only those inputs authorize a local read; other links in the message stay links.
