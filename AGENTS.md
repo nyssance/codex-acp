@@ -78,4 +78,4 @@ create isolated homes remain valid; they must never fall back to the real home.
 
 ## Pending work
 
-Pending work and upstream-blocked items of this repository are registered only in the ALwith plans index, `alwith-desktop/docs/plans/index.md` (rows that name this repository), with a link back to the document here that holds the details. Do not keep a second list in this repository; add a row there and link it. Origin: user instruction (2026-11-02, "one entry point for pending work").
+The open items of this repository are listed in [docs/ALWITH-MIGRATION.md § Pending](docs/ALWITH-MIGRATION.md#pending), each with what unblocks it. Add new items there. ALwith's cross-repository plan index (`alwith-desktop/docs/plans/index.md`, private) links to that section; it is not required to work here.

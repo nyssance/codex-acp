@@ -71,11 +71,17 @@ A failed turn over ACP v2 carries `_meta.codex.error.{kind,category,actions}` fr
 classification (`src/CodexFailures.ts`, the one its AIR session failures use); the fork only moves it
 into a module both the server and the exported client can import.
 
-## Waiting on upstream
+## Pending
 
-Every pending item of this repository, including the ones below, is registered in the ALwith plans
-index: `alwith-desktop/docs/plans/index.md` (the rows that name codex-acp). That index is the only
-list; this section only explains the upstream state behind those rows.
+The open items of this repository. Each names what unblocks it.
 
-- Session index for non-AIR v2 clients: [agentclientprotocol/codex-acp#736](https://github.com/agentclientprotocol/codex-acp/issues/736). Upstream gates `SessionIndexService` on the AIR `sessionIndex` capability. The fork enables the same service for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]` and answers it with standard rows (`src/alwith/agent/sessionList.ts`); the fork's own list, fork index and `threadSource` are gone. Once upstream serves the index to v2 connections, the ALwith gate goes too.
-- ACP SDK 2.3/2.4 standard methods. Upstream #727 (merged in `13c9eef`) moved to SDK 2.4 and adopted only `session/set_title`; it does not advertise `session/archive` / `session/unarchive`, `session/status` or `auth/status`. The fork serves `session/set_title`, `session/archive`, `session/unarchive` and the `session/list` `archived` filter over v2 (advertised as `session.archive`), and its client uses them; `_codex/session_rename`, `_codex/session_archive` and `_codex/session_unarchive` are removed. AIR keeps `_session/rename`, `_session/archive` and `_session/unarchive`. `_auth/status_update`, `proxy/initialize` / `proxy/successor` and v2 background work are not adopted.
+| Item | State | Done when |
+|---|---|---|
+| Session index for non-AIR v2 clients | [agentclientprotocol/codex-acp#736](https://github.com/agentclientprotocol/codex-acp/issues/736) open. The fork enables upstream's `SessionIndexService` for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]` (`src/alwith/agent/sessionList.ts`). | Upstream serves the index to v2 connections; the ALwith gate goes. |
+| Composer predictions | Codex `thread/prediction/request` still answers not implemented; the fork runs an ephemeral fork turn (`src/alwith/agent/composerPredictions.ts`). | Codex implements it; the adapter forwards the native request and `thread/prediction/updated`. |
+| Provider HTTP 402 | Codex treats an unknown status as a retried connection failure and drops the provider text on `QuotaExceeded`; the fork's proxy rewrites a 402 to 429 `usage_limit_reached` with the provider's message (`docs/fallbacks.md`). DeepSeek answers 402 `insufficient_balance_error` (observed 2026-11-05). | Codex recognizes 402, or DeepSeek answers OpenAI's 429 `insufficient_quota`. |
+| Title generation on gateway sessions | `TitleGenerator` starts the title thread on the default model; whether it succeeds for a gateway-only login is unverified. Upstream PR #595 (skip AI titles on other providers) is open. Until then the history title repairs envelope previews (`src/alwith/agent/historyTitle.ts`). | Verified, or #595 decides it. |
+| Standard ACP session methods | Upstream #727 adopted `session/set_title` only. The fork serves `session/archive`, `session/unarchive` and the `session/list` `archived` filter over v2 (advertised as `session.archive`); AIR keeps `_session/*`. `_auth/status_update`, `proxy/initialize` / `proxy/successor` and v2 background work are not adopted. | Upstream adopts them; the fork's routes become upstream's. |
+| Steering semantics | The fork's `turn/steer` handling differs from upstream's (`docs/steering.md`). Not yet compared field by field. | Compared; either aligned to upstream or the difference is recorded here with its reason. |
+
+Kept on purpose, not pending: a permission-mode change is written to the thread with `thread/settings/update` before it is confirmed, so it persists without a turn; upstream records it and sends it with the next `turn/start`.
