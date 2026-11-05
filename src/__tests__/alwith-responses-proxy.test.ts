@@ -704,17 +704,17 @@ it("isolates gateway credentials on websocket upgrades", async () => {
 });
 
 describe("an exhausted balance reported as HTTP 402", () => {
-    // DeepSeek's documented response for an exhausted balance.
+    // DeepSeek's response for an exhausted balance, as observed on 2026-11-05 (its docs say `unknown_error`).
     const deepSeekBody = JSON.stringify({
         error: {
-            message: "Insufficient Balance",
-            type: "unknown_error",
+            message: "Insufficient Balance (request_id: 944e5925-4ad9-4547-b1c0-b0ea8c802950)",
+            type: "insufficient_balance_error",
             param: null,
             code: "invalid_request_error",
         },
     });
     const notice =
-        "127.0.0.1 returned HTTP 402 Payment Required: Insufficient Balance";
+        "127.0.0.1 returned HTTP 402 Payment Required: Insufficient Balance (request_id: 944e5925-4ad9-4547-b1c0-b0ea8c802950)";
     function external(): ResponsesProxy {
         const value = new ResponsesProxy("external");
         cleanup.push(() => value.close());
