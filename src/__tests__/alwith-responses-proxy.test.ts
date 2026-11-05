@@ -819,7 +819,7 @@ describe("an exhausted balance reported as HTTP 402", () => {
                 "application/json",
             ),
         ).toBe(
-            "api.deepseek.com returned HTTP 402 Payment Required: Insufficient Balance",
+            "api.deepseek.com returned HTTP 402 Payment Required: Insufficient Balance (request_id: 944e5925-4ad9-4547-b1c0-b0ea8c802950)",
         );
         expect(
             paymentRequiredNotice(
