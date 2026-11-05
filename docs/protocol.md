@@ -106,16 +106,6 @@ image content blocks, including during history replay. Dynamic tool image data
 URLs are converted into inline ACP images, while other URLs remain resource links.
 Codex retains conversation and media history; the extension creates no image store.
 
-### Native session source
-
-`session/new` accepts optional `_meta.codex.threadSource`, a non-empty string
-passed to Codex `thread/start`. Omitted or null leaves the source unset; invalid
-values return an invalid-parameters error. Codex persists this classification with
-the conversation. Both ACP versions return a non-null native source in
-`_meta.codex.threadSource` on creation, resume, fork and session listing. Sources
-do not change conversation ownership, archive state or history storage. Clients
-may use the field to choose the surface where a conversation is listed.
-
 ## Subagent turn origins and reload routing
 
 Standard ACP `subagent_update` carries `_meta.codex.threadId` and the originating

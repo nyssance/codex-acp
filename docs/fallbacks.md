@@ -9,8 +9,6 @@ code; a gap that can be fixed in this repository is not a workaround.
 
 | Where | Workaround | Why | Remove when |
 |---|---|---|---|
-| `src/alwith/agent/forkIndex.ts` | Reads rollout headers under `CODEX_HOME` to list forks and recover `thread_source`. Unreadable files are skipped, as Codex's own listing skips them. | `thread/list` omits forks without turns and can omit the persisted thread source. | `thread/list` returns empty forks and `threadSource`. |
-| `src/alwith/agent/sessionCatalog.ts`, `sessionLineage.ts` | Merges the rollout metadata above into list rows and resume lineage. | Same gap as above. | Same as above. |
 | `src/alwith/agent/historyTitle.ts` `sessionTitle` | Reads the first page of turns when a preview starts with a serialized attachment or reply envelope. | Codex builds `preview` from the rendered prompt text, which can start with an attachment or cut through a URI. | Codex derives the preview from the user's text only. |
 | `src/alwith/codex/sessionConfig.ts` `fileReference` and attachment envelopes | Rebuilds file and attachment blocks from the text Codex stores. | Codex stores user input as rendered text, so the structure is lost. | Codex persists structured user input. |
 | `src/alwith/agent/historyProtocol.ts` `HistoryRead.fitting` | Re-reads the same cursor with half the count until a page fits `maxBytes`. | Native cursors are opaque and Codex has no byte limit on `thread/turns/list`. | Codex accepts a byte limit. |

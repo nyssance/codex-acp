@@ -1,6 +1,6 @@
 import { AgentMode } from "./AgentMode";
 import { readSessionLineage } from "./alwith/sessionLineage";
-import { hostThreadOptions, hostThreadSource } from "./alwith/hostSession";
+import { hostThreadOptions } from "./alwith/hostSession";
 import {createHash} from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 import { RequestError } from "@agentclientprotocol/sdk/unstable";
@@ -44,10 +44,8 @@ export async function forkSession(
         additionalDirectories,
         request.mcpServers ?? [],
     );
-    const threadSource = hostThreadSource(request._meta);
     const response = await dependencies.codexClient.threadFork({
         ...hostThreadOptions(request._meta),
-        ...(threadSource !== undefined ? { threadSource } : {}),
         excludeTurns: true,
         config,
         cwd: request.cwd,

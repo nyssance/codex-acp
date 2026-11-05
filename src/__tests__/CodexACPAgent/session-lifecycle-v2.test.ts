@@ -138,6 +138,7 @@ async function connectV2Client(options?: {
     failMethod?: {method: string; error: Error};
     listSkills?: (params: SkillsListParams) => Promise<SkillsListResponse>;
     air?: boolean;
+    alwith?: boolean;
     thread?: Partial<Thread>;
     beforeThreadRead?: () => Promise<void>;
     permissionProfiles?: PermissionProfileSummary[];
@@ -243,7 +244,11 @@ async function connectV2Client(options?: {
     await connection.agent.request(acpV2.methods.agent.initialize, {
         protocolVersion: 2,
         info: {name: "test-client", version: "1.0.0"},
-        ...(options?.air ? {capabilities: {_meta: {jetbrains: {air: {version: 1}}}}} : {}),
+        ...(options?.air
+            ? {capabilities: {_meta: {jetbrains: {air: {version: 1}}}}}
+            : options?.alwith
+              ? {capabilities: {_meta: {alwith: {capabilities: ["sessionIndex"]}}}}
+              : {}),
     });
     return {connection, agent: () => agent!, codexRequests, updates, emit: mocks.getUnhandledNotificationHandler()!};
 }
@@ -293,37 +298,6 @@ describe('Session lifecycle over ACP v2', () => {
         await expect(
             dump({ response, codexRequests, updates: sessionUpdates }),
         ).toMatchFileSnapshot("data/session-lifecycle-v2-new.json");
-    });
-
-    it("returns the persisted native source on creation and resume", async () => {
-        const { connection, codexRequests } = await connectV2Client({
-            thread: { threadSource: "alwith-images" },
-        });
-        closeClient = () => connection.close();
-        const created = await connection.agent.request(
-            acpV2.methods.agent.session.new,
-            {
-                cwd,
-                _meta: { codex: { threadSource: "alwith-images" } },
-            },
-        );
-        expect(
-            codexRequests.find((request) => request.method === "thread/start")
-                ?.params,
-        ).toMatchObject({ threadSource: "alwith-images" });
-        expect(created._meta).toMatchObject({
-            codex: { threadSource: "alwith-images" },
-        });
-        await connection.agent.request(acpV2.methods.agent.session.close, {
-            sessionId,
-        });
-        const resumed = await connection.agent.request(
-            acpV2.methods.agent.session.resume,
-            { sessionId, cwd },
-        );
-        expect(resumed._meta).toMatchObject({
-            codex: { threadSource: "alwith-images" },
-        });
     });
 
     it('creates a session with v2 mcpServers', async () => {
@@ -548,7 +522,7 @@ describe('Session lifecycle over ACP v2', () => {
     });
 
     it("lists sessions", async () => {
-        const { connection, codexRequests } = await connectV2Client();
+        const { connection, codexRequests } = await connectV2Client({ alwith: true });
         closeClient = () => connection.close();
 
         const response = await connection.agent.request(
@@ -563,6 +537,7 @@ describe('Session lifecycle over ACP v2', () => {
 
     it("filters the list by archive state and pages through both lists for include", async () => {
         const { connection } = await connectV2Client({
+            alwith: true,
             threadList: ({ archived, cursor }) =>
                 archived
                     ? { data: [createThread({ id: "archived", sessionId: "archived" })], nextCursor: null }
@@ -590,10 +565,10 @@ describe('Session lifecycle over ACP v2', () => {
             pages.push(rows(page));
             cursor = page.nextCursor;
         } while (cursor);
+        // The index pages each Codex list on its own cursor and merges the archive into the first page.
         expect(pages).toEqual([
-            [["first", false]],
+            [["first", false], ["archived", true]],
             [["second", false]],
-            [["archived", true]],
         ]);
 
         await expect(list({ archived: "everything" })).rejects.toMatchObject({ code: -32602 });
@@ -622,7 +597,7 @@ describe('Session lifecycle over ACP v2', () => {
     });
 
     it("deletes a session", async () => {
-        const { connection, agent, codexRequests } = await connectV2Client();
+        const { connection, agent, codexRequests } = await connectV2Client({ alwith: true });
         closeClient = () => connection.close();
         await connection.agent.request(acpV2.methods.agent.session.new, {
             cwd,

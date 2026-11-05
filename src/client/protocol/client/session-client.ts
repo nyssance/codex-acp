@@ -47,8 +47,6 @@ export type Launch = { engine: string; [key: string]: unknown };
 /** One row of the session list: what `session/list` says about a session, before it is opened. */
 export type SessionSummary = {
     projectId?: string | null;
-    /** Native source classification, retained when a session is rediscovered. */
-    threadSource?: string;
     sessionId: string;
     cwd: string;
     title: string | null;
@@ -156,7 +154,7 @@ export type ClientOptions = {
 };
 
 const CLIENT_INFO = { name: "alwith", version: "0.1.0" };
-const CLIENT_CAPABILITIES = { elicitation: { form: {}, url: {} } };
+export const CLIENT_CAPABILITIES = { elicitation: { form: {}, url: {} } };
 const CONNECT_TIMEOUT_MS = 60_000;
 
 const runStateSources = new WeakMap<

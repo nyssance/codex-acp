@@ -17,7 +17,6 @@ export type SessionMetadata = {
     readOnly?: boolean;
     lineage?: {
         projectId?: string | null;
-        threadSource?: string;
         nativeSessionId: string | null;
         forkedFromId: string | null;
         forkedAtTurnId?: string | null;

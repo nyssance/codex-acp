@@ -26,16 +26,3 @@ export function hostThreadOptions(meta: unknown, initialMode?: AgentMode) {
         sandbox: mode.sandboxMode,
     };
 }
-
-/** A native source survives history discovery and adapter restarts. */
-export function hostThreadSource(meta: unknown): string | undefined {
-    const source = (meta as { codex?: { threadSource?: unknown } } | null)
-        ?.codex?.threadSource;
-    if (source === undefined || source === null) return undefined;
-    if (typeof source !== "string" || source.trim().length === 0)
-        throw RequestError.invalidParams(
-            undefined,
-            "threadSource must be a non-empty string",
-        );
-    return source;
-}

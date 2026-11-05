@@ -117,9 +117,14 @@ const recordedCodexMethods = new Set([
     "thread/name/set",
     "thread/archive",
     "thread/unarchive",
+    "thread/delete",
 ]);
 
-async function connectV2Client(airCapabilities: string[], overrides: CodexOverrides = {}) {
+async function connectV2Client(
+    airCapabilities: string[],
+    overrides: CodexOverrides = {},
+    clientMeta: Record<string, unknown> = {jetbrains: {air: {version: 1, capabilities: airCapabilities}}},
+) {
     const mocks = createMockConnections();
     const codexRequests: Array<{ method: string; params: unknown }> = [];
     mocks.mockCodexConnection.sendRequest.mockImplementation(
@@ -172,7 +177,7 @@ async function connectV2Client(airCapabilities: string[], overrides: CodexOverri
     const initialize = await connection.agent.request(acpV2.methods.agent.initialize, {
         protocolVersion: 2,
         info: {name: "test-client", version: "1.0.0"},
-        capabilities: {_meta: {jetbrains: {air: {version: 1, capabilities: airCapabilities}}}},
+        capabilities: {_meta: clientMeta},
     });
     const sendServerNotification = (notification: unknown) => mocks.getUnhandledNotificationHandler()?.(notification);
     return {connection, initialize, codexRequests, updates, listChanges, sendServerNotification};
@@ -204,6 +209,26 @@ describe('AIR sessionIndex over ACP v2', () => {
         expect(airCapabilitiesOf(initialize)).not.toContain("sessionIndex");
         await expect(connection.agent.request(SESSION_RENAME_METHOD, {sessionId, title: "Renamed"}))
             .rejects.toMatchObject({code: -32601});
+    });
+
+    it('serves the index with standard rows to a client that declares ALwith sessionIndex', async () => {
+        const {connection, initialize, codexRequests} = await connectV2Client([], {}, {alwith: {capabilities: ["sessionIndex"]}});
+        closeClient = () => connection.close();
+        expect((initialize._meta as Record<string, unknown>)["jetbrains"]).toBeUndefined();
+        await connection.agent.request(acpV2.methods.agent.session.new, {cwd});
+        codexRequests.length = 0;
+
+        const list = await connection.agent.request(acpV2.methods.agent.session.list, {cwd, archived: "only"});
+        for (const row of list.sessions) {
+            expect(row.archived).toBe(true);
+            expect((row._meta as Record<string, unknown>)["jetbrains"]).toBeUndefined();
+        }
+        const title = await connection.agent.request(acpV2.methods.agent.session.setTitle, {sessionId, title: "Renamed"});
+        await connection.agent.request(acpV2.methods.agent.session.archive, {sessionId});
+        await connection.agent.request(acpV2.methods.agent.session.unarchive, {sessionId});
+        await connection.agent.request(acpV2.methods.agent.session.delete, {sessionId});
+
+        await expect(dump({list, title, codexRequests})).toMatchFileSnapshot('data/session-index-v2-alwith.json');
     });
 
     it('lists, renames, archives and unarchives sessions', async () => {

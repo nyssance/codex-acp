@@ -206,8 +206,6 @@ projection and the next history cursor through the existing agent connection. It
 does not open, attach, select or register the child as a top-level conversation.
 The client rejects a result if that connection was replaced while reading.
 
-`SessionSummary.threadSource` exposes Codex's native source classification. The
-client preserves a listed source when forking, so product-specific conversations
-remain on their originating surface. `readSessionHistory(id, cwd, cursor?)` reads
+`readSessionHistory(id, cwd, cursor?)` reads
 one bounded history page without attaching a writer or changing the selected
 conversation. `readSubagentHistory` delegates to the same projection.

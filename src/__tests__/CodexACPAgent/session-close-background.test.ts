@@ -5,7 +5,10 @@ describe.each([1, 2] as const)("ACP v%s background teardown", (version) => {
     it.each(["session/close", "session/delete"])(
         "stops all pages of background processes before %s responds without AIR",
         async (method) => {
-            const h = await connectSession(version);
+            // Over v2 the ALwith client declares the session index, whose delete is a `thread/delete`.
+            const h = await connectSession(version, version === 2
+                ? {clientCapabilities: {_meta: {alwith: {capabilities: ["sessionIndex"]}}}}
+                : {});
             const events: unknown[] = [];
             let release!: () => void;
             const stopping = new Promise<void>((resolve) => {

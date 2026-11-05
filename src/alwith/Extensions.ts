@@ -1,7 +1,6 @@
 import { generateImage } from "./codex/images";
 import { projectsFor } from "../projects/registry";
 import { ComposerPredictions } from "./agent/composerPredictions";
-import { readSessionList } from "./agent/sessionCatalog";
 import { logger } from "../Logger";
 import { historyError } from "./agent/historyProtocol";
 import { RequestError } from "@agentclientprotocol/sdk/experimental/v2/unstable";
@@ -47,7 +46,6 @@ export const ALWITH_METHODS = [
     "_codex/plugin_set_enabled",
     "_codex/session_history",
     "_codex/session_history_items",
-    "_codex/session_list",
     "_codex/session_prediction_request",
     "_codex/session_retry",
 ] as const;
@@ -128,12 +126,6 @@ export class AlwithExtensions {
         if (method === "_codex/project_context")
             return projectsFor(this.current()).context(
                 params["createChatDirectory"] === true,
-            );
-        if (method === "_codex/session_list")
-            return readSessionList(
-                this.current(),
-                params,
-                Object.keys(params).length === 0,
             );
         if (
             method === "_codex/session_history" ||

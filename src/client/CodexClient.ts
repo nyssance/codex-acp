@@ -81,7 +81,10 @@ import {
     prependHistory,
     readHistoryPage,
 } from "./history-page";
-import { asError } from "./protocol/client/session-client";
+import {
+    asError,
+    CLIENT_CAPABILITIES,
+} from "./protocol/client/session-client";
 
 export type ForkOrigin = { sourceId: string; boundaryTurnId: string | null };
 
@@ -121,6 +124,23 @@ function isActiveWriterError(error: unknown): boolean {
         "reason" in data &&
         data.reason === "thread_active_writer"
     );
+}
+
+/**
+ * The ALwith client extensions declared to codex-acp-v2, beside the client's ACP capabilities:
+ * `sessionIndex` asks for the upstream session index (archived sides, fork parents) with standard rows.
+ */
+function withAlwithCapabilities(
+    capabilities: Record<string, unknown> = CLIENT_CAPABILITIES,
+): Record<string, unknown> {
+    const meta =
+        typeof capabilities._meta === "object" && capabilities._meta !== null
+            ? (capabilities._meta as Record<string, unknown>)
+            : {};
+    return {
+        ...capabilities,
+        _meta: { ...meta, alwith: { capabilities: ["sessionIndex"] } },
+    };
 }
 
 function sessionLineage(
@@ -194,7 +214,11 @@ export class CodexClient<
             openPort,
             // Codex's dialect for the fold: `tool_call_update.content` carries the whole output every time
             // (alwith-cli sends deltas), and nothing outlives a turn or is dispatched by another tool.
-            { fold: { toolContent: "replace" }, ...options },
+            {
+                fold: { toolContent: "replace" },
+                ...options,
+                capabilities: withAlwithCapabilities(options.capabilities),
+            },
             { ...codex, ...extraState } as Omit<State, keyof ClientState>,
         );
     }
@@ -333,16 +357,10 @@ export class CodexClient<
 
     // ── List dialect ──
 
-    /** codex-acp-v2's full list in one answer; `session/list` is paged and filtered. */
+    /** The project context names the chat directory the rows are grouped under; read it first. */
     protected override async fetchSessionList(): Promise<acp.SessionInfo[]> {
         await this.refreshProjectContext();
-        const response = await this.live().request<acp.ListSessionsResponse>(
-            "_codex/session_list",
-            {},
-        );
-        if (response.nextCursor != null)
-            throw new Error("Full session list returned a cursor");
-        return response.sessions;
+        return await super.fetchSessionList();
     }
 
     protected override summaryOf(info: acp.SessionInfo): SessionSummary {
@@ -358,15 +376,8 @@ export class CodexClient<
             typeof projectId !== "string"
         )
             throw new Error("Invalid Codex project ID");
-        const threadSource =
-            typeof codex === "object" && codex !== null
-                ? (codex as { threadSource?: unknown }).threadSource
-                : undefined;
-        if (threadSource != null && typeof threadSource !== "string")
-            throw new Error("Invalid Codex thread source");
         return {
             ...super.summaryOf(info),
-            ...(threadSource != null ? { threadSource } : {}),
             archived,
             projectId: projectId ?? null,
         };
@@ -535,21 +546,9 @@ export class CodexClient<
                 (option) =>
                     option.category === "mode" && isSelectOption(option),
             );
-        const threadSource =
-            operation.kind === "fork"
-                ? [
-                      ...this.state.sessionList,
-                      ...this.state.archivedSessions,
-                  ].find((item) => item.sessionId === sourceId)?.threadSource
-                : undefined;
-        return mergeMeta(
-            mode && isSelectOption(mode)
-                ? { codex: { mode: mode.currentValue } }
-                : undefined,
-            threadSource !== undefined
-                ? { codex: { threadSource } }
-                : undefined,
-        );
+        return mode && isSelectOption(mode)
+            ? { codex: { mode: mode.currentValue } }
+            : undefined;
     }
 
     protected override promptMeta(

@@ -1,0 +1,64 @@
+{
+  "list": {
+    "sessions": [
+      {
+        "sessionId": "thread-1",
+        "cwd": "/workspace",
+        "title": "Earlier session",
+        "updatedAt": "1970-01-01T00:03:20.000Z",
+        "archived": true,
+        "_meta": {
+          "codex": {
+            "projectId": null,
+            "nativeSessionId": "thread-1",
+            "forkedFromId": null
+          }
+        }
+      }
+    ],
+    "nextCursor": null
+  },
+  "title": {
+    "title": "Renamed"
+  },
+  "codexRequests": [
+    {
+      "method": "thread/list",
+      "params": {
+        "cursor": null,
+        "limit": 50,
+        "sortKey": "recency_at",
+        "archived": true,
+        "sourceKinds": [],
+        "modelProviders": [],
+        "cwd": "/workspace",
+        "useStateDbOnly": true
+      }
+    },
+    {
+      "method": "thread/name/set",
+      "params": {
+        "threadId": "thread-1",
+        "name": "Renamed"
+      }
+    },
+    {
+      "method": "thread/archive",
+      "params": {
+        "threadId": "thread-1"
+      }
+    },
+    {
+      "method": "thread/unarchive",
+      "params": {
+        "threadId": "thread-1"
+      }
+    },
+    {
+      "method": "thread/delete",
+      "params": {
+        "threadId": "thread-1"
+      }
+    }
+  ]
+}

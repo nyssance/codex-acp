@@ -9,7 +9,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { ReplayEntry } from "./ReplayHistory";
 import { classifyTurnError } from "./alwith/agent/turnErrors";
 import { ConfigRevisions } from "./alwith/ConfigRevisions";
-import { readSessionList } from "./alwith/agent/sessionCatalog";
 import type { ProviderRouting } from "./alwith/agent/providers";
 import {
     clientToolsOf,
@@ -2763,19 +2762,8 @@ export class CodexAcpServer {
                 ),
             };
         }
-        let response: acp.ListSessionsResponse;
-        if (this.protocolVersion === 2) {
-            response = await this.runWithProcessCheck(() =>
-                readSessionList(
-                    this.codexAcpClient.appServerClient,
-                    params,
-                    false,
-                ),
-            );
-        } else {
-            await this.checkAuthorization();
-            response = await this.runWithProcessCheck(() => this.codexAcpClient.listSessions(params));
-        }
+        await this.checkAuthorization();
+        const response = await this.runWithProcessCheck(() => this.codexAcpClient.listSessions(params));
         return {
             ...response,
             sessions: response.sessions.filter(session => !this.isRestrictedChild(session.sessionId)).map((session) => {
@@ -2911,11 +2899,8 @@ export class CodexAcpServer {
                 this.bumpSessionGeneration(sessionId);
             }
 
-            if (this.sessionIndex.enabled || this.protocolVersion === 2) {
-                await this.sessionIndex.deleteThread(
-                    sessionId,
-                    shouldCloseLocalSession,
-                );
+            if (this.sessionIndex.enabled) {
+                await this.sessionIndex.deleteThread(sessionId, shouldCloseLocalSession);
             } else {
                 await this.runWithProcessCheck(() => this.codexAcpClient.deleteSession(sessionId));
             }

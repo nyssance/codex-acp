@@ -23,15 +23,12 @@
       "method": "thread/list",
       "params": {
         "cursor": null,
-        "cwd": "/workspace",
-        "sourceKinds": [
-          "cli",
-          "vscode",
-          "exec",
-          "appServer",
-          "unknown"
-        ],
+        "limit": 50,
+        "sortKey": "recency_at",
+        "archived": false,
+        "sourceKinds": [],
         "modelProviders": [],
+        "cwd": "/workspace",
         "useStateDbOnly": true
       }
     }

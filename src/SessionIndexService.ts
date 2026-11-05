@@ -55,6 +55,12 @@ import {canonicalCwds, CodexWorktreeMarks, isUncPath, linkedWorktreeCwds} from "
 import {SessionForkOrigins} from "./SessionForkOrigins";
 import {SessionListSubscriptions, type SessionListSubscriptionTimings, type ThreadEntry} from "./SessionListSubscriptions";
 import {SessionWriteQueue} from "./SessionWriteQueue";
+import {
+    ALWITH_SESSION_INDEX_KEY,
+    clientSupportsAlwithCapability,
+    standardArchivedFilter,
+    standardSessionRow,
+} from "./alwith/agent/sessionList";
 import type {SerializeTitleWrite} from "./TitleGenerator";
 import {readSessionBatchMetadata} from "./SessionBatchGet";
 
@@ -76,8 +82,10 @@ export interface SessionIndexHost {
 type SessionPage = {sessions: acp.SessionInfo[], nextCursor: string | null};
 
 export class SessionIndexService {
-    /** The client declared the AIR `sessionIndex` capability. */
+    /** The client declared the AIR `sessionIndex` capability, or ALwith's. */
     enabled = false;
+    /** ALwith's `sessionIndex`: the same index, answered with standard ACP rows instead of AIR fields. */
+    private standardRows = false;
     private readonly activity: SessionIndexActivity;
     private readonly writes = new SessionWriteQueue();
     private readonly titles: SessionIndexTitles;
@@ -115,7 +123,9 @@ export class SessionIndexService {
 
     /** Reads the client capabilities of `initialize`. */
     configure(clientCapabilities: acp.ClientCapabilities | undefined): void {
-        this.enabled = clientSupportsAirCapability(clientCapabilities, AIR_SESSION_INDEX_KEY);
+        const air = clientSupportsAirCapability(clientCapabilities, AIR_SESSION_INDEX_KEY);
+        this.standardRows = !air && clientSupportsAlwithCapability(clientCapabilities, ALWITH_SESSION_INDEX_KEY);
+        this.enabled = air || this.standardRows;
     }
 
     /**
@@ -167,6 +177,8 @@ export class SessionIndexService {
      */
     async list(params: acp.ListSessionsRequest): Promise<SessionPage> {
         const options = readSessionIndexListOptions(params._meta);
+        const archived = standardArchivedFilter(params);
+        if (archived !== undefined) options.archived = archived;
         const cwd = params.cwd?.trim() || null;
         return await this.readRows(cwd, options, params.cursor ?? null);
     }
@@ -386,7 +398,7 @@ export class SessionIndexService {
     private async rows(entries: ThreadEntry[], skipUncCwds = false): Promise<acp.SessionInfo[]> {
         const inAgentWorktree = (cwd: string): boolean =>
             !(skipUncCwds && isUncPath(cwd)) && this.codexWorktrees.isCodexWorktreeCwd(cwd);
-        return entries.map(entry => {
+        return await Promise.all(entries.map(async entry => {
             if (entry.read) this.forkOrigins.readElsewhere(entry.thread);
             const forkedFromId = this.forkOrigins.originOf(entry.thread);
             const thread = forkedFromId === entry.thread.forkedFromId ? entry.thread : {...entry.thread, forkedFromId};
@@ -394,10 +406,13 @@ export class SessionIndexService {
             // A row with a state is of a thread loaded here: a restart of the app-server changes it.
             if (activity?.state !== undefined) this.rowsWithState.add(thread.id);
             else this.rowsWithState.delete(thread.id);
+            const row = sessionIndexSessionInfo(thread, entry.archived, activity, inAgentWorktree(thread.cwd));
             return this.withActiveAdditionalDirectories(
-                sessionIndexSessionInfo(thread, entry.archived, activity, inAgentWorktree(thread.cwd)),
+                this.standardRows
+                    ? await standardSessionRow(this.host.client().appServerClient, thread, entry.archived, row)
+                    : row,
             );
-        });
+        }));
     }
 
     private withActiveAdditionalDirectories(session: acp.SessionInfo): acp.SessionInfo {
