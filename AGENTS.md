@@ -74,3 +74,8 @@ state. Default tests use mocks; only an explicitly authorized live test supplies
 `authFrom` to copy auth.json into the helper's temporary home. Use `await using`
 or await `dispose()` in `finally`. Existing server protocol fixtures that already
 create isolated homes remain valid; they must never fall back to the real home.
+
+
+## Pending work
+
+Pending work and upstream-blocked items of this repository are registered only in the ALwith plans index, `alwith-desktop/docs/plans/index.md` (rows that name this repository), with a link back to the document here that holds the details. Do not keep a second list in this repository; add a row there and link it. Origin: user instruction (2026-11-02, "one entry point for pending work").

@@ -73,5 +73,9 @@ into a module both the server and the exported client can import.
 
 ## Waiting on upstream
 
+Every pending item of this repository, including the ones below, is registered in the ALwith plans
+index: `alwith-desktop/docs/plans/index.md` (the rows that name codex-acp). That index is the only
+list; this section only explains the upstream state behind those rows.
+
 - Session index for non-AIR v2 clients: [agentclientprotocol/codex-acp#736](https://github.com/agentclientprotocol/codex-acp/issues/736). Upstream gates `SessionIndexService` on the AIR `sessionIndex` capability. The fork enables the same service for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]` and answers it with standard rows (`src/alwith/agent/sessionList.ts`); the fork's own list, fork index and `threadSource` are gone. Once upstream serves the index to v2 connections, the ALwith gate goes too.
 - ACP SDK 2.3/2.4 standard methods. Upstream #727 (merged in `13c9eef`) moved to SDK 2.4 and adopted only `session/set_title`; it does not advertise `session/archive` / `session/unarchive`, `session/status` or `auth/status`. The fork serves `session/set_title`, `session/archive`, `session/unarchive` and the `session/list` `archived` filter over v2 (advertised as `session.archive`), and its client uses them; `_codex/session_rename`, `_codex/session_archive` and `_codex/session_unarchive` are removed. AIR keeps `_session/rename`, `_session/archive` and `_session/unarchive`. `_auth/status_update`, `proxy/initialize` / `proxy/successor` and v2 background work are not adopted.
