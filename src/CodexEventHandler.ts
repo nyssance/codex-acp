@@ -832,6 +832,7 @@ export class CodexEventHandler {
             case "thread/prediction/updated":
             case "autoApprovalReview/strictReviewRequired":
             case "thread/readState/changed":
+            case "thread/section/changed":
                 return null;
         }
     }

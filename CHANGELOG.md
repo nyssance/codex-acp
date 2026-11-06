@@ -1,3 +1,7 @@
+## 0.7.57 (2026-11-06)
+
+- Upgrade Codex to 0.167.0 and regenerate the experimental app-server bindings. An `audio` input may now reference an upload by `fileId`, rendered like an image upload; `thread/section/changed` is received and ignored like the other thread bookkeeping notifications. New in the bindings and unused: guardian review (`thread/guardianReview`).
+
 ## 0.7.56 (2026-11-05)
 
 - `session/list` is answered by the upstream session index for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]`, with standard rows: top-level `archived`, `_meta.codex.{projectId,nativeSessionId,forkedFromId}`, titles repaired where the native preview starts with a prompt envelope. The exported client declares it. Removed: `_codex/session_list`, the fork's own list and rollout fork index, and `threadSource` on `session/new`, `session/fork`, lineage and `SessionSummary`. A v2 client that declares neither index gets upstream's legacy list and archive-on-delete.

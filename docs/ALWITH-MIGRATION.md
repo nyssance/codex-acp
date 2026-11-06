@@ -4,7 +4,7 @@
 
 ## Base and tooling
 
-- Dependencies: ACP SDK 2.4 and Codex 0.166. Bun is the package manager; `bun.lock` is the lockfile.
+- Dependencies: ACP SDK 2.4 and Codex 0.167. Bun is the package manager; `bun.lock` is the lockfile.
 - Formatting matches upstream. No formatter runs on this repository (see `AGENTS.md`).
 - Upstream merges land on `main` through reviewed merges that keep upstream ancestry.
 
