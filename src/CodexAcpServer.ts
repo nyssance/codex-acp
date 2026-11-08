@@ -259,6 +259,7 @@ import {
 import {randomUUID} from "node:crypto";
 import {TitleGenerator} from "./TitleGenerator";
 import {PromptSuggestionGenerator, promptSuggestionsEnabled, promptSuggestionsMeta} from "./PromptSuggestionGenerator";
+import {ALWITH_PROMPT_SUGGESTIONS_KEY, clientSupportsAlwithCapability} from "./alwith/agent/sessionList";
 import {once} from "node:events";
 import {
     AIR_AGENT_FILE_CHANGE_REPORT_KEY,
@@ -1072,7 +1073,6 @@ export class CodexAcpServer {
                         forkAtTurn: true,
                         sessionLineage: true,
                         sessionRetry: { version: 1 },
-                        composerPredictions: true,
                     },
                 },
                 auth: {
@@ -1352,7 +1352,6 @@ export class CodexAcpServer {
             const session = this.getSessionState(id);
             if (this.isSessionBusy(id) || this.activePrompts.has(id))
                 throw RequestError.invalidRequest(undefined, "Session is busy");
-            this.alwith.predictions.cancel(id);
             await this.startNewTurnFromExternalPrompt(
                 {
                     sessionId: id,
@@ -1412,66 +1411,6 @@ export class CodexAcpServer {
                     }
                     return true;
                 },
-            );
-            return {};
-        }
-        if (method === "_codex/session_prediction_request") {
-            const id = params["sessionId"],
-                turnId = params["sourceTurnId"];
-            if (typeof id !== "string" || typeof turnId !== "string" || !turnId)
-                throw RequestError.invalidParams(
-                    undefined,
-                    "Expected sessionId and sourceTurnId",
-                );
-            const session = this.getSessionState(id);
-            const ready = () =>
-                this.sessions.get(id) === session &&
-                !this.sessionIsClosing(id) &&
-                !this.activePrompts.has(id) &&
-                !this.isSessionBusy(id);
-            if (
-                !ready() ||
-                (session.authProvider !== null &&
-                    session.authProvider !== "openai") ||
-                session.collaborationMode === "plan"
-            ) {
-                throw RequestError.invalidRequest(
-                    undefined,
-                    "Predictions require an idle OpenAI session outside plan mode",
-                );
-            }
-            const page =
-                await this.codexAcpClient.appServerClient.threadTurnsList({
-                    threadId: id,
-                    limit: 1,
-                    sortDirection: "desc",
-                });
-            if (
-                !ready() ||
-                page.data[0]?.id !== turnId ||
-                page.data[0].status !== "completed"
-            ) {
-                throw RequestError.invalidRequest(
-                    undefined,
-                    "Predictions require the latest completed turn",
-                );
-            }
-            this.alwith.predictions.start(
-                id,
-                turnId,
-                {
-                    update: (update) =>
-                        this.v2Connection!.notify(
-                            acpV2.methods.client.session.update,
-                            { sessionId: id, update },
-                        ),
-                },
-                this.alwith.codex.disconnectSignal,
-                session.supportedReasoningEfforts.some(
-                    (option) => option.reasoningEffort === "low",
-                )
-                    ? "low"
-                    : undefined,
             );
             return {};
         }
@@ -1891,8 +1830,6 @@ export class CodexAcpServer {
         operation: "new" | "resume" | "fork" = "sessionId" in request ? "resume" : "new",
     ): Promise<[SessionId, LegacySessionModelState, SessionModeState]> {
         clientSystemPromptText(request.systemPrompt);
-        if ("sessionId" in request)
-            this.alwith.predictions.cancel(request.sessionId);
         const clientTools = clientToolsOf(request._meta);
         const modeHint = (
             request._meta?.["codex"] as { mode?: unknown } | undefined
@@ -2798,7 +2735,6 @@ export class CodexAcpServer {
     async closeSession(
         params: acp.CloseSessionRequest,
     ): Promise<acp.CloseSessionResponse> {
-        this.alwith.predictions.cancel(params.sessionId);
         logger.log("Closing session...", { sessionId: params.sessionId });
         if (!this.hasLocalSession(params.sessionId)) {
             this.finishSessionDelivery(params.sessionId, []);
@@ -3242,7 +3178,6 @@ export class CodexAcpServer {
         rollbackRouting = this.codexAcpClient.providerCatalog,
     ): Promise<void> {
         this.assertSessionWritable(session.sessionId);
-        this.alwith.predictions.cancel(session.sessionId);
         const target = this.codexAcpClient.providerCatalog.gatewayIdFor(model);
         const current = this.codexAcpClient.providerCatalog.hasGateway(
             session.authProvider,
@@ -4059,7 +3994,6 @@ export class CodexAcpServer {
         if (this.providerUpdate && this.codexAcpClient.providerCatalog.active)
             await this.waitForProviderUpdate();
         this.assertInstructionsReady(params.sessionId);
-        this.alwith.predictions.cancel(params.sessionId);
         logger.log("Set session config option requested", {
             sessionId: params.sessionId,
             configId: params.configId,
@@ -5454,7 +5388,9 @@ export class CodexAcpServer {
     }
 
     private createPromptSuggestions(sessionState: SessionState): PromptSuggestionGenerator | undefined {
-        if (!sessionState.clientCapabilities.airClient || !promptSuggestionsEnabled()) return undefined;
+        // AIR asks for predictions by identity; an ALwith client declares the capability, as it does for the session index.
+        const alwith = clientSupportsAlwithCapability(this.clientCapabilities, ALWITH_PROMPT_SUGGESTIONS_KEY);
+        if ((!sessionState.clientCapabilities.airClient && !alwith) || !promptSuggestionsEnabled()) return undefined;
         return new PromptSuggestionGenerator(
             this.codexAcpClient.appServerClient,
             async text => {
@@ -6130,7 +6066,6 @@ export class CodexAcpServer {
         signal?: AbortSignal,
     ): Promise<acpV2.PromptResponse> {
         this.assertSessionWritable(params.sessionId);
-        this.alwith.predictions.cancel(params.sessionId);
         this.assertInstructionsReady(params.sessionId);
         const sessionId = params.sessionId;
         const request = toV1PromptRequest(params);

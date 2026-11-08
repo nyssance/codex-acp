@@ -13,6 +13,7 @@ import {
 import type {ThreadItem} from "../../app-server/v2";
 
 const airCapabilities = {_meta: {jetbrains: {air: {version: 1}}}};
+const alwithCapabilities = {_meta: {alwith: {capabilities: ["promptSuggestions"]}}};
 
 function agentMessage(text: string, phase: "commentary" | "final_answer" | null): ThreadItem {
     return {type: "agentMessage", id: `msg-${phase}`, text, phase, memoryCitation: null, delivery: null, questions: null};
@@ -56,10 +57,10 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
 
     let sampleParams: Array<Record<string, unknown>> = [];
 
-    function connect(air: boolean) {
+    function connect(capabilities: Record<string, unknown> | null) {
         sampleParams = [];
         return connectSession(protocolVersion, {
-            ...(air ? {clientCapabilities: airCapabilities, v1ClientCapabilities: airCapabilities} : {}),
+            ...(capabilities ? {clientCapabilities: capabilities, v1ClientCapabilities: capabilities} : {}),
             codexResponses: {
                 "thread/sample": async params => {
                     sampleParams.push(params as Record<string, unknown>);
@@ -78,7 +79,7 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
 
     /** An AIR client gets the prediction after a turn and a clear when the next prompt starts. */
     it("publishes after a turn and clears on the next prompt", async () => {
-        const client = await connect(true);
+        const client = await connect(airCapabilities);
         closeClient = () => client.connection.close();
 
         await runTurn(client, protocolVersion, 0, "Fix the bug", "Fixed the bug.");
@@ -94,7 +95,7 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
 
     /** The prediction samples the session's own thread, anchored at the turn that just completed. */
     it("samples the session thread with the completed turn id", async () => {
-        const client = await connect(true);
+        const client = await connect(airCapabilities);
         closeClient = () => client.connection.close();
 
         await runTurn(client, protocolVersion, 0, "Fix the bug", "Fixed the bug.");
@@ -103,9 +104,19 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
         expect(sampleParams[0]).toMatchObject({threadId: sessionId, expectedTurnId: "turn-1"});
     });
 
-    /** A client that is not AIR never receives a prediction and no sample is requested. */
+    /** A client that declares the ALwith `promptSuggestions` capability gets the same prediction as AIR. */
+    it("publishes to a client that declares the ALwith capability", async () => {
+        const client = await connect(alwithCapabilities);
+        closeClient = () => client.connection.close();
+
+        await runTurn(client, protocolVersion, 0, "Fix the bug", "Fixed the bug.");
+        await vi.waitFor(() => expect(suggestionUpdates(client)).toEqual([{suggestions: [{text: "Run the tests"}]}]));
+        expect(sampleParams[0]).toMatchObject({threadId: sessionId, expectedTurnId: "turn-1"});
+    });
+
+    /** A client that is neither AIR nor declares the capability never receives a prediction and no sample is requested. */
     it("sends nothing to a client that is not AIR", async () => {
-        const client = await connect(false);
+        const client = await connect(null);
         closeClient = () => client.connection.close();
 
         await runTurn(client, protocolVersion, 0, "Fix the bug", "Fixed the bug.");
@@ -117,7 +128,7 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
 
     /** In plan mode no prediction is requested or published. */
     it("does not predict in plan mode", async () => {
-        const client = await connect(true);
+        const client = await connect(airCapabilities);
         closeClient = () => client.connection.close();
         await client.request("session/set_config_option", {
             sessionId, configId: "collaboration_mode", value: "plan",
@@ -133,7 +144,7 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
 
     /** A turn Codex reports as interrupted requests no sample and publishes no prediction. */
     it("does not predict after an interrupted turn", async () => {
-        const client = await connect(true);
+        const client = await connect(airCapabilities);
         closeClient = () => client.connection.close();
 
         const response = client.sendPrompt([{type: "text", text: "Fix the bug"}]);
@@ -149,7 +160,7 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
 
     /** A turn Codex reports as failed requests no sample and publishes no prediction. */
     it("does not predict after a failed turn", async () => {
-        const client = await connect(true);
+        const client = await connect(airCapabilities);
         closeClient = () => client.connection.close();
 
         const response = client.sendPrompt([{type: "text", text: "Fix the bug"}]);

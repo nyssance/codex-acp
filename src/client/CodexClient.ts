@@ -7,7 +7,7 @@ import {
 import type { NewSessionOptions } from "./protocol";
 // The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
 // of ACP (`_codex/*`): the full session list and archive, history browsing and export, skills and
-// plugin marketplaces, rate limits, file search, retries, predictions, fork lineage and realtime.
+// plugin marketplaces, rate limits, file search, retries, fork lineage and realtime.
 // Moved out of ALwith U's `agent/client.ts` (2026-10-27 chat-layer extraction): the adapter owns
 // its extension protocol, so it ships the client that speaks it.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
@@ -139,7 +139,7 @@ function withAlwithCapabilities(
             : {};
     return {
         ...capabilities,
-        _meta: { ...meta, alwith: { capabilities: ["sessionIndex"] } },
+        _meta: { ...meta, alwith: { capabilities: ["sessionIndex", "promptSuggestions"] } },
     };
 }
 
@@ -1088,7 +1088,7 @@ export class CodexClient<
         );
     }
 
-    // ── Fork lineage, archive, rename, retry, prediction ──
+    // ── Fork lineage, archive, rename, retry ──
 
     override fork(
         id: string,
@@ -1276,18 +1276,6 @@ export class CodexClient<
         });
         this.retryRequests.set(id, request);
         return request;
-    }
-
-    async requestPrediction(
-        sessionId: string,
-        sourceTurnId: string,
-    ): Promise<void> {
-        if (!codexExtensionCapabilities(this.state.agent).composerPredictions)
-            throw new Error("The agent does not support composer predictions");
-        await this.live().request("_codex/session_prediction_request", {
-            sessionId,
-            sourceTurnId,
-        });
     }
 
     // ── Account, rate limits, file search ──

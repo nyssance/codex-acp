@@ -54,7 +54,6 @@ import type {
 /** What the adapter advertised under `capabilities._meta.codex`. */
 export type CodexExtensionCapabilities = {
     sessionRetry: boolean;
-    composerPredictions: boolean;
     forkAtTurn: boolean;
     sessionLineage: boolean;
     skills: boolean;
@@ -81,7 +80,6 @@ export function codexExtensionCapabilities(
             typeof flags.sessionRetry === "object" &&
             flags.sessionRetry !== null &&
             (flags.sessionRetry as { version?: unknown }).version === 1,
-        composerPredictions: flags.composerPredictions === true,
         forkAtTurn: flags.forkAtTurn === true,
         sessionLineage: flags.sessionLineage === true,
         skills: flags.skills === true,
@@ -246,45 +244,21 @@ export function codexRetryNotice(
 
 type SessionMeta = Record<string, unknown> | null;
 
-export type ComposerPrediction = {
-    sourceTurnId: string;
-    result:
-        | { type: "completed"; text: string | null }
-        | { type: "failed"; message: string };
-};
-
-export function composerPrediction(
-    meta: Record<string, unknown> | null,
-): ComposerPrediction | null {
-    const codex = meta?.codex;
-    if (typeof codex !== "object" || codex === null) return null;
-    const prediction = (codex as Record<string, unknown>).prediction;
-    if (prediction === undefined || prediction === null) return null;
-    if (typeof prediction !== "object")
-        throw new Error("Invalid composer prediction");
-    const { sourceTurnId, result } = prediction as Record<string, unknown>;
-    if (
-        typeof sourceTurnId !== "string" ||
-        !sourceTurnId ||
-        typeof result !== "object" ||
-        result === null
-    )
-        throw new Error("Invalid composer prediction");
-    const value = result as Record<string, unknown>;
-    if (value.type === "failed" && typeof value.message === "string")
-        return {
-            sourceTurnId,
-            result: { type: "failed", message: value.message },
-        };
-    if (
-        value.type === "completed" &&
-        (value.text === null || typeof value.text === "string")
-    )
-        return {
-            sourceTurnId,
-            result: { type: "completed", text: value.text },
-        };
-    throw new Error("Invalid composer prediction result");
+/**
+ * The predicted follow-up prompt the adapter published on the session (`_meta.promptSuggestions`, the key upstream
+ * uses for AIR), or `null` when it sent none or cleared it. Published after a completed turn, cleared when a prompt starts.
+ */
+export function promptSuggestion(meta: Record<string, unknown> | null): string | null {
+    const value = meta?.promptSuggestions;
+    if (value === undefined || value === null) return null;
+    if (typeof value !== "object") throw new Error("Invalid prompt suggestions");
+    const { suggestions } = value as Record<string, unknown>;
+    if (!Array.isArray(suggestions)) throw new Error("Invalid prompt suggestions");
+    if (suggestions.length === 0) return null;
+    const [first] = suggestions as unknown[];
+    if (typeof first !== "object" || first === null || typeof (first as { text?: unknown }).text !== "string")
+        throw new Error("Invalid prompt suggestion");
+    return (first as { text: string }).text;
 }
 
 /** Effective application availability from Codex, without credentials. */

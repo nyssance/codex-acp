@@ -1,6 +1,5 @@
 import { generateImage } from "./codex/images";
 import { projectsFor } from "../projects/registry";
-import { ComposerPredictions } from "./agent/composerPredictions";
 import { logger } from "../Logger";
 import { historyError } from "./agent/historyProtocol";
 import { RequestError } from "@agentclientprotocol/sdk/experimental/v2/unstable";
@@ -46,7 +45,6 @@ export const ALWITH_METHODS = [
     "_codex/plugin_set_enabled",
     "_codex/session_history",
     "_codex/session_history_items",
-    "_codex/session_prediction_request",
     "_codex/session_retry",
 ] as const;
 const MUTATIONS = new Set([
@@ -69,7 +67,6 @@ export function objectParams(value: unknown): Record<string, unknown> {
 /** Host extensions share the upstream process and read native Codex history. */
 export class AlwithExtensions {
     readonly codex: AppServerClient;
-    readonly predictions: ComposerPredictions;
     private observed: CodexAppServerClient | null = null;
     private stopObserving: (() => void) | null = null;
 
@@ -112,7 +109,6 @@ export class AlwithExtensions {
         private readonly render: HistoryRenderer,
     ) {
         this.codex = new AppServerClient(current);
-        this.predictions = new ComposerPredictions(this.codex);
     }
 
     async request(

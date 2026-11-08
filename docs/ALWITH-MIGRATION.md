@@ -16,7 +16,7 @@
 - Client tools with per-prompt call deduplication, permission checks, cancellation and late-response rejection.
 - Session-scoped provider catalogs that keep native and gateway models together; model changes rebind the selected thread.
 - Configuration revisions on responses and updates; stale prompts are rejected after acquiring their queue slot. Client message IDs are validated.
-- Predictions, retries, native turn IDs, fork boundaries and lineage.
+- Retries, native turn IDs, fork boundaries and lineage.
 - The browser client export `@nyssance/codex-acp-v2/client`, consumed through `@alwith/module-chat/client`.
 
 ## Tests
@@ -49,7 +49,7 @@ ACP envelope. Workarounds for Codex gaps are listed separately in [fallbacks.md]
 | Gateway providers | `providers/set` (`mode: "catalog"`) and the per-session model option | none | U through `alwith-modules` `providers.rs` |
 | Client tools | `_alwith/tool/call` | dynamic tools | U, TV |
 | Configuration revisions | `_meta.alwith.configRevision`, `expectedConfigRevision` | none | module-chat, TV |
-| Composer predictions | `_codex/session_prediction_request` | `thread/prediction/request` still answers not implemented, so the fork runs an ephemeral fork turn; switch when it lands (Desktop `docs/plans/index.md`) | module-chat composer |
+| Prompt suggestions | upstream's `_meta.promptSuggestions` on `session_info_update`, enabled by `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]` | `thread/sample` through upstream `PromptSuggestionGenerator` | module-chat composer |
 | Retry | `_codex/session_retry` | none | module-chat |
 | Image generation | `_codex/images/generate` | ChatGPT backend images | module-chat |
 | Sites and connectors | `_codex/apps_*`, `_codex/mcp_status`, `_codex/mcp_tool_call` | `app/list`, `mcpServerStatus/list`, `mcpServer/tool/call` | U Sites |
@@ -78,7 +78,6 @@ The open items of this repository. Each names what unblocks it.
 | Item | State | Done when |
 |---|---|---|
 | Session index for non-AIR v2 clients | [agentclientprotocol/codex-acp#736](https://github.com/agentclientprotocol/codex-acp/issues/736) open. The fork enables upstream's `SessionIndexService` for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]` (`src/alwith/agent/sessionList.ts`). | Upstream serves the index to v2 connections; the ALwith gate goes. |
-| Composer predictions | Codex `thread/prediction/request` still answers not implemented; the fork runs an ephemeral fork turn (`src/alwith/agent/composerPredictions.ts`). | Codex implements it; the adapter forwards the native request and `thread/prediction/updated`. |
 | Provider HTTP 402 | Codex treats an unknown status as a retried connection failure and drops the provider text on `QuotaExceeded`; the fork's proxy rewrites a 402 to 429 `usage_limit_reached` with the provider's message (`docs/fallbacks.md`). DeepSeek answers 402 `insufficient_balance_error` (observed 2026-11-05). | Codex recognizes 402, or DeepSeek answers OpenAI's 429 `insufficient_quota`. |
 | Title generation on gateway sessions | `TitleGenerator` starts the title thread on the default model; whether it succeeds for a gateway-only login is unverified. Upstream PR #595 (skip AI titles on other providers) is open. Until then the history title repairs envelope previews (`src/alwith/agent/historyTitle.ts`). | Verified, or #595 decides it. |
 | Standard ACP methods (schema v1.29.0 / v2.0.0-alpha.12, 2026-11-01) | The spec added `session/set_title`, `session/archive`, `session/unarchive`, `session/status`, `auth/status` + `auth/status_update`, `proxy/initialize` / `proxy/successor`, and v2 background work (`ToolCallStatus` `paused`, `tool_call/cancel`, `terminal/cancel`, `background` on state snapshots). SDK 2.4.0 ships them all; upstream codex-acp (519c267) adopted `session/set_title` only (#727). The fork serves `session/archive`, `session/unarchive` and the `session/list` `archived` filter over v2 (advertised as `session.archive`); AIR keeps `_session/*`. Auth status still goes out as the interim `_auth/status_update` with `_meta.authStatus` (`src/AuthStatusMeta.ts`), not `auth/status`. `session/status`, background work and the proxy methods are not served; no consumer asks for them. | Upstream adopts them; the fork's routes become upstream's. Background work and `session/status` are picked up only when a consumer needs them. |

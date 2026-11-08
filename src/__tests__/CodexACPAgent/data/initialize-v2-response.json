@@ -72,8 +72,7 @@
         "sessionLineage": true,
         "sessionRetry": {
           "version": 1
-        },
-        "composerPredictions": true
+        }
       }
     }
   },

@@ -1,5 +1,6 @@
 ## 0.7.58 (2026-11-09)
 
+- Composer predictions are upstream's predicted follow-up prompt. A client that declares `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]` receives `_meta.promptSuggestions` on `session_info_update` after each completed turn, as AIR does; the exported client declares it and reads it with `promptSuggestion(session._meta)`. Removed: `_codex/session_prediction_request`, the `composerPredictions` capability flag, `requestPrediction` and `composerPrediction` on the client, and the fork's ephemeral prediction thread.
 - Merge upstream codex-acp 2.6.0. The upstream prompt suggestion (AIR clients) samples the session thread with `thread/sample` instead of forking it, and skips plan mode and turns that did not complete; approval prompts carry the command as their title so Zed labels them. Shell-wrapped commands are unwrapped for display only when the quoting is recognized.
 
 ## 0.7.57 (2026-11-06)

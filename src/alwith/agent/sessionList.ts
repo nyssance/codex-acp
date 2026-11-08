@@ -9,6 +9,8 @@ export const ALWITH_META_KEY = "alwith";
 export const ALWITH_CAPABILITIES_KEY = "capabilities";
 /** The upstream session index served to a client that is not AIR, with the standard ACP list rows. */
 export const ALWITH_SESSION_INDEX_KEY = "sessionIndex";
+/** Upstream's predicted follow-up prompt (`_meta.promptSuggestions` on session info updates) for a client that is not AIR. */
+export const ALWITH_PROMPT_SUGGESTIONS_KEY = "promptSuggestions";
 
 export function clientSupportsAlwithCapability(
     capabilities: { _meta?: unknown } | null | undefined,

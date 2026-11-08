@@ -1,14 +1,3 @@
-import type { ServerNotification } from "../../app-server";
-import type {
-    ThreadForkParams,
-    ThreadForkResponse,
-    ThreadUnsubscribeParams,
-    ThreadUnsubscribeResponse,
-    TurnStartParams,
-    TurnCompletedNotification,
-} from "../../app-server/v2";
-import { withRequestCancellation } from "../../RequestCancellation";
-import { logger } from "../../Logger";
 import type { CodexAppServerClient } from "../../CodexAppServerClient";
 import type { GetAuthStatusParams } from "../../app-server/GetAuthStatusParams";
 import type { GetAuthStatusResponse } from "../../app-server/GetAuthStatusResponse";
@@ -27,11 +16,6 @@ import type {
 export class AppServerClient {
     private readonly signals = new WeakMap<CodexAppServerClient, AbortSignal>();
     constructor(private readonly current: () => CodexAppServerClient) {}
-
-    snapshot(): AppServerClient {
-        const client = this.current();
-        return new AppServerClient(() => client);
-    }
 
     get disconnectSignal(): AbortSignal {
         const client = this.current();
@@ -62,49 +46,6 @@ export class AppServerClient {
         params: ThreadItemsListParams,
     ): Promise<ThreadItemsListResponse> {
         return this.current().threadItemsList(params);
-    }
-    observeNotifications(
-        callback: (notification: ServerNotification) => void,
-    ): () => void {
-        return this.current().onClientTransportEvent((event) => {
-            if (event.eventType === "notification") callback(event);
-        });
-    }
-    threadFork(params: ThreadForkParams): Promise<ThreadForkResponse> {
-        return this.current().threadFork(params);
-    }
-    threadUnsubscribe(
-        params: ThreadUnsubscribeParams,
-    ): Promise<ThreadUnsubscribeResponse> {
-        return this.current().threadUnsubscribe(params);
-    }
-    async runTurn(
-        params: TurnStartParams,
-        started?: (id: string) => void,
-        signal?: AbortSignal,
-    ): Promise<TurnCompletedNotification> {
-        const client = this.current();
-        let turnId: string | undefined;
-        const interrupt = () => {
-            if (turnId)
-                void client
-                    .turnInterrupt({ threadId: params.threadId, turnId })
-                    .catch((error) =>
-                        logger.error("Failed to interrupt prediction", error),
-                    );
-        };
-        signal?.throwIfAborted();
-        signal?.addEventListener("abort", interrupt, { once: true });
-        const pending = client.runTurn(params, (id) => {
-            turnId = id;
-            started?.(id);
-            if (signal?.aborted) interrupt();
-        });
-        try {
-            return await withRequestCancellation(pending, signal);
-        } finally {
-            signal?.removeEventListener("abort", interrupt);
-        }
     }
     accountRead(params: GetAccountParams): Promise<GetAccountResponse> {
         return this.current().accountRead(params);
