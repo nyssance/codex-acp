@@ -68,7 +68,7 @@
         "ajv": "^8.20.0",
         "mcp-hello-world": "^1.1.2",
         "typescript": "^7.0.2",
-        "vitest": "^5.0.5"
+        "vitest": "^5.1.0"
     },
     "dependencies": {
         "@agentclientprotocol/sdk": "^2.4.0",
@@ -78,7 +78,7 @@
         "effect": "^4.1.2",
         "open": "^11.0.4",
         "vscode-jsonrpc": "^10.0.0",
-        "ws": "^8.22.1",
+        "ws": "^8.22.2",
         "ws-transport": "npm:ws@8.22.1",
         "zod": "^4.6.7"
     },
