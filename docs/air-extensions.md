@@ -59,7 +59,8 @@ Only these differences are allowed:
   After a cancelled or failed permission request, the next update carries every field again.
   ACP defines no merge for `_meta` keys, so the `_meta` of each report keeps every key that the adapter sent before.
 - Bug fixes: a unique MCP startup tool call id, the result of a dynamic tool in `content`,
-  no output after a tool call ended, and a terminal status for a replayed image generation.
+  no output after a tool call ended, a terminal status for a replayed image generation,
+  and the command as the title of a command approval.
 - Feature changes for every client: the `/mcp` command has a new description and an input hint.
 - The client gets no AIR-only key.
   That is no `_meta.jetbrains.air` key and none of the earlier keys in [Removed keys](#removed-keys).
@@ -359,7 +360,7 @@ The other clients get the same fields as before the AIR extensions.
 | Turn plan (`turn/plan/updated`) | standard `plan` with entries | The same. |
 | `contextCompaction` | `compaction_update` when the client declares `session.compaction`. Otherwise a synthetic tool call with `_meta.jetbrains.air.contextCompaction`. | The same, without `_meta`. |
 | `agentMessage` | `agent_message_chunk` with `_meta.jetbrains.air.phase` when Codex reports a phase. | No `_meta`. |
-| Command, file change, or sandbox permission request | See [Tool call of the request](#tool-call-of-the-request). | `kind`, `status: pending`, and a generic title such as `Run command` or `Edit files`, also for a started tool call. No `_meta`. |
+| Command, file change, or sandbox permission request | See [Tool call of the request](#tool-call-of-the-request). | `kind`, `status: pending`, and a title, also for a started tool call. Command approvals keep the started title or show the command; other requests use a generic title or a network title. No `_meta`. |
 | `imageView`, fuzzy search, MCP startup | standard shape. A fuzzy search that finds no file sends `locations: []`. | The same. |
 
 ## Diff patch
@@ -542,7 +543,10 @@ The `toolCall` is an ACP `ToolCallUpdate`. The client merges it into the stored 
   A client without `rawInputRendering` also gets it as text in `content`.
 
 A client that is not AIR gets the request tool call of the adapter before the AIR extensions.
-It always carries `kind` and `status: pending`, and a generic title such as `Run command`, `Edit files`, or a network title.
+It always carries `kind` and `status: pending`. A started command keeps its title, including a parsed read, search, or list title.
+An approval without a start uses the command without its shell wrapper as the title, so Zed keeps the command visible.
+When Codex supplies no command, the title describes the parsed action or falls back to `Run command`.
+File changes and network approvals keep their generic or network titles.
 Its `locations` hold every path of the Codex command actions.
 
 Command approvals use `kind: execute`. File changes use `kind: edit`.
@@ -1428,9 +1432,12 @@ After a turn ends normally, the adapter sends AIR the prompt the user is most li
 - AIR shows the first non-blank `suggestions[].text` as gray text in an empty composer. Tab fills the composer without sending.
 - `suggestions: []` clears the prompt the client holds. The adapter sends it when a new prompt starts and when the new prediction is empty.
   The adapter does not repeat a value it already sent.
-- Codex does not predict prompts, so the adapter asks a cheap model on an ephemeral thread, one extra call per turn.
-  The thread is read-only, never asks for approval, uses low reasoning effort and a minimal system prompt, and is released after the call.
+- The adapter calls the experimental `thread/sample` on the session's own thread, one extra model call per turn.
+  It produces one response on an ephemeral fork that inherits the session's model, configuration and conversation, so most of the context comes from the prompt cache.
+  Tools never run during the sample. The adapter requests `high` reasoning effort, but Codex applies it only for OpenAI providers on models that support effort overrides. Otherwise the session's own effort is used.
+  The prompt asks for one line of at most 240 characters, or nothing.
   The prediction arrives after the prompt response. A prompt that starts first drops it.
+- There is no prediction in plan mode.
 - A turn that is cancelled or fails produces no prediction.
 - `CODEX_ACP_PROMPT_SUGGESTIONS=false` turns the feature off.
 
