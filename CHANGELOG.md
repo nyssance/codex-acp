@@ -1,3 +1,7 @@
+## 0.7.58 (2026-11-09)
+
+- Merge upstream codex-acp 2.6.0. The upstream prompt suggestion (AIR clients) samples the session thread with `thread/sample` instead of forking it, and skips plan mode and turns that did not complete; approval prompts carry the command as their title so Zed labels them. Shell-wrapped commands are unwrapped for display only when the quoting is recognized.
+
 ## 0.7.57 (2026-11-06)
 
 - Upgrade Codex to 0.167.0 and regenerate the experimental app-server bindings. An `audio` input may now reference an upload by `fileId`, rendered like an image upload; `thread/section/changed` is received and ignored like the other thread bookkeeping notifications. New in the bindings and unused: guardian review (`thread/guardianReview`).
