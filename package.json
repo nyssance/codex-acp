@@ -60,7 +60,7 @@
     "license": "SEE LICENSE IN LICENSE",
     "type": "module",
     "devDependencies": {
-        "@alwith/api": "^0.5.4",
+        "@alwith/api": "^0.6.1",
         "@nyssance/ts7-lint": "^0.1.3",
         "@types/bun": "^1.4.4",
         "@types/cross-spawn": "^6.0.6",
