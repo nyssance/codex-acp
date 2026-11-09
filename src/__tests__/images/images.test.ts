@@ -71,6 +71,48 @@ describe("authenticated image capability", () => {
         ]);
         expect(request).toHaveBeenCalledTimes(2);
     });
+    test.each([
+        [{ error: { message: "Image access is unavailable", code: "image_access_denied" } }, "Image access is unavailable; code: image_access_denied"],
+        [{ detail: [{ msg: "Field required", loc: ["body", "model"] }] }, "Field required"],
+        [{ detail: "Account image quota exceeded" }, "Account image quota exceeded"],
+    ])("preserves the service rejection without retrying: %j", async (body, message) => {
+        request.mockResolvedValue(new Response(JSON.stringify(body), {
+            status: 400,
+            headers: { "x-request-id": "image-request" },
+        }));
+        await expect(generateImage(fixture() as unknown as AppServerClient, { prompt: "A tree" }))
+            .rejects.toThrow(`HTTP 400): ${message}; request ID: image-request`);
+        expect(request).toHaveBeenCalledOnce();
+    });
+    test("never forwards an echoed credential or image data", async () => {
+        request.mockResolvedValue(new Response(JSON.stringify({
+            error: { message: "private-token Bearer other-secret data:image/png;base64,aGVsbG8=" },
+        }), { status: 400 }));
+        await expect(generateImage(fixture() as unknown as AppServerClient, { prompt: "A tree" }))
+            .rejects.toThrow("HTTP 400): [redacted] Bearer [redacted] [image data]");
+    });
+    test("cancels an unbounded error body and retains its HTTP status", async () => {
+        const cancel = vi.fn();
+        let bytes = 0;
+        const body = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                const chunk = new Uint8Array(4096).fill(32);
+                bytes += chunk.byteLength;
+                controller.enqueue(chunk);
+            },
+            cancel,
+        });
+        request.mockResolvedValue(new Response(body, { status: 400 }));
+        await expect(generateImage(fixture() as unknown as AppServerClient, { prompt: "A tree" }))
+            .rejects.toThrow("Image generation failed (HTTP 400)");
+        expect(cancel).toHaveBeenCalledOnce();
+        expect(bytes).toBeLessThanOrEqual(32 * 1024 + 2 * 4096);
+    });
+    test.each(["<html>private-token</html>", ""])("retains HTTP failures without structured diagnostics", async (body) => {
+        request.mockResolvedValue(new Response(body, { status: 403 }));
+        await expect(generateImage(fixture() as unknown as AppServerClient, { prompt: "A tree" }))
+            .rejects.toThrow("Image generation failed (HTTP 403)");
+    });
     test("refuses a foreign backend before obtaining a bearer", async () => {
         const codex = fixture();
         codex.accountRead.mockResolvedValue({

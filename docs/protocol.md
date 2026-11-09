@@ -97,7 +97,9 @@ Without references it uses Wham generations; with references it uses edits.
 
 The existing Codex ChatGPT account owns authentication and workspace routing.
 Clients never supply or receive account tokens. A 401 permits one token refresh;
-ambiguous provider failures are not retried automatically. Account changes and
+ambiguous provider failures are not retried automatically. Failures retain the HTTP
+status, bounded structured service message, error code and request ID when supplied.
+Credentials and raw response bodies are not forwarded. Account changes and
 connection cancellation invalidate pending results. API-key accounts are rejected.
 
 The host may expose image generation through its versioned client tool set and

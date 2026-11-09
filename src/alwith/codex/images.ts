@@ -83,12 +83,8 @@ export async function generateImage(
             await response.body?.cancel();
             continue;
         }
-        if (!response.ok) {
-            await response.body?.cancel();
-            throw new Error(
-                `Image generation failed (HTTP ${response.status})`,
-            );
-        }
+        if (!response.ok)
+            throw await imageServiceError(response, auth.authToken);
         const result = await readImageResult(response);
         if (
             !result ||
@@ -121,6 +117,49 @@ export async function generateImage(
         return { images: output };
     }
     throw new Error("ChatGPT authentication failed");
+}
+
+/** Preserve bounded service diagnostics without forwarding credentials or raw response bodies. */
+async function imageServiceError(response: Response, authToken: string): Promise<Error> {
+    let detail: unknown;
+    try {
+        const decoder = new TextDecoder();
+        let text = "";
+        let bytes = 0;
+        if (response.body) {
+            for await (const chunk of response.body) {
+                bytes += chunk.byteLength;
+                if (bytes > 32 * 1024) break;
+                text += decoder.decode(chunk, { stream: true });
+            }
+        }
+        detail = JSON.parse(text + decoder.decode());
+    } catch {
+        // Missing or unreadable diagnostics must retain the original HTTP failure.
+    }
+    const record = (value: unknown): Record<string, unknown> | null =>
+        value !== null && typeof value === "object" && !Array.isArray(value)
+            ? value as Record<string, unknown>
+            : null;
+    const body = record(detail);
+    const error = body?.["error"] ?? body?.["detail"] ?? detail;
+    const fields = Array.isArray(error) ? error.slice(0, 5) : [error];
+    const messages = fields.flatMap((field) => {
+        if (typeof field === "string") return [field];
+        const item = record(field);
+        return [item?.["message"], item?.["msg"]].filter((value): value is string => typeof value === "string");
+    });
+    const code = record(error)?.["code"] ?? body?.["error_code"];
+    if (typeof code === "string") messages.push(`code: ${code}`);
+    const requestId = response.headers.get("x-request-id") ?? response.headers.get("openai-request-id");
+    if (requestId) messages.push(`request ID: ${requestId}`);
+    const message = messages.join("; ")
+        .replaceAll(authToken, "[redacted]")
+        .replace(/Bearer\s+[^\s",;]+/gi, "Bearer [redacted]")
+        .replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, "[image data]")
+        .replace(/\p{Cc}/gu, " ")
+        .slice(0, 1400);
+    return new Error(`Image generation failed (HTTP ${response.status})${message ? `: ${message}` : ""}`);
 }
 
 /** Bound decoded response bytes even when Content-Length is absent or incorrect. */
