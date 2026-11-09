@@ -7,6 +7,33 @@ import { isRecord } from "../../permissions/json";
 
 export type ModelAlias = { id: string; upstream: string; catalog?: string };
 
+/**
+ * Codex reviews approvals with the model named here, or its native reviewer, which this
+ * gateway may not serve. A catalog's reviewer is a model of the same gateway; without one the
+ * selected model reviews itself, as Codex does when its reviewer is in no catalog.
+ */
+function reviewer(
+    alias: ModelAlias,
+    entry: Record<string, unknown>,
+    aliases: ModelAlias[],
+): string {
+    const upstream = entry["auto_review_model_override"];
+    if (upstream === undefined || upstream === null) return alias.id;
+    if (typeof upstream !== "string")
+        throw new Error("Invalid Codex model catalog");
+    const gateway = alias.id.slice(0, alias.id.lastIndexOf(":") + 1);
+    const sibling = aliases.find(
+        (candidate) =>
+            candidate.id.startsWith(gateway) &&
+            candidate.upstream === upstream,
+    );
+    if (sibling === undefined)
+        throw new Error(
+            `Gateway model "${alias.upstream}" reviews with "${upstream}", which the gateway does not list`,
+        );
+    return sibling.id;
+}
+
 /** Temporary model metadata only; the selected route is persisted by Codex in its model field. */
 export class ModelAliases {
     private directory: string | undefined;
@@ -45,11 +72,10 @@ export class ModelAliases {
                 throw new Error(
                     `Gateway model "${alias.upstream}" is in no model catalog`,
                 );
-            // Codex's native reviewer may be in the merged catalog but unavailable at this gateway.
             models.push({
                 ...entry,
                 slug: alias.id,
-                auto_review_model_override: entry["auto_review_model_override"] ?? alias.id,
+                auto_review_model_override: reviewer(alias, entry, aliases),
             });
         }
         const body = JSON.stringify({ models });

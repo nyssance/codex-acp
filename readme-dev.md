@@ -328,7 +328,9 @@ the Codex config are not listed.
 Gateway model aliases default `auto_review_model_override` to the selected alias when the
 provider catalog leaves it unset or null. Codex therefore runs its review policy on the
 selected gateway model instead of sending the native `codex-auto-review` model to an
-endpoint that may not serve or price it. An explicit provider catalog override is preserved.
+endpoint that may not serve or price it. A provider catalog's own reviewer is resolved to
+that model's alias on the same gateway, so the review carries catalog metadata and is
+routed like the selected model; a reviewer the gateway does not list fails registration.
 Native model metadata and the session's approval mode are unchanged. Review failures
 still prevent execution; answering an elicitation does not grant filesystem permissions.
 

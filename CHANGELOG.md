@@ -1,3 +1,7 @@
+## 0.7.59 (2026-11-09)
+
+- Approval reviews on a gateway session run on a model the gateway serves. A gateway model's `auto_review_model_override` defaults to itself instead of Codex's native `codex-auto-review`, which a third-party endpoint such as DeepSeek rejects; a reviewer named by the provider catalog resolves to that model's alias on the same gateway, and one the gateway does not list is a registration error.
+
 ## 0.7.58 (2026-11-09)
 
 - Composer predictions are upstream's predicted follow-up prompt. A client that declares `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]` receives `_meta.promptSuggestions` on `session_info_update` after each completed turn, as AIR does; the exported client declares it and reads it with `promptSuggestion(session._meta)`. Removed: `_codex/session_prediction_request`, the `composerPredictions` capability flag, `requestPrediction` and `composerPrediction` on the client, and the fork's ephemeral prediction thread.

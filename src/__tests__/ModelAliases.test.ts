@@ -37,7 +37,11 @@ it("retains full native and provider capabilities under persisted model aliases"
             models: [
                 native,
                 { ...native, slug: "native:gpt-test" },
-                { ...flash, slug: "gateway:one:flash", auto_review_model_override: "gateway:one:flash" },
+                {
+                    ...flash,
+                    slug: "gateway:one:flash",
+                    auto_review_model_override: "gateway:one:flash",
+                },
             ],
         });
         expect(aliases.catalog(base, entries)).toBe(path);
@@ -88,34 +92,94 @@ it("retains native alias metadata without remaining gateway definitions", () => 
     }
 });
 
-
-it.each([undefined, null, "provider-reviewer"])(
-    "keeps gateway review on its route while respecting an explicit reviewer (%s)",
+it.each([undefined, null])(
+    "reviews a gateway model with itself when its catalog names no reviewer (%s)",
     (reviewer) => {
         const root = mkdtempSync(join(tmpdir(), "gateway-review-model-test-"));
         const aliases = new ModelAliases();
         try {
             const base = join(root, "catalog.json");
-            const native = {slug: "native-model", auto_review_model_override: null};
-            const provider = {slug: "provider-model", auto_review_model_override: reviewer};
-            writeFileSync(base, JSON.stringify({models: [native, provider]}));
+            const native = {
+                slug: "native-model",
+                auto_review_model_override: null,
+            };
+            const provider = {
+                slug: "provider-model",
+                auto_review_model_override: reviewer,
+            };
+            writeFileSync(base, JSON.stringify({ models: [native, provider] }));
             const first = "gateway:first:provider-model";
             const second = "gateway:second:provider-model";
             const path = aliases.catalog(base, [
-                {id: first, upstream: "provider-model"},
-                {id: second, upstream: "provider-model"},
+                { id: first, upstream: "provider-model" },
+                { id: second, upstream: "provider-model" },
             ]);
             const catalog = JSON.parse(readFileSync(path, "utf8"));
             for (const id of [first, second])
-                expect(catalog.models.find((model: {slug: string}) => model.slug === id))
-                    .toMatchObject({auto_review_model_override: reviewer ?? id});
-            expect(catalog.models.find((model: {slug: string}) => model.slug === "native:native-model"))
-                .toEqual({...native, slug: "native:native-model"});
-            expect(JSON.parse(readFileSync(base, "utf8")))
-                .toEqual({models: [native, JSON.parse(JSON.stringify(provider))]});
+                expect(
+                    catalog.models.find(
+                        (model: { slug: string }) => model.slug === id,
+                    ),
+                ).toMatchObject({ auto_review_model_override: id });
+            expect(
+                catalog.models.find(
+                    (model: { slug: string }) =>
+                        model.slug === "native:native-model",
+                ),
+            ).toEqual({ ...native, slug: "native:native-model" });
+            expect(JSON.parse(readFileSync(base, "utf8"))).toEqual({
+                models: [native, JSON.parse(JSON.stringify(provider))],
+            });
         } finally {
             aliases.close();
-            rmSync(root, {recursive: true, force: true});
+            rmSync(root, { recursive: true, force: true });
         }
     },
 );
+
+it("resolves a catalog's reviewer to the same gateway's model", () => {
+    const root = mkdtempSync(join(tmpdir(), "gateway-reviewer-test-"));
+    const aliases = new ModelAliases();
+    try {
+        const base = join(root, "catalog.json");
+        const reasoner = {
+            slug: "reasoner",
+            auto_review_model_override: "flash",
+        };
+        const flash = { slug: "flash", auto_review_model_override: null };
+        writeFileSync(base, JSON.stringify({ models: [reasoner, flash] }));
+        const path = aliases.catalog(base, [
+            { id: "gateway:first:reasoner", upstream: "reasoner" },
+            { id: "gateway:first:flash", upstream: "flash" },
+            { id: "gateway:second:reasoner", upstream: "reasoner" },
+            { id: "gateway:second:flash", upstream: "flash" },
+        ]);
+        const catalog = JSON.parse(readFileSync(path, "utf8"));
+        const overrides = Object.fromEntries(
+            catalog.models
+                .filter((model: { slug: string }) =>
+                    model.slug.startsWith("gateway:"),
+                )
+                .map((model: Record<string, unknown>) => [
+                    model["slug"],
+                    model["auto_review_model_override"],
+                ]),
+        );
+        expect(overrides).toEqual({
+            "gateway:first:reasoner": "gateway:first:flash",
+            "gateway:first:flash": "gateway:first:flash",
+            "gateway:second:reasoner": "gateway:second:flash",
+            "gateway:second:flash": "gateway:second:flash",
+        });
+        expect(() =>
+            aliases.catalog(base, [
+                { id: "gateway:third:reasoner", upstream: "reasoner" },
+            ]),
+        ).toThrow(
+            'Gateway model "reasoner" reviews with "flash", which the gateway does not list',
+        );
+    } finally {
+        aliases.close();
+        rmSync(root, { recursive: true, force: true });
+    }
+});
