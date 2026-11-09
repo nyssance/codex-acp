@@ -164,6 +164,9 @@ function startRawCodexConnection(
     const spawnEnv = env ?? process.env;
     const startupArgs = [
         ...appServerStartupArgs,
+        // Provider changes must release every detached writer, including threads created before catalog setup.
+        "-c",
+        "thread_unload_delay_secs=0",
         "--enable",
         "external_agent_memory_import",
     ];

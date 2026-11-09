@@ -124,6 +124,11 @@ a second native process and collide with the original writer. Native unload,
 close and successful unloading unsubscribe responses release only that
 connection's ownership; a later resume can then select the current catalog.
 
+Adapter-owned app-server processes start with `thread_unload_delay_secs=0`,
+including native threads created before any gateway is configured. Provider
+changes wait for the matching `thread/closed` notification before resuming:
+`notLoaded` can arrive before persistence and writer-lock cleanup finish.
+
 Native listing and resume responses in some Codex versions omit the source after
 unloading a thread. The adapter reads Codex's existing rollout header in that
 case; it does not create a source registry or modify native history.

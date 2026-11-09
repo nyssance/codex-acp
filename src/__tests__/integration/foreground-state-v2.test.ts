@@ -11,7 +11,7 @@ import {describeIntegration, INTEGRATION_MODEL_ID} from "./integration-fixture";
 import {startMockResponsesServer, textResponse} from "./mock-responses-server";
 
 describeIntegration("integration: ACP v2 foreground state", () => {
-    it("reports a structured auth failure, recovers, and synchronizes state on resume", async () => {
+    it.each(["native", "gateway"] as const)("reports a structured auth failure, recovers on %s, and synchronizes state on resume", async (recovery) => {
         const mock = await startMockResponsesServer();
         const temporaryRoot = join(process.cwd(), "tmp");
         mkdirSync(temporaryRoot, {recursive: true});
@@ -93,6 +93,26 @@ describeIntegration("integration: ACP v2 foreground state", () => {
             });
             expect(JSON.stringify(failedIdle)).not.toContain("private diagnostics");
             mock.setErrorResponse(null);
+            if (recovery === "gateway") {
+                await connection.agent.request(acpV2.methods.agent.providers.set, {
+                    providerId: "openai", apiType: "openai", baseUrl: mock.baseUrl,
+                    _meta: {codex: {id: "recovery", mode: "catalog", name: "Recovery"}, alwith: {models: [{id: INTEGRATION_MODEL_ID.model, label: "Recovery model"}]}},
+                });
+                await connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
+                    sessionId: failedSession.sessionId, configId: "model", type: "id", value: `gateway:recovery:${INTEGRATION_MODEL_ID.model}`,
+                });
+                const offset = updates.length;
+                mock.enqueue(textResponse("provider-recovered"), textResponse("Provider recovery test"));
+                await connection.agent.request(acpV2.methods.agent.session.prompt, {
+                    sessionId: failedSession.sessionId, prompt: [{type: "text", text: "Continue on the new provider"}],
+                });
+                await vi.waitFor(() => {
+                    expect(updates.slice(offset).some(({sessionId, update}) => sessionId === failedSession.sessionId
+                        && update.sessionUpdate === "state_update" && update.state === "idle" && update.stopReason === "end_turn"), stderr).toBe(true);
+                }, {timeout: 10_000});
+                expect(updates.slice(offset).flatMap(({update}) => acpV2.SessionUpdate.isAgentMessageChunk(update)
+                    && acpV2.ContentBlock.isText(update.content) ? [update.content.text] : []).join("")).toBe("provider-recovered");
+            }
             await connection.agent.request(acpV2.methods.agent.session.close, {sessionId: failedSession.sessionId});
             updates.splice(0);
 

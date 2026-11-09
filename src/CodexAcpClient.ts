@@ -1595,7 +1595,6 @@ export class CodexAcpClient {
             baseUrl: activeProvider.baseUrl,
         });
         const mergedConfig = {
-            ...(catalog ? { thread_unload_delay_secs: 0 } : {}),
             ...disableUnsupportedSkills(
                 forceGitRootTurnDiffPaths(
                     this.providerCatalog.active
