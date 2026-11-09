@@ -3244,10 +3244,10 @@ export class CodexAcpServer {
                 (event) => {
                     if (
                         event.eventType === "notification" &&
-                        event.method === "thread/closed" &&
-                        event.params.threadId === session.sessionId
+                        event.method === "thread/status/changed" &&
+                        event.params.threadId === session.sessionId &&
+                        event.params.status.type === "notLoaded"
                     ) {
-                        // notLoaded can precede persistence and writer-lock cleanup.
                         unloaded = true;
                         markUnloaded(undefined);
                     }

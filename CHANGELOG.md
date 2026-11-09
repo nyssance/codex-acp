@@ -2,7 +2,7 @@
 
 - Route application image sessions through the selected image model. Per-request image intent reaches Codex as additional context without changing user text or attachments; session routing survives resume and fork, and inline image attachments remain images during history replay.
 - Preserve bounded image-service error messages, error codes and request IDs alongside the HTTP status, while redacting credentials and image data. Ambiguous failures are not retried automatically.
-- Wait for the matching `thread/closed` notification before switching providers, and start adapter-owned app-server processes with immediate thread unloading so a detached writer cannot block the next provider.
+- Start adapter-owned app-server processes with immediate thread unloading so a detached writer cannot block the next provider.
 
 ## 0.7.59 (2026-11-09)
 

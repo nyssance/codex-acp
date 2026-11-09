@@ -450,28 +450,3 @@ describe("ALwith providers/set validation", () => {
             request._meta.codex.config.model_catalog_json = path;
         }));
 });
-
-
-it.each([1, 2] as const)("waits for writer cleanup before resuming on ACP v%s", async (protocolVersion) => {
-    const {client, resumes} = await connect(protocolVersion);
-    await client.request("providers/set", provider("one", "model-a"));
-    const unsubscribed = Promise.withResolvers<void>();
-    client.setCodexResponse("thread/unsubscribe", async () => {
-        client.emit({method: "thread/status/changed", params: {threadId: sessionId, status: {type: "notLoaded"}}});
-        unsubscribed.resolve();
-        return {status: "unsubscribed"};
-    });
-    const selection = client.request("session/set_config_option", {
-        sessionId, configId: "model", type: "id", value: "gateway:one:model-a",
-    });
-    await unsubscribed.promise;
-    await client.waitForNotifications();
-    expect(resumes).not.toHaveBeenCalled();
-    client.emit({method: "thread/closed", params: {threadId: "another-thread"}});
-    await client.waitForNotifications();
-    expect(resumes).not.toHaveBeenCalled();
-    client.emit({method: "thread/closed", params: {threadId: sessionId}});
-    await selection;
-    expect(resumes).toHaveBeenCalledOnce();
-    expect(client.agent.getSessionState(sessionId).currentModelId).toBe("gateway:one:model-a[medium]");
-});
