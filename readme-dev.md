@@ -323,6 +323,15 @@ narrowed. A failed listing (network error, a status other than 2xx or 4xx, malfo
 dropped. The `gateway` auth method and providers from
 the Codex config are not listed.
 
+#### Automatic review in catalog mode
+
+Gateway model aliases default `auto_review_model_override` to the selected alias when the
+provider catalog leaves it unset or null. Codex therefore runs its review policy on the
+selected gateway model instead of sending the native `codex-auto-review` model to an
+endpoint that may not serve or price it. An explicit provider catalog override is preserved.
+Native model metadata and the session's approval mode are unchanged. Review failures
+still prevent execution; answering an elicitation does not grant filesystem permissions.
+
 #### Known gaps
 
 - After `providers/disable("openai")`, `providers/list` still reports native OpenAI routing as the
