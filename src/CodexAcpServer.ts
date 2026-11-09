@@ -4380,6 +4380,7 @@ export class CodexAcpServer {
                 turnId,
                 prompt: params.prompt,
                 clientUserMessageId,
+                _meta: params._meta,
             }));
             return true;
         } catch (err) {
@@ -5642,13 +5643,18 @@ export class CodexAcpServer {
                 return desktopAttachmentHistory(input.text)
                     ?? (input.text.length > 0 ? [{ type: "text", text: input.text }] : []);
             }
-            case "image":
+            case "image": {
+                if ("url" in input) {
+                    const inline = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/]+={0,2})$/i.exec(input.url);
+                    if (inline) return [{type: "image", mimeType: inline[1]!, data: inline[2]!}];
+                }
                 return [{
                     type: "text",
                     text: "url" in input
                         ? this.formatUriAsLink("image", input.url)
                         : `image:${input.fileId}`,
                 }];
+            }
             case "localImage":
             case "localAudio":
             case "mention": {

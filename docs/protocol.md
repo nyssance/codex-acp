@@ -127,3 +127,38 @@ connection's ownership; a later resume can then select the current catalog.
 Native listing and resume responses in some Codex versions omit the source after
 unloading a thread. The adapter reads Codex's existing rollout header in that
 case; it does not create a source registry or modify native history.
+
+
+# Per-request image intent
+
+`session/prompt` and `session/steer` accept `_meta.alwith.imageIntent`:
+`"generate"` selects image input, `"edit"` identifies an explicit image edit, and
+`null` selects ordinary chat input. Other values are rejected as invalid params.
+Omission preserves the behavior of clients that do not use this extension.
+
+The adapter translates this value into Codex's native `additionalContext` under
+`alwith.imageIntent`, with kind `application`, for both turn start and steering.
+An explicit null replaces prior image-mode context with ordinary-chat context.
+The user's text and attachment blocks are unchanged; image intent adds no user
+message or visible prompt prefix. Source images, masks and annotation comments
+remain ordinary prompt attachments and text, respectively.
+
+
+# Session image routing
+
+Hosts may send `_meta.alwith.inputMode` (`"chat"` or `"image"`) on session
+creation, resume, load and fork. Invalid values are rejected; omission preserves
+existing clients and an already known thread's route during internal provider
+repairs. The host owns persistence of this preference.
+
+Image sessions disable native image generation (`features.image_generation` and
+`features.imagegenext`) in their per-thread configuration so the selected
+application image model cannot be bypassed. Ordinary chat leaves native image
+generation configuration unchanged. Hosts declare application image tools only
+for image sessions and reject their execution from ordinary chat sessions.
+
+`_meta.alwith.imageInstructions` is optional string context for application image
+requests. It is appended to the image-intent context only for `generate` or `edit`.
+Explicit null intent directs image requests to native image generation, ignores
+application image instructions, and clears prior application image routing hints.
+Image-preview edits follow the originating conversation's input mode.

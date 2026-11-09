@@ -8,6 +8,8 @@ describe("CodexACPAgent - loadSession", () => {
         const cases: Array<{input: UserInput, content: acp.ContentBlock}> = [
             {input: {type: "text", text: "Request", text_elements: []}, content: {type: "text", text: "Request"}},
             {input: {type: "image", url: "https://example.com/image.png"}, content: {type: "text", text: "[@image](https://example.com/image.png)"}},
+            {input: {type: "image", url: "data:image/png;base64,aGVsbG8="}, content: {type: "image", mimeType: "image/png", data: "aGVsbG8="}},
+            {input: {type: "image", url: "data:image/webp;base64,d2VicA=="}, content: {type: "image", mimeType: "image/webp", data: "d2VicA=="}},
             {input: {type: "image", fileId: "saved-image"}, content: {type: "text", text: "image:saved-image"}},
             {input: {type: "localImage", path: "/workspace/image #1.png"}, content: {type: "resource_link", name: "image #1.png", uri: "file:///workspace/image%20%231.png"}},
             {input: {type: "audio", url: "https://example.com/audio.wav"}, content: {type: "text", text: "[@audio](https://example.com/audio.wav)"}},

@@ -1,3 +1,4 @@
+import { imageIntentContext, inputModeOf, type InputMode } from "./alwith/codex/imageIntent";
 import { projectsFor } from "./projects/registry";
 import { readSessionLineage } from "./alwith/sessionLineage";
 import { replayEntriesOfTurn, withReplayTurnMetadata } from "./ReplayHistory";
@@ -198,6 +199,7 @@ export class CodexAcpClient {
         null;
     private readonly readOnlySessions = new Set<string>();
     private readonly catalogSessions = new Set<string>();
+    private readonly inputModes = new Map<string, InputMode>();
     private readonly sessionNotificationQueues = new Map<
         string,
         Promise<void>
@@ -798,6 +800,7 @@ export class CodexAcpClient {
         previousInstructions?: SessionInstructions,
         allowReadOnly = false,
     ): Promise<SessionMetadata> {
+        const inputMode = this.sessionInputMode(request);
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         await this.refreshSkills(request.cwd, additionalDirectories);
@@ -815,6 +818,7 @@ export class CodexAcpClient {
             route.gatewayId,
             route.modelProvider,
             route.catalog === true,
+            inputMode,
         );
         const response = await this.resumeThreadWithInstructions(
             {
@@ -901,6 +905,7 @@ export class CodexAcpClient {
         forkCreated: (threadId: string) => void = () => {},
         previousInstructions?: SessionInstructions,
     ): Promise<SessionMetadata> {
+        const inputMode = this.sessionInputMode(request);
         const instructions = await this.resolveSessionInstructions(
             request,
             previousInstructions,
@@ -926,6 +931,7 @@ export class CodexAcpClient {
                         route.gatewayId,
                         route.modelProvider,
                         route.catalog === true,
+                        inputMode,
                     ),
                 getResumeModelProvider: async () =>
                     route.modelProvider ??
@@ -948,6 +954,7 @@ export class CodexAcpClient {
             },
             instructions,
         );
+        if (inputMode !== undefined) this.inputModes.set(forked.sessionId, inputMode);
         if (route.catalog) this.catalogSessions.add(forked.sessionId);
         return {
             ...forked,
@@ -980,6 +987,7 @@ export class CodexAcpClient {
         previousInstructions?: SessionInstructions,
         allowReadOnly = false,
     ): Promise<SessionMetadataWithThread> {
+        const inputMode = this.sessionInputMode(request);
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         await this.refreshSkills(request.cwd, additionalDirectories);
@@ -997,6 +1005,7 @@ export class CodexAcpClient {
             route.gatewayId,
             route.modelProvider,
             route.catalog === true,
+            inputMode,
         );
         const response = await this.resumeThreadWithInstructions(
             {
@@ -1217,6 +1226,7 @@ export class CodexAcpClient {
         request: WithAcpMcpServers<acp.NewSessionRequest>,
     ): Promise<SessionMetadata> {
         const tools = clientToolsOf(request._meta);
+        const inputMode = this.sessionInputMode(request);
         const instructions = await this.resolveSessionInstructions(
             request,
             undefined,
@@ -1243,6 +1253,7 @@ export class CodexAcpClient {
             route.gatewayId,
             route.modelProvider,
             route.catalog === true,
+            inputMode,
         );
         const projectId = await projectsFor(this.codexClient).resolve(
             request.cwd,
@@ -1262,6 +1273,7 @@ export class CodexAcpClient {
             ...(developerInstructions !== undefined && {developerInstructions}),
         });
 
+        if (inputMode !== undefined) this.inputModes.set(response.thread.id, inputMode);
         if (route.catalog) this.catalogSessions.add(response.thread.id);
         const codexModels = await this.fetchAvailableModels();
         if (codexModels.length === 0 && !this.isNarrowedByGateway()) {
@@ -1553,6 +1565,12 @@ export class CodexAcpClient {
         return this.codexClient.mcpStartup.version();
     }
 
+    private sessionInputMode(request: {_meta?: unknown; sessionId?: string}): InputMode | undefined {
+        const mode = inputModeOf(request._meta) ?? (request.sessionId ? this.inputModes.get(request.sessionId) : undefined);
+        if (mode !== undefined && request.sessionId) this.inputModes.set(request.sessionId, mode);
+        return mode;
+    }
+
     private async createSessionConfig(
         projectPath: string,
         additionalDirectories: string[],
@@ -1560,6 +1578,7 @@ export class CodexAcpClient {
         gatewayId: string | null = null,
         transportProvider: string | null = null,
         catalog = this.providerCatalog.hasGateways,
+        inputMode?: InputMode,
     ): Promise<SessionConfig> {
         const sessionRoots = [projectPath, ...additionalDirectories];
         const activeProvider = this.gatewayConfig
@@ -1592,6 +1611,11 @@ export class CodexAcpClient {
                         : mergeGatewayConfig(this.config, this.gatewayConfig),
                 ),
             ),
+            // Application image sessions must not bypass the host's selected image model.
+            ...(inputMode === "image" ? {
+                "features.image_generation": false,
+                "features.imagegenext": false,
+            } : {}),
             projects: Object.fromEntries(
                 sessionRoots.map((root) => [
                     root,
@@ -1861,6 +1885,7 @@ export class CodexAcpClient {
         clientUserMessageId?: string,
     ): Promise<TurnCompletedNotification | null> {
         const input = buildPromptItems(request.prompt);
+        const additionalContext = imageIntentContext(request._meta);
         const effort = modelId.effort as ReasoningEffort | null; //TODO remove unsafe conversion
         await this.refreshSkills(cwd, additionalDirectories);
         if (shouldCancel?.()) {
@@ -1878,6 +1903,7 @@ export class CodexAcpClient {
                     : {}),
                 threadId: request.sessionId,
                 input,
+                ...(additionalContext !== undefined ? {additionalContext} : {}),
                 approvalPolicy: agentMode.approvalPolicy,
                 approvalsReviewer: agentMode.approvalsReviewer,
                 ...(permissionProfileId
@@ -2208,11 +2234,13 @@ export class CodexAcpClient {
         });
     }
 
-    async steerTurn(params: { threadId: string, turnId: string, prompt: acp.ContentBlock[], clientUserMessageId: string }): Promise<TurnSteerResponse> {
+    async steerTurn(params: { threadId: string, turnId: string, prompt: acp.ContentBlock[], clientUserMessageId: string, _meta?: unknown }): Promise<TurnSteerResponse> {
+        const additionalContext = imageIntentContext(params._meta);
         return await this.codexClient.turnSteer({
             threadId: params.threadId,
             expectedTurnId: params.turnId,
             input: buildPromptItems(params.prompt),
+            ...(additionalContext !== undefined ? {additionalContext} : {}),
             clientUserMessageId: params.clientUserMessageId,
         });
     }
