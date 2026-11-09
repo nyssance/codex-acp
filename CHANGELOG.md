@@ -1,3 +1,7 @@
+## 0.7.61 (2026-11-09)
+
+- Restore `thread/status/changed` with `notLoaded` as the provider-switch unload signal. Keep immediate thread unloading and the image-session improvements from 0.7.60.
+
 ## 0.7.60 (2026-11-09)
 
 - Route application image sessions through the selected image model. Per-request image intent reaches Codex as additional context without changing user text or attachments; session routing survives resume and fork, and inline image attachments remain images during history replay.
