@@ -1,3 +1,9 @@
+## 0.7.60 (2026-11-09)
+
+- Route application image sessions through the selected image model. Per-request image intent reaches Codex as additional context without changing user text or attachments; session routing survives resume and fork, and inline image attachments remain images during history replay.
+- Preserve bounded image-service error messages, error codes and request IDs alongside the HTTP status, while redacting credentials and image data. Ambiguous failures are not retried automatically.
+- Wait for the matching `thread/closed` notification before switching providers, and start adapter-owned app-server processes with immediate thread unloading so a detached writer cannot block the next provider.
+
 ## 0.7.59 (2026-11-09)
 
 - Approval reviews on a gateway session run on a model the gateway serves. A gateway model's `auto_review_model_override` defaults to itself instead of Codex's native `codex-auto-review`, which a third-party endpoint such as DeepSeek rejects; a reviewer named by the provider catalog resolves to that model's alias on the same gateway, and one the gateway does not list is a registration error.
