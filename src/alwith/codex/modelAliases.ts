@@ -45,7 +45,12 @@ export class ModelAliases {
                 throw new Error(
                     `Gateway model "${alias.upstream}" is in no model catalog`,
                 );
-            models.push({ ...entry, slug: alias.id });
+            // Codex's native reviewer may be in the merged catalog but unavailable at this gateway.
+            models.push({
+                ...entry,
+                slug: alias.id,
+                auto_review_model_override: entry["auto_review_model_override"] ?? alias.id,
+            });
         }
         const body = JSON.stringify({ models });
         const digest = createHash("sha256").update(body).digest("hex");
