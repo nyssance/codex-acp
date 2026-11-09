@@ -5,7 +5,7 @@
     "": {
       "name": "@nyssance/codex-acp-v2",
       "dependencies": {
-        "@agentclientprotocol/sdk": "^2.4.0",
+        "@agentclientprotocol/sdk": "^2.5.0",
         "@openai/codex": "^0.167.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",
@@ -33,7 +33,7 @@
     },
   },
   "packages": {
-    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@2.4.0", "", { "peerDependencies": { "@modelcontextprotocol/server": "^2.4.0", "zod": "^3.25.76 || ^4.0.0" }, "optionalPeers": ["@modelcontextprotocol/server"] }, "sha512-7qJ8nnyj7WesC5ve185ioTpB2/svQoeGV4HA4nLEhgDUrcmBe54/08VcXc/oL4p14tDbxxECZzdYmUYQ+4l+Wg=="],
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@2.5.0", "", { "peerDependencies": { "@modelcontextprotocol/server": "^2.4.0", "zod": "^3.25.76 || ^4.0.0" }, "optionalPeers": ["@modelcontextprotocol/server"] }, "sha512-MFlXeIuwN6nZSK45SAsSnVjbLgQ2r4fnthoF1lQoGJP3PdaPRpOZeCF2Dds8S4cN8yZP5QbxB1bkJccGskmcYw=="],
 
     "@alwith/api": ["@alwith/api@0.6.1", "", { "peerDependencies": { "@tauri-apps/api": ">=2" }, "optionalPeers": ["@tauri-apps/api"] }, "sha512-DbMwpXU1YyQm2GSEY2JL/ASlIVjORzz+NQZ7hG++/yrilB6B7jFmTyy8DzZ+oTc8kLQ4tiApnUArqQgtoVfIPw=="],
 
