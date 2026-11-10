@@ -995,6 +995,7 @@ export class CodexAcpServer {
                         forkAtTurn: true,
                         sessionLineage: true,
                         sessionRetry: { version: 1 },
+                        sessionInputConfig: { version: 2 },
                     },
                 },
                 auth: {

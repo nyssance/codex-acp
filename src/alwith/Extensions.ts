@@ -1,3 +1,4 @@
+import {readSessionInputConfig, writeSessionInputConfig} from "./codex/sessionInputConfig";
 import {generateImage} from "./codex/images";
 import {projectsFor} from "../projects/registry";
 import {logger} from "../Logger";
@@ -39,6 +40,8 @@ export const CATALOG_METHODS = {
 export const ALWITH_METHODS = [
     "_codex/project_context",
     "_codex/images/generate",
+    "_codex/session_input_config_get",
+    "_codex/session_input_config_set",
     ...Object.keys(CATALOG_METHODS),
     "_codex/plugin_set_enabled",
     "_codex/session_history",
@@ -107,6 +110,14 @@ export class AlwithExtensions {
     async request(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
         signal?.throwIfAborted();
         if (method === "_codex/images/generate") return generateImage(this.codex, params, signal);
+        if (method === "_codex/session_input_config_get" || method === "_codex/session_input_config_set") {
+            const sessionId = params["sessionId"];
+            if (typeof sessionId !== "string" || !sessionId) throw RequestError.invalidParams(undefined, "sessionId is required");
+            const snapshot = method === "_codex/session_input_config_get"
+                ? await readSessionInputConfig(this.codex, sessionId)
+                : await writeSessionInputConfig(this.codex, sessionId, params["inputConfig"]);
+            return snapshot;
+        }
         if (method === "_codex/project_context") return projectsFor(this.current()).context(params["createChatDirectory"] === true);
         if (method === "_codex/session_history" || method === "_codex/session_history_items") {
             const request =

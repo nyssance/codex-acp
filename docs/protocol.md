@@ -132,36 +132,62 @@ unloading a thread. The adapter reads Codex's existing rollout header in that
 case; it does not create a source registry or modify native history.
 
 
-# Per-request image intent
+# Host execution parameters
 
-`session/prompt` and `session/steer` accept `_meta.alwith.imageIntent`:
-`"generate"` selects image input, `"edit"` identifies an explicit image edit, and
-`null` selects ordinary chat input. Other values are rejected as invalid params.
-Omission preserves the behavior of clients that do not use this extension.
+The host owns input-mode validation, model selection, tool policy and application
+instructions. The adapter never interprets persisted modes or configuration to
+choose an execution policy.
 
-The adapter translates this value into Codex's native `additionalContext` under
-`alwith.imageIntent`, with kind `application`, for both turn start and steering.
-An explicit null replaces prior image-mode context with ordinary-chat context.
-The user's text and attachment blocks are unchanged; image intent adds no user
-message or visible prompt prefix. Source images, masks and annotation comments
-remain ordinary prompt attachments and text, respectively.
+Session creation, load, resume and fork accept `_meta.alwith.nativeTools`.
+The optional `imageGeneration` boolean maps to Codex's native
+`features.image_generation` and `features.imagegenext` switches. Omitted switches
+leave native configuration unchanged. Unknown capability names and non-boolean
+values are rejected. This is a capability-specific protocol, not arbitrary Codex
+configuration passthrough. Application tools continue to use `_meta.alwith.tools`.
+An omitted `nativeTools` field preserves in-memory settings during internal
+connection/provider repairs; an explicit object replaces those cached settings.
+Hosts resend settings when reopening a session after an adapter restart.
 
+Prompt and steering requests accept `_meta.alwith.applicationContext`, an object
+of application-owned keys to strings or null. The adapter converts each entry to
+Codex `additionalContext` with kind `application`; null writes an empty value for
+that key. Omission leaves context untouched; an empty object does not clear prior
+keys. Hosts must explicitly replace or clear previously used keys when needed.
+The object is limited to 128 entries and 64 KiB; keys are nonempty and at most 128
+characters. User text and attachments remain unchanged. The adapter does not
+construct application instructions or recognize image-edit/generation intents.
 
-# Session image routing
+# Persistent session input configuration
 
-Hosts may send `_meta.alwith.inputMode` (`"chat"` or `"image"`) on session
-creation, resume, load and fork. Invalid values are rejected; omission preserves
-existing clients and an already known thread's route during internal provider
-repairs. The host owns persistence of this preference.
+ACP v2 exposes `_codex/session_input_config_get` with `{sessionId}` and
+`_codex/session_input_config_set` with `{sessionId, inputConfig}`. An input configuration
+contains `mode: string` and `config: JSON object`. Absence means default chat; U does not write an extra record for ordinary chat.
+Chat model, provider and reasoning settings remain owned by Codex. The explicit
+`{mode: "chat", config: {}}` shape remains readable;
+image uses `{mode: "image", config: {model, size}}`. Responses
+are `{sessionId, revision, inputConfig}`; an absent configuration returns revision
+zero and null inputConfig. ACP v2 advertises `sessionInputConfig: {version: 2}`.
 
-Image sessions disable native image generation (`features.image_generation` and
-`features.imagegenext`) in their per-thread configuration so the selected
-application image model cannot be bypassed. Ordinary chat leaves native image
-generation configuration unchanged. Hosts declare application image tools only
-for image sessions and reject their execution from ordinary chat sessions.
+Codex owns these values as `alwith.session-input.v2` thread attachments. Immutable
+numeric revision identities preserve the previous configuration throughout writes;
+competing writers use the native attachment identity constraint rather than deleting
+and replacing an attachment. Reads select the latest revision across all pages.
+Transport failures are not automatically replayed. Forks explicitly copy the native
+input configuration to the new thread. Native archive and deletion govern the attachment
+lifecycle; no separate conversation or configuration registry is created.
 
-`_meta.alwith.imageInstructions` is optional string context for application image
-requests. It is appended to the image-intent context only for `generate` or `edit`.
-Explicit null intent directs image requests to native image generation, ignores
-application image instructions, and clears prior application image routing hints.
-Image-preview edits follow the originating conversation's input mode.
+A loaded, unsent draft has no persistent attachment owner yet. Read returns no
+input configuration after verifying the draft exists; initial writes must follow first
+message acceptance. The hosting application retains unsent choices in draft state.
+U reads native input configuration on reopen, keeps only a disposable presentation cache
+and recent new-conversation choices locally, and does not migrate legacy local records.
+
+The storage boundary validates only the envelope and JSON representation (64 KiB,
+maximum nesting depth 32), preserving unknown modes without interpreting their
+settings. Object keys are canonicalized so server serialization order does not
+create new revisions. The host owns configuration validation and tool routing. Unknown modes remain
+readable as opaque data; hosts reject unsupported modes before executing them. Version 1 records are not migrated.
+
+Host input-mode definitions own configuration validation, tool selection and prompt
+routing. The adapter validates generic protocol values and translates native tool
+switches and application context without understanding input modes.

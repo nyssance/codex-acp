@@ -98,6 +98,7 @@ export function codexResponse(method: string): unknown {
             return {config: {}, origins: {}, layers: []};
         case "thread/goal/get":
             return {goal: null};
+        case "thread/attachment/list":
         case "thread/list":
         case "thread/backgroundTerminals/list":
             return {data: [], nextCursor: null};

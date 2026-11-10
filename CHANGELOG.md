@@ -1,3 +1,9 @@
+## 0.7.64 (2026-11-10)
+
+- Persist opaque session input configuration through `_codex/session_input_config_get/set` in Codex thread attachments. Hosts own mode validation and configuration semantics; the adapter does not maintain a separate conversation store.
+- Replace image-specific execution policy with host-provided native tool settings and application context. Preserve native tool settings during client recovery and leave user text and image attachments unchanged.
+- Copy input configuration when forking sessions. Read the source before creating a fork and release the failed fork subscription if configuration copying or finalization fails, while respecting concurrent session ownership.
+
 ## 0.7.63 (2026-11-10)
 
 - Gateways can speak Anthropic Messages. `providers/set` accepts `apiType: "anthropic"` with the Messages endpoint as `baseUrl` and the API key as `_meta.codex.bearerToken`; `providers/list` reports `supported: ["openai", "anthropic"]`. Codex still sends Responses requests: the adapter's local proxy translates each one to Messages and the answer back, so sessions, tools, approvals and compaction stay Codex's. The translation is the core of opencodex 2.100.0, built into the bundle; it needs the Bun runtime. Verified against a scripted Messages endpoint, not yet against Anthropic's API.

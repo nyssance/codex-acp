@@ -94,6 +94,7 @@ export function defaultAnswer(method: string, params: unknown): unknown {
             };
         case "turn/start": return {turn: {id: `turn-${Math.random().toString(36).slice(2, 8)}`, items: [], status: "inProgress", error: null}};
         case "thread/list": return {data: [], nextCursor: null};
+        case "thread/attachment/list": return {data: [], nextCursor: null};
         case "thread/goal/get": return {goal: null};
         case "thread/backgroundTerminals/list": return {data: [], nextCursor: null};
         default: return {};

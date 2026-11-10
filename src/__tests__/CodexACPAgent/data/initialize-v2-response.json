@@ -71,6 +71,9 @@
         "sessionLineage": true,
         "sessionRetry": {
           "version": 1
+        },
+        "sessionInputConfig": {
+          "version": 2
         }
       }
     }
