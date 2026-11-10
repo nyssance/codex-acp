@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.63 (2026-11-10)
 
 - Gateways can speak Anthropic Messages. `providers/set` accepts `apiType: "anthropic"` with the Messages endpoint as `baseUrl` and the API key as `_meta.codex.bearerToken`; `providers/list` reports `supported: ["openai", "anthropic"]`. Codex still sends Responses requests: the adapter's local proxy translates each one to Messages and the answer back, so sessions, tools, approvals and compaction stay Codex's. The translation is the core of opencodex 2.100.0, built into the bundle; it needs the Bun runtime. Verified against a scripted Messages endpoint, not yet against Anthropic's API.
 
