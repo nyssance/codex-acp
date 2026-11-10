@@ -169,7 +169,7 @@ function startRawCodexConnection(codexPath: string | undefined, env: NodeJS.Proc
         });
     }
 
-    return {connection, process: codex, drained};
+    return {connection: connection, process: codex, drained};
 }
 
 /**

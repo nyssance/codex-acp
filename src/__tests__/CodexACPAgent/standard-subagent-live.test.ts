@@ -95,9 +95,9 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
                 }),
             }),
         );
-        expect(childUpdates().filter((entry) => entry.update.sessionUpdate === "subagent_update"
+        expect(childUpdates().filter(entry => entry.update.sessionUpdate === "subagent_update"
             && entry.update.capabilities != null && Object.keys(entry.update.capabilities).length === 0)).toHaveLength(1);
-        expect(childUpdates().some((entry) => entry.update.sessionUpdate === "user_message_chunk")).toBe(false);
+        expect(childUpdates().some(entry => entry.update.sessionUpdate === "user_message_chunk")).toBe(false);
     });
 
     it("waits for immediate parentage and announces ancestors before child traffic", async () => {

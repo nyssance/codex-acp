@@ -1,4 +1,3 @@
-import {readableToWeb} from "../../StdUtils";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {spawn} from "node:child_process";
 import {once} from "node:events";
@@ -34,8 +33,8 @@ describeIntegration("integration: ACP v2 foreground state", () => {
         processHandle.stderr.on("data", chunk => { stderr += chunk.toString(); });
         const updates: acpV2.UpdateSessionNotification[] = [];
         const connection = acpV2.client()
-            .onNotification(acpV2.methods.client.session.update, (ctx) => { updates.push(ctx.params); })
-            .connect(acpV2.ndJsonStream(Writable.toWeb(processHandle.stdin), readableToWeb(processHandle.stdout)));
+            .onNotification(acpV2.methods.client.session.update, ctx => { updates.push(ctx.params); })
+            .connect(acpV2.ndJsonStream(Writable.toWeb(processHandle.stdin), Readable.toWeb(processHandle.stdout) as ReadableStream<Uint8Array>));
         try {
             await connection.agent.request(acpV2.methods.agent.initialize, {
                 protocolVersion: 2,

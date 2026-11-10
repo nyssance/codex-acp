@@ -199,10 +199,6 @@ export class CodexAppServerClient {
     /** The `$CODEX_HOME` of the app-server, for the error explanations. */
     private codexHome: string | null = null;
 
-    getCodexHome(): string | null {
-        return this.codexHome;
-    }
-
     constructor(connection: MessageConnection) {
         this.connection = connection;
         this.imports = new CodexImportClient(connection);
@@ -333,16 +329,13 @@ export class CodexAppServerClient {
     }
 
     async initialize(params: InitializeParams): Promise<InitializeResponse> {
-        const response: InitializeResponse = await this.sendRequest({
-            method: "initialize",
-            params,
-        });
+        const response: InitializeResponse = await this.sendRequest({ method: "initialize", params: params });
         this.codexHome = response?.codexHome ?? null;
         return response;
     }
 
-    async turnStart(params: TurnStartParams): Promise<TurnStartResponse> {
-        return await this.sendRequest({method: "turn/start", params});
+    async turnStart(params: ExperimentalTurnStartParams): Promise<TurnStartResponse> {
+        return await this.sendRequest({ method: "turn/start", params: params });
     }
 
     async runTurn(params: ExperimentalTurnStartParams, onTurnStarted?: (turnId: string) => void): Promise<TurnCompletedNotification> {
@@ -675,15 +668,15 @@ export class CodexAppServerClient {
     }
 
     async turnInterrupt(params: TurnInterruptParams): Promise<TurnInterruptResponse> {
-        return await this.sendRequest({method: "turn/interrupt", params});
+        return await this.sendRequest({ method: "turn/interrupt", params: params });
     }
 
     async turnSteer(params: TurnSteerParams): Promise<TurnSteerResponse> {
-        return await this.sendRequest({method: "turn/steer", params});
+        return await this.sendRequest({ method: "turn/steer", params: params });
     }
 
     async reviewStart(params: ReviewStartParams): Promise<ReviewStartResponse> {
-        return await this.sendRequest({method: "review/start", params});
+        return await this.sendRequest({ method: "review/start", params: params });
     }
 
     markTurnStale(threadId: string, turnId: string): void {
@@ -692,20 +685,20 @@ export class CodexAppServerClient {
         this.staleTurnIds.set(threadId, threadStaleTurns);
     }
 
-    async threadStart(params: ThreadStartParams): Promise<ThreadStartResponse> {
-        return await this.sendRequest({method: "thread/start", params});
+    async threadStart(params: ThreadStartParams): Promise<ExperimentalThreadStartResponse> {
+        return await this.sendRequest({ method: "thread/start", params: params });
     }
 
     async threadSetName(params: ThreadSetNameParams): Promise<ThreadSetNameResponse> {
         return await this.sendRequest({ method: "thread/name/set", params });
     }
 
-    async threadResume(params: ThreadResumeParams): Promise<ThreadResumeResponse> {
-        return await this.sendRequest({method: "thread/resume", params});
+    async threadResume(params: ThreadResumeParams): Promise<ExperimentalThreadResumeResponse> {
+        return await this.sendRequest({ method: "thread/resume", params: params });
     }
 
-    async threadFork(params: ThreadForkParams): Promise<ThreadForkResponse> {
-        return await this.sendRequest({method: "thread/fork", params});
+    async threadFork(params: ThreadForkParams): Promise<ExperimentalThreadForkResponse> {
+        return await this.sendRequest({ method: "thread/fork", params: params });
     }
 
     getThreadSettings(threadId: string): ThreadSettings | undefined {
@@ -717,15 +710,15 @@ export class CodexAppServerClient {
     }
 
     async threadList(params: ThreadListParams): Promise<ThreadListResponse> {
-        return await this.sendRequest({method: "thread/list", params});
+        return await this.sendRequest({ method: "thread/list", params: params });
     }
 
     async threadLoadedList(params: ThreadLoadedListParams): Promise<ThreadLoadedListResponse> {
-        return await this.sendRequest({method: "thread/loaded/list", params});
+        return await this.sendRequest({ method: "thread/loaded/list", params: params });
     }
 
     async threadRead(params: ThreadReadParams): Promise<ThreadReadResponse> {
-        return await this.sendRequest({method: "thread/read", params});
+        return await this.sendRequest({ method: "thread/read", params: params });
     }
 
     async threadTurnsList(params: ThreadTurnsListParams): Promise<ThreadTurnsListResponse> {
@@ -782,7 +775,7 @@ export class CodexAppServerClient {
             sortDirection: "asc",
         }), page => page.some(entry => entry.item.id === lastItemId));
         for await (const page of pages) {
-            const lastIndex = page.findIndex((entry) => entry.item.id === lastItemId);
+            const lastIndex = page.findIndex(entry => entry.item.id === lastItemId);
             if (lastIndex !== -1) {
                 yield page.slice(0, lastIndex + 1);
                 return;
@@ -816,7 +809,7 @@ export class CodexAppServerClient {
             sortDirection: "asc",
             itemsView: "notLoaded",
         })) {
-            const end = page.findIndex((turn) => turn.id === lastTurnId);
+            const end = page.findIndex(turn => turn.id === lastTurnId);
             yield end === -1 ? page : page.slice(0, end + 1);
             if (end !== -1) return;
         }
@@ -854,7 +847,7 @@ export class CodexAppServerClient {
         if (lastTurnId === undefined) return;
         const pages = this.threadTurnPages({threadId, limit: HISTORY_PAGE_TURNS, sortDirection: "asc", itemsView: "full"});
         for await (const page of pages) {
-            const lastIndex = page.findIndex((turn) => turn.id === lastTurnId);
+            const lastIndex = page.findIndex(turn => turn.id === lastTurnId);
             if (lastIndex !== -1) {
                 yield page.slice(0, lastIndex + 1);
                 return;
@@ -864,26 +857,23 @@ export class CodexAppServerClient {
     }
 
     async threadArchive(params: ThreadArchiveParams): Promise<ThreadArchiveResponse> {
-        return await this.sendRequest({method: "thread/archive", params});
+        return await this.sendRequest({ method: "thread/archive", params: params });
     }
 
     async threadUnarchive(params: ThreadUnarchiveParams): Promise<ThreadUnarchiveResponse> {
-        return await this.sendRequest({method: "thread/unarchive", params});
+        return await this.sendRequest({ method: "thread/unarchive", params: params });
     }
 
     async threadDelete(params: ThreadDeleteParams): Promise<ThreadDeleteResponse> {
-        return await this.sendRequest({method: "thread/delete", params});
+        return await this.sendRequest({ method: "thread/delete", params: params });
     }
 
     async threadUnsubscribe(params: ThreadUnsubscribeParams): Promise<ThreadUnsubscribeResponse> {
-        return await this.sendRequest({method: "thread/unsubscribe", params});
+        return await this.sendRequest({ method: "thread/unsubscribe", params: params });
     }
 
     async threadCompactStart(params: ThreadCompactStartParams): Promise<ThreadCompactStartResponse> {
-        return await this.sendRequest({
-            method: "thread/compact/start",
-            params,
-        });
+        return await this.sendRequest({ method: "thread/compact/start", params: params });
     }
 
     async threadBackgroundTerminalsList(params: ThreadBackgroundTerminalsListParams): Promise<ThreadBackgroundTerminalsListResponse> {
@@ -913,15 +903,15 @@ export class CodexAppServerClient {
     }
 
     async threadGoalSet(params: ThreadGoalSetParams): Promise<ThreadGoalSetResponse> {
-        return await this.sendRequest({method: "thread/goal/set", params});
+        return await this.sendRequest({ method: "thread/goal/set", params: params });
     }
 
     async threadGoalGet(params: ThreadGoalGetParams): Promise<ThreadGoalGetResponse> {
-        return await this.sendRequest({method: "thread/goal/get", params});
+        return await this.sendRequest({ method: "thread/goal/get", params: params });
     }
 
     async threadGoalClear(params: ThreadGoalClearParams): Promise<ThreadGoalClearResponse> {
-        return await this.sendRequest({method: "thread/goal/clear", params});
+        return await this.sendRequest({ method: "thread/goal/clear", params: params });
     }
 
     async listMcpServerStatus(params: ListMcpServerStatusParams): Promise<ListMcpServerStatusResponse> {
@@ -937,17 +927,11 @@ export class CodexAppServerClient {
     }
 
     async accountLogin(params: LoginAccountParams): Promise<LoginAccountResponse> {
-        return await this.sendRequest({
-            method: "account/login/start",
-            params,
-        });
+        return await this.sendRequest({ method: "account/login/start", params: params });
     }
 
     async accountLoginCancel(params: CancelLoginAccountParams): Promise<CancelLoginAccountResponse> {
-        return await this.sendRequest({
-            method: "account/login/cancel",
-            params,
-        });
+        return await this.sendRequest({ method: "account/login/cancel", params: params });
     }
 
     async accountLogout(): Promise<LogoutAccountResponse> {
@@ -955,7 +939,7 @@ export class CodexAppServerClient {
     }
 
     async configRead(params: ConfigReadParams): Promise<ConfigReadResponse> {
-        return await this.sendRequest({method: "config/read", params});
+        return await this.sendRequest({ method: "config/read", params: params });
     }
 
     async hooksList(params: HooksListParams): Promise<HooksListResponse> {
@@ -966,7 +950,7 @@ export class CodexAppServerClient {
         return await this.sendRequest({method: "config/batchWrite", params});
     }
     async accountRead(params: GetAccountParams): Promise<GetAccountResponse> {
-        return await this.sendRequest({method: "account/read", params});
+        return await this.sendRequest({ method: "account/read", params: params });
     }
 
     async accountRateLimitsRead(): Promise<GetAccountRateLimitsResponse> {
@@ -1569,7 +1553,7 @@ function extractTurnRouting(notification: ServerNotification): { threadId: strin
  * With `endsHistory`, the next page is requested while the caller uses a page, so at most two pages are in memory.
  * No page is requested after the page that `endsHistory` accepts. Without it, a page is requested when the caller asks.
  */
-async function* historyPages<T>(
+export async function* historyPages<T>(
     threadId: string,
     method: string,
     requestPage: (cursor: string | null) => Promise<{data: T[]; nextCursor: string | null}>,

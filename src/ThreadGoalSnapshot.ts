@@ -1,6 +1,5 @@
 import type {ACPSessionConnection, UpdateSessionEvent} from "./ACPSessionConnection";
-import {AIR_GOAL_KEY, JETBRAINS_META_KEY, withAirMeta} from "./AirExtension";
-import {recordOrNull} from "./permissions/json";
+import {AIR_GOAL_KEY, withAirMeta} from "./AirExtension";
 import {GOAL_CONTROL_METHOD, type GoalSnapshot, type GoalStatus} from "./GoalExtension";
 import type {ThreadGoal} from "./app-server/v2";
 
@@ -65,18 +64,8 @@ export function goalSessionInfoUpdate(goal: ThreadGoalSnapshot | null, airClient
     };
 }
 
-/** v2 replaces whole namespace values, so compose the current `codex` and AIR values at publication time. */
+/** On v2 the session connection merges the update into the current `codex` and AIR values. */
 export function publishGoalSessionInfo(session: ACPSessionConnection, goal: ThreadGoalSnapshot | null, airClient: boolean): Promise<void> {
-    if (session.protocolVersion === 2) {
-        return session.patchSessionMetadata((current) => ({
-            ...(airClient
-                ? {
-                      [JETBRAINS_META_KEY]: withAirMeta(current, AIR_GOAL_KEY, goal)[JETBRAINS_META_KEY],
-                  }
-                : {}),
-            codex: {...recordOrNull(current["codex"]), goal},
-        }));
-    }
-    const update = goalSessionInfoUpdate(goal, airClient);
+    const update = goalSessionInfoUpdate(goal, airClient, session.protocolVersion === 2);
     return update === null ? Promise.resolve() : session.update(update);
 }

@@ -69,9 +69,9 @@ class FakeCodex {
     readonly threadList = vi.fn(async (params: ThreadListParams): Promise<ThreadListResponse> => {
         const cwds = params.cwd === undefined || params.cwd === null ? null : [params.cwd].flat();
         const rows = [...this.threads.values()]
-            .filter((entry) => entry.archived === (params.archived ?? false))
-            .filter((entry) => cwds === null || cwds.includes(entry.thread.cwd))
-            .map((entry) => entry.thread)
+            .filter(entry => entry.archived === (params.archived ?? false))
+            .filter(entry => cwds === null || cwds.includes(entry.thread.cwd))
+            .map(entry => entry.thread)
             .toSorted((left, right) => right.updatedAt - left.updatedAt);
         const offset = params.cursor ? Number(params.cursor) : 0;
         const limit = params.limit ?? 25;
@@ -394,10 +394,9 @@ describe("SessionListSubscriptions", () => {
         // No group has a row of the thread yet: it is read, and both get it.
         subscriptions.observe(own("thread/name/updated", {threadId: "old"}));
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
-        expect(codex.threadRead.mock.calls.map((call) => call[0].threadId)).toEqual(["old"]);
+        expect(codex.threadRead.mock.calls.map(call => call[0].threadId)).toEqual(["old"]);
         expect(
-            sent.filter((changes) => changes.sessions.some((row) => row.sessionId === "old"))
-                .map((changes) => changes.subscriptionId)
+            sent.filter(changes => changes.sessions.some(row => row.sessionId === "old")).map(changes => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([repo, worktree].toSorted());
 
@@ -405,8 +404,7 @@ describe("SessionListSubscriptions", () => {
         subscriptions.observe(own("thread/deleted", {threadId: "old"}));
         await vi.advanceTimersByTimeAsync(timings.minChangeIntervalMs);
         expect(
-            sent.filter((changes) => changes.removed.includes("old"))
-                .map((changes) => changes.subscriptionId)
+            sent.filter(changes => changes.removed.includes("old")).map(changes => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([repo, worktree].toSorted());
         subscriptions.dispose();
@@ -735,8 +733,8 @@ describe("SessionListSubscriptions", () => {
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
 
         expect(codex.scans()).toHaveLength(1);
-        expect(sent.map((changes) => changes.subscriptionId).toSorted()).toEqual([first, second].toSorted());
-        expect(sent.every((changes) => ids(changes.sessions).join() === "a")).toBe(true);
+        expect(sent.map(changes => changes.subscriptionId).toSorted()).toEqual([first, second].toSorted());
+        expect(sent.every(changes => ids(changes.sessions).join() === "a")).toBe(true);
 
         subscriptions.unsubscribe(first);
         sent.length = 0;
@@ -759,7 +757,7 @@ describe("SessionListSubscriptions", () => {
         listener().stateChanged();
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
 
-        expect(sent.flatMap((changes) => ids(changes.sessions)).toSorted()).toEqual(["archived", "worktree"]);
+        expect(sent.flatMap(changes => ids(changes.sessions)).toSorted()).toEqual(["archived", "worktree"]);
         subscriptions.dispose();
     });
 
@@ -803,7 +801,7 @@ describe("SessionListSubscriptions", () => {
         subscriptions.observe(own("thread/deleted", {threadId: "unknown"}));
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
 
-        expect(sent.map((changes) => [changes.subscriptionId, changes.removed]).toSorted()).toEqual(
+        expect(sent.map(changes => [changes.subscriptionId, changes.removed]).toSorted()).toEqual(
             [[repo, ["unknown"]], [other, ["unknown"]]].toSorted(),
         );
         subscriptions.dispose();
@@ -891,10 +889,10 @@ describe("SessionListSubscriptions", () => {
         expect(sent).toHaveLength(3);
         expect([sent[0]!.subscriptionId, sent[0]!.sessions[0]!.title]).toEqual([first, "one"]);
         expect(
-            sent.slice(1).map((changes) => changes.subscriptionId)
+            sent.slice(1).map(changes => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([first, second].toSorted());
-        expect(sent.slice(1).every((changes) => changes.sessions[0]!.title === "two")).toBe(true);
+        expect(sent.slice(1).every(changes => changes.sessions[0]!.title === "two")).toBe(true);
         subscriptions.dispose();
     });
 
@@ -972,7 +970,7 @@ describe("SessionListSubscriptions", () => {
         listener().stateChanged();
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
 
-        expect(sent.map((changes) => changes.subscriptionId).toSorted()).toEqual([repo, worktree].toSorted());
+        expect(sent.map(changes => changes.subscriptionId).toSorted()).toEqual([repo, worktree].toSorted());
         subscriptions.dispose();
     });
 

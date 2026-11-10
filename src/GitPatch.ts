@@ -107,7 +107,7 @@ function createWholeFilePatch(filePath: string, text: string, change: "added" | 
 function hunkText(diff: string): string | null {
     const lines = diff.split("\n");
     if (lines.at(-1) === "") lines.pop();
-    const first = lines.findIndex((line) => line.startsWith("@@"));
+    const first = lines.findIndex(line => line.startsWith("@@"));
     if (first === -1) return null;
     const leading = lines.slice(0, first);
     if (!leading.every(isFileHeaderLine)) return null;

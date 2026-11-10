@@ -57,11 +57,8 @@ describe.each([1, 2] as const)("ACP v%s config notifications", version => {
             assertBeforeResponse(h, start, response.configOptions);
             if (configId === "model") {
                 const options = response.configOptions.map(
-                    (option: {id?: string; configId?: string; type: string; currentValue: unknown; options: Array<{value: string}>}) => ({
-                        id: option.id ?? option.configId,
-                        currentValue: option.currentValue,
-                        values: option.options.map((value) => value.value),
-                    }),
+                    (option: {id?: string; configId?: string; type: string; currentValue: unknown; options: Array<{value: string}>}) => ({id: option.id ?? option.configId, currentValue: option.currentValue,
+                        values: option.options.map(value => value.value)}),
                 );
                 await expect(`${JSON.stringify(options, null, 2)}\n`).toMatchFileSnapshot("data/config-notification-dependent-model.json");
             }

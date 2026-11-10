@@ -1,7 +1,6 @@
 import { nativeFetch } from "./nativeFetch";
 import type { AppServerClient } from "./AppServerClient";
 
-export type ImageRequest = { prompt: string; images?: string[] };
 export type ImageResult = { images: { mimeType: string; data: string }[] };
 
 /** Credentials stay with the authenticated agent and never cross ACP. */

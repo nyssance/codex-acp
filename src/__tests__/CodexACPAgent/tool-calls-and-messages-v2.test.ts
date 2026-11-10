@@ -94,7 +94,8 @@ describe('tool calls and messages over ACP v2', () => {
         await finishTurn(client);
 
         const chunks = updatesTagged(client, "agent_message_chunk", "agent_thought_chunk") as Array<acpV2.SessionUpdate & {messageId: string}>;
-        expect(chunks.map((chunk) => chunk.messageId).slice(0, 4)).toEqual(["item-reasoning", "item-reasoning", "item-agent", "item-agent"]);
+        expect(chunks.map(chunk => chunk.messageId).slice(0, 4))
+            .toEqual(["item-reasoning", "item-reasoning", "item-agent", "item-agent"]);
         expect(chunks).toHaveLength(4);
         const errors = updatesTagged(client, "agent_message");
         expect(errors).toEqual([

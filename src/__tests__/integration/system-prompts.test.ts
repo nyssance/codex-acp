@@ -1,4 +1,3 @@
-import { readableToWeb } from "../../StdUtils";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {spawn} from "node:child_process";
@@ -42,24 +41,15 @@ describeIntegration(
                     cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome, APP_SERVER_LOGS: root}, stdio: ["pipe", "pipe", "pipe"],
                 });
                 let stderr = "";
-                child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+                child.stderr.on("data", chunk => { stderr += chunk.toString(); });
                 const updates: Array<{sessionId: string; update: any}> = [];
                 const stream = acp.ndJsonStream(
                     Writable.toWeb(child.stdin),
-                    readableToWeb(child.stdout),
+                    Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
                 );
-                const connection =
-                    version === 1
-                        ? acp.client().onNotification(
-                                  acp.methods.client.session.update,
-                                  (ctx) => { updates.push(ctx.params); },
-                              )
-                              .connect(stream)
-                        : acpV2.client().onNotification(
-                                  acpV2.methods.client.session.update,
-                                  (ctx) => { updates.push(ctx.params); },
-                              )
-                              .connect(stream);
+                const connection = version === 1
+                    ? acp.client().onNotification(acp.methods.client.session.update, ctx => { updates.push(ctx.params); }).connect(stream)
+                    : acpV2.client().onNotification(acpV2.methods.client.session.update, ctx => { updates.push(ctx.params); }).connect(stream);
                 // The untyped request overload is shared by both protocol contexts.
                 const context = connection.agent as {
                     request(method: string, params: unknown, options: {cancellationSignal: AbortSignal}): Promise<unknown>;

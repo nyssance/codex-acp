@@ -1088,11 +1088,8 @@ describe("app-server recovery", () => {
         const fixture = createRecoveryFixture();
         const sessionId = await openSession(fixture);
         const {prompt} = await startTurn(fixture, sessionId);
-        fixture.current().rpc.notify({
-            method: "item/started",
-            params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: command("inProgress")},
-        });
-        await vi.waitFor(() => expect(fixture.updates().some((u) => u.update["sessionUpdate"] === "tool_call")).toBe(true));
+        fixture.current().rpc.notify({method: "item/started", params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: command("inProgress")}});
+        await vi.waitFor(() => expect(fixture.updates().some(u => u.update["sessionUpdate"] === "tool_call")).toBe(true));
         let releaseFailedUpdate: () => void = () => {};
         const held = new Promise<void>(resolve => {
             releaseFailedUpdate = resolve;

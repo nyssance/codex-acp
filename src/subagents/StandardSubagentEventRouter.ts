@@ -529,7 +529,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             child.cancelAdvertised = false;
             // Historical transcript children have no observed current foreground state.
             if (!child.live) continue;
-            void child.foreground.snapshot().catch((error) => logger.error("Failed to snapshot child work", error));
+            void child.foreground.snapshot().catch(error => logger.error("Failed to snapshot child work", error));
         }
     }
 

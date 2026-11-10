@@ -28,8 +28,7 @@ describeIntegration("integration: session batch metadata", () => {
                         id, timestamp, cwd: home, originator: "codex_cli_rs", cli_version: "0.164.0", source: "cli", model_provider: "openai",
                     }},
                     {timestamp, type: "event_msg", payload: {type: "user_message", message: title, images: [], local_images: [], text_elements: []}},
-                ].map((line) => JSON.stringify(line))
-                    .join("\n")}\n`,
+                ].map(line => JSON.stringify(line)).join("\n")}\n`,
             );
             fs.utimesSync(file, new Date(timestamp), new Date(timestamp));
             return file;

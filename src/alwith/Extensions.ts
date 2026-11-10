@@ -7,7 +7,9 @@ import type { CodexAppServerClient } from "../CodexAppServerClient";
 import type {
     PluginInstalledResponse,
     ConfigWriteResponse,
+    SkillsListResponse,
 } from "../app-server/v2";
+import {withoutUnsupportedSkills} from "../UnsupportedSkills";
 import { AppServerClient } from "./codex/AppServerClient";
 import { setRemotePluginEnabled } from "./codex/remotePluginEnablement";
 import type { HistoryRenderer } from "./agent/historyProjection";
@@ -226,6 +228,7 @@ export class AlwithExtensions {
         );
         if (MUTATIONS.has(method))
             await this.notify("_codex/skills_changed", {});
+        if (method === "_codex/skills_list") return withoutUnsupportedSkills(response as SkillsListResponse);
         return response;
     }
 }

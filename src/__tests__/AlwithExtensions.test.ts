@@ -24,7 +24,6 @@ function peer() {
             listeners.add(fn);
             return () => listeners.delete(fn);
         },
-        getCodexHome: () => "/codex-home",
     } as unknown as CodexAppServerClient;
     return { client, sendRequest, listeners, lost };
 }

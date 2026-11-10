@@ -771,7 +771,7 @@ describe("session/list", () => {
 
     it("fills a relative cwd page from several Codex pages, cut to the limit, and continues inside a Codex page", async () => {
         const {agent, threadList} = await createAgent("sessionIndex");
-        const rows = ["a", "b", "c"].map((id) => createThread({id, cwd: `/repo/${id}/project`}));
+        const rows = ["a", "b", "c"].map(id => createThread({id, cwd: `/repo/${id}/project`}));
         threadList.mockResolvedValue({
             readStates: null,
             data: rows,
@@ -827,7 +827,7 @@ describe("session/list", () => {
         const row = (id: string, recencyAt: number) => createThread({id, cwd: `/repo/${id}/project`, recencyAt});
         const [a, b, c, d] = [row("a", 40), row("b", 30), row("c", 20), row("d", 10)];
         const list = (cursor: string | null) => agent.listSessions({cwd: "project", cursor, _meta: {jetbrains: {air: {list: {limit: 2}}}}});
-        const ids = (response: acp.ListSessionsResponse) => response.sessions.map((session) => session.sessionId);
+        const ids = (response: acp.ListSessionsResponse) => response.sessions.map(session => session.sessionId);
         threadList.mockResolvedValueOnce({
             readStates: null,
             data: [a, b, c, d],
@@ -906,11 +906,8 @@ describe("session/list", () => {
                     },
                 },
             });
-        const activities = async () =>
-            (await agent.listSessions({cwd: "/repo/project"})).sessions
-                .map(
-                (session) => (session._meta as any)?.jetbrains?.air?.lastTurnEndedAt ?? null,
-            );
+        const activities = async () => (await agent.listSessions({cwd: "/repo/project"})).sessions
+            .map(session => (session._meta as any)?.jetbrains?.air?.lastTurnEndedAt ?? null);
         completed(threadId);
         completed("ephemeral-title-thread");
 
@@ -1620,7 +1617,7 @@ describe("_session/batch_get", () => {
         threadList.mockClear();
         read.mockImplementation(async ({threadId}) => ({
             readState: null,
-            thread: rows.find((row) => row.id === threadId)!,
+            thread: rows.find(row => row.id === threadId)!,
         }));
 
         const requested = [linked.id, old.id, archived.id];
@@ -1630,14 +1627,12 @@ describe("_session/batch_get", () => {
         // A current stored copy is supplied by Codex, exactly as it is for list: no adapter copy scan/merge.
         threadList.mockImplementation(async (params) => ({
             readStates: null,
-            data: rows.filter((row) => (row.id === archived.id) === params.archived),
+            data: rows.filter(row => (row.id === archived.id) === params.archived),
             nextCursor: null,
             backwardsCursor: null,
         }));
         const all = await agent.listSessions({_meta: {jetbrains: {air: {list: {archived: "all"}}}}});
-        expect(batch).toEqual({
-            sessions: requested.map((id) => all.sessions.find((row) => row.sessionId === id)),
-        });
+        expect(batch).toEqual({sessions: requested.map(id => all.sessions.find(row => row.sessionId === id))});
         expect((batch.sessions[0]!._meta as any).jetbrains.air.agentWorktree).toBe(true);
         expect((batch.sessions[1]!._meta as any).jetbrains.air.state).toBe("running");
         expect((batch.sessions[2]!._meta as any).jetbrains.air.archived).toBe(true);
@@ -1680,7 +1675,7 @@ describe("_session/batch_get", () => {
             thread: threadId === "hidden" ? createThread({id: "hidden", ...hidden}) : listed,
         }));
         const result = await agent.sessionIndex.batchGet({sessionIds: ["hidden", listed.id]});
-        expect(result.sessions.map((row) => row.sessionId)).toEqual([listed.id]);
+        expect(result.sessions.map(row => row.sessionId)).toEqual([listed.id]);
     });
 
     it("does no store or process work for empty input", async () => {
@@ -1704,7 +1699,7 @@ describe("_session/batch_get", () => {
             .mockRejectedValueOnce(error)
             .mockResolvedValueOnce({readState: null, thread: after});
         const result = await agent.sessionIndex.batchGet({sessionIds: [before.id, "known", after.id]});
-        expect(result.sessions.map((row) => row.sessionId)).toEqual([before.id, after.id]);
+        expect(result.sessions.map(row => row.sessionId)).toEqual([before.id, after.id]);
     });
 
     it("reads at most 8 ids at a time and keeps request order when reads finish out of order", async () => {
@@ -1760,7 +1755,7 @@ describe("_session/batch_get", () => {
         vi.spyOn(client, "getHomePath").mockReturnValue(null);
         read.mockResolvedValue({readState: null, thread: createThread()});
         const result = await agent.sessionIndex.batchGet({sessionIds: [threadId]});
-        expect(result.sessions.map((row) => [row.sessionId, (row._meta as any).jetbrains.air.archived])).toEqual([[threadId, false]]);
+        expect(result.sessions.map(row => [row.sessionId, (row._meta as any).jetbrains.air.archived])).toEqual([[threadId, false]]);
     });
 
     it("does not emit a backend-normalized ID that was not requested", async () => {

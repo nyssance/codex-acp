@@ -84,7 +84,8 @@ export function codexExtensionCapabilities(
         sessionLineage: flags.sessionLineage === true,
         skills: flags.skills === true,
         plugins: flags.plugins === true,
-        rename: flags.rename === true,
+        // The standard `session/set_title` capability.
+        rename: agent?.capabilities?.session?.title != null,
         account: flags.account === true,
         fuzzyFileSearch: flags.fuzzyFileSearch === true,
         providerCatalog: flags.providerCatalog === true,

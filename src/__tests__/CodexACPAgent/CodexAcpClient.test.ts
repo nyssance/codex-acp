@@ -80,15 +80,21 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         const transportEvents = keyFixture.getCodexConnectionEvents([...ignoredFields, "upgrade"]);
         const transportMethods = transportEvents.flatMap((event) => ("method" in event ? [event.method] : []));
-        const loginRequest = transportEvents.find((event) => event.eventType === "request" &&
-        "method" in event &&
-        event.method === "account/login/start");
-        const loginResponse = transportEvents.find((event) => event.eventType === "response" &&
-        "type" in event &&
-        event.type === "apiKey");
-        const threadStartResponse = transportEvents.find((event) => event.eventType === "response" &&
-        "modelProvider" in event &&
-        "approvalPolicy" in event);
+        const loginRequest = transportEvents.find(event =>
+            event.eventType === "request" &&
+            "method" in event &&
+            event.method === "account/login/start"
+        );
+        const loginResponse = transportEvents.find(event =>
+            event.eventType === "response" &&
+            "type" in event &&
+            event.type === "apiKey"
+        );
+        const threadStartResponse = transportEvents.find(event =>
+            event.eventType === "response" &&
+            "modelProvider" in event &&
+            "approvalPolicy" in event
+        );
         expect(transportMethods.slice(0, 4)).toEqual(["account/login/start", "account/read", "account/updated", "account/read"]);
         // The live compatibility route can refresh credentials more than once; those reads
         // are transport activity, not additional login or session creation operations.
@@ -2087,7 +2093,9 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         fixture.getCodexAcpClient().readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         fixture.clearCodexConnectionDump();
 
-        await expect(fixture.getCodexAcpAgent().resumeSession({cwd: "", sessionId})).rejects.toThrow("invalid session id");
+        await expect(
+            fixture.getCodexAcpAgent().resumeSession({cwd: "", sessionId: sessionId})
+        ).rejects.toThrow("invalid session id");
     });
 
     it('should return available builtin commands', async () => {
@@ -2177,7 +2185,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         // @ts-expect-error - exercising private helper
         await codexAcpAgent.availableCommands.publish(createTestSessionState({sessionId: "air-session-id", cwd: "/workspace"}));
 
-        const airUpdate = mockFixture.getAcpConnectionEvents([]).findLast((event) => event.method === "sessionUpdate" && event.args[0].update.sessionUpdate === "available_commands_update");
+        const airUpdate = mockFixture.getAcpConnectionEvents([]).findLast(event => event.method === "sessionUpdate" && event.args[0].update.sessionUpdate === "available_commands_update");
         const airSkill = airUpdate?.args[0].update.availableCommands.find((command: acp.AvailableCommand) => command.name === "$build");
         expect(airSkill?._meta).toEqual({jetbrains: {air: {version: 1, skillPath: "/workspace/.agents/skills/build/SKILL.md"}}});
     });
@@ -2226,7 +2234,9 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         });
         const listSkills = vi.spyOn(mockFixture.getCodexAcpClient(), "listSkills");
         const sessionState = createTestSessionState({sessionId: "session-id", cwd: "/workspace"});
-        const published = () => mockFixture.getAcpConnectionEvents([]).filter((event) => event.method === "sessionUpdate" && event.args[0].update.sessionUpdate === "available_commands_update").length;
+        const published = () => mockFixture.getAcpConnectionEvents([])
+            .filter(event => event.method === "sessionUpdate" && event.args[0].update.sessionUpdate === "available_commands_update")
+            .length;
         const publish = () => {
             // @ts-expect-error - exercising private helper
             return codexAcpAgent.availableCommands.publish(sessionState, () => true, true);
@@ -4000,11 +4010,10 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         fixture.clearAcpConnectionDump();
         const prompt: acp.ContentBlock[] = [{ type: "text", text: "/logout " }];
-        await codexAcpAgent.prompt({
-            sessionId: newSessionResponse.sessionId,
-            prompt,
-        });
-        const logoutEvent = fixture.getAcpConnectionEvents(["sessionId"]).find((event) => event.args[0]?.update?.sessionUpdate === "agent_message_chunk");
+        await codexAcpAgent.prompt({sessionId: newSessionResponse.sessionId, prompt: prompt });
+        const logoutEvent = fixture.getAcpConnectionEvents(["sessionId"]).find(event =>
+            event.args[0]?.update?.sessionUpdate === "agent_message_chunk"
+        );
         await expect(JSON.stringify(logoutEvent, null, 2)).toMatchFileSnapshot("data/command-logout.json");
     });
 
@@ -4206,10 +4215,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         fixture.clearAcpConnectionDump();
         const prompt: acp.ContentBlock[] = [{ type: "text", text: "/skills " }];
-        await codexAcpAgent.prompt({
-            sessionId: newSessionResponse.sessionId,
-            prompt,
-        });
+        await codexAcpAgent.prompt({sessionId: newSessionResponse.sessionId, prompt: prompt });
 
         await expect(fixture.getAcpConnectionDump(["sessionId"])).toMatchFileSnapshot("data/command-skills.json");
     });
@@ -4257,10 +4263,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         fixture.clearAcpConnectionDump();
         const prompt: acp.ContentBlock[] = [{ type: "text", text: "/mcp " }];
-        await codexAcpAgent.prompt({
-            sessionId: newSessionResponse.sessionId,
-            prompt,
-        });
+        await codexAcpAgent.prompt({sessionId: newSessionResponse.sessionId, prompt: prompt });
         await expect(fixture.getAcpConnectionDump(["sessionId"])).toMatchFileSnapshot("data/command-mcp.json");
     });
 
@@ -4282,10 +4285,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         ];
 
         fixture.clearAcpConnectionDump();
-        await codexAcpAgent.prompt({
-            sessionId: newSessionResponse.sessionId,
-            prompt,
-        });
+        await codexAcpAgent.prompt({sessionId: newSessionResponse.sessionId, prompt: prompt });
         const transportDump = fixture.getAcpConnectionDump([]);
         expect(transportDump).contain(`**Session:** \`${newSessionResponse.sessionId}\``);
     });

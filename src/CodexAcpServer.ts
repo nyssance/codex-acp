@@ -1,4 +1,3 @@
-import type { PermissionProfileListResponse } from "./app-server/v2/PermissionProfileListResponse";
 import {
     requestCodexNative,
     realtimeUpdate,
@@ -79,7 +78,7 @@ import {
     AcpV2Connection,
     type UpdateSessionEvent,
 } from "./ACPSessionConnection";
-import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {toV1ClientCapabilitiesView} from "./AcpV2ClientCapabilities";
 import {toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
 import { toV2AvailableCommands, toV2SessionUpdates } from "./AcpV2SessionUpdate";
@@ -927,7 +926,6 @@ export class CodexAcpServer {
         this.booleanConfigOptionsSupported = clientSupportsBooleanConfigOptions(_params.clientCapabilities);
         this.sessionIndex.configure(_params.clientCapabilities);
         this.sessionIndex.observe(this.codexAcpClient);
-        if (this.protocolVersion === 2) this.alwith.observe();
         this.bindClientTools();
         this.publishFirstAuthStatusAfterResponse();
         const sessionCapabilities: SubagentAwareSessionCapabilities = {
@@ -993,7 +991,7 @@ export class CodexAcpServer {
         this.booleanConfigOptionsSupported = true;
         this.sessionIndex.configure(clientCapabilities);
         this.sessionIndex.observe(this.codexAcpClient);
-        if (this.protocolVersion === 2) this.alwith.observe();
+        this.alwith.observe();
         this.bindClientTools();
         this.publishFirstAuthStatusAfterResponse();
         return {
@@ -1032,7 +1030,6 @@ export class CodexAcpServer {
                             controlMethod: GOAL_CONTROL_METHOD,
                             actions: [...GOAL_CONTROL_ACTIONS],
                         },
-                        rename: true,
                         providerCatalog: true,
                         forkAtTurn: true,
                         sessionLineage: true,
@@ -1453,11 +1450,8 @@ export class CodexAcpServer {
         return {trusted: await this.runWithProcessCheck(() => trustCodexHooks(this.codexAcpClient.appServerClient, cwd, hooks))};
     }
 
-    async extMethod(
-        method: string,
-        params: Record<string, unknown>,
-    ): Promise<Record<string, unknown>> {
-        const methodRequest = { method, params };
+    async extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+        const methodRequest = { method: method, params: params };
         if (!isExtMethodRequest(methodRequest)) {
             return {};
         }
@@ -2462,7 +2456,7 @@ export class CodexAcpServer {
         const {sessionId, modelState, modeState} = await this.loadSessionAndReplayHistory(params);
 
         logger.log("Session loaded", {
-            sessionId,
+            sessionId: sessionId,
             modelId: modelState.currentModelId,
             availableModelCount: modelState.availableModels.length
         });
@@ -2548,7 +2542,7 @@ export class CodexAcpServer {
         const [sessionId, modelState, modeState] = await this.getOrCreateSession(params);
 
         logger.log("Session resumed", {
-            sessionId,
+            sessionId: sessionId,
             modelId: modelState.currentModelId,
             availableModelCount: modelState.availableModels.length
         });
@@ -2640,12 +2634,7 @@ export class CodexAcpServer {
         logger.log("Listing sessions...", {cwd: params.cwd, cursor: params.cursor});
         if (this.sessionIndex.enabled) {
             const response = await this.sessionIndex.list(params);
-            return {
-                ...response,
-                sessions: response.sessions.filter(
-                    (session) => !this.isRestrictedChild(session.sessionId),
-                ),
-            };
+            return {...response, sessions: response.sessions.filter(session => !this.isRestrictedChild(session.sessionId))};
         }
         await this.checkAuthorization();
         const response = await this.runWithProcessCheck(() => this.codexAcpClient.listSessions(params));
@@ -2678,7 +2667,7 @@ export class CodexAcpServer {
         archived: boolean,
     ): Promise<Record<string, never>> {
         this.assertSessionWritable(sessionId);
-        return this.sessionIndex.archiveSession(sessionId, archived, {});
+        return this.sessionIndex.archiveSession(sessionId, archived);
     }
 
     async closeSession(
@@ -2817,13 +2806,13 @@ export class CodexAcpServer {
         const [sessionId, modelState, modeState] = await this.getOrCreateSession(params);
 
         logger.log("New session created", {
-            sessionId,
+            sessionId: sessionId,
             modelId: modelState.currentModelId,
             availableModelCount: modelState.availableModels.length
         });
 
         return {
-            sessionId,
+            sessionId: sessionId,
             models: modelState,
             modes: modeState,
             ...this.createSessionConfigOptionsResponse(this.getSessionState(sessionId)),
@@ -3036,7 +3025,7 @@ export class CodexAcpServer {
                         ).model;
                         const target =
                             models.find((model) => model.id === old) ??
-                            models.find((model) => model.isDefault);
+                            models.find(model => model.isDefault);
                         if (!target)
                             throw RequestError.invalidRequest(
                                 undefined,
@@ -3344,9 +3333,7 @@ export class CodexAcpServer {
             return;
         }
 
-        const activePrompts = [...this.activePrompts.values()].map(
-            (prompt) => prompt.completion,
-        );
+        const activePrompts = [...this.activePrompts.values()].map(prompt => prompt.completion);
         if (activePrompts.length > 0) {
             logger.log("Waiting for active prompts before provider restart", {count: activePrompts.length});
             await Promise.all(activePrompts);
@@ -3563,16 +3550,12 @@ export class CodexAcpServer {
                     // Every session takes its tasks now, before any await, so a task that a restarted app-server starts
                     // meanwhile is not failed with the old ones.
                     for (const session of this.sessions.values()) {
-                        if (
-                            session.subagents instanceof StandardSubagentEventRouter
-                        ) {
+                        if (session.subagents instanceof StandardSubagentEventRouter) {
                             session.subagentTransition = session.subagents.finishOutstanding("disconnected")
-                                .catch((error) =>
-                                    logger.error("Failed to report child observability loss", error),
-                                );
+                                .catch(error => logger.error("Failed to report child observability loss", error));
                             session.subagents = this.createSubagentRouter(session.sessionId);
                         }
-                        session.asyncTasks.finishAll("failed").catch((error) => {
+                        session.asyncTasks.finishAll("failed").catch(error => {
                             logger.error("Failed to finish background terminal tasks after the Codex process exited", error);
                         });
                     }
@@ -3996,7 +3979,7 @@ export class CodexAcpServer {
         sessionState: SessionState,
         value: string,
     ): Promise<void> {
-        const model = sessionState.availableModels.find((m) => m.id === value);
+        const model = sessionState.availableModels.find(m => m.id === value);
         if (!model) {
             const currentModel = ModelId.fromString(sessionState.currentModelId).model;
             if (value === currentModel) {
@@ -4086,8 +4069,8 @@ export class CodexAcpServer {
             throw RequestError.invalidParams();
         }
         return {
-            sessionId,
-            modelId,
+            sessionId: sessionId,
+            modelId: modelId,
         };
     }
 
@@ -4383,7 +4366,7 @@ export class CodexAcpServer {
             throw RequestError.invalidParams(undefined, "unsupported steering idleBehavior");
         }
         return {
-            sessionId,
+            sessionId: sessionId,
             prompt: prompt as acp.ContentBlock[],
             ...(idleBehavior === "promptRequired" ? {
                 _meta: {steering: {idleBehavior}},
@@ -4409,9 +4392,7 @@ export class CodexAcpServer {
             case ":danger-full-access":
                 return AgentMode.AgentFullAccess;
             default:
-                return AgentMode.fromPermissionProfile(
-                    metadata.permissionProfile,
-                );
+                return initialMode;
         }
     }
 
@@ -4832,13 +4813,13 @@ export class CodexAcpServer {
             );
 
         return {
-            sessionId,
+            sessionId: sessionId,
             modelState: sessionModelState,
             modeState: sessionModeState,
-            thread,
+            thread: thread,
             history: sessionMetadata.history,
-            sessionState,
-            settleTrackerReady,
+            sessionState: sessionState,
+            settleTrackerReady: settleTrackerReady,
         };
     }
 
@@ -4859,12 +4840,7 @@ export class CodexAcpServer {
         const first = await pages.next();
         const firstPage = first.done ? [] : first.value;
         // The first user message of the first page names the session.
-        await this.publishThreadHistoryTitle(
-            session,
-            sessionState,
-            thread,
-            firstPage.map((entry) => entry.item),
-        );
+        await this.publishThreadHistoryTitle(session, sessionState, thread, firstPage.map(entry => entry.item));
         const entryPages = recordReplayEntries(
             pagesStartingWith(firstPage, pages),
             this.replayEntries,

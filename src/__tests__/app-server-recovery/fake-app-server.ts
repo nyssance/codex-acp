@@ -110,7 +110,7 @@ export class FakeConnection {
 
     /** Resolves the first pending request of `method`. */
     resolve(method: string, value: unknown): void {
-        const index = this.pending.findIndex((request) => request.method === method);
+        const index = this.pending.findIndex(request => request.method === method);
         if (index === -1) throw new Error(`No pending ${method}`);
         this.pending.splice(index, 1)[0]!.resolve(value);
     }

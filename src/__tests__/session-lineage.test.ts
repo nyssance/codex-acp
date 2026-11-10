@@ -102,7 +102,7 @@ test.each(["parent", "child"])(
             },
         };
         await expect(readSessionLineage(client, fork)).rejects.toThrow(
-            "repeated a pagination cursor",
+            "repeated thread history cursor",
         );
     },
 );

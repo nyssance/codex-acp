@@ -53,7 +53,7 @@ function startAcpServer() {
     logger.log("Startup", {
         name: packageJson.name,
         version: packageJson.version,
-        codexPath,
+        codexPath: codexPath,
         modelProvider: modelProvider ?? null,
         codexConfig: config ?? null,
         authRequest: authRequestString ?? null,

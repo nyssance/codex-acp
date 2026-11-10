@@ -364,7 +364,7 @@ describe('Session lifecycle over ACP v2', () => {
 
         emit({method: "skills/changed", params: {}});
         await vi.waitFor(() => expect(listSkills).toHaveBeenCalledTimes(2));
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        await new Promise(resolve => setTimeout(resolve, 20));
         expect(updates).toEqual([
             {
                 sessionId: forkedSessionId,
@@ -430,8 +430,8 @@ describe('Session lifecycle over ACP v2', () => {
         resolveInitial(skills("older"));
         const response = await pending;
 
-        expect(response.availableCommands?.some((command) => command.name === "$newer")).toBe(true);
-        expect(response.availableCommands?.some((command) => command.name === "$older")).toBe(false);
+        expect(response.availableCommands?.some(command => command.name === "$newer")).toBe(true);
+        expect(response.availableCommands?.some(command => command.name === "$older")).toBe(false);
         expect(updates[0]!.update).toMatchObject({availableCommands: response.availableCommands});
     });
 

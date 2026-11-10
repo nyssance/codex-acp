@@ -432,10 +432,10 @@ export class ACPSessionConnection {
             }));
             return;
         }
-        await this.connection.notify(
-            acp.methods.client.session.update,
-            asSdkSessionNotification({sessionId, update}),
-        );
+        await this.connection.notify(acp.methods.client.session.update, asSdkSessionNotification({
+            sessionId,
+            update: update
+        }));
     }
 }
 

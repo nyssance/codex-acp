@@ -72,12 +72,10 @@ describe("CodexACPAgent - loadSession", () => {
         await agent.initialize({protocolVersion: 1, clientCapabilities: {}});
         await agent.loadSession({sessionId: thread.id, cwd: "/workspace", mcpServers: []});
         const updates = fixture.getAcpConnectionEvents([])
-            .filter((event) => event.method === "sessionUpdate")
-            .map((event) => event.args[0].update)
-            .filter((update) => update.sessionUpdate === "user_message_chunk");
-        expect(
-            updates.map((update) => ({messageId: update.messageId, content: update.content})),
-        ).toEqual(
+            .filter(event => event.method === "sessionUpdate")
+            .map(event => event.args[0].update)
+            .filter(update => update.sessionUpdate === "user_message_chunk");
+        expect(updates.map(update => ({messageId: update.messageId, content: update.content}))).toEqual(
             cases.map(({content}, index) => ({messageId: `native-${index}`, content})),
         );
     });

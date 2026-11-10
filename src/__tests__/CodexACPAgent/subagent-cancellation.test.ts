@@ -21,11 +21,9 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
     const connect = async (options: Parameters<typeof connectSession>[1] = {}) => {
         h = await connectSession(version, {v1ClientCapabilities: {subagents: {}}, ...options});
     };
-    const roster = (thread = "worker") =>
-        h.scopedUpdates.flatMap((entry) =>
-            entry.update.sessionUpdate === "subagent_update" && entry.update.sessionId === id(thread) ? [entry.update as SubagentUpdate] : [],
-        );
-    const capabilities = (thread = "worker") => roster(thread).findLast((update) => update.capabilities !== undefined)?.capabilities;
+    const roster = (thread = "worker") => h.scopedUpdates.flatMap(entry =>
+        entry.update.sessionUpdate === "subagent_update" && entry.update.sessionId === id(thread) ? [entry.update as SubagentUpdate] : []);
+    const capabilities = (thread = "worker") => roster(thread).findLast(update => update.capabilities !== undefined)?.capabilities;
     const cancellable = (thread = "worker") => capabilities(thread)?.cancel != null;
     const grants = () => roster().filter(update => update.capabilities?.cancel != null).length;
     function spawn(thread = "worker", path = `/root/${thread}`) {
@@ -41,7 +39,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         sessionId, cwd, mcpServers: [], ...(version === 2 ? {replayFrom: {type: "start"}} : {}),
     });
     function emptyHistory() {
-        h.setCodexResponse("thread/read", async (params) => ({
+        h.setCodexResponse("thread/read", async params => ({
             thread: {...createThread(), id: (params as {threadId: string}).threadId, turns: []},
         }));
     }
@@ -55,7 +53,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
             .rejects.toMatchObject({code: -32600});
         await h.cancel(id("worker"));
         await vi.waitFor(() => expect(h.turnInterruptCalls()).toEqual([{threadId: "worker", turnId: "worker-turn"}]));
-        expect(roster().some((update) => update.state != null && (update.state as {state: string}).state === "idle")).toBe(false);
+        expect(roster().some(update => update.state != null && (update.state as {state: string}).state === "idle")).toBe(false);
         h.emit({method: "turn/completed", params: {threadId: "worker", turn: createTurn("interrupted", "worker-turn")}});
         await vi.waitFor(() => expect(capabilities()?.cancel).toBeNull());
         expect(roster().some(update => update.state != null
@@ -83,12 +81,9 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
 
     it("withdraws only selected requests and rejects an accepted late reply", async () => {
         const answers = new Map<string, () => void>();
-        await connect({
-            onRequestPermission: (request) =>
-                new Promise((resolve) => {
-                    answers.set(request.sessionId, () => resolve({outcome: {outcome: "selected", optionId: request.options[0]!.optionId}}));
-                }),
-        });
+        await connect({onRequestPermission: request => new Promise(resolve => {
+            answers.set(request.sessionId, () => resolve({outcome: {outcome: "selected", optionId: request.options[0]!.optionId}}));
+        })});
         await start();
         await start("sibling");
         const approval = (thread: string) => h.triggerApproval("item/commandExecution/requestApproval", {
@@ -233,10 +228,8 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         await pending;
         await vi.waitFor(() => expect(grants()).toBe(beforeGrants + 1));
         const frames = h.wireMessages.slice(startIndex).flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
-        const response = frames.findIndex(
-            (frame) => "result" in frame && frame.result != null
-                && typeof frame.result === "object" && "configOptions" in frame.result,
-        );
+        const response = frames.findIndex(frame => "result" in frame && frame.result != null
+            && typeof frame.result === "object" && "configOptions" in frame.result);
         const grant = frames.findIndex(
             (frame) =>
                 "method" in frame && frame.method === "session/update" &&

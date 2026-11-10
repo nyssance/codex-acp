@@ -12,7 +12,7 @@ const cleanup: (() => void)[] = [];
 afterEach(() =>
     cleanup.splice(0)
         .toReversed()
-        .forEach((dispose) => dispose()),
+        .forEach(dispose => dispose()),
 );
 
 async function connect(version: 1 | 2, capabilities: string[]) {
@@ -31,7 +31,7 @@ async function connect(version: 1 | 2, capabilities: string[]) {
         requiresOpenaiAuth: false,
         workspaceRouting: null,
     });
-    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, client));
+    const router = createAcpAgentRouter(connection => new CodexAcpServer(connection, client));
     const incoming = new TransformStream<Uint8Array, Uint8Array>();
     const outgoing = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acp.ndJsonStream(outgoing.writable, incoming.readable));

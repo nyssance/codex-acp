@@ -607,10 +607,7 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             proposedExecpolicyAmendment: null,
         });
         const permissionRequest = mockFixture.getAcpConnectionEvents([])
-            .find(
-                (event) =>
-                    event.method === "requestPermission" && event.args[0].toolCall.toolCallId === "child-command",
-            );
+            .find(event => event.method === "requestPermission" && event.args[0].toolCall.toolCallId === "child-command");
         expect(permissionRequest).toBeUndefined();
     });
 
@@ -841,11 +838,9 @@ describe("CodexEventHandler - collab agent tool call events", () => {
         );
 
         const updates = mockFixture.getAcpConnectionEvents([])
-            .filter((event) => event.method === "sessionUpdate")
-            .map((event) => event.args[0].update);
-        expect(
-            updates.map((update) => [update.sessionUpdate, update.toolCallId, update.title]),
-        ).toEqual([
+            .filter(event => event.method === "sessionUpdate")
+            .map(event => event.args[0].update);
+        expect(updates.map(update => [update.sessionUpdate, update.toolCallId, update.title])).toEqual([
             ["subagent_spawned", undefined, undefined],
             ["tool_call", "send-input", "sendInput"],
             ["tool_call_update", "send-input", undefined],
@@ -1552,8 +1547,8 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                 ],
             );
             const updates = mockFixture.getAcpConnectionEvents([])
-                .filter((event) => event.method === "sessionUpdate")
-                .map((event) => event.args[0]);
+                .filter(event => event.method === "sessionUpdate")
+                .map(event => event.args[0]);
             expect(updates).toContainEqual(expect.objectContaining({
                 sessionId,
                 update: expect.objectContaining({

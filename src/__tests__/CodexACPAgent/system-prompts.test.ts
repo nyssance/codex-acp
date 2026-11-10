@@ -120,7 +120,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         await client.request("session/new", {cwd, mcpServers: [], systemPrompt: prompt("Source"), ...air});
         calls.length = 0;
         await client.request("session/fork", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Fork")});
-        expect(calls.map((call) => call.method)).toEqual(
+        expect(calls.map(call => call.method)).toEqual(
             version === 2 ? ["thread/fork", "thread/read", "thread/read"] : ["thread/fork"],
         );
         expect(calls[0]?.params.developerInstructions).toBe("AIR instructions\n\nFork");
@@ -232,7 +232,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         });
         await expect(client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Failed")}))
             .rejects.toMatchObject({code: -32603});
-        expect(calls.map((call) => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume", "thread/resume"]);
+        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume", "thread/resume"]);
         expect(calls.at(-1)?.params).toEqual({threadId: sessionId, excludeTurns: true});
         expect(client.agent.getSessionState(sessionId).instructions).toBeUndefined();
         client.emit({method: "turn/started", params: {threadId: sessionId, turn: createTurn("inProgress")}} as any);

@@ -372,10 +372,9 @@ export async function readSessionIndexPage(
         // Sides in their own order, not in the order their responses arrived, so ties come out the same way.
         const candidates = [...pages]
             .toSorted(([left], [right]) => left - right)
-            .flatMap(([index, page]) =>
-                page.rows
-                    .filter((row) => recencyOf(row) >= bound)
-                    .map((thread) => ({thread, archived: sideArchived(index), index})),
+            .flatMap(([index, page]) => page.rows
+                .filter(row => recencyOf(row) >= bound)
+                .map(thread => ({thread, archived: sideArchived(index), index})),
             );
         // A stable sort: rows as recent as each other keep the Codex order, unarchived first.
         candidates.sort((left, right) => recencyOf(right.thread) - recencyOf(left.thread));
@@ -391,7 +390,7 @@ export async function readSessionIndexPage(
         }
         if (taken.length > 0) {
             const last = recencyOf(taken.at(-1)!.thread);
-            const ids = taken.filter((row) => recencyOf(row.thread) === last).map((row) => row.thread.id);
+            const ids = taken.filter(row => recencyOf(row.thread) === last).map(row => row.thread.id);
             state.after = {
                 recency: last,
                 ids: state.after?.recency === last ? [...state.after.ids, ...ids] : ids,

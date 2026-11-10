@@ -162,7 +162,7 @@ export function cleanErrorMessage(text: string): string {
     const oneLine = text.slice(0, MAX_INPUT_LENGTH).replaceAll(/\s+/g, " ").trim();
     const message = oneLine.split(": ")
         .map((segment) => segment.replace(TYPE_PATH, "").replaceAll(/\s+/g, " ").trim())
-        .filter((segment) => segment.length > 0 && !WRAPPER_SEGMENT.test(segment))
+        .filter(segment => segment.length > 0 && !WRAPPER_SEGMENT.test(segment))
         .join(": ");
     if (message.length === 0) {
         return shorten(oneLine);
@@ -182,7 +182,7 @@ export function formatNoteDetail(text: string): string {
 }
 
 function escapeMarkdown(text: string): string {
-    return text.replaceAll(/[\\`*_[\]<>~]/g, (character) => `\\${character}`);
+    return text.replaceAll(/[\\`*_[\]<>~]/g, character => `\\${character}`);
 }
 
 export const UNNAMED_SERVER = "(unnamed)";

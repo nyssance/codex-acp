@@ -25,7 +25,7 @@ describe.each([1, 2] as const)("ACP v%s background teardown", (version) => {
             events.push("delete");
             return {};
         });
-        const closed = h.request(method, {sessionId}).then((result) => { events.push("response"); return result; });
+        const closed = h.request(method, {sessionId}).then(result => { events.push("response"); return result; });
         try {
             await vi.waitFor(() => expect(events).toHaveLength(3));
             expect(events).toEqual([

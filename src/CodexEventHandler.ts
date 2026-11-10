@@ -1397,7 +1397,7 @@ export class CodexEventHandler {
             ? mergeRateLimitSnapshot(existingEntry.snapshot, params.rateLimits)
             : {...params.rateLimits, limitId};
         this.sessionState.rateLimits.set(limitId, {
-            limitId,
+            limitId: limitId,
             limitName: snapshot.limitName ?? existingEntry?.limitName ?? limitId,
             snapshot,
         });

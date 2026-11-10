@@ -25,11 +25,13 @@ function messageTurn(id: string): Turn {
 function turnStore(stored: Turn[], pageSize = 2) {
     return async ({cursor, limit, sortDirection}: ThreadTurnsListParams) => {
         if (sortDirection === "desc") {
-            const index = cursor === null || cursor === undefined ? stored.length - 1 : stored.findIndex((turn) => `turn:${turn.id}` === cursor);
+            const index = cursor === null || cursor === undefined
+                ? stored.length - 1
+                : stored.findIndex(turn => `turn:${turn.id}` === cursor);
             const data = index < 0 ? [] : stored.slice(Math.max(0, index + 1 - (limit ?? 1)), index + 1).toReversed();
             return {
                 readStates: null,
-                data: data.map((turn) => ({...turn, items: [], itemsView: "notLoaded" as const})),
+                data: data.map(turn => ({...turn, items: [], itemsView: "notLoaded" as const})),
                 nextCursor: null,
                 backwardsCursor: null,
             };
@@ -58,7 +60,9 @@ function itemStore(turns: Turn[], pageSize = 2) {
         }
         const scoped = entries.filter(entry => !turnId || entry.turnId === turnId);
         if (sortDirection === "desc") {
-            const index = cursor === null || cursor === undefined ? scoped.length - 1 : scoped.findIndex((entry) => `item:${entry.item.id}` === cursor);
+            const index = cursor === null || cursor === undefined
+                ? scoped.length - 1
+                : scoped.findIndex(entry => `item:${entry.item.id}` === cursor);
             return {
                 readStates: null,
                 data: index < 0 ? [] : [scoped[index]!],

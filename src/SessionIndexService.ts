@@ -9,7 +9,7 @@ import path from "node:path";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 import {RequestError} from "@agentclientprotocol/sdk/unstable";
 import {ACPSessionConnection, type AcpClientConnection} from "./ACPSessionConnection";
-import {clientSupportsAirCapability, publishAirSessionMetadata, withAirMeta} from "./AirExtension";
+import {clientSupportsAirCapability, publishAirSessionMetadata} from "./AirExtension";
 import type {ServerNotification} from "./app-server";
 import type {CodexAcpClient} from "./CodexAcpClient";
 import type {SessionState} from "./CodexAcpServer";
@@ -244,10 +244,6 @@ export class SessionIndexService {
     /** `_session/rename`. */
     async rename({sessionId, title}: SessionRenameRequest): Promise<Record<string, never>> {
         this.require(SESSION_RENAME_METHOD);
-        return this.renameSession(sessionId, title);
-    }
-
-    async renameSession(sessionId: string, title: string): Promise<Record<string, never>> {
         await this.setTitle({sessionId, title});
         return {};
     }
@@ -266,10 +262,10 @@ export class SessionIndexService {
      */
     async setArchived({sessionId}: SessionArchiveRequest, archived: boolean): Promise<Record<string, never>> {
         this.require(archived ? SESSION_ARCHIVE_METHOD : SESSION_UNARCHIVE_METHOD);
-        return this.archiveSession(sessionId, archived, withAirMeta(undefined, AIR_ARCHIVED_KEY, archived));
+        return this.archiveSession(sessionId, archived);
     }
 
-    async archiveSession(sessionId: string, archived: boolean, meta: Record<string, unknown>): Promise<Record<string, never>> {
+    async archiveSession(sessionId: string, archived: boolean): Promise<Record<string, never>> {
         logger.log(archived ? "Archiving session..." : "Unarchiving session...", {sessionId});
         await this.host.ensureAppServer();
         // Read before the fence, which counts as open.

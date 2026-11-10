@@ -427,8 +427,7 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, replayFrom: {type: "start"}});
             const current = updates.slice(start).map(({update}) => update);
             const metadata = (match: (update: acpV2.SessionUpdate) => boolean) =>
-                current.filter(match).map((update) => update._meta)
-                    .filter((meta) => meta !== undefined)
+                current.filter(match).map(update => update._meta).filter(meta => meta !== undefined)
                     .map((meta) => {
                         if (meta === null) return null;
                         const {codex, ...rest} = meta as Record<string, unknown>;
@@ -440,10 +439,11 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
                         return rest;
                     })
                     .filter((meta) => meta === null || Object.keys(meta).length > 0);
-            expect(metadata((update) => acpV2.SessionUpdate.isTerminalUpdate(update) && update.terminalId === "command")).toEqual([null]);
-            expect(metadata((update) => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "command")).toEqual([null]);
-            expect(metadata((update) => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "mcp")).toEqual([null, {is_mcp_tool_call: true}]);
-            expect(metadata((update) => acpV2.SessionUpdate.isCompactionUpdate(update) && update.compactionId === "compaction")).toEqual([null]);
+            expect(metadata(update => acpV2.SessionUpdate.isTerminalUpdate(update) && update.terminalId === "command")).toEqual([null]);
+            expect(metadata(update => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "command")).toEqual([null]);
+            expect(metadata(update => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "mcp"))
+                .toEqual([null, {is_mcp_tool_call: true}]);
+            expect(metadata(update => acpV2.SessionUpdate.isCompactionUpdate(update) && update.compactionId === "compaction")).toEqual([null]);
         }
     });
 

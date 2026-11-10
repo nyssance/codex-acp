@@ -1,6 +1,5 @@
 import {StringDecoder} from "node:string_decoder";
-import type {Writable} from "node:stream";
-import {finished, type Readable} from "node:stream";
+import {finished, Readable, Writable} from "node:stream";
 import {Emitter} from "vscode-jsonrpc/node";
 import type {DataCallback, Disposable, Message, MessageReader, MessageWriter, PartialMessageInfo} from "vscode-jsonrpc/node";
 import * as acp from "@agentclientprotocol/sdk/unstable";
@@ -16,7 +15,7 @@ export function createJSONRPCWriter(writable: Writable): MessageWriter {
                     msg = {...msg};
                     delete (msg as any).jsonrpc;
                 }
-                writable.write(`${JSON.stringify(msg)}\n`);
+                writable.write(JSON.stringify(msg) + '\n');
             } catch {/* ignore */
             }
         },
@@ -76,36 +75,16 @@ export function createJSONRPCReader(readable: Readable): MessageReader & {delive
     }
 }
 
-/** Adapt a byte stream through the Web Streams API available in Bun. */
-export function readableToWeb(readable: Readable): ReadableStream<Uint8Array> {
-    const iterator = readable[Symbol.asyncIterator]();
-    return new ReadableStream<Uint8Array>({
-        async pull(controller) {
-            const next = await iterator.next();
-            if (next.done) controller.close();
-            else {
-                if (!(next.value instanceof Uint8Array)) throw new TypeError("Expected byte stream");
-                controller.enqueue(next.value);
-            }
-        },
-        cancel() {
-            readable.destroy();
-        },
-    });
-}
-
 export function createJsonStream(readable: Readable, writable: Writable): acp.Stream {
     const writeLine = createLineWriter(writable);
     // The SDK writes only its parse error replies to this stream.
-    const errorReplies = new WritableStream<Uint8Array>({
-        write: (chunk) => writeLine(chunk),
-    });
-    const input = readableToWeb(readable);
+    const errorReplies = new WritableStream<Uint8Array>({write: chunk => writeLine(chunk)});
+    const input = Readable.toWeb(readable) as ReadableStream<Uint8Array>;
     const stream = acp.ndJsonStream(errorReplies, input);
     // The SDK encodes each message with TextEncoder and writes it through a web stream adapter.
     // A string write to the Node stream encodes it in native code, and is faster for a large history.
     const messages = new WritableStream<acp.AnyMessage>({
-        write: (message) => writeLine(`${JSON.stringify(message)}\n`),
+        write: message => writeLine(JSON.stringify(message) + "\n"),
     });
     return {readable: stream.readable, writable: messages};
 }

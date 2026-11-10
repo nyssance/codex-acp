@@ -17,14 +17,6 @@ export const CODEX_NATIVE_METHODS = {
 } as const satisfies Record<string, ClientRequest["method"]>;
 
 export type CodexNativeMethod = keyof typeof CODEX_NATIVE_METHODS;
-type NativeParams<M extends CodexNativeMethod> = Extract<
-    ClientRequest,
-    { method: (typeof CODEX_NATIVE_METHODS)[M] }
->["params"];
-export type CodexNativeParams<M extends CodexNativeMethod> =
-    NativeParams<M> extends { threadId: string }
-        ? Omit<NativeParams<M>, "threadId"> & { sessionId: string }
-        : NativeParams<M>;
 
 export const CODEX_REALTIME_UPDATE = "_codex/realtime/update";
 type RealtimeNotification = Extract<

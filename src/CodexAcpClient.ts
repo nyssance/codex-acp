@@ -878,8 +878,7 @@ export class CodexAcpClient {
 
     private async forkSessionWithRoute(
         request: WithAcpMcpServers<acp.ForkSessionRequest>,
-        releaseFailedFork: (threadId: string) => Promise<void> = (threadId) =>
-            this.closeSession(threadId),
+        releaseFailedFork: (threadId: string) => Promise<void> = threadId => this.closeSession(threadId),
         forkCreated: (threadId: string) => void = () => {},
         previousInstructions?: SessionInstructions,
     ): Promise<SessionMetadata> {
@@ -917,8 +916,7 @@ export class CodexAcpClient {
                         ),
                         reasoningEffort,
                     ).toString(),
-                getCollaborationMode: (sessionId) =>
-                    this.getCollaborationMode(sessionId),
+                getCollaborationMode: sessionId => this.getCollaborationMode(sessionId),
                 releaseFailedFork,
                 forkCreated,
             },
@@ -1013,7 +1011,7 @@ export class CodexAcpClient {
                 legacy.turns.flatMap<ThreadItemEntry>((turn) =>
                     allowReadOnly
                         ? replayEntriesOfTurn(turn)
-                        : turn.items.map((item) => ({
+                        : turn.items.map(item => ({
                             turnId: turn.id,
                             item,
                             startedAtMs: null,
@@ -1114,7 +1112,7 @@ export class CodexAcpClient {
                 ? oneItemPage<ThreadItemEntry>(
                       includeReplayMetadata
                           ? replayEntriesOfTurn(turn)
-                          : turn.items.map((item) => ({
+                          : turn.items.map(item => ({
                               turnId: turn.id,
                               item,
                               startedAtMs: null,
@@ -1545,11 +1543,9 @@ export class CodexAcpClient {
                 "features.image_generation": false,
                 "features.imagegenext": false,
             } : {}),
-            projects: Object.fromEntries(
-                sessionRoots.map((root) => [root, {
-                    trust_level: "trusted",
-                }]),
-            ),
+            projects: Object.fromEntries(sessionRoots.map(root => [root, {
+                trust_level: "trusted",
+            }])),
         };
         const logicalProvider =
             gatewayId ?? (await this.getResumeModelProvider());
@@ -2104,8 +2100,8 @@ export class CodexAcpClient {
         // each call, which took about 4 s per page.
         const listResponse = await this.codexClient.threadList({
             cursor: request.cursor ?? null,
-            modelProviders,
-            sourceKinds,
+            modelProviders: modelProviders,
+            sourceKinds: sourceKinds,
             useStateDbOnly: true,
         });
 

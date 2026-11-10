@@ -102,11 +102,11 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", version => {
         );
         expect(text("Parent history")).toBe(true);
         expect(resumes).toEqual([sessionId]);
-        expect(reads.filter((read) => read.id === worker && read.includeTurns)).toHaveLength(1);
-        expect(h.scopedUpdates.slice(boundary).filter((entry) => entry.sessionId === childId)).toEqual([]);
-        expect(h.transcript.some((entry) => "permissionRequest" in entry || "elicitationRequest" in entry)).toBe(false);
+        expect(reads.filter(read => read.id === worker && read.includeTurns)).toHaveLength(1);
+        expect(h.scopedUpdates.slice(boundary).filter(entry => entry.sessionId === childId)).toEqual([]);
+        expect(h.transcript.some(entry => "permissionRequest" in entry || "elicitationRequest" in entry)).toBe(false);
         const frames = h.wireMessages.slice(start).flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
-        const response = frames.findIndex((frame) => "result" in frame && frame.result !== null
+        const response = frames.findIndex(frame => "result" in frame && frame.result !== null
             && typeof frame.result === "object" && "configOptions" in frame.result);
         const replay = frames.findIndex(
             (frame) =>

@@ -66,8 +66,8 @@ function linkedWorktreeCwdsOrNull(cwd: string): string[] | null {
     const worktrees = canonicalize(worktreesPath);
     if (worktrees === null) return null;
     const registered = fs.readdirSync(worktrees, {withFileTypes: true})
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name)
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name)
         .toSorted();
     for (const name of registered) {
         const gitDir = canonicalize(path.join(worktrees, name));

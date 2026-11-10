@@ -131,20 +131,13 @@ describeIntegration("integration: live standard subagents", () => {
                 await load(fork.sessionId);
                 const copied = updates.filter(entry => entry.sessionId === fork.sessionId && entry.update.sessionUpdate === "subagent_update");
                 expect(copied.length).toBeGreaterThan(0);
-                expect(copied.every((entry) => entry.update.sessionId !== childId)).toBe(true);
+                expect(copied.every(entry => entry.update.sessionId !== childId)).toBe(true);
                 await request("session/close", {sessionId: fork.sessionId});
             } else if (ending === "terminal") {
                 releaseChild();
-                await vi.waitFor(
-                    () =>
-                        expect(
-                            updates.some((entry) => entry.sessionId === childId && (version === 2
-                                ? entry.update.sessionUpdate === "terminal_update" && typeof entry.update.command === "string"
-                                : entry.update._meta?.terminal_info)),
-                            stderr,
-                        ).toBe(true),
-                    {timeout: 15_000},
-                );
+                await vi.waitFor(() => expect(updates.some(entry => entry.sessionId === childId && (version === 2
+                    ? entry.update.sessionUpdate === "terminal_update" && typeof entry.update.command === "string"
+                    : entry.update._meta?.terminal_info)), stderr).toBe(true), {timeout: 15_000});
                 await request("session/prompt", {sessionId, prompt: [{type: "text", text: "Continue independently"}]});
                 const terminalStart = updates.length;
                 writeFileSync(join(cwd, "release-child"), "");
@@ -161,14 +154,8 @@ describeIntegration("integration: live standard subagents", () => {
             } else if (ending === "child-cancel") {
                 const boundary = updates.length;
                 await context.notify("session/cancel", {sessionId: childId});
-                await vi.waitFor(
-                    () =>
-                        expect(
-                            updates.slice(boundary).some((entry) => state(entry)?.state === "idle" && state(entry)?.stopReason === "cancelled"),
-                            stderr,
-                        ).toBe(true),
-                    {timeout: 15_000},
-                );
+                await vi.waitFor(() => expect(updates.slice(boundary).some(entry =>
+                    state(entry)?.state === "idle" && state(entry)?.stopReason === "cancelled"), stderr).toBe(true), {timeout: 15_000});
                 await request("session/prompt", {sessionId, prompt: [{type: "text", text: "Continue independently"}]});
             } else {
                 const boundary = updates.length;

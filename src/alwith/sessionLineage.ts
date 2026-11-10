@@ -1,5 +1,5 @@
-import type { CodexAppServerClient } from "../CodexAppServerClient";
-import type { Thread, Turn } from "../app-server/v2";
+import { historyPages, type CodexAppServerClient } from "../CodexAppServerClient";
+import type { Thread } from "../app-server/v2";
 import type { SessionMetadata } from "../SessionMetadata";
 
 /** Native forks retain turn IDs, so provenance survives adapter and Codex restarts. */
@@ -16,31 +16,8 @@ export async function readSessionLineage(
     };
     if (thread.forkedFromId == null) return lineage;
 
-    async function* pages(
-        threadId: string,
-        sortDirection: "asc" | "desc",
-    ): AsyncGenerator<Turn[]> {
-        let cursor: string | null = null;
-        const seen = new Set<string>();
-        do {
-            const page = await client.threadTurnsList({
-                threadId,
-                cursor,
-                limit: 100,
-                sortDirection,
-                itemsView: "summary",
-            });
-            yield page.data;
-            cursor = page.nextCursor;
-            if (cursor !== null) {
-                if (seen.has(cursor))
-                    throw new Error(
-                        "Codex fork history repeated a pagination cursor",
-                    );
-                seen.add(cursor);
-            }
-        } while (cursor !== null);
-    }
+    const pages = (threadId: string, sortDirection: "asc" | "desc") =>
+        historyPages(threadId, "thread/turns/list", cursor => client.threadTurnsList({threadId, cursor, limit: 100, sortDirection, itemsView: "summary"}));
 
     const parentTurns = new Set<string>();
     for await (const turns of pages(thread.forkedFromId, "asc")) {
