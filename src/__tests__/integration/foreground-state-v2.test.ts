@@ -34,7 +34,10 @@ describeIntegration("integration: ACP v2 foreground state", () => {
         const updates: acpV2.UpdateSessionNotification[] = [];
         const connection = acpV2.client()
             .onNotification(acpV2.methods.client.session.update, ctx => { updates.push(ctx.params); })
-            .connect(acpV2.ndJsonStream(Writable.toWeb(processHandle.stdin), Readable.toWeb(processHandle.stdout) as ReadableStream<Uint8Array>));
+            .connect(acpV2.ndJsonStream(
+                Writable.toWeb(processHandle.stdin),
+                Readable.toWeb(processHandle.stdout) as ReadableStream<Uint8Array>,
+            ));
         try {
             await connection.agent.request(acpV2.methods.agent.initialize, {
                 protocolVersion: 2,

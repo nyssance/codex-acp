@@ -12,10 +12,7 @@ import type {HookMetadata} from "../../../app-server/v2/HookMetadata";
 import {requireLiveApiKey} from "./acp-e2e-test-utils";
 import {createSpawnedAgentFixture, type SpawnedAgentFixture} from "./spawned-agent-fixture";
 
-const testRuntime =
-    process.platform === "win32"
-        ? `"${process.execPath}"`
-        : `'${process.execPath.replaceAll("'", "'\"'\"'")}'`;
+const testRuntime = process.platform === "win32" ? `"${process.execPath}"` : `'${process.execPath.replaceAll("'", "'\"'\"'")}'`;
 
 const hasLiveApiKey = Boolean(process.env["CODEX_API_KEY"] || process.env["OPENAI_API_KEY"]);
 
@@ -70,7 +67,7 @@ describe.skipIf(process.env["RUN_E2E_TESTS"] !== "true")("ACP hook review", () =
             "does not run an untrusted hook, runs it after consent, and restores startup hooks after restart",
             async () => {
                 const fixture = await createSpawnedAgentFixture(
-                    async (connection) => {
+                    async connection => {
                         const initialized = await connection.request(acp.methods.agent.initialize, {
                             protocolVersion: acp.PROTOCOL_VERSION,
                             clientCapabilities: {_meta: {jetbrains: {air: {version: 1, capabilities: []}}}},

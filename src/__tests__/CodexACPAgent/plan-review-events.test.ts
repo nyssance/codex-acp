@@ -115,7 +115,10 @@ describe("CodexACPAgent - plan review", () => {
                         },
                     }),
             );
-        vi.spyOn(fixture.getCodexAppServerClient(), "awaitTurnCompleted").mockImplementation((_threadId, turnId) => (turnId === "plan-turn" ? planTurn.promise : implementationTurn.promise));
+        vi.spyOn(fixture.getCodexAppServerClient(), "awaitTurnCompleted")
+            .mockImplementation((_threadId, turnId) => turnId === "plan-turn"
+                ? planTurn.promise
+                : implementationTurn.promise);
 
         const promptPromise = fixture.getCodexAcpAgent().prompt({
             sessionId,

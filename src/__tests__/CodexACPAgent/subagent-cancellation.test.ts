@@ -178,7 +178,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
     it("does not grant control over a loaded foreign child from copied history", async () => {
         await connect();
         h.appServer["runningTurnIds"].set("worker", "foreign-turn");
-        h.setCodexResponse("thread/read", async (params) => {
+        h.setCodexResponse("thread/read", async params => {
             const {threadId, includeTurns} = params as {
                 threadId: string;
                 includeTurns?: boolean;
@@ -227,11 +227,11 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         } finally { release(); }
         await pending;
         await vi.waitFor(() => expect(grants()).toBe(beforeGrants + 1));
-        const frames = h.wireMessages.slice(startIndex).flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
+        const frames = h.wireMessages.slice(startIndex).flatMap(frame => (Array.isArray(frame) ? frame : [frame]));
         const response = frames.findIndex(frame => "result" in frame && frame.result != null
             && typeof frame.result === "object" && "configOptions" in frame.result);
         const grant = frames.findIndex(
-            (frame) =>
+            frame =>
                 "method" in frame && frame.method === "session/update" &&
                 (
                     frame.params as {

@@ -172,30 +172,27 @@ describe("CodexEventHandler - auth error events", () => {
     it.each([
         {name: "legacy error text", capabilities: undefined},
         {name: "typed failure", capabilities: typedFailureCapabilities},
-    ])(
-        "explains an unreachable ChatGPT backend as a connection failure in the $name",
-        async ({capabilities}) => {
-            const {result, updates} = await runPromptWithError(
-                createTestSessionState({
-                    sessionId: "workspace-routing-session",
-                    account: {
-                        type: "chatgpt",
-                        workspaceName: null,
-                        email: "user@example.com",
-                        planType: "plus",
-                    },
-                }),
-                {
-                    message: "workspace routing discovery failed", codexErrorInfo: "other", additionalDetails: null, misalignment: null,
+    ])("explains an unreachable ChatGPT backend as a connection failure in the $name", async ({capabilities}) => {
+        const {result, updates} = await runPromptWithError(
+            createTestSessionState({
+                sessionId: "workspace-routing-session",
+                account: {
+                    type: "chatgpt",
+                    workspaceName: null,
+                    email: "user@example.com",
+                    planType: "plus",
                 },
-                false,
-                capabilities,
-            );
-            await expect(JSON.stringify({result, updates}, null, 2)).toMatchFileSnapshot(
-                `data/workspace-routing-failed-v1-${capabilities ? "typed-failure" : "legacy"}.json`,
-            );
-        },
-    );
+            }),
+            {
+                message: "workspace routing discovery failed", codexErrorInfo: "other", additionalDetails: null, misalignment: null,
+            },
+            false,
+            capabilities,
+        );
+        await expect(JSON.stringify({result, updates}, null, 2)).toMatchFileSnapshot(
+            `data/workspace-routing-failed-v1-${capabilities ? "typed-failure" : "legacy"}.json`,
+        );
+    });
 
     it.each([
         "Plain error", "", "{invalid JSON}",
@@ -640,8 +637,8 @@ describe("CodexEventHandler - auth error events", () => {
         await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
 
         const updates = mockFixture.getAcpConnectionEvents([])
-            .filter((event) => event.args[0]?.update !== undefined)
-            .map((event) => event.args[0].update);
+            .filter(event => event.args[0]?.update !== undefined)
+            .map(event => event.args[0].update);
         expect(updates).toEqual([{
             sessionUpdate: "session_info_update",
             _meta: {
@@ -706,8 +703,8 @@ describe("CodexEventHandler - auth error events", () => {
         await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
 
         const updates = mockFixture.getAcpConnectionEvents([])
-            .filter((event) => event.args[0]?.update !== undefined)
-            .map((event) => event.args[0].update);
+            .filter(event => event.args[0]?.update !== undefined)
+            .map(event => event.args[0].update);
         expect(updates).toEqual([{
             sessionUpdate: "session_info_update",
             _meta: {
@@ -773,8 +770,8 @@ describe("CodexEventHandler - auth error events", () => {
             await expect(promptPromise).resolves.toMatchObject({stopReason: "end_turn"});
 
             const updates = mockFixture.getAcpConnectionEvents([])
-                .filter((event) => event.args[0]?.update !== undefined)
-                .map((event) => event.args[0].update);
+                .filter(event => event.args[0]?.update !== undefined)
+                .map(event => event.args[0].update);
             expect(updates).toEqual([{
                 sessionUpdate: "session_info_update",
                 _meta: {
@@ -1072,7 +1069,7 @@ async function runPromptWithError(
         result,
         updates: mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.args[0]?.update !== undefined)
-            .map((event) => event.args[0].update),
+            .map(event => event.args[0].update),
     };
 }
 
@@ -1118,7 +1115,7 @@ async function runPromptWithCompletedTurn(
         result,
         updates: mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.args[0]?.update !== undefined)
-            .map((event) => event.args[0].update),
+            .map(event => event.args[0].update),
     };
 }
 

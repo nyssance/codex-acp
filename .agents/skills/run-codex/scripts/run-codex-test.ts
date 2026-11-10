@@ -86,9 +86,7 @@ async function main() {
     // Find Codex binary
     const pathToCodex = path.resolve(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "codex.cmd" : "codex");
     if (!fs.existsSync(pathToCodex)) {
-        console.error(
-            `Error: Codex binary not found at ${pathToCodex}. Did you run 'bun install'?`,
-        );
+        console.error(`Error: Codex binary not found at ${pathToCodex}. Did you run 'bun install'?`);
         process.exit(1);
     }
 

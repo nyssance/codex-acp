@@ -159,9 +159,7 @@ describe("Configurable LLM providers (providers/*)", () => {
                 config: expect.objectContaining({
                     model_providers: expect.objectContaining({
                         [CUSTOM_GATEWAY_PROVIDER_ID]: expect.objectContaining({
-                            base_url: expect.stringMatching(
-                                /^http:\/\/127\.0\.0\.1:/,
-                            ),
+                            base_url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:/),
                             wire_api: "responses",
                             http_headers: expect.objectContaining({
                                 Authorization: "Bearer super-secret",

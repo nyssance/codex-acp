@@ -1042,10 +1042,7 @@ export class CodexEventHandler {
                     };
                     const timing = this.liveTurnTiming.get(event.turnId);
                     if (timing) timing.message = message;
-                    await this.session.updateV2(
-                        message,
-                        this.subagents.notificationSessionId({method: "item/completed", params: event}),
-                    );
+                    await this.session.updateV2(message, this.subagents.notificationSessionId({method: "item/completed", params: event}));
                 }
                 return this.session.protocolVersion === 2 ? null : finalChunk;
             case "plan":

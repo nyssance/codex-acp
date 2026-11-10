@@ -255,124 +255,119 @@ describe("CodexEventHandler - collab agent tool call events", () => {
 
     it("promotes subagent activity to native lifecycle when collaboration items are absent", async () => {
         await initializeNativeSubagents();
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "activity-started",
-                            kind: "started",
-                            agentThreadId: "child-1",
-                            agentPath: "/root/air_architecture",
-                        },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            {
+                method: "item/started",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "activity-started",
+                        kind: "started",
+                        agentThreadId: "child-1",
+                        agentPath: "/root/air_architecture",
                     },
                 },
-                {
-                    method: "item/completed",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        completedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "activity-started",
-                            kind: "started",
-                            agentThreadId: "child-1",
-                            agentPath: "/root/air_architecture",
-                        },
+            },
+            {
+                method: "item/completed",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    completedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "activity-started",
+                        kind: "started",
+                        agentThreadId: "child-1",
+                        agentPath: "/root/air_architecture",
                     },
                 },
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: "child-1",
-                        turnId: "turn-child",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "nested-started",
-                            kind: "started",
-                            agentThreadId: "grandchild-1",
-                            agentPath: "/root/air_architecture/tests",
-                        },
+            },
+            {
+                method: "item/started",
+                params: {
+                    threadId: "child-1",
+                    turnId: "turn-child",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "nested-started",
+                        kind: "started",
+                        agentThreadId: "grandchild-1",
+                        agentPath: "/root/air_architecture/tests",
                     },
                 },
-                {
-                    method: "item/agentMessage/delta",
-                    params: {
-                        threadId: "grandchild-1",
-                        turnId: "turn-grandchild",
-                        itemId: "grandchild-message",
-                        delta: "Nested result",
+            },
+            {
+                method: "item/agentMessage/delta",
+                params: {
+                    threadId: "grandchild-1",
+                    turnId: "turn-grandchild",
+                    itemId: "grandchild-message",
+                    delta: "Nested result",
+                },
+            },
+            {
+                method: "item/completed",
+                params: {
+                    threadId: "child-1",
+                    turnId: "turn-child",
+                    completedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "nested-interrupted",
+                        kind: "interrupted",
+                        agentThreadId: "grandchild-1",
+                        agentPath: "/root/air_architecture/tests",
                     },
                 },
-                {
-                    method: "item/completed",
-                    params: {
-                        threadId: "child-1",
-                        turnId: "turn-child",
-                        completedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "nested-interrupted",
-                            kind: "interrupted",
-                            agentThreadId: "grandchild-1",
-                            agentPath: "/root/air_architecture/tests",
-                        },
+            },
+            {
+                method: "turn/completed",
+                params: {
+                    threadId: "child-1",
+                    turn: {
+                        rootTurnId: null,
+                        id: "turn-child",
+                        items: [],
+                        itemsView: "notLoaded",
+                        status: "completed",
+                        error: null,
+                        startedAt: null,
+                        completedAt: null,
+                        durationMs: null,
                     },
                 },
-                {
-                    method: "turn/completed",
-                    params: {
-                        threadId: "child-1",
-                        turn: {
-                            rootTurnId: null,
-                            id: "turn-child",
-                            items: [],
-                            itemsView: "notLoaded",
-                            status: "completed",
-                            error: null,
-                            startedAt: null,
-                            completedAt: null,
-                            durationMs: null,
-                        },
+            },
+            {
+                method: "turn/completed",
+                params: {
+                    threadId: sessionId,
+                    turn: {
+                        rootTurnId: null,
+                        id: "turn-1",
+                        items: [],
+                        itemsView: "notLoaded",
+                        status: "completed",
+                        error: null,
+                        startedAt: null,
+                        completedAt: null,
+                        durationMs: null,
                     },
                 },
-                {
-                    method: "turn/completed",
-                    params: {
-                        threadId: sessionId,
-                        turn: {
-                            rootTurnId: null,
-                            id: "turn-1",
-                            items: [],
-                            itemsView: "notLoaded",
-                            status: "completed",
-                            error: null,
-                            startedAt: null,
-                            completedAt: null,
-                            durationMs: null,
-                        },
-                    },
-                },
-            ],
-        );
+            },
+        ]);
 
         const updates = mockFixture.getAcpConnectionEvents([])
             .filter(event => event.method === "sessionUpdate")
@@ -427,56 +422,51 @@ describe("CodexEventHandler - collab agent tool call events", () => {
 
     it("does not represent the root activity as a subagent", async () => {
         await initializeNativeSubagents();
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "root-activity",
-                            kind: "started",
-                            agentThreadId: "root-activity-thread",
-                            agentPath: "/root",
-                        },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            {
+                method: "item/started",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "root-activity",
+                        kind: "started",
+                        agentThreadId: "root-activity-thread",
+                        agentPath: "/root",
                     },
                 },
-                {
-                    method: "item/completed",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        completedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "root-activity",
-                            kind: "started",
-                            agentThreadId: "root-activity-thread",
-                            agentPath: "/root/",
-                        },
+            },
+            {
+                method: "item/completed",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    completedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "root-activity",
+                        kind: "started",
+                        agentThreadId: "root-activity-thread",
+                        agentPath: "/root/",
                     },
                 },
-                {
-                    method: "item/agentMessage/delta",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        itemId: "parent-message",
-                        delta: "Visible root output",
-                    },
+            },
+            {
+                method: "item/agentMessage/delta",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    itemId: "parent-message",
+                    delta: "Visible root output",
                 },
-            ],
-        );
+            },
+        ]);
 
         expect(mockFixture.getAcpConnectionEvents([])
             .filter(event => event.method === "sessionUpdate")
@@ -640,60 +630,55 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                     },
                 },
             }) as ServerNotification;
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [
-                collabItem(sessionId, sessionId, "child-1", "spawn-1", "running"),
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-root",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "activity-child",
-                            kind: "started",
-                            agentThreadId: "child-1",
-                            agentPath: "/root/researcher",
-                        },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            collabItem(sessionId, sessionId, "child-1", "spawn-1", "running"),
+            {
+                method: "item/started",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-root",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "activity-child",
+                        kind: "started",
+                        agentThreadId: "child-1",
+                        agentPath: "/root/researcher",
                     },
                 },
-                collabItem("child-1", "child-1", "grandchild-1", "spawn-2", "running"),
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: "child-1",
-                        turnId: "turn-child-1",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "activity-grandchild",
-                            kind: "started",
-                            agentThreadId: "grandchild-1",
-                            agentPath: "/root/researcher/tester",
-                        },
+            },
+            collabItem("child-1", "child-1", "grandchild-1", "spawn-2", "running"),
+            {
+                method: "item/started",
+                params: {
+                    threadId: "child-1",
+                    turnId: "turn-child-1",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "activity-grandchild",
+                        kind: "started",
+                        agentThreadId: "grandchild-1",
+                        agentPath: "/root/researcher/tester",
                     },
                 },
-                {
-                    method: "item/agentMessage/delta",
-                    params: {
-                        threadId: "grandchild-1",
-                        turnId: "turn-grandchild",
-                        itemId: "grandchild-message",
-                        delta: "Nested result",
-                    },
+            },
+            {
+                method: "item/agentMessage/delta",
+                params: {
+                    threadId: "grandchild-1",
+                    turnId: "turn-grandchild",
+                    itemId: "grandchild-message",
+                    delta: "Nested result",
                 },
-                collabItem("child-1", "child-1", "grandchild-1", "spawn-2", "completed"),
-                collabItem(sessionId, sessionId, "child-1", "spawn-1", "completed"),
-            ],
-        );
+            },
+            collabItem("child-1", "child-1", "grandchild-1", "spawn-2", "completed"),
+            collabItem(sessionId, sessionId, "child-1", "spawn-1", "completed"),
+        ]);
 
         const updates = mockFixture.getAcpConnectionEvents([])
             .filter(event => event.method === "sessionUpdate")
@@ -709,9 +694,7 @@ describe("CodexEventHandler - collab agent tool call events", () => {
 
     it("deduplicates lifecycle, rejects blank IDs, and ignores late child output", async () => {
         await initializeNativeSubagents();
-        const spawn = (
-            method: "item/started" | "item/completed",
-        ): ServerNotification =>
+        const spawn = (method: "item/started" | "item/completed"): ServerNotification =>
             ({
                 method,
                 params: {
@@ -732,42 +715,37 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                     },
                 },
             }) as ServerNotification;
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [
-                spawn("item/started"),
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "activity-child",
-                            kind: "started",
-                            agentThreadId: "child-1",
-                            agentPath: "/root/researcher",
-                        },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            spawn("item/started"),
+            {
+                method: "item/started",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "activity-child",
+                        kind: "started",
+                        agentThreadId: "child-1",
+                        agentPath: "/root/researcher",
                     },
                 },
-                spawn("item/completed"),
-                spawn("item/completed"),
-                {
-                    method: "item/agentMessage/delta",
-                    params: {
-                        threadId: "child-1",
-                        turnId: "turn-child",
-                        itemId: "late-message",
-                        delta: "Too late",
-                    },
+            },
+            spawn("item/completed"),
+            spawn("item/completed"),
+            {
+                method: "item/agentMessage/delta",
+                params: {
+                    threadId: "child-1",
+                    turnId: "turn-child",
+                    itemId: "late-message",
+                    delta: "Too late",
                 },
-            ],
-        );
+            },
+        ]);
 
         const updates = mockFixture.getAcpConnectionEvents([])
             .filter(event => event.method === "sessionUpdate")
@@ -808,34 +786,29 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                 },
             }) as ServerNotification;
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [
-                collab("item/started", "spawnAgent", "spawn", "running"),
-                {
-                    method: "item/started",
-                    params: {
-                        threadId: sessionId,
-                        turnId: "turn-1",
-                        startedAtMs: 0,
-                        item: {
-                            model: null,
-                            reasoningEffort: null,
-                            type: "subAgentActivity",
-                            id: "activity-child",
-                            kind: "started",
-                            agentThreadId: "child-1",
-                            agentPath: "/root/researcher",
-                        },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            collab("item/started", "spawnAgent", "spawn", "running"),
+            {
+                method: "item/started",
+                params: {
+                    threadId: sessionId,
+                    turnId: "turn-1",
+                    startedAtMs: 0,
+                    item: {
+                        model: null,
+                        reasoningEffort: null,
+                        type: "subAgentActivity",
+                        id: "activity-child",
+                        kind: "started",
+                        agentThreadId: "child-1",
+                        agentPath: "/root/researcher",
                     },
                 },
-                collab("item/started", "sendInput", "send-input", "running"),
-                collab("item/completed", "sendInput", "send-input", "running"),
-                collab("item/completed", "spawnAgent", "spawn", "completed"),
-            ],
-        );
+            },
+            collab("item/started", "sendInput", "send-input", "running"),
+            collab("item/completed", "sendInput", "send-input", "running"),
+            collab("item/completed", "spawnAgent", "spawn", "completed"),
+        ]);
 
         const updates = mockFixture.getAcpConnectionEvents([])
             .filter(event => event.method === "sessionUpdate")
@@ -1286,32 +1259,27 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                 },
             },
         });
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [
-                activity("child-a"),
-                activity("child-b"),
-                {
-                    method: "turn/completed",
-                    params: {
-                        threadId: "child-a",
-                        turn: {
-                            rootTurnId: null,
-                            id: "turn-child-a",
-                            items: [],
-                            itemsView: "notLoaded",
-                            status: "completed",
-                            error: null,
-                            startedAt: null,
-                            completedAt: null,
-                            durationMs: null,
-                        },
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+            activity("child-a"),
+            activity("child-b"),
+            {
+                method: "turn/completed",
+                params: {
+                    threadId: "child-a",
+                    turn: {
+                        rootTurnId: null,
+                        id: "turn-child-a",
+                        items: [],
+                        itemsView: "notLoaded",
+                        status: "completed",
+                        error: null,
+                        startedAt: null,
+                        completedAt: null,
+                        durationMs: null,
                     },
                 },
-            ],
-        );
+            },
+        ]);
 
         const terminalUpdates = mockFixture.getAcpConnectionEvents([])
             .filter(event => event.method === "sessionUpdate")
@@ -1471,11 +1439,9 @@ describe("CodexEventHandler - collab agent tool call events", () => {
 
     it.each(["resumeAgent", "sendInput", "followupTask"] as const)(
         "uses a new ACP child generation when a %s reactivates a terminal thread",
-        async (tool) => {
+        async tool => {
             await initializeNativeSubagents();
-            const childTurn = (
-                status: "completed" | "inProgress",
-            ): ServerNotification => ({
+            const childTurn = (status: "completed" | "inProgress"): ServerNotification => ({
                 method: status === "completed" ? "turn/completed" : "turn/started",
                 params: {
                     threadId: "resumable-child",
@@ -1492,60 +1458,55 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                     },
                 },
             });
-            await setupPromptAndSendNotifications(
-                mockFixture,
-                sessionId,
-                sessionState,
-                [
-                    {
-                        method: "item/started",
-                        params: {
-                            threadId: sessionId,
-                            turnId: "root-turn",
-                            startedAtMs: 0,
-                            item: {
-                                model: null,
-                                reasoningEffort: null,
-                                type: "subAgentActivity",
-                                id: "resumable-activity",
-                                kind: "started",
-                                agentThreadId: "resumable-child",
-                                agentPath: "/root/resumable",
-                            },
+            await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [
+                {
+                    method: "item/started",
+                    params: {
+                        threadId: sessionId,
+                        turnId: "root-turn",
+                        startedAtMs: 0,
+                        item: {
+                            model: null,
+                            reasoningEffort: null,
+                            type: "subAgentActivity",
+                            id: "resumable-activity",
+                            kind: "started",
+                            agentThreadId: "resumable-child",
+                            agentPath: "/root/resumable",
                         },
                     },
-                    childTurn("completed"),
-                    {
-                        method: "item/started",
-                        params: {
-                            threadId: sessionId,
-                            turnId: "root-turn",
-                            startedAtMs: 0,
-                            item: {
-                                type: "collabAgentToolCall",
-                                id: "resume-call",
-                                tool,
-                                status: "completed",
-                                senderThreadId: sessionId,
-                                receiverThreadIds: ["resumable-child"],
-                                prompt: tool === "resumeAgent" ? null : "Check again.",
-                                model: null,
-                                reasoningEffort: null,
-                                agentsStates: {"resumable-child": {status: "running", message: null}},
-                            },
+                },
+                childTurn("completed"),
+                {
+                    method: "item/started",
+                    params: {
+                        threadId: sessionId,
+                        turnId: "root-turn",
+                        startedAtMs: 0,
+                        item: {
+                            type: "collabAgentToolCall",
+                            id: "resume-call",
+                            tool,
+                            status: "completed",
+                            senderThreadId: sessionId,
+                            receiverThreadIds: ["resumable-child"],
+                            prompt: tool === "resumeAgent" ? null : "Check again.",
+                            model: null,
+                            reasoningEffort: null,
+                            agentsStates: {"resumable-child": {status: "running", message: null}},
                         },
                     },
-                    {
-                        method: "item/agentMessage/delta",
-                        params: {
-                            threadId: "resumable-child",
-                            turnId: "resumed-turn",
-                            itemId: "resumed-message",
-                            delta: "Resumed output",
-                        },
+                },
+                {
+                    method: "item/agentMessage/delta",
+                    params: {
+                        threadId: "resumable-child",
+                        turnId: "resumed-turn",
+                        itemId: "resumed-message",
+                        delta: "Resumed output",
                     },
-                ],
-            );
+                },
+            ]);
             const updates = mockFixture.getAcpConnectionEvents([])
                 .filter(event => event.method === "sessionUpdate")
                 .map(event => event.args[0]);
