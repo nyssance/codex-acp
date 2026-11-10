@@ -1,16 +1,16 @@
-import { testThreadPermissions } from "../native-thread-permissions";
-import {afterEach, describe, expect, it, vi} from 'vitest';
-import * as acp from '@agentclientprotocol/sdk/unstable';
-import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import {createAcpAgentRouter} from '../../AcpAgentRouter';
-import {CodexAcpServer} from '../../CodexAcpServer';
-import {CodexAcpClient} from '../../CodexAcpClient';
-import {CodexAppServerClient} from '../../CodexAppServerClient';
-import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY, AIR_ASYNC_TASKS_KEY} from '../../AirExtension';
-import type {Thread} from '../../app-server/v2';
-import {createTestModel} from '../acp-test-utils';
-import {createMockConnections} from './test-utils';
-import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
+import {testThreadPermissions} from "../native-thread-permissions";
+import {afterEach, describe, expect, it, vi} from "vitest";
+import * as acp from "@agentclientprotocol/sdk/unstable";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {createAcpAgentRouter} from "../../AcpAgentRouter";
+import {CodexAcpServer} from "../../CodexAcpServer";
+import {CodexAcpClient} from "../../CodexAcpClient";
+import {CodexAppServerClient} from "../../CodexAppServerClient";
+import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY, AIR_ASYNC_TASKS_KEY} from "../../AirExtension";
+import type {Thread} from "../../app-server/v2";
+import {createTestModel} from "../acp-test-utils";
+import {createMockConnections} from "./test-utils";
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 const rootId = "root-1";
 const childId = "child-1";
@@ -153,11 +153,11 @@ function codexResponse(method: string, params: unknown, turns: HistoryTurns): un
             if (threadId === childId)
                 return {
                     readState: null,
-                    thread: createThread(childId, { turns: turns.child }),
+                    thread: createThread(childId, {turns: turns.child}),
                 };
             return {
                 readState: null,
-                thread: createThread(rootId, { turns: turns.root }),
+                thread: createThread(rootId, {turns: turns.root}),
             };
         case "thread/backgroundTerminals/list":
             if (threadId === childId) {
@@ -185,21 +185,15 @@ async function connectV2Client(
     turns: HistoryTurns = {root: rootTurns, child: childTurns},
 ) {
     const mocks = createMockConnections();
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string, params: unknown) =>
-            codexResponse(method, params, turns),
-    );
-    const codexAcpClient = new CodexAcpClient(
-        new CodexAppServerClient(mocks.mockCodexConnection as any),
-    );
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params: unknown) => (
+        codexResponse(method, params, turns)
+    ));
+    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
         required: false,
         account: null,
     });
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
@@ -210,9 +204,7 @@ async function connectV2Client(
         failed: [],
         cancelled: [],
     });
-    const router = createAcpAgentRouter(
-        (connection) => new CodexAcpServer(connection, codexAcpClient),
-    );
+    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
@@ -315,42 +307,34 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
         }, {root, child: childTurns});
         closeClient = () => connection.close();
 
-            await connection.agent.request(acpV2.methods.agent.session.resume, {
-                sessionId: rootId,
-                cwd,
-                replayFrom: { type: "start" },
+        await connection.agent.request(acpV2.methods.agent.session.resume, {
+            sessionId: rootId,
+            cwd,
+            replayFrom: {type: "start"},
+        });
+
+        const childModels = updates
+            .filter(({sessionId, update}) => sessionId === childId && update.sessionUpdate === "config_option_update")
+            .map(({sessionId, update}) => {
+                const option = (
+                    update as {
+                        configOptions: Array<{
+                            currentValue: string;
+                            options: Array<{name: string}>;
+                        }>;
+                    }
+                ).configOptions[0]!;
+                return {
+                    sessionId,
+                    value: option.currentValue,
+                    name: option.options[0]!.name,
+                };
             });
+        expect(childModels).toEqual(expected);
+    });
 
-            const childModels = updates
-                .filter(
-                    ({ sessionId, update }) =>
-                        sessionId === childId &&
-                        update.sessionUpdate === "config_option_update",
-                )
-                .map(({ sessionId, update }) => {
-                    const option = (
-                        update as {
-                            configOptions: Array<{
-                                currentValue: string;
-                                options: Array<{ name: string }>;
-                            }>;
-                        }
-                    ).configOptions[0]!;
-                    return {
-                        sessionId,
-                        value: option.currentValue,
-                        name: option.options[0]!.name,
-                    };
-                });
-            expect(childModels).toEqual(expected);
-        },
-    );
-
-    it("replays a follow-up turn of a finished child as a new generation", async () => {
-        const turn = (
-            id: string,
-            items: Thread["turns"][number]["items"],
-        ): Thread["turns"][number] => ({
+    it('replays a follow-up turn of a finished child as a new generation', async () => {
+        const turn = (id: string, items: Thread["turns"][number]["items"]): Thread["turns"][number] => ({
             rootTurnId: null,
             id,
             itemsView: "full",
@@ -361,10 +345,7 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
             durationMs: null,
             items,
         });
-        const activity = (
-            id: string,
-            kind: "started" | "interacted" | "completed",
-        ) => ({
+        const activity = (id: string, kind: "started" | "interacted" | "completed") => ({
             model: null,
             reasoningEffort: null,
             type: "subAgentActivity" as const,

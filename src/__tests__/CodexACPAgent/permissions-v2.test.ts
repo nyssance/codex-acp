@@ -1,13 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {
-    CommandExecutionApprovalRequest,
-    FileChangeApprovalRequest,
-} from "../../CodexAppServerClient";
-import type {
-    CommandExecutionRequestApprovalParams,
-    FileChangeRequestApprovalParams,
-} from '../../app-server/v2';
+import {CommandExecutionApprovalRequest, FileChangeApprovalRequest} from "../../CodexAppServerClient";
+import type {CommandExecutionRequestApprovalParams, FileChangeRequestApprovalParams} from "../../app-server/v2";
 import {
     sessionId,
     turnId,
@@ -102,8 +96,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "allow_once"}}),
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());
@@ -115,9 +108,7 @@ describe('session/request_permission over ACP v2', () => {
         const requiresAction = indexOf(transcript, isState("requires_action"));
         const permission = indexOf(transcript, entry => "permissionRequest" in entry);
         expect(requiresAction).toBeLessThan(permission);
-        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot(
-            "data/permissions-v2-command-allowed.json",
-        );
+        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot("data/permissions-v2-command-allowed.json");
 
         await finishTurn();
     });
@@ -132,8 +123,7 @@ describe('session/request_permission over ACP v2', () => {
             },
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
 
         await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams({reason: "Needs a listing"}));
 
@@ -156,8 +146,7 @@ describe('session/request_permission over ACP v2', () => {
             },
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         client.emit(itemStarted(commandExecutionItem("first")));
         client.emit(itemStarted(commandExecutionItem("second")));
         await settle();
@@ -211,8 +200,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "decline"}}),
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());
@@ -220,12 +208,8 @@ describe('session/request_permission over ACP v2', () => {
         expect(response).toEqual({decision: "decline"});
         const transcript = client.transcript.slice(start);
         // The answer alone does not establish resumed foreground progress.
-        expect(stateUpdates(transcript)).toEqual([
-            { state: "requires_action" },
-        ]);
-        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot(
-            "data/permissions-v2-command-rejected.json",
-        );
+        expect(stateUpdates(transcript)).toEqual([{state: "requires_action"}]);
+        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot("data/permissions-v2-command-rejected.json");
 
         await finishTurn();
     });
@@ -235,8 +219,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "allow_once"}}),
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(FileChangeApprovalRequest.method, fileChangeApprovalParams());
@@ -244,12 +227,8 @@ describe('session/request_permission over ACP v2', () => {
         expect(response).toEqual({decision: "accept"});
         const transcript = client.transcript.slice(start);
         // The answer alone does not establish resumed foreground progress.
-        expect(stateUpdates(transcript)).toEqual([
-            { state: "requires_action" },
-        ]);
-        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot(
-            "data/permissions-v2-file-change-allowed.json",
-        );
+        expect(stateUpdates(transcript)).toEqual([{state: "requires_action"}]);
+        await expect(dump(transcript, clientUserMessageId)).toMatchFileSnapshot("data/permissions-v2-file-change-allowed.json");
 
         await finishTurn();
     });
@@ -259,8 +238,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "cancelled"}}),
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());
@@ -278,8 +256,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "some_future_outcome"} as unknown as acpV2.RequestPermissionOutcome}),
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());
 
@@ -294,8 +271,7 @@ describe('session/request_permission over ACP v2', () => {
             },
         });
         closeClient = () => client.connection.close();
-        const { finishTurn, clientUserMessageId } =
-            await startRunningPrompt(client);
+        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());

@@ -1,9 +1,6 @@
-import { CodexImportClient } from "./import";
-import type { ThreadSettingsUpdateParams } from "./app-server/v2/ThreadSettingsUpdateParams";
-import type {
-    DynamicToolCallParams,
-    DynamicToolCallResponse,
-} from "./app-server/v2";
+import {CodexImportClient} from "./import";
+import type {ThreadSettingsUpdateParams} from "./app-server/v2/ThreadSettingsUpdateParams";
+import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
 import {type MessageConnection, RequestType} from "vscode-jsonrpc/node";
 import {AppServerConnectionLostError, ConnectionLoss} from "./app-server-recovery/ConnectionLoss";
 import {explainCodexError} from "./CodexErrorExplanations";
@@ -260,71 +257,57 @@ export class CodexAppServerClient {
             }
         });
 
-        this.connection.onRequest(
-            CommandExecutionApprovalRequest,
-            async (
-                params,
-            ): Promise<CommandExecutionRequestApprovalResponse> => {
-                if (this.isStaleTurn(params.threadId, params.turnId)) {
-                    return { decision: "cancel" };
-                }
-                const handler = this.approvalHandlers.get(params.threadId);
-                if (!handler) {
-                    return { decision: "cancel" };
-                }
-                return await handler.handleCommandExecution(params);
-            },
-        );
+        this.connection.onRequest(CommandExecutionApprovalRequest, async (params): Promise<CommandExecutionRequestApprovalResponse> => {
+            if (this.isStaleTurn(params.threadId, params.turnId)) {
+                return { decision: "cancel" };
+            }
+            const handler = this.approvalHandlers.get(params.threadId);
+            if (!handler) {
+                return { decision: "cancel" };
+            }
+            return await handler.handleCommandExecution(params);
+        });
 
-        this.connection.onRequest(
-            FileChangeApprovalRequest,
-            async (params): Promise<FileChangeRequestApprovalResponse> => {
-                if (this.isStaleTurn(params.threadId, params.turnId)) {
-                    return { decision: "cancel" };
-                }
-                const handler = this.approvalHandlers.get(params.threadId);
-                if (!handler) {
-                    return { decision: "cancel" };
-                }
-                return await handler.handleFileChange(params);
-            },
-        );
+        this.connection.onRequest(FileChangeApprovalRequest, async (params): Promise<FileChangeRequestApprovalResponse> => {
+            if (this.isStaleTurn(params.threadId, params.turnId)) {
+                return { decision: "cancel" };
+            }
+            const handler = this.approvalHandlers.get(params.threadId);
+            if (!handler) {
+                return { decision: "cancel" };
+            }
+            return await handler.handleFileChange(params);
+        });
 
-        this.connection.onRequest(
-            PermissionsApprovalRequest,
-            async (params): Promise<PermissionsRequestApprovalResponse> => {
-                if (this.isStaleTurn(params.threadId, params.turnId)) {
-                    return {
-                        permissions: {},
-                        scope: "turn",
-                        strictAutoReview: false,
-                    };
-                }
-                const handler = this.approvalHandlers.get(params.threadId);
-                if (!handler) {
-                    return {
-                        permissions: {},
-                        scope: "turn",
-                        strictAutoReview: false,
-                    };
-                }
-                return await handler.handlePermissionsRequest(params);
-            },
-        );
+        this.connection.onRequest(PermissionsApprovalRequest, async (params): Promise<PermissionsRequestApprovalResponse> => {
+            if (this.isStaleTurn(params.threadId, params.turnId)) {
+                return {
+                    permissions: {},
+                    scope: "turn",
+                    strictAutoReview: false,
+                };
+            }
+            const handler = this.approvalHandlers.get(params.threadId);
+            if (!handler) {
+                return {
+                    permissions: {},
+                    scope: "turn",
+                    strictAutoReview: false,
+                };
+            }
+            return await handler.handlePermissionsRequest(params);
+        });
 
-        this.connection.onRequest(
-            McpServerElicitationRequest,
-            async (params): Promise<McpServerElicitationRequestResponse> => {
-                if (this.isStaleTurn(params.threadId, params.turnId)) {
-                    return { action: "cancel", content: null, _meta: null };
-                }
-                const handler = this.elicitationHandlers.get(params.threadId);
-                if (!handler) {
-                    return { action: "cancel", content: null, _meta: null };
-                }
-                return await handler.handleElicitation(params);
-            },
-        );
+        this.connection.onRequest(McpServerElicitationRequest, async (params): Promise<McpServerElicitationRequestResponse> => {
+            if (this.isStaleTurn(params.threadId, params.turnId)) {
+                return { action: "cancel", content: null, _meta: null };
+            }
+            const handler = this.elicitationHandlers.get(params.threadId);
+            if (!handler) {
+                return { action: "cancel", content: null, _meta: null };
+            }
+            return await handler.handleElicitation(params);
+        });
 
         this.connection.onRequest(ToolRequestUserInputRequest, async (params) => {
             if (this.isStaleTurn(params.threadId, params.turnId)) {
@@ -338,19 +321,8 @@ export class CodexAppServerClient {
         });
     }
 
-    onDynamicToolCall(
-        handler: (
-            params: DynamicToolCallParams,
-        ) => Promise<DynamicToolCallResponse>,
-    ): void {
-        this.connection.onRequest(
-            new RequestType<
-                DynamicToolCallParams,
-                DynamicToolCallResponse,
-                void
-            >("item/tool/call"),
-            handler,
-        );
+    onDynamicToolCall(handler: (params: DynamicToolCallParams) => Promise<DynamicToolCallResponse>): void {
+        this.connection.onRequest(new RequestType<DynamicToolCallParams, DynamicToolCallResponse, void>("item/tool/call"), handler);
     }
 
     onApprovalRequest(threadId: string, handler: ApprovalHandler): void {
@@ -378,7 +350,7 @@ export class CodexAppServerClient {
     }
 
     async turnStart(params: TurnStartParams): Promise<TurnStartResponse> {
-        return await this.sendRequest({ method: "turn/start", params });
+        return await this.sendRequest({method: "turn/start", params});
     }
 
     async runTurn(params: ExperimentalTurnStartParams, onTurnStarted?: (turnId: string) => void): Promise<TurnCompletedNotification> {
@@ -710,18 +682,16 @@ export class CodexAppServerClient {
         }
     }
 
-    async turnInterrupt(
-        params: TurnInterruptParams,
-    ): Promise<TurnInterruptResponse> {
-        return await this.sendRequest({ method: "turn/interrupt", params });
+    async turnInterrupt(params: TurnInterruptParams): Promise<TurnInterruptResponse> {
+        return await this.sendRequest({method: "turn/interrupt", params});
     }
 
     async turnSteer(params: TurnSteerParams): Promise<TurnSteerResponse> {
-        return await this.sendRequest({ method: "turn/steer", params });
+        return await this.sendRequest({method: "turn/steer", params});
     }
 
     async reviewStart(params: ReviewStartParams): Promise<ReviewStartResponse> {
-        return await this.sendRequest({ method: "review/start", params });
+        return await this.sendRequest({method: "review/start", params});
     }
 
     markTurnStale(threadId: string, turnId: string): void {
@@ -731,46 +701,39 @@ export class CodexAppServerClient {
     }
 
     async threadStart(params: ThreadStartParams): Promise<ThreadStartResponse> {
-        return await this.sendRequest({ method: "thread/start", params });
+        return await this.sendRequest({method: "thread/start", params});
     }
 
     async threadSetName(params: ThreadSetNameParams): Promise<ThreadSetNameResponse> {
         return await this.sendRequest({ method: "thread/name/set", params });
     }
 
-    async threadResume(
-        params: ThreadResumeParams,
-    ): Promise<ThreadResumeResponse> {
-        return await this.sendRequest({ method: "thread/resume", params });
+    async threadResume(params: ThreadResumeParams): Promise<ThreadResumeResponse> {
+        return await this.sendRequest({method: "thread/resume", params});
     }
 
     async threadFork(params: ThreadForkParams): Promise<ThreadForkResponse> {
-        return await this.sendRequest({ method: "thread/fork", params });
+        return await this.sendRequest({method: "thread/fork", params});
     }
 
     getThreadSettings(threadId: string): ThreadSettings | undefined {
         return this.threadSettings.get(threadId);
     }
 
-    async threadSettingsUpdate(
-        params:
-            ExperimentalThreadSettingsUpdateParams | ThreadSettingsUpdateParams,
-    ): Promise<void> {
+    async threadSettingsUpdate(params: ExperimentalThreadSettingsUpdateParams | ThreadSettingsUpdateParams): Promise<void> {
         await this.connection.sendRequest("thread/settings/update", params);
     }
 
     async threadList(params: ThreadListParams): Promise<ThreadListResponse> {
-        return await this.sendRequest({ method: "thread/list", params });
+        return await this.sendRequest({method: "thread/list", params});
     }
 
-    async threadLoadedList(
-        params: ThreadLoadedListParams,
-    ): Promise<ThreadLoadedListResponse> {
-        return await this.sendRequest({ method: "thread/loaded/list", params });
+    async threadLoadedList(params: ThreadLoadedListParams): Promise<ThreadLoadedListResponse> {
+        return await this.sendRequest({method: "thread/loaded/list", params});
     }
 
     async threadRead(params: ThreadReadParams): Promise<ThreadReadResponse> {
-        return await this.sendRequest({ method: "thread/read", params });
+        return await this.sendRequest({method: "thread/read", params});
     }
 
     async threadTurnsList(params: ThreadTurnsListParams): Promise<ThreadTurnsListResponse> {
@@ -827,9 +790,7 @@ export class CodexAppServerClient {
             sortDirection: "asc",
         }), page => page.some(entry => entry.item.id === lastItemId));
         for await (const page of pages) {
-            const lastIndex = page.findIndex(
-                (entry) => entry.item.id === lastItemId,
-            );
+            const lastIndex = page.findIndex((entry) => entry.item.id === lastItemId);
             if (lastIndex !== -1) {
                 yield page.slice(0, lastIndex + 1);
                 return;
@@ -839,10 +800,7 @@ export class CodexAppServerClient {
     }
 
     /** Turn metadata bounded by the same resume snapshot as the replayed items. */
-    async *threadReplayTurnPages(
-        threadId: string,
-        lastTurnCursor?: string | null,
-    ): AsyncGenerator<Turn[]> {
+    async *threadReplayTurnPages(threadId: string, lastTurnCursor?: string | null): AsyncGenerator<Turn[]> {
         if (lastTurnCursor === null) return;
         const last = await withHistoryTimeout(
             this.threadTurnsList({
@@ -913,33 +871,23 @@ export class CodexAppServerClient {
         }
     }
 
-    async threadArchive(
-        params: ThreadArchiveParams,
-    ): Promise<ThreadArchiveResponse> {
-        return await this.sendRequest({ method: "thread/archive", params });
+    async threadArchive(params: ThreadArchiveParams): Promise<ThreadArchiveResponse> {
+        return await this.sendRequest({method: "thread/archive", params});
     }
 
-    async threadUnarchive(
-        params: ThreadUnarchiveParams,
-    ): Promise<ThreadUnarchiveResponse> {
-        return await this.sendRequest({ method: "thread/unarchive", params });
+    async threadUnarchive(params: ThreadUnarchiveParams): Promise<ThreadUnarchiveResponse> {
+        return await this.sendRequest({method: "thread/unarchive", params});
     }
 
-    async threadDelete(
-        params: ThreadDeleteParams,
-    ): Promise<ThreadDeleteResponse> {
-        return await this.sendRequest({ method: "thread/delete", params });
+    async threadDelete(params: ThreadDeleteParams): Promise<ThreadDeleteResponse> {
+        return await this.sendRequest({method: "thread/delete", params});
     }
 
-    async threadUnsubscribe(
-        params: ThreadUnsubscribeParams,
-    ): Promise<ThreadUnsubscribeResponse> {
-        return await this.sendRequest({ method: "thread/unsubscribe", params });
+    async threadUnsubscribe(params: ThreadUnsubscribeParams): Promise<ThreadUnsubscribeResponse> {
+        return await this.sendRequest({method: "thread/unsubscribe", params});
     }
 
-    async threadCompactStart(
-        params: ThreadCompactStartParams,
-    ): Promise<ThreadCompactStartResponse> {
+    async threadCompactStart(params: ThreadCompactStartParams): Promise<ThreadCompactStartResponse> {
         return await this.sendRequest({
             method: "thread/compact/start",
             params,
@@ -972,27 +920,19 @@ export class CodexAppServerClient {
         } while (cursor !== null);
     }
 
-    async threadGoalSet(
-        params: ThreadGoalSetParams,
-    ): Promise<ThreadGoalSetResponse> {
-        return await this.sendRequest({ method: "thread/goal/set", params });
+    async threadGoalSet(params: ThreadGoalSetParams): Promise<ThreadGoalSetResponse> {
+        return await this.sendRequest({method: "thread/goal/set", params});
     }
 
-    async threadGoalGet(
-        params: ThreadGoalGetParams,
-    ): Promise<ThreadGoalGetResponse> {
-        return await this.sendRequest({ method: "thread/goal/get", params });
+    async threadGoalGet(params: ThreadGoalGetParams): Promise<ThreadGoalGetResponse> {
+        return await this.sendRequest({method: "thread/goal/get", params});
     }
 
-    async threadGoalClear(
-        params: ThreadGoalClearParams,
-    ): Promise<ThreadGoalClearResponse> {
-        return await this.sendRequest({ method: "thread/goal/clear", params });
+    async threadGoalClear(params: ThreadGoalClearParams): Promise<ThreadGoalClearResponse> {
+        return await this.sendRequest({method: "thread/goal/clear", params});
     }
 
-    async listMcpServerStatus(
-        params: ListMcpServerStatusParams,
-    ): Promise<ListMcpServerStatusResponse> {
+    async listMcpServerStatus(params: ListMcpServerStatusParams): Promise<ListMcpServerStatusResponse> {
         return await this.sendRequest({
             method: "mcpServerStatus/list",
             params,
@@ -1006,27 +946,21 @@ export class CodexAppServerClient {
         });
     }
 
-    async mcpServerOauthLogin(
-        params: McpServerOauthLoginParams,
-    ): Promise<McpServerOauthLoginResponse> {
+    async mcpServerOauthLogin(params: McpServerOauthLoginParams): Promise<McpServerOauthLoginResponse> {
         return await this.sendRequest({
             method: "mcpServer/oauth/login",
             params,
         });
     }
 
-    async accountLogin(
-        params: LoginAccountParams,
-    ): Promise<LoginAccountResponse> {
+    async accountLogin(params: LoginAccountParams): Promise<LoginAccountResponse> {
         return await this.sendRequest({
             method: "account/login/start",
             params,
         });
     }
 
-    async accountLoginCancel(
-        params: CancelLoginAccountParams,
-    ): Promise<CancelLoginAccountResponse> {
+    async accountLoginCancel(params: CancelLoginAccountParams): Promise<CancelLoginAccountResponse> {
         return await this.sendRequest({
             method: "account/login/cancel",
             params,
@@ -1041,20 +975,18 @@ export class CodexAppServerClient {
     }
 
     async configRead(params: ConfigReadParams): Promise<ConfigReadResponse> {
-        return await this.sendRequest({ method: "config/read", params });
+        return await this.sendRequest({method: "config/read", params});
     }
 
     async hooksList(params: HooksListParams): Promise<HooksListResponse> {
-        return await this.sendRequest({ method: "hooks/list", params });
+        return await this.sendRequest({method: "hooks/list", params});
     }
 
-    async configBatchWrite(
-        params: ConfigBatchWriteParams,
-    ): Promise<ConfigWriteResponse> {
-        return await this.sendRequest({ method: "config/batchWrite", params });
+    async configBatchWrite(params: ConfigBatchWriteParams): Promise<ConfigWriteResponse> {
+        return await this.sendRequest({method: "config/batchWrite", params});
     }
     async accountRead(params: GetAccountParams): Promise<GetAccountResponse> {
-        return await this.sendRequest({ method: "account/read", params });
+        return await this.sendRequest({method: "account/read", params});
     }
 
     async accountRateLimitsRead(): Promise<GetAccountRateLimitsResponse> {
@@ -1065,56 +997,32 @@ export class CodexAppServerClient {
     }
 
     //TODO create type-safe helper
-    async awaitTurnCompleted(
-        threadId: string,
-        turnId: string,
-    ): Promise<TurnCompletedNotification> {
+    async awaitTurnCompleted(threadId: string, turnId: string): Promise<TurnCompletedNotification> {
         let resolver: ((event: TurnCompletedNotification) => void) | undefined;
         const completed = new Promise<TurnCompletedNotification>((resolve) => {
             resolver = resolve;
-            const threadResolvers =
-                this.getOrCreatePendingTurnCompletionResolvers(threadId);
+            const threadResolvers = this.getOrCreatePendingTurnCompletionResolvers(threadId);
             threadResolvers.set(turnId, resolve);
         });
-        return await this.waitWhileConnected(
-            "the end of the turn",
-            completed,
-            () => {
-                const threadResolvers =
-                    this.pendingTurnCompletionResolvers.get(threadId);
-                if (
-                    !threadResolvers ||
-                    threadResolvers.get(turnId) !== resolver
-                )
-                    return;
-                threadResolvers.delete(turnId);
-                if (threadResolvers.size === 0) {
-                    this.pendingTurnCompletionResolvers.delete(threadId);
-                }
-            },
-        );
+        return await this.waitWhileConnected("the end of the turn", completed, () => {
+            const threadResolvers = this.pendingTurnCompletionResolvers.get(threadId);
+            if (!threadResolvers || threadResolvers.get(turnId) !== resolver) return;
+            threadResolvers.delete(turnId);
+            if (threadResolvers.size === 0) {
+                this.pendingTurnCompletionResolvers.delete(threadId);
+            }
+        });
     }
 
-    async awaitCompactionCompleted(
-        threadId: string,
-    ): Promise<CompactionCompletedNotification> {
+    async awaitCompactionCompleted(threadId: string): Promise<CompactionCompletedNotification> {
         let releaseCapture: () => void = () => {};
-        const completed = new Promise<CompactionCompletedNotification>(
-            (resolve) => {
-                releaseCapture = this.captureCompactionCompletions(
-                    threadId,
-                    (event) => {
-                        releaseCapture();
-                        resolve(event);
-                    },
-                );
-            },
-        );
-        return await this.waitWhileConnected(
-            "the end of the compaction",
-            completed,
-            () => releaseCapture(),
-        );
+        const completed = new Promise<CompactionCompletedNotification>((resolve) => {
+            releaseCapture = this.captureCompactionCompletions(threadId, (event) => {
+                releaseCapture();
+                resolve(event);
+            });
+        });
+        return await this.waitWhileConnected("the end of the compaction", completed, () => releaseCapture());
     }
 
     /**

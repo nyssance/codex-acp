@@ -5,9 +5,9 @@ import {spawn, type ChildProcessWithoutNullStreams} from "node:child_process";
 import {createRequire} from "node:module";
 import crossSpawn from "cross-spawn";
 
-import { createJSONRPCReader, createJSONRPCWriter } from "./StdUtils";
-import { logger } from "./Logger";
-import { providerConnections } from "./ProviderConnections";
+import {createJSONRPCReader, createJSONRPCWriter} from "./StdUtils";
+import {logger} from "./Logger";
+import {providerConnections} from "./ProviderConnections";
 
 const require = createRequire(import.meta.url);
 
@@ -32,102 +32,67 @@ export interface StartCodexConnectionOptions {
     disposeOnExit?: boolean;
 }
 
-export function startCodexConnection(
-    codexPath?: string,
-    env?: NodeJS.ProcessEnv,
-    appServerStartupArgs: string[] = ["app-server"],
-    options: StartCodexConnectionOptions = {},
-): CodexConnection {
-    const primary = startRawCodexConnection(
-        codexPath,
-        env,
-        appServerStartupArgs,
-        { disposeOnExit: false },
-    );
-    const children = new Map<
-        NativeConnection,
-        (unexpected: boolean) => Promise<void>
-    >();
+export function startCodexConnection(codexPath?: string, env?: NodeJS.ProcessEnv, appServerStartupArgs: string[] = ["app-server"], options: StartCodexConnectionOptions = {}): CodexConnection {
+    const primary = startRawCodexConnection(codexPath, env, appServerStartupArgs, {disposeOnExit: false});
+    const children = new Map<NativeConnection, (unexpected: boolean) => Promise<void>>();
     let closing = false;
     primary.connection.onDispose(() => {
         closing = true;
         for (const child of children.keys()) child.connection.dispose();
     });
-    const connection = providerConnections(
-        primary.connection,
-        (provider, catalog, defined) => {
-            // Only the provider identity is process-wide. Credentials and endpoints stay in thread config.
-            const args = [
-                ...appServerStartupArgs,
-                "-c",
-                `model_provider=${JSON.stringify(provider)}`,
-            ];
-            if (provider !== "openai" && defined)
-                args.push(
-                    "-c",
-                    `model_providers={${JSON.stringify(provider)}={name=${JSON.stringify(provider)},base_url="http://127.0.0.1",wire_api="responses",requires_openai_auth=false}}`,
-                );
-            if (catalog !== undefined)
-                args.push(
-                    "-c",
-                    `model_catalog_json=${JSON.stringify(catalog)}`,
-                );
-            const child = startRawCodexConnection(codexPath, env, args, {
-                disposeOnExit: false,
-            });
-            let intentional = false;
-            let finalizing: Promise<void> | undefined;
-            const finish = (unexpected: boolean): Promise<void> => {
-                finalizing ??= waitForNativeOutput(child).then(() => {
-                    children.delete(child);
-                    child.connection.dispose();
-                    // Deliver the final child frames before the primary exit triggers upstream recovery.
-                    if (unexpected && !closing) primary.process.stdin.end();
-                });
-                if (!unexpected) requestNativeStop(child);
-                return finalizing;
-            };
-            children.set(child, finish);
-            child.connection.onDispose(() => {
-                intentional = true;
+    const connection = providerConnections(primary.connection, (provider, catalog, defined) => {
+        // Only the provider identity is process-wide. Credentials and endpoints stay in thread config.
+        const args = [...appServerStartupArgs, "-c", `model_provider=${JSON.stringify(provider)}`];
+        if (provider !== "openai" && defined) args.push("-c", `model_providers={${JSON.stringify(provider)}={name=${JSON.stringify(provider)},base_url="http://127.0.0.1",wire_api="responses",requires_openai_auth=false}}`);
+        if (catalog !== undefined) args.push("-c", `model_catalog_json=${JSON.stringify(catalog)}`);
+        const child = startRawCodexConnection(codexPath, env, args, {
+            disposeOnExit: false,
+        });
+        let intentional = false;
+        let finalizing: Promise<void> | undefined;
+        const finish = (unexpected: boolean): Promise<void> => {
+            finalizing ??= waitForNativeOutput(child).then(() => {
                 children.delete(child);
-                requestNativeStop(child);
+                child.connection.dispose();
+                // Deliver the final child frames before the primary exit triggers upstream recovery.
+                if (unexpected && !closing) primary.process.stdin.end();
             });
-            child.process.once("error", (error) => {
-                logger.error("Provider app-server failed", error);
-                if (!intentional) void finish(!closing);
-            });
-            child.process.stdout.once("end", () => {
-                if (!intentional) void finish(!closing);
-            });
-            child.process.once("exit", () => {
-                if (!intentional) void finish(!closing);
-            });
-            return child.connection;
-        },
-    );
+            if (!unexpected) requestNativeStop(child);
+            return finalizing;
+        };
+        children.set(child, finish);
+        child.connection.onDispose(() => {
+            intentional = true;
+            children.delete(child);
+            requestNativeStop(child);
+        });
+        child.process.once("error", (error) => {
+            logger.error("Provider app-server failed", error);
+            if (!intentional) void finish(!closing);
+        });
+        child.process.stdout.once("end", () => {
+            if (!intentional) void finish(!closing);
+        });
+        child.process.once("exit", () => {
+            if (!intentional) void finish(!closing);
+        });
+        return child.connection;
+    });
     const drained = primary.drained.then(async () => {
         closing = true;
-        await Promise.all(
-            [...children.values()].map((finish) => finish(false)),
-        );
+        await Promise.all([...children.values()].map((finish) => finish(false)));
     });
     if (options.disposeOnExit ?? true)
         primary.process.once("exit", () => {
             void drained.then(() => connection.dispose());
         });
-    return { ...primary, connection, drained };
+    return {...primary, connection, drained};
 }
 
-type NativeConnection = CodexConnection & { drained: Promise<void> };
+type NativeConnection = CodexConnection & {drained: Promise<void>};
 
 function requestNativeStop(child: NativeConnection): void {
-    if (
-        child.process.exitCode !== null ||
-        child.process.signalCode !== null ||
-        child.process.stdin.writableEnded
-    )
-        return;
+    if (child.process.exitCode !== null || child.process.signalCode !== null || child.process.stdin.writableEnded) return;
     child.process.stdin.end();
     const timer = setTimeout(() => child.process.kill("SIGTERM"), 2_000);
     timer.unref();
@@ -155,12 +120,7 @@ function waitForNativeOutput(child: NativeConnection): Promise<void> {
     });
 }
 
-function startRawCodexConnection(
-    codexPath: string | undefined,
-    env: NodeJS.ProcessEnv | undefined,
-    appServerStartupArgs: string[],
-    options: StartCodexConnectionOptions,
-): NativeConnection {
+function startRawCodexConnection(codexPath: string | undefined, env: NodeJS.ProcessEnv | undefined, appServerStartupArgs: string[], options: StartCodexConnectionOptions): NativeConnection {
     const spawnEnv = env ?? process.env;
     const startupArgs = [
         ...appServerStartupArgs,
@@ -179,7 +139,7 @@ function startRawCodexConnection(
                 ? (crossSpawn(codexPath, startupArgs, {
                       env: spawnEnv,
                   }) as ChildProcessWithoutNullStreams)
-                : spawn(codexPath, startupArgs, { env: spawnEnv });
+                : spawn(codexPath, startupArgs, {env: spawnEnv});
     } else {
         const bundledCodexPath = require.resolve("@openai/codex/bin/codex.js");
         codex = spawn(process.execPath, [bundledCodexPath, ...startupArgs], {
@@ -213,7 +173,7 @@ function startRawCodexConnection(
         });
     }
 
-    return { connection, process: codex, drained };
+    return {connection, process: codex, drained};
 }
 
 /**

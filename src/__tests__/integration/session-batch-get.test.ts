@@ -16,20 +16,10 @@ describeIntegration("integration: session batch metadata", () => {
         const archived = "00000000-0000-4000-8000-000000000002";
         const corrupt = "00000000-0000-4000-8000-000000000003";
         const absent = "00000000-0000-4000-8000-000000000004";
-        function rollout(
-            id: string,
-            title: string,
-            date: string,
-            isArchived = false,
-        ): string {
-            const dir = isArchived
-                ? path.join(home, "archived_sessions")
-                : path.join(home, "sessions", "2026", "01", "01");
-            fs.mkdirSync(dir, { recursive: true });
-            const file = path.join(
-                dir,
-                `rollout-${date.replaceAll(":", "-")}-${id}.jsonl`,
-            );
+        function rollout(id: string, title: string, date: string, isArchived = false): string {
+            const dir = isArchived ? path.join(home, "archived_sessions") : path.join(home, "sessions", "2026", "01", "01");
+            fs.mkdirSync(dir, {recursive: true});
+            const file = path.join(dir, `rollout-${date.replaceAll(":", "-")}-${id}.jsonl`);
             const timestamp = `${date}Z`;
             fs.writeFileSync(
                 file,

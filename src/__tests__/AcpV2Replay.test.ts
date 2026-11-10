@@ -1,12 +1,8 @@
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { describe, expect, it, vi } from "vitest";
-import {
-    ACPSessionConnection,
-    AcpV2Connection,
-    type AcpV2ClientConnection,
-} from "../ACPSessionConnection";
-import { AcpClientDelivery } from "../AcpClientDelivery";
-import { toV2ReplayUpdates } from "../AcpV2Replay";
+import {describe, expect, it, vi} from "vitest";
+import {ACPSessionConnection, AcpV2Connection, type AcpV2ClientConnection} from "../ACPSessionConnection";
+import {AcpClientDelivery} from "../AcpClientDelivery";
+import {toV2ReplayUpdates} from "../AcpV2Replay";
 
 const entities: Array<{name: string; initial: acp.SessionUpdate; next: acp.SessionUpdate}> = [
     {name: "tool", initial: {sessionUpdate: "tool_call_update", toolCallId: "same", title: "Tool", status: "in_progress"},

@@ -193,7 +193,7 @@ describe("ACP session close", () => {
             account: null,
             requiresOpenaiAuth: false,
         });
-        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({ data: [] });
+        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId,
             currentModelId: "model-id[medium]",
@@ -263,7 +263,7 @@ describe("ACP session close", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         await codexAcpAgent.initialize({
             protocolVersion: 1,
-            clientCapabilities: { elicitation: { url: {} } },
+            clientCapabilities: {elicitation: {url: {}}},
         });
         vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
             required: false,
@@ -274,7 +274,7 @@ describe("ACP session close", () => {
             account: null,
             requiresOpenaiAuth: false,
         });
-        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({ data: [] });
+        vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
             sessionId,
             currentModelId: "model-id[medium]",
@@ -564,7 +564,7 @@ async function createSession(options: {
         account: null,
         requiresOpenaiAuth: false,
     });
-    vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({ data: [] });
+    vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
     vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
         sessionId,
         currentModelId: "model-id[medium]",

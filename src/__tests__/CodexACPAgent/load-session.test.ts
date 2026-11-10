@@ -27,15 +27,13 @@ describe("CodexACPAgent - loadSession", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        client.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         client.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
         const thread = {
@@ -47,7 +45,7 @@ describe("CodexACPAgent - loadSession", () => {
                     id: "turn-1",
                     itemsView: "full",
                     status: "completed",
-                    items: cases.map(({ input }, index) => ({
+                    items: cases.map(({input}, index) => ({
                         type: "userMessage",
                         id: `native-${index}`,
                         clientId: null,
@@ -67,13 +65,11 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/workspace",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread });
-        await agent.initialize({ protocolVersion: 1, clientCapabilities: {} });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread});
+        await agent.initialize({protocolVersion: 1, clientCapabilities: {}});
         await agent.loadSession({
             sessionId: thread.id,
             cwd: "/workspace",
@@ -90,7 +86,7 @@ describe("CodexACPAgent - loadSession", () => {
                 content: update.content,
             })),
         ).toEqual(
-            cases.map(({ content }, index) => ({
+            cases.map(({content}, index) => ({
                 messageId: `native-${index}`,
                 content,
             })),
@@ -102,15 +98,13 @@ describe("CodexACPAgent - loadSession", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        client.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         client.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
         const texts = [
@@ -150,7 +144,7 @@ describe("CodexACPAgent - loadSession", () => {
                                       },
                                   ]
                                 : []),
-                            { type: "text", text, text_elements: [] },
+                            {type: "text", text, text_elements: []},
                             ...(index === 3
                                 ? [
                                       {
@@ -175,12 +169,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/workspace",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread});
 
         await agent.initialize({protocolVersion: 1, clientCapabilities: {}});
         await agent.loadSession({sessionId: thread.id, cwd: "/workspace", mcpServers: []});
@@ -205,23 +197,16 @@ describe("CodexACPAgent - loadSession", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        client.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         client.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
-        appServer.listModels = vi
-            .fn()
-            .mockResolvedValue({ data: [model], nextCursor: null });
-        const makeThread = (
-            id: string,
-            items: Thread["turns"][number]["items"],
-        ): Thread => ({
+        appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
+        const makeThread = (id: string, items: Thread["turns"][number]["items"]): Thread => ({
             environments: null,
             extra: null,
             canAcceptDirectInput: null,
@@ -371,19 +356,16 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/workspace",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread: root });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread: root});
         // The adapter reads one turn of a child for each generation.
-        appServer.threadRead = vi.fn().mockImplementation(({ threadId }) => {
-            if (threadId === "orphan-history")
-                return Promise.reject(new Error("missing child history"));
+        appServer.threadRead = vi.fn().mockImplementation(({threadId}) => {
+            if (threadId === "orphan-history") return Promise.reject(new Error("missing child history"));
             return Promise.resolve({
                 readState: null,
-                thread: { ...child, historyMode: "legacy" },
+                thread: {...child, historyMode: "legacy"},
             });
         });
         appServer.threadBackgroundTerminalsList = vi.fn().mockImplementation(({threadId}) => Promise.resolve({
@@ -431,23 +413,16 @@ describe("CodexACPAgent - loadSession", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        client.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         client.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
-        appServer.listModels = vi
-            .fn()
-            .mockResolvedValue({ data: [model], nextCursor: null });
-        const turn = (
-            id: string,
-            items: Thread["turns"][number]["items"],
-        ): Thread["turns"][number] => ({
+        appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
+        const turn = (id: string, items: Thread["turns"][number]["items"]): Thread["turns"][number] => ({
             rootTurnId: null,
             id,
             itemsView: "full",
@@ -492,10 +467,7 @@ describe("CodexACPAgent - loadSession", () => {
             name: null,
             turns,
         });
-        const activity = (
-            id: string,
-            kind: "started" | "interacted" | "completed",
-        ) => ({
+        const activity = (id: string, kind: "started" | "interacted" | "completed") => ({
             model: null,
             reasoningEffort: null,
             type: "subAgentActivity" as const,
@@ -535,15 +507,11 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/workspace",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread: root });
-        appServer.threadRead = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread: child });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread: root});
+        appServer.threadRead = vi.fn().mockResolvedValue({readState: null, thread: child});
 
         await agent.initialize({
             protocolVersion: 1,
@@ -700,7 +668,7 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/workspace",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: root});
@@ -950,12 +918,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        codexAppServerClient.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread });
+        codexAppServerClient.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread});
         const goal: ThreadGoal = {
             threadId: thread.id,
             objective: "Keep the restored migration green",
@@ -989,15 +955,13 @@ describe("CodexACPAgent - loadSession", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        client.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         client.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
         appServer.threadResume = vi.fn().mockResolvedValue({
@@ -1019,7 +983,7 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
@@ -1042,15 +1006,13 @@ describe("CodexACPAgent - loadSession", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        client.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         client.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
         appServer.threadResume = vi.fn().mockResolvedValue({
@@ -1072,7 +1034,7 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
@@ -1191,12 +1153,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        codexAppServerClient.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread });
+        codexAppServerClient.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread});
 
         await codexAcpAgent.initialize({ protocolVersion: 1 });
         await codexAcpAgent.loadSession({
@@ -1293,12 +1253,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        codexAppServerClient.threadReadWithHistory = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread });
+        codexAppServerClient.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread});
 
         await codexAcpAgent.initialize({ protocolVersion: 1 });
 

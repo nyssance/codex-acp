@@ -2,92 +2,64 @@ import {describe, expect, it, vi} from "vitest";
 import {connectSession, createThread, itemStarted, sessionId} from "./v2-prompt-harness";
 
 describe.each([1, 2] as const)("ACP v%s background teardown", (version) => {
-    it.each(["session/close", "session/delete"])(
-        "stops all pages of background processes before %s responds without AIR",
-        async (method) => {
-            // Over v2 the ALwith client declares the session index, whose delete is a `thread/delete`.
-            const h = await connectSession(version, version === 2
-                ? {clientCapabilities: {_meta: {alwith: {capabilities: ["sessionIndex"]}}}}
-                : {});
-            const events: unknown[] = [];
-            let release!: () => void;
-            const stopping = new Promise<void>((resolve) => {
-                release = resolve;
-            });
-            h.setCodexResponse(
-                "thread/backgroundTerminals/list",
-                async (params) => {
-                    events.push({ list: params });
-                    const cursor = (params as { cursor: string | null }).cursor;
-                    return {
-                        data: [
-                            {
-                                itemId: cursor === null ? "one" : "two",
-                                processId: cursor === null ? "1" : "2",
-                                command: "sleep",
-                            },
-                        ],
-                        nextCursor: cursor === null ? "next" : null,
-                    };
-                },
-            );
-            h.setCodexResponse(
-                "thread/backgroundTerminals/terminate",
-                async (params) => {
-                    events.push({ terminate: params });
-                    await stopping;
-                    return { terminated: true };
-                },
-            );
-            h.setCodexResponse("thread/unsubscribe", async () => {
-                events.push("unsubscribe");
-                return { status: "unsubscribed" };
-            });
-            h.setCodexResponse("thread/archive", async () => {
-                events.push("archive");
-                return {};
-            });
-            h.setCodexResponse("thread/delete", async () => {
-                events.push("delete");
-                return {};
-            });
-            const closed = h.request(method, { sessionId }).then((result) => {
-                events.push("response");
-                return result;
-            });
-            try {
-                await vi.waitFor(() => expect(events).toHaveLength(3));
-                expect(events).toEqual([
-                    { list: { threadId: sessionId, cursor: null } },
-                    { list: { threadId: sessionId, cursor: "next" } },
-                    { terminate: { threadId: sessionId, processId: "1" } },
-                ]);
-                release();
-                await expect(closed).resolves.toEqual({});
-                expect(events.slice(3)).toEqual([
-                    { terminate: { threadId: sessionId, processId: "2" } },
-                    "unsubscribe",
-                    ...(method === "session/delete"
-                        ? [version === 2 ? "delete" : "archive"]
-                        : []),
-                    "response",
-                ]);
-                const before = events.length;
-                await expect(
-                    h.request("session/close", { sessionId }),
-                ).resolves.toEqual({});
-                expect(events).toHaveLength(before);
-                await expect(
-                    h.request("session/close", { sessionId: "not-a-codex-id" }),
-                ).resolves.toEqual({});
-                expect(events).toHaveLength(before);
-            } finally {
-                release();
-                await closed.catch(() => {});
-                h.connection.close();
-            }
-        },
-    );
+    it.each(["session/close", "session/delete"])("stops all pages of background processes before %s responds without AIR", async (method) => {
+        // Over v2 the ALwith client declares the session index, whose delete is a `thread/delete`.
+        const h = await connectSession(version, version === 2 ? {clientCapabilities: {_meta: {alwith: {capabilities: ["sessionIndex"]}}}} : {});
+        const events: unknown[] = [];
+        let release!: () => void;
+        const stopping = new Promise<void>(resolve => { release = resolve; });
+        h.setCodexResponse("thread/backgroundTerminals/list", async params => {
+            events.push({list: params});
+            const cursor = (params as {cursor: string | null}).cursor;
+            return {
+                data: [
+                    {
+                        itemId: cursor === null ? "one" : "two",
+                        processId: cursor === null ? "1" : "2",
+                        command: "sleep",
+                    },
+                ],
+                nextCursor: cursor === null ? "next" : null,
+            };
+        });
+        h.setCodexResponse("thread/backgroundTerminals/terminate", async params => {
+            events.push({terminate: params});
+            await stopping;
+            return {terminated: true};
+        });
+        h.setCodexResponse("thread/unsubscribe", async () => {
+            events.push("unsubscribe");
+            return {status: "unsubscribed"};
+        });
+        h.setCodexResponse("thread/archive", async () => {
+            events.push("archive");
+            return {};
+        });
+        h.setCodexResponse("thread/delete", async () => {
+            events.push("delete");
+            return {};
+        });
+        const closed = h.request(method, {sessionId}).then((result) => {
+            events.push("response");
+            return result;
+        });
+        try {
+            await vi.waitFor(() => expect(events).toHaveLength(3));
+            expect(events).toEqual([
+                {list: {threadId: sessionId, cursor: null}},
+                {list: {threadId: sessionId, cursor: "next"}},
+                {terminate: {threadId: sessionId, processId: "1"}},
+            ]);
+            release();
+            await expect(closed).resolves.toEqual({});
+            expect(events.slice(3)).toEqual([{terminate: {threadId: sessionId, processId: "2"}}, "unsubscribe", ...(method === "session/delete" ? [version === 2 ? "delete" : "archive"] : []), "response"]);
+            const before = events.length;
+            await expect(h.request("session/close", {sessionId})).resolves.toEqual({});
+            expect(events).toHaveLength(before);
+            await expect(h.request("session/close", {sessionId: "not-a-codex-id"})).resolves.toEqual({});
+            expect(events).toHaveLength(before);
+        } finally { release(); await closed.catch(() => {}); h.connection.close(); }
+    });
 });
 
 describe("Background cleanup failures", () => {

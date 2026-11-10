@@ -1,37 +1,30 @@
-import type { ReasoningEffort, ServerNotification } from "../app-server";
-import type { StateUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type { Thread, ThreadItem, Turn } from "../app-server/v2";
-import type { ACPSessionConnection } from "../ACPSessionConnection";
-import { AcpV2ForegroundState } from "../AcpV2ForegroundState";
-import { CodexPlanStream } from "../CodexPlanStream";
-import { CodexSessionToolCalls } from "../CodexSessionToolCalls";
-import { CodexItemStreamState } from "../CodexItemStreamState";
-import { ClientCapabilities } from "../tool-calls/ClientCapabilities";
-import { readableServiceErrorMessage } from "../ServiceErrorMessage";
-import { toV2IdleState } from "../AcpV2Prompt";
-import { normalizeSessionTitle } from "../SessionTitle";
-import { CollabAgentReporter } from "../tool-calls/reporters/CollabAgentReporter";
-import { SubagentActivityReporter } from "../tool-calls/reporters/SubagentActivityReporter";
-import type { SubagentState } from "./AcpSubagents";
+import type {ReasoningEffort, ServerNotification} from "../app-server";
+import type {StateUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type {Thread, ThreadItem, Turn} from "../app-server/v2";
+import type {ACPSessionConnection} from "../ACPSessionConnection";
+import {AcpV2ForegroundState} from "../AcpV2ForegroundState";
+import {CodexPlanStream} from "../CodexPlanStream";
+import {CodexSessionToolCalls} from "../CodexSessionToolCalls";
+import {CodexItemStreamState} from "../CodexItemStreamState";
+import {ClientCapabilities} from "../tool-calls/ClientCapabilities";
+import {readableServiceErrorMessage} from "../ServiceErrorMessage";
+import {toV2IdleState} from "../AcpV2Prompt";
+import {normalizeSessionTitle} from "../SessionTitle";
+import {CollabAgentReporter} from "../tool-calls/reporters/CollabAgentReporter";
+import {SubagentActivityReporter} from "../tool-calls/reporters/SubagentActivityReporter";
+import type {SubagentState} from "./AcpSubagents";
 import {
     MODEL_SOURCE_RANK, preferredModel, type ChildModel, type ClosingChildSession, type SubagentModels,
 } from "./CodexSubagentEventRouter";
-import {
-    subagentConfigurationOptions,
-    type ObservedSubagentConfiguration,
-} from "./SubagentConfiguration";
-import {
-    isRootAgentPath,
-    nameFromAgentPath,
-    normalizeAgentPath,
-} from "./CodexAgentPath";
-import { PendingNotificationBuffer } from "./PendingNotificationBuffer";
-import type { SubagentAssociations } from "./SubagentAssociations";
-import { type SubagentAssociation } from "./SubagentAssociations";
-import type { SubagentEventRouter } from "./SubagentEventRouter";
-import { runSubagentInteraction } from "./SubagentInteraction";
-import { logger } from "../Logger";
-import { isAbsoluteProtocolPath } from "../PathUtils";
+import {subagentConfigurationOptions, type ObservedSubagentConfiguration} from "./SubagentConfiguration";
+import {isRootAgentPath, nameFromAgentPath, normalizeAgentPath} from "./CodexAgentPath";
+import {PendingNotificationBuffer} from "./PendingNotificationBuffer";
+import type {SubagentAssociations} from "./SubagentAssociations";
+import {type SubagentAssociation} from "./SubagentAssociations";
+import type {SubagentEventRouter} from "./SubagentEventRouter";
+import {runSubagentInteraction} from "./SubagentInteraction";
+import {logger} from "../Logger";
+import {isAbsoluteProtocolPath} from "../PathUtils";
 
 type Child = SubagentAssociation & {
     path?: string;
@@ -170,14 +163,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                 if (isRootAgentPath(item.agentPath)) return true;
                 const child = this.children.get(item.agentThreadId);
                 if (child) {
-                    await this.announce(
-                        child.threadId,
-                        child.parentSessionId,
-                        undefined,
-                        undefined,
-                        false,
-                        notification.params.turnId,
-                    );
+                    await this.announce(child.threadId, child.parentSessionId, undefined, undefined, false, notification.params.turnId);
                     await this.ensureAnnounced(child);
                     child.path = normalizeAgentPath(item.agentPath);
                     const title = nameFromAgentPath(item.agentPath, child.title ?? "Agent");
@@ -190,11 +176,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                     pending.path = normalizeAgentPath(item.agentPath);
                     pending.parentTurnId ??= notification.params.turnId;
                 }
-                await this.observeConfiguration(
-                    item.agentThreadId,
-                    { model: item.model, effort: item.reasoningEffort },
-                    "activity",
-                );
+                await this.observeConfiguration(item.agentThreadId, {model: item.model, effort: item.reasoningEffort}, "activity");
                 await this.materializePending();
                 return true;
             }
@@ -337,14 +319,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             for (const [threadId, pending] of this.pending) {
                 const parent = this.parentFor(pending);
                 if (parent === undefined) continue;
-                await this.announce(
-                    threadId,
-                    parent,
-                    pending.path,
-                    pending.description,
-                    true,
-                    pending.parentTurnId,
-                );
+                await this.announce(threadId, parent, pending.path, pending.description, true, pending.parentTurnId);
                 this.pending.delete(threadId);
                 this.replayQueue.push(...pending.notifications.take());
                 changed = true;
@@ -376,16 +351,12 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                 _meta: {
                     codex: {
                         threadId: child.threadId,
-                        ...(child.parentTurnId
-                            ? { parentTurnId: child.parentTurnId }
-                            : {}),
+                        ...(child.parentTurnId ? {parentTurnId: child.parentTurnId} : {}),
                     },
                 },
                 capabilities: {},
-                ...(child.title !== undefined ? { title: child.title } : {}),
-                ...(child.description !== undefined
-                    ? { description: child.description }
-                    : {}),
+                ...(child.title !== undefined ? {title: child.title} : {}),
+                ...(child.description !== undefined ? {description: child.description} : {}),
             },
             child.parentSessionId,
         );
@@ -396,26 +367,18 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
         }
     }
 
-    async announce(
-        threadId: string,
-        parentSessionId: string,
-        path?: string,
-        description?: string,
-        live = false,
-        parentTurnId?: string,
-    ): Promise<string> {
+    async announce(threadId: string, parentSessionId: string, path?: string, description?: string, live = false, parentTurnId?: string): Promise<string> {
         const existing = this.children.get(threadId);
         if (existing) {
             existing.live ||= live;
             if (parentTurnId && !existing.parentTurnId) {
                 existing.parentTurnId = parentTurnId;
-                this.associations.get(existing.sessionId)!.parentTurnId =
-                    parentTurnId;
+                this.associations.get(existing.sessionId)!.parentTurnId = parentTurnId;
                 await this.session.update(
                     {
                         sessionUpdate: "subagent_update",
                         sessionId: existing.sessionId,
-                        _meta: { codex: { threadId, parentTurnId } },
+                        _meta: {codex: {threadId, parentTurnId}},
                     },
                     existing.parentSessionId,
                 );
@@ -423,13 +386,8 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             await this.ensureAnnounced(existing);
             return existing.sessionId;
         }
-        const association = this.associations.register(
-            this.rootSessionId,
-            parentSessionId,
-            threadId,
-        );
-        if (parentTurnId !== undefined)
-            association.parentTurnId ??= parentTurnId;
+        const association = this.associations.register(this.rootSessionId, parentSessionId, threadId);
+        if (parentTurnId !== undefined) association.parentTurnId ??= parentTurnId;
         const child: Child = {
             ...association, turnId: null, foregroundTurnId: null,
             ...(path !== undefined ? {path: normalizeAgentPath(path), title: nameFromAgentPath(path, "Agent")} : {}),
@@ -455,38 +413,18 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
         return child.sessionId;
     }
 
-    async announceHistory(
-        threadId: string,
-        path: string,
-        parentTurnId?: string,
-    ): Promise<string | null> {
+    async announceHistory(threadId: string, path: string, parentTurnId?: string): Promise<string | null> {
         if (threadId === this.rootSessionId) return null;
         if (await this.restoreKnown(threadId)) {
             const child = this.children.get(threadId)!;
             child.path ??= normalizeAgentPath(path);
-            return this.announce(
-                threadId,
-                child.parentSessionId,
-                path,
-                undefined,
-                false,
-                parentTurnId,
-            );
+            return this.announce(threadId, child.parentSessionId, path, undefined, false, parentTurnId);
         }
         const parent = this.parentFor({
             path: normalizeAgentPath(path),
             notifications: new PendingNotificationBuffer(threadId),
         });
-        return parent === undefined
-            ? null
-            : this.announce(
-                  threadId,
-                  parent,
-                  path,
-                  undefined,
-                  false,
-                  parentTurnId,
-              );
+        return parent === undefined ? null : this.announce(threadId, parent, path, undefined, false, parentTurnId);
     }
 
     private async observeConfiguration(threadId: string, observed: ObservedSubagentConfiguration, source: ChildModel["source"]): Promise<void> {
@@ -594,11 +532,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             child.cancelAdvertised = false;
             // Historical transcript children have no observed current foreground state.
             if (!child.live) continue;
-            void child.foreground
-                .snapshot()
-                .catch((error) =>
-                    logger.error("Failed to snapshot child work", error),
-                );
+            void child.foreground.snapshot().catch((error) => logger.error("Failed to snapshot child work", error));
         }
     }
 

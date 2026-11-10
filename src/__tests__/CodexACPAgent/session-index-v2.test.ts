@@ -15,13 +15,10 @@ import {
     SESSION_RENAME_METHOD,
     SESSION_UNARCHIVE_METHOD,
 } from "../../SessionIndex";
-import { MAX_SESSION_TITLE_LENGTH } from "../../SessionTitle";
-import { createTestModel } from "../acp-test-utils";
-import { createMockConnections, mockInitializeResponse } from "./test-utils";
-import {
-    checkV2SessionUpdate,
-    expectConformingV2SessionUpdates,
-} from "./v2-session-update-guard";
+import {MAX_SESSION_TITLE_LENGTH} from "../../SessionTitle";
+import {createTestModel} from "../acp-test-utils";
+import {createMockConnections, mockInitializeResponse} from "./test-utils";
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 const sessionId = "thread-1";
 const cwd = "/workspace";
@@ -70,9 +67,9 @@ type CodexOverrides = {threads?: Thread[], threadRead?: Thread};
 function codexResponse(method: string, overrides: CodexOverrides): unknown {
     switch (method) {
         case "project/list":
-            return { data: [], nextCursor: null };
+            return {data: [], nextCursor: null};
         case "project/create":
-            return { project: { id: "test-project" } };
+            return {project: {id: "test-project"}};
         case "initialize":
             return mockInitializeResponse();
         case "thread/start":
@@ -89,7 +86,7 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
                 thread:
                     overrides.threadRead ??
                     createThread({
-                        status: { type: "active", activeFlags: [] },
+                        status: {type: "active", activeFlags: []},
                         name: "Renamed",
                         path: "/codex-home/sessions/rollout.jsonl",
                     }),
@@ -112,13 +109,7 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
 }
 
 /** Methods whose requests the snapshots record; the rest is session-setup noise. */
-const recordedCodexMethods = new Set([
-    "thread/list",
-    "thread/name/set",
-    "thread/archive",
-    "thread/unarchive",
-    "thread/delete",
-]);
+const recordedCodexMethods = new Set(["thread/list", "thread/name/set", "thread/archive", "thread/unarchive", "thread/delete"]);
 
 async function connectV2Client(
     airCapabilities: string[],
@@ -126,26 +117,19 @@ async function connectV2Client(
     clientMeta: Record<string, unknown> = {jetbrains: {air: {version: 1, capabilities: airCapabilities}}},
 ) {
     const mocks = createMockConnections();
-    const codexRequests: Array<{ method: string; params: unknown }> = [];
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string, params?: unknown) => {
-            if (recordedCodexMethods.has(method)) {
-                codexRequests.push({ method, params });
-            }
-            return codexResponse(method, overrides);
-        },
-    );
-    const codexAcpClient = new CodexAcpClient(
-        new CodexAppServerClient(mocks.mockCodexConnection as any),
-    );
+    const codexRequests: Array<{method: string, params: unknown}> = [];
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: unknown) => {
+        if (recordedCodexMethods.has(method)) {
+            codexRequests.push({method, params});
+        }
+        return codexResponse(method, overrides);
+    });
+    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
         required: false,
         account: null,
     });
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
@@ -156,9 +140,7 @@ async function connectV2Client(
         failed: [],
         cancelled: [],
     });
-    const router = createAcpAgentRouter(
-        (connection) => new CodexAcpServer(connection, codexAcpClient),
-    );
+    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
@@ -211,7 +193,7 @@ describe('AIR sessionIndex over ACP v2', () => {
             .rejects.toMatchObject({code: -32601});
     });
 
-    it('serves the index with standard rows to a client that declares ALwith sessionIndex', async () => {
+    it("serves the index with standard rows to a client that declares ALwith sessionIndex", async () => {
         const {connection, initialize, codexRequests} = await connectV2Client([], {}, {alwith: {capabilities: ["sessionIndex"]}});
         closeClient = () => connection.close();
         expect((initialize._meta as Record<string, unknown>)["jetbrains"]).toBeUndefined();
@@ -228,10 +210,10 @@ describe('AIR sessionIndex over ACP v2', () => {
         await connection.agent.request(acpV2.methods.agent.session.unarchive, {sessionId});
         await connection.agent.request(acpV2.methods.agent.session.delete, {sessionId});
 
-        await expect(dump({list, title, codexRequests})).toMatchFileSnapshot('data/session-index-v2-alwith.json');
+        await expect(dump({list, title, codexRequests})).toMatchFileSnapshot("data/session-index-v2-alwith.json");
     });
 
-    it('lists, renames, archives and unarchives sessions', async () => {
+    it("lists, renames, archives and unarchives sessions", async () => {
         const {connection, initialize, codexRequests, updates} = await connectV2Client(["sessionIndex"]);
         closeClient = () => connection.close();
         const session = await connection.agent.request(acpV2.methods.agent.session.new, {cwd});

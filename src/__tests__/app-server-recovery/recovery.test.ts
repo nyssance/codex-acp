@@ -1,22 +1,11 @@
-import { testThreadPermissions } from "../native-thread-permissions";
+import {testThreadPermissions} from "../native-thread-permissions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import { describe, expect, it, vi } from "vitest";
-import {
-    ConnectionError,
-    ConnectionErrors,
-    ResponseError,
-} from "vscode-jsonrpc/node";
-import {
-    createRecoveryFixture,
-    defaultAnswer,
-    initialize,
-    MODEL,
-    type RecoveryFixture,
-    requestsOf,
-} from "./recovery-fixture";
-import type { AppServerRecovery } from "../../app-server-recovery/AppServerRecovery";
-import type { CodexAcpClient } from "../../CodexAcpClient";
-import { stubGatewayModelListing } from "../acp-test-utils";
+import {describe, expect, it, vi} from "vitest";
+import {ConnectionError, ConnectionErrors, ResponseError} from "vscode-jsonrpc/node";
+import {createRecoveryFixture, defaultAnswer, initialize, MODEL, type RecoveryFixture, requestsOf} from "./recovery-fixture";
+import type {AppServerRecovery} from "../../app-server-recovery/AppServerRecovery";
+import type {CodexAcpClient} from "../../CodexAcpClient";
+import {stubGatewayModelListing} from "../acp-test-utils";
 
 const resumed = (id: string) => ({
     ...testThreadPermissions(),
@@ -28,7 +17,7 @@ const resumed = (id: string) => ({
         id,
         turns: [],
         historyMode: "paginated",
-        status: { type: "idle" },
+        status: {type: "idle"},
         preview: "",
         ephemeral: false,
         modelProvider: "openai",
@@ -129,7 +118,7 @@ describe("app-server recovery", () => {
         fixture.answers.set("thread/read", (params) => ({
             readState: null,
             thread: {
-                ...resumed((params as { threadId: string }).threadId).thread,
+                ...resumed((params as {threadId: string}).threadId).thread,
                 preview: "hi",
                 source: "vscode",
                 path: "/codex-home/sessions/t.jsonl",
@@ -137,15 +126,9 @@ describe("app-server recovery", () => {
                 name: `title ${fixture.servers.length}`,
             },
         }));
-        const { subscriptionId } =
-            await fixture.agent.sessionIndex.subscribeList({ cwd: "/work" });
-        const changes = () =>
-            fixture.acp.notify.mock.calls
-                .filter(
-                    (call) =>
-                        (call as unknown[])[0] === "_session/list/changes",
-                )
-                .map((call) => (call as unknown[])[1]);
+        const {subscriptionId} = await fixture.agent.sessionIndex.subscribeList({cwd: "/work"});
+        const changes = () => fixture.acp.notify.mock.calls.filter(call => (call as unknown[])[0] === "_session/list/changes")
+            .map(call => (call as unknown[])[1]);
 
         await fixture.kill();
         await fixture.agent.listSessions({});
@@ -158,7 +141,7 @@ describe("app-server recovery", () => {
         expect(listeners()).toBe(before);
         fixture.current().rpc.notify({
             method: "thread/name/updated",
-            params: { threadId: "thread-a" },
+            params: {threadId: "thread-a"},
         });
 
         await vi.waitFor(() => expect(changes()).toEqual([{
@@ -202,16 +185,10 @@ describe("app-server recovery", () => {
         }));
         fixture.answers.set("thread/read", () => ({
             readState: null,
-            thread: row({ type: loaded ? "idle" : "notLoaded" }),
+            thread: row({type: loaded ? "idle" : "notLoaded"}),
         }));
-        const { subscriptionId } =
-            await fixture.agent.sessionIndex.subscribeList({ cwd: "/work" });
-        expect(
-            (
-                (await fixture.agent.listSessions({ cwd: "/work" }))
-                    .sessions[0]!._meta as any
-            ).jetbrains.air.state,
-        ).toBe("idle");
+        const {subscriptionId} = await fixture.agent.sessionIndex.subscribeList({cwd: "/work"});
+        expect(((await fixture.agent.listSessions({cwd: "/work"})).sessions[0]!._meta as any).jetbrains.air.state).toBe("idle");
 
         await fixture.kill();
         loaded = false;
@@ -242,7 +219,7 @@ describe("app-server recovery", () => {
         fixture.answers.set("thread/read", (params) => ({
             readState: null,
             thread: {
-                ...resumed((params as { threadId: string }).threadId).thread,
+                ...resumed((params as {threadId: string}).threadId).thread,
                 path: "/codex-home/sessions/t.jsonl",
             },
         }));
@@ -443,15 +420,15 @@ describe("app-server recovery", () => {
         const fixture = createRecoveryFixture({env: {CODEX_ACP_APP_SERVER_CRASH_LIMIT: "10"}});
         await openSession(fixture);
         fixture.answers.set("thread/resume", (params, server) => {
-            if ((params as { threadId: string }).threadId !== "huge")
+            if ((params as {threadId: string}).threadId !== "huge")
                 return undefined === params
                     ? {}
                     : {
                           thread: {
-                              id: (params as { threadId: string }).threadId,
+                              id: (params as {threadId: string}).threadId,
                               turns: [],
                               historyMode: "paginated",
-                              status: { type: "idle" },
+                              status: {type: "idle"},
                           },
                           ...testThreadPermissions(),
                           model: "gpt-test",
@@ -572,7 +549,7 @@ describe("app-server recovery", () => {
                 id: sessionId,
                 turns: [],
                 historyMode: "paginated",
-                status: { type: "idle" },
+                status: {type: "idle"},
             },
             ...testThreadPermissions(),
             model: "gpt-test",
@@ -1062,21 +1039,17 @@ describe("app-server recovery", () => {
             async (
                 _method: string,
                 params: {
-                    update?: { sessionUpdate?: string; toolCallId?: string };
+                    update?: {sessionUpdate?: string; toolCallId?: string};
                 },
             ) => {
-                if (
-                    !blocked &&
-                    params?.update?.sessionUpdate === "tool_call" &&
-                    params.update.toolCallId === "cmd-1"
-                ) {
+                if (!blocked && params?.update?.sessionUpdate === "tool_call" && params.update.toolCallId === "cmd-1") {
                     blocked = true;
                     await firstToolCallSent;
                 }
             },
         );
-        const { prompt } = await startTurn(fixture, sessionId);
-        const second = { ...command("inProgress"), id: "cmd-2" };
+        const {prompt} = await startTurn(fixture, sessionId);
+        const second = {...command("inProgress"), id: "cmd-2"};
         fixture.current().rpc.notify({
             method: "item/started",
             params: {
@@ -1161,7 +1134,7 @@ describe("app-server recovery", () => {
     it("answers cancelled when session/cancel comes while the crash cleanup publishes", async () => {
         const fixture = createRecoveryFixture();
         const sessionId = await openSession(fixture);
-        const { prompt } = await startTurn(fixture, sessionId);
+        const {prompt} = await startTurn(fixture, sessionId);
         fixture.current().rpc.notify({
             method: "item/started",
             params: {
@@ -1171,13 +1144,7 @@ describe("app-server recovery", () => {
                 item: command("inProgress"),
             },
         });
-        await vi.waitFor(() =>
-            expect(
-                fixture
-                    .updates()
-                    .some((u) => u.update["sessionUpdate"] === "tool_call"),
-            ).toBe(true),
-        );
+        await vi.waitFor(() => expect(fixture.updates().some((u) => u.update["sessionUpdate"] === "tool_call")).toBe(true));
         let releaseFailedUpdate: () => void = () => {};
         const held = new Promise<void>(resolve => {
             releaseFailedUpdate = resolve;

@@ -29,10 +29,7 @@ export function toV2RequestPermissionRequest(request: acp.RequestPermissionReque
         ...toolCallFields,
         ...(content !== undefined
             ? {
-                  content:
-                      content === null
-                          ? null
-                          : content.map(toV2ToolCallContent),
+                  content: content === null ? null : content.map(toV2ToolCallContent),
               }
             : {}),
     };

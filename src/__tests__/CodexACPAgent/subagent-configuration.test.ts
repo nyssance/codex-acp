@@ -14,19 +14,16 @@ const activity = (model: string | null = null, effort: ReasoningEffort | null = 
 const onWorker = (event: ServerNotification): ServerNotification =>
     ({
         ...event,
-        params: { ...event.params, threadId: worker },
+        params: {...event.params, threadId: worker},
     }) as ServerNotification;
-function settings(
-    model: string,
-    effort: ReasoningEffort | null,
-): ThreadSettings {
+function settings(model: string, effort: ReasoningEffort | null): ThreadSettings {
     return {
         multiAgentMode: "explicitRequestOnly" as const,
         disabledPluginIds: [],
         cwd,
         approvalPolicy: "on-request",
         approvalsReviewer: "user",
-        sandboxPolicy: { type: "readOnly", networkAccess: false },
+        sandboxPolicy: {type: "readOnly", networkAccess: false},
         activePermissionProfile: null,
         model,
         modelProvider: "test",

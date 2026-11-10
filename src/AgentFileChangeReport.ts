@@ -242,10 +242,7 @@ function normalizeFileChangeReport(
     const cwd = canonicalizeWorkspaceRoot(lexicalCwd);
     const diffRoot = parseWorkspaceRoot(workspace.diffRoot);
     if (diffRoot?.flavor !== cwd.flavor) {
-        throw new AgentFileChangeReportError(
-            "providerError",
-            "The captured turn-diff root is invalid",
-        );
+        throw new AgentFileChangeReportError("providerError", "The captured turn-diff root is invalid");
     }
     const roots = [
         cwd,
@@ -353,18 +350,12 @@ function normalizeReportedPath(
         };
     } else if (relativeRoot.flavor === "windows") {
         candidate = {
-            value: path.win32.resolve(
-                relativeRoot.value,
-                value.replaceAll("/", "\\"),
-            ),
+            value: path.win32.resolve(relativeRoot.value, value.replaceAll("/", "\\")),
             flavor: "windows",
         };
     } else {
         candidate = {
-            value: path.posix.resolve(
-                relativeRoot.value,
-                value.replaceAll("\\", "/"),
-            ),
+            value: path.posix.resolve(relativeRoot.value, value.replaceAll("\\", "/")),
             flavor: "posix",
         };
     }
@@ -453,10 +444,7 @@ function pathIsStrictlyInside(root: NormalizedPath, candidate: NormalizedPath): 
 
 function isWindowsAbsolutePath(value: string): boolean {
     const portable = value.replaceAll("\\", "/");
-    return (
-        /^[A-Za-z]:\//.test(portable) ||
-        /^\/\/[^/]+\/[^/]+(?:\/|$)/.test(portable)
-    );
+    return /^[A-Za-z]:\//.test(portable) || /^\/\/[^/]+\/[^/]+(?:\/|$)/.test(portable);
 }
 
 function isValidPathText(value: string): boolean {

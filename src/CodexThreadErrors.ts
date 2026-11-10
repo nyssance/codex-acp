@@ -223,11 +223,5 @@ export function isAccountReadAccountChangedError(err: unknown): boolean {
 /** Resume checks the immutable provider recorded in a thread's rollout. */
 export function isModelProviderRouteError(err: unknown): boolean {
     const text = errorText(err);
-    return (
-        (text.includes("This chat uses model provider") &&
-            text.includes("which is no longer configured")) ||
-        (text.includes("This chat uses ") &&
-            text.includes(", but your current provider is ") &&
-            text.includes("Switch to "))
-    );
+    return (text.includes("This chat uses model provider") && text.includes("which is no longer configured")) || (text.includes("This chat uses ") && text.includes(", but your current provider is ") && text.includes("Switch to "));
 }

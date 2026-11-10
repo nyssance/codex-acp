@@ -131,13 +131,7 @@ export class McpSessionStartup {
         const requestedServers = new Set(getRequestedMcpServerNames(mcpServers)
             .filter(server => !skippedServers.includes(server)));
         const abort = new AbortController();
-        const startup = this.runWithProcessCheck(() =>
-            this.codexAcpClient().awaitMcpServerStartup(
-                [...requestedServers],
-                afterVersion,
-                { threadId: sessionId, signal: abort.signal },
-            ),
-        );
+        const startup = this.runWithProcessCheck(() => this.codexAcpClient().awaitMcpServerStartup([...requestedServers], afterVersion, {threadId: sessionId, signal: abort.signal}));
         // An abort can reject the startup before a caller awaits it.
         void startup.catch(() => {});
         return {requestedServers, skippedServers, startup, abort};
@@ -212,16 +206,8 @@ export class McpSessionStartup {
     }
 }
 
-export function getRequestedMcpServerNames(
-    mcpServers: Array<AcpMcpServer>,
-): Array<string> {
-    return [
-        ...new Set(
-            mcpServers.map((server) =>
-                sanitizeMcpServerName(getMcpServerName(server)),
-            ),
-        ),
-    ];
+export function getRequestedMcpServerNames(mcpServers: Array<AcpMcpServer>): Array<string> {
+    return [...new Set(mcpServers.map((server) => sanitizeMcpServerName(getMcpServerName(server))))];
 }
 
 const MCP_STARTUP_AWAIT_TIMEOUT_META_KEY = "mcpStartupAwaitTimeoutMs";

@@ -117,9 +117,7 @@ describe("CodexACPAgent - list sessions", () => {
     it("sends one thread/list request for an empty page", async () => {
         const fixture = createCodexMockTestFixture();
         const codexAppServerClient = fixture.getCodexAppServerClient();
-        fixture.getCodexAcpClient().readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        fixture.getCodexAcpClient().readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         codexAppServerClient.threadList = vi.fn().mockResolvedValue({
             readStates: null,
             data: [],
@@ -203,7 +201,7 @@ describe("CodexACPAgent - list sessions", () => {
                 sessionId: "sess-win",
                 cwd: "D:\\workspace\\sample-project\\",
                 title: "Windows session",
-                _meta: { codex: { projectId: null } },
+                _meta: {codex: {projectId: null}},
                 updatedAt: "1970-01-01T00:03:20.000Z",
             },
         ]);

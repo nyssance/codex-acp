@@ -128,32 +128,18 @@ describe("compact command lifecycle", () => {
         expect(dispose).toHaveBeenCalledOnce();
     });
 
-    it.skipIf(process.platform === "win32")(
-        "rejects a compact wait when the Codex process exits",
-        async () => {
-            // The real connection path: the process exit disposes the vscode-jsonrpc connection and fires no close event.
-            const dir = mkdtempSync(
-                path.join(tmpdir(), "codex-acp-compact-exit-"),
-            );
-            let codex: ReturnType<typeof startCodexConnection> | undefined;
-            try {
-                const fakeCodex = path.join(dir, "codex");
-                // The fake Codex acknowledges thread/compact/start and then never completes the compaction.
-                writeFileSync(
-                    fakeCodex,
-                    [
-                        "#!/bin/sh",
-                        "read line",
-                        String.raw`id=$(printf '%s' "$line" | sed -E 's/.*"id":([0-9]+).*/\1/')`,
-                        String.raw`printf '{"id":%s,"result":{}}\n' "$id"`,
-                        "exec sleep 30",
-                        "",
-                    ].join("\n"),
-                );
-                chmodSync(fakeCodex, 0o755);
-                codex = startCodexConnection(fakeCodex);
-                const appServer = new CodexAppServerClient(codex.connection);
-                const start = vi.spyOn(appServer, "threadCompactStart");
+    it.skipIf(process.platform === "win32")("rejects a compact wait when the Codex process exits", async () => {
+        // The real connection path: the process exit disposes the vscode-jsonrpc connection and fires no close event.
+        const dir = mkdtempSync(path.join(tmpdir(), "codex-acp-compact-exit-"));
+        let codex: ReturnType<typeof startCodexConnection> | undefined;
+        try {
+            const fakeCodex = path.join(dir, "codex");
+            // The fake Codex acknowledges thread/compact/start and then never completes the compaction.
+            writeFileSync(fakeCodex, ["#!/bin/sh", "read line", String.raw`id=$(printf '%s' "$line" | sed -E 's/.*"id":([0-9]+).*/\1/')`, String.raw`printf '{"id":%s,"result":{}}\n' "$id"`, "exec sleep 30", ""].join("\n"));
+            chmodSync(fakeCodex, 0o755);
+            codex = startCodexConnection(fakeCodex);
+            const appServer = new CodexAppServerClient(codex.connection);
+            const start = vi.spyOn(appServer, "threadCompactStart");
 
             const pending = appServer.runCompact({threadId: sessionId});
             await expect(start.mock.results[0]?.value).resolves.toEqual({});
@@ -169,18 +155,14 @@ describe("compact command lifecycle", () => {
     it("cancels the manual compact turn and finishes the ACP prompt", async () => {
         const fixture = await commandFixture();
         const appServer = fixture.getCodexAppServerClient();
-        const start = vi
-            .spyOn(appServer, "threadCompactStart")
-            .mockResolvedValue({});
-        const interrupt = vi
-            .spyOn(appServer, "turnInterrupt")
-            .mockImplementation(async () => {
-                fixture.sendServerNotification(turnCompleted("interrupted"));
-                return {};
-            });
+        const start = vi.spyOn(appServer, "threadCompactStart").mockResolvedValue({});
+        const interrupt = vi.spyOn(appServer, "turnInterrupt").mockImplementation(async () => {
+            fixture.sendServerNotification(turnCompleted("interrupted"));
+            return {};
+        });
         const prompt = fixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "/compact" }],
+            prompt: [{type: "text", text: "/compact"}],
         });
         await vi.waitFor(() => expect(start).toHaveBeenCalled());
         startCompaction(fixture);
@@ -194,12 +176,10 @@ describe("compact command lifecycle", () => {
 
     it("returns the failed compact turn through ACP failure handling", async () => {
         const fixture = await commandFixture();
-        const start = vi
-            .spyOn(fixture.getCodexAppServerClient(), "threadCompactStart")
-            .mockResolvedValue({});
+        const start = vi.spyOn(fixture.getCodexAppServerClient(), "threadCompactStart").mockResolvedValue({});
         const prompt = fixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "/compact" }],
+            prompt: [{type: "text", text: "/compact"}],
         });
         await vi.waitFor(() => expect(start).toHaveBeenCalled());
         startCompaction(fixture);

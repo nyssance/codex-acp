@@ -1,4 +1,4 @@
-import { testThreadPermissions } from "../native-thread-permissions";
+import {testThreadPermissions} from "../native-thread-permissions";
 import {describe, expect, it, vi} from "vitest";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
@@ -62,15 +62,13 @@ function createFixture() {
     const fixture = createCodexMockTestFixture();
     const client = fixture.getCodexAcpClient();
     const appServer = fixture.getCodexAppServerClient();
-    client.readAuthRequirement = vi
-        .fn()
-        .mockResolvedValue({ required: false, account: null });
+    client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
     client.getAccount = vi.fn().mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+    client.listSkills = vi.fn().mockResolvedValue({data: []});
     appServer.listModels = vi.fn().mockResolvedValue({
         readStates: null,
         data: [createTestModel()],

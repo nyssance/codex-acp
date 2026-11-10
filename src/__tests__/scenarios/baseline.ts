@@ -88,18 +88,11 @@ function sessionUpdate(message: RecordedMessage): Json | undefined {
 /**
  * The client gets no AIR-only key. A `session_info_update` that had only AIR-only keys, such as a goal, is not sent.
  */
-function withoutAirOnlyMessages(
-    messages: RecordedMessage[],
-): RecordedMessage[] {
-    return (withoutAirOnlyKeys(messages) as RecordedMessage[]).filter(
-        (message) => {
-            const update = sessionUpdate(message);
-            return (
-                update?.["sessionUpdate"] !== "session_info_update" ||
-                Object.keys(update).length > 1
-            );
-        },
-    );
+function withoutAirOnlyMessages(messages: RecordedMessage[]): RecordedMessage[] {
+    return (withoutAirOnlyKeys(messages) as RecordedMessage[]).filter(message => {
+        const update = sessionUpdate(message);
+        return update?.["sessionUpdate"] !== "session_info_update" || Object.keys(update).length > 1;
+    });
 }
 
 /** The result of a dynamic tool that the baseline did not send, by scenario and tool call id. */
@@ -166,31 +159,22 @@ export function withFeatureChanges(messages: RecordedMessage[]): RecordedMessage
         }
         const update = sessionUpdate(message);
         // Generated artifacts now carry the same identity in live and replayed events.
-        if (
-            update?.["sessionUpdate"] === "tool_call" &&
-            update["title"] === "Image generation"
-        ) {
+        if (update?.["sessionUpdate"] === "tool_call" && update["title"] === "Image generation") {
             return {
                 ...message,
                 params: {
                     ...(message.params as Json),
-                    update: { ...update, name: "image_generation" },
+                    update: {...update, name: "image_generation"},
                 },
             };
         }
-        if (update?.["sessionUpdate"] !== "available_commands_update")
-            return message;
-        const commands = (update["availableCommands"] as unknown[]).map(
-            (command) =>
-                JSON.stringify(canonical(command)) === baselineMcp
-                    ? MCP_COMMAND
-                    : command,
-        );
+        if (update?.["sessionUpdate"] !== "available_commands_update") return message;
+        const commands = (update["availableCommands"] as unknown[]).map((command) => (JSON.stringify(canonical(command)) === baselineMcp ? MCP_COMMAND : command));
         return {
             ...message,
             params: {
                 ...(message.params as Json),
-                update: { ...update, availableCommands: commands },
+                update: {...update, availableCommands: commands},
             },
         };
     });
@@ -259,13 +243,8 @@ export function withOutputOnce(messages: RecordedMessage[]): RecordedMessage[] {
 }
 
 /** The baseline messages with the allowed differences applied, except the merge of the tool call reports. */
-export function expectedFromBaseline(
-    scenario: string,
-    baseline: RecordedMessage[],
-): RecordedMessage[] {
-    return withFeatureChanges(
-        withBugFixes(scenario, withoutAirOnlyMessages(baseline)),
-    );
+export function expectedFromBaseline(scenario: string, baseline: RecordedMessage[]): RecordedMessage[] {
+    return withFeatureChanges(withBugFixes(scenario, withoutAirOnlyMessages(baseline)));
 }
 
 /**

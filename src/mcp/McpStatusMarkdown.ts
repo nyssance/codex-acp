@@ -159,18 +159,11 @@ const TYPE_PATH = /\S*\w::\w+::\S*/g;
  * When nothing remains, it returns the shortened raw text.
  */
 export function cleanErrorMessage(text: string): string {
-    const oneLine = text
-        .slice(0, MAX_INPUT_LENGTH)
-        .replaceAll(/\s+/g, " ")
-        .trim();
+    const oneLine = text.slice(0, MAX_INPUT_LENGTH).replaceAll(/\s+/g, " ").trim();
     const message = oneLine
         .split(": ")
-        .map((segment) =>
-            segment.replace(TYPE_PATH, "").replaceAll(/\s+/g, " ").trim(),
-        )
-        .filter(
-            (segment) => segment.length > 0 && !WRAPPER_SEGMENT.test(segment),
-        )
+        .map((segment) => segment.replace(TYPE_PATH, "").replaceAll(/\s+/g, " ").trim())
+        .filter((segment) => segment.length > 0 && !WRAPPER_SEGMENT.test(segment))
         .join(": ");
     if (message.length === 0) {
         return shorten(oneLine);
@@ -181,9 +174,7 @@ export function cleanErrorMessage(text: string): string {
 /** Shortens the text by code points, so that the cut never splits a surrogate pair. */
 function shorten(text: string): string {
     const codePoints = [...text];
-    return codePoints.length > MAX_ERROR_LENGTH
-        ? `${codePoints.slice(0, MAX_ERROR_LENGTH).join("").trimEnd()}…`
-        : text;
+    return codePoints.length > MAX_ERROR_LENGTH ? `${codePoints.slice(0, MAX_ERROR_LENGTH).join("").trimEnd()}…` : text;
 }
 
 /** Cleans an error text and escapes the markdown characters, so that it is safe in a list item or a note. */

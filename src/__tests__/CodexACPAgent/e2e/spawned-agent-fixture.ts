@@ -1,4 +1,4 @@
-import { readableToWeb } from "../../../StdUtils";
+import {readableToWeb} from "../../../StdUtils";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {type ChildProcessWithoutNullStreams, spawn} from "node:child_process";
 import fs from "node:fs";
@@ -199,15 +199,9 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         const output = readableToWeb(agentProcess.stdout);
         this.connection = acp
             .client()
-            .onRequest(acp.methods.client.session.requestPermission, (ctx) =>
-                client.requestPermission(ctx.params),
-            )
-            .onNotification(acp.methods.client.session.update, (ctx) =>
-                client.sessionUpdate(ctx.params),
-            )
-            .connect(
-                acp.ndJsonStream(Writable.toWeb(agentProcess.stdin), output),
-            ).agent;
+            .onRequest(acp.methods.client.session.requestPermission, (ctx) => client.requestPermission(ctx.params))
+            .onNotification(acp.methods.client.session.update, (ctx) => client.sessionUpdate(ctx.params))
+            .connect(acp.ndJsonStream(Writable.toWeb(agentProcess.stdin), output)).agent;
     }
 
     get workspaceDir(): string {
@@ -348,10 +342,7 @@ function printLogDirectory(logDirectory: string): void {
 function redactLogSecrets(content: string): string {
     return content
         .replaceAll(/("apiKey"\s*:\s*")[^"]+(")/g, "$1[REDACTED]$2")
-        .replaceAll(
-            /("Authorization"\s*:\s*")Bearer [^"]+(")/gi,
-            "$1Bearer [REDACTED]$2",
-        )
+        .replaceAll(/("Authorization"\s*:\s*")Bearer [^"]+(")/gi, "$1Bearer [REDACTED]$2")
         .replaceAll(/(Incorrect API key provided: )[^.,\s]+/g, "$1[REDACTED]");
 }
 

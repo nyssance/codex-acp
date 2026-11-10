@@ -49,10 +49,7 @@ async function connectV2Client() {
     const mocks = createMockConnections();
     const appServer = new CodexAppServerClient(mocks.mockCodexConnection as any);
     const codexAcpClient = new CodexAcpClient(appServer);
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,

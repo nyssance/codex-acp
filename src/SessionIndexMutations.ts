@@ -134,8 +134,5 @@ export function isArchivedRolloutPath(threadPath: string, codexHome: string | nu
         const relative = path.relative(path.join(codexHome, ARCHIVED_SESSIONS_DIR), threadPath);
         if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) return true;
     }
-    return threadPath
-        .replaceAll("\\", "/")
-        .split("/")
-        .includes(ARCHIVED_SESSIONS_DIR);
+    return threadPath.replaceAll("\\", "/").split("/").includes(ARCHIVED_SESSIONS_DIR);
 }

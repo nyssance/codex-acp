@@ -93,28 +93,17 @@ describe('tool calls and messages over ACP v2', () => {
         });
         await finishTurn(client);
 
-        const chunks = updatesTagged(
-            client,
-            "agent_message_chunk",
-            "agent_thought_chunk",
-        ) as Array<acpV2.SessionUpdate & { messageId: string }>;
-        expect(chunks.map((chunk) => chunk.messageId).slice(0, 4)).toEqual([
-            "item-reasoning",
-            "item-reasoning",
-            "item-agent",
-            "item-agent",
-        ]);
+        const chunks = updatesTagged(client, "agent_message_chunk", "agent_thought_chunk") as Array<acpV2.SessionUpdate & {messageId: string}>;
+        expect(chunks.map((chunk) => chunk.messageId).slice(0, 4)).toEqual(["item-reasoning", "item-reasoning", "item-agent", "item-agent"]);
         expect(chunks).toHaveLength(4);
         const errors = updatesTagged(client, "agent_message");
         expect(errors).toEqual([
             expect.objectContaining({
                 messageId: `codex-error:${turnId}`,
-                content: [{ type: "text", text: "Something went wrong" }],
+                content: [{type: "text", text: "Something went wrong"}],
             }),
         ]);
-        await expect(dump([...chunks, ...errors])).toMatchFileSnapshot(
-            "data/tool-calls-and-messages-v2-message-ids.json",
-        );
+        await expect(dump([...chunks, ...errors])).toMatchFileSnapshot("data/tool-calls-and-messages-v2-message-ids.json");
     });
 
     it('renders Codex file citations split across deltas as Markdown file links', async () => {
@@ -196,14 +185,7 @@ describe('tool calls and messages over ACP v2', () => {
         await vi.waitFor(() => expect(startupUpdates()).toHaveLength(2));
 
         // Each startup report has a unique id suffix.
-        await expect(
-            dump(startupUpdates()).replaceAll(
-                /(mcp_startup\.\w+)\.[0-9a-f-]{36}/g,
-                "$1.<uuid>",
-            ),
-        ).toMatchFileSnapshot(
-            "data/tool-calls-and-messages-v2-mcp-startup.json",
-        );
+        await expect(dump(startupUpdates()).replaceAll(/(mcp_startup\.\w+)\.[0-9a-f-]{36}/g, "$1.<uuid>")).toMatchFileSnapshot("data/tool-calls-and-messages-v2-mcp-startup.json");
     });
 
     it('flags unknown unprefixed session update tags and v1-only shapes', () => {

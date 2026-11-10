@@ -89,8 +89,8 @@ describe('_session/steering over ACP v2', () => {
             {
                 sessionUpdate: "user_message_chunk",
                 messageId: steerClientId.captured(),
-                content: { type: "text", text: "also do this" },
-                _meta: { codex: { turnId: "turn-1" } },
+                content: {type: "text", text: "also do this"},
+                _meta: {codex: {turnId: "turn-1"}},
             },
         ]);
 
@@ -130,8 +130,8 @@ describe('_session/steering over ACP v2', () => {
             {
                 sessionUpdate: "user_message_chunk",
                 messageId: steerClientId.captured(),
-                content: { type: "text", text: "steer the goal turn" },
-                _meta: { codex: { turnId: "turn-2" } },
+                content: {type: "text", text: "steer the goal turn"},
+                _meta: {codex: {turnId: "turn-2"}},
             },
         ]);
     });
@@ -185,8 +185,8 @@ describe('_session/steering over ACP v2', () => {
             {
                 sessionUpdate: "user_message_chunk",
                 messageId: clientUserMessageId,
-                content: { type: "text", text: "start fresh" },
-                _meta: { codex: { turnId: "turn-1" } },
+                content: {type: "text", text: "start fresh"},
+                _meta: {codex: {turnId: "turn-1"}},
             },
         ]);
 
@@ -209,9 +209,7 @@ describe('_session/steering over ACP v2', () => {
         client.emit(turnStarted());
         await steerPromise;
         const steerClientId = captureSteerClientId(client);
-        const { messageId } = await client.sendPrompt([
-            { type: "text", text: "B" },
-        ]);
+        const {messageId} = await client.sendPrompt([{type: "text", text: "B"}]);
         expect(messageId).toBe(steerClientId.captured());
         client.emit(itemCompleted(userMessageItem(messageId, "B")));
         client.emit(turnCompleted());
@@ -219,8 +217,8 @@ describe('_session/steering over ACP v2', () => {
         await settle();
         expect(client.turnStartParams).toHaveLength(1);
         expect(stateUpdates(client.transcript)).toEqual([
-            { state: "running" },
-            { state: "idle", stopReason: "end_turn" },
+            {state: "running"},
+            {state: "idle", stopReason: "end_turn"},
         ]);
     });
 });

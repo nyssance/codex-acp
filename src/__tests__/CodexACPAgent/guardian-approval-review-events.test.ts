@@ -141,12 +141,7 @@ describe("CodexEventHandler - Guardian approval review events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            sessionState,
-            [warning],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, sessionState, [warning]);
 
         const dump = mockFixture.getAcpConnectionDump([]);
         expect(dump).toContain("interrupting the turn");

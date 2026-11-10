@@ -143,12 +143,7 @@ export function collab(
 }
 
 /** The activity item that announces the session of a spawned subagent. */
-export function spawnActivity(
-    id: string,
-    agentThreadId: string,
-    agentPath: string,
-    threadId = SESSION_ID,
-): ScenarioStep {
+export function spawnActivity(id: string, agentThreadId: string, agentPath: string, threadId = SESSION_ID): ScenarioStep {
     return started(
         {
             model: null,

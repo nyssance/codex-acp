@@ -33,19 +33,14 @@ export function normalizePathForComparison(value: string): string {
         return trimTrailingPathSeparators(normalized).toLowerCase();
     }
 
-    const pathForComparison = path.isAbsolute(trimmed)
-        ? trimmed
-        : trimmed.replaceAll("\\", "/");
+    const pathForComparison = path.isAbsolute(trimmed) ? trimmed : trimmed.replaceAll("\\", "/");
     const normalized = path.posix.normalize(pathForComparison);
     return trimTrailingPathSeparators(normalized);
 }
 
 function isWindowsAbsolutePath(value: string): boolean {
     const portableValue = value.replaceAll("\\", "/");
-    return (
-        /^[A-Za-z]:\//.test(portableValue) ||
-        /^\/\/[^/]+\/[^/]+/.test(portableValue)
-    );
+    return /^[A-Za-z]:\//.test(portableValue) || /^\/\/[^/]+\/[^/]+/.test(portableValue);
 }
 
 function shouldComparePathCaseInsensitive(value: string): boolean {

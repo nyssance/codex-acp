@@ -113,7 +113,7 @@ function fixtureWithSession(): CodexMockTestFixture {
         cwd: "/test/project",
         approvalPolicy: "never",
         approvalsReviewer: "user",
-        sandbox: { type: "dangerFullAccess" },
+        sandbox: {type: "dangerFullAccess"},
         reasoningEffort: model.defaultReasoningEffort,
     });
     appServer.threadItemsList = vi.fn().mockResolvedValue({
@@ -365,7 +365,7 @@ describe("CodexACPAgent - an unavailable account read", () => {
             await drainScheduledWork();
             firstRead.resolve({
                 workspaceRouting: null,
-                account: { type: "apiKey" },
+                account: {type: "apiKey"},
                 requiresOpenaiAuth: true,
             } as GetAccountResponse);
             await drainScheduledWork();

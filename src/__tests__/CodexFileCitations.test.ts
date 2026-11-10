@@ -5,20 +5,7 @@ const cwd = "/repo";
 
 describe("renderFileCitations", () => {
     it("renders citations as Markdown file links", () => {
-        expect(
-            renderFileCitations(
-                [
-                    ':codex-file-citation{path="src/app.ts" purpose="source"}',
-                    ":codex-file-citation{path=/abs/a.txt purpose=output}",
-                    String.raw`:codex-file-citation{path="C:\repo\report.xlsx"}`,
-                    ':codex-file-citation{path="docs/my notes (v2).md:12"}',
-                    ':codex-file-citation{path="a[1].md"}',
-                    String.raw`:codex-file-citation{path="C:\repo\_build\a.md"}`,
-                    String.raw`:codex-file-citation{path="C:\My Docs\(1)\a.md"}`,
-                ].join("\n"),
-                cwd,
-            ),
-        ).toBe(
+        expect(renderFileCitations([':codex-file-citation{path="src/app.ts" purpose="source"}', ":codex-file-citation{path=/abs/a.txt purpose=output}", String.raw`:codex-file-citation{path="C:\repo\report.xlsx"}`, ':codex-file-citation{path="docs/my notes (v2).md:12"}', ':codex-file-citation{path="a[1].md"}', String.raw`:codex-file-citation{path="C:\repo\_build\a.md"}`, String.raw`:codex-file-citation{path="C:\My Docs\(1)\a.md"}`].join("\n"), cwd)).toBe(
             [
                 "[src/app.ts](/repo/src/app.ts)",
                 "[/abs/a.txt](/abs/a.txt)",
@@ -51,26 +38,7 @@ describe("renderFileCitations", () => {
     });
 
     it("parses the directive the way Codex does", () => {
-        expect(
-            renderFileCitations(
-                [
-                    ":codex-file-citation{path='a.txt'}",
-                    ':codex-file-citation{ path = "b.txt" }',
-                    '::codex-file-citation{path="c.txt"}',
-                    ':codex-file-citation{purpose="source"path="d.txt"}',
-                    String.raw`:codex-file-citation{path="e\"f.txt"}`,
-                ].join("\n"),
-                cwd,
-            ),
-        ).toBe(
-            [
-                "[a.txt](/repo/a.txt)",
-                "[b.txt](/repo/b.txt)",
-                "[c.txt](/repo/c.txt)",
-                "[d.txt](/repo/d.txt)",
-                '[e"f.txt](/repo/e"f.txt)',
-            ].join("\n"),
-        );
+        expect(renderFileCitations([":codex-file-citation{path='a.txt'}", ':codex-file-citation{ path = "b.txt" }', '::codex-file-citation{path="c.txt"}', ':codex-file-citation{purpose="source"path="d.txt"}', String.raw`:codex-file-citation{path="e\"f.txt"}`].join("\n"), cwd)).toBe(["[a.txt](/repo/a.txt)", "[b.txt](/repo/b.txt)", "[c.txt](/repo/c.txt)", "[d.txt](/repo/d.txt)", '[e"f.txt](/repo/e"f.txt)'].join("\n"));
     });
 
     it("parses in linear time", () => {

@@ -41,7 +41,7 @@ function loadFixture(): CodexMockTestFixture {
         cwd: "/test/project",
         approvalPolicy: "never",
         approvalsReviewer: "user",
-        sandbox: { type: "dangerFullAccess" },
+        sandbox: {type: "dangerFullAccess"},
         reasoningEffort: model.defaultReasoningEffort,
     });
     appServer.threadItemsList = vi.fn().mockResolvedValue({
@@ -76,9 +76,7 @@ describe("CodexACPAgent - loadSession auth", () => {
             cwd: "/test/project",
             mcpServers: [],
         });
-        await vi.waitFor(() =>
-            expect(appServer.threadResume).toHaveBeenCalledTimes(1),
-        );
+        await vi.waitFor(() => expect(appServer.threadResume).toHaveBeenCalledTimes(1));
         answer(SIGNED_IN);
         await load;
 
@@ -95,9 +93,7 @@ describe("CodexACPAgent - loadSession auth", () => {
             account: null,
             requiresOpenaiAuth: true,
         });
-        const closeSpy = vi
-            .spyOn(client, "closeSession")
-            .mockResolvedValue(undefined as never);
+        const closeSpy = vi.spyOn(client, "closeSession").mockResolvedValue(undefined as never);
         await initialize(fixture);
 
         await expect(
@@ -106,7 +102,7 @@ describe("CodexACPAgent - loadSession auth", () => {
                 cwd: "/test/project",
                 mcpServers: [],
             }),
-        ).rejects.toMatchObject({ code: -32000 });
+        ).rejects.toMatchObject({code: -32000});
 
         expect(closeSpy).toHaveBeenCalledWith(SESSION_ID);
         expect(appServer.threadItemsList).not.toHaveBeenCalled();
@@ -121,11 +117,7 @@ describe("CodexACPAgent - loadSession auth", () => {
             account: null,
             requiresOpenaiAuth: true,
         });
-        appServer.threadResume = vi
-            .fn()
-            .mockRejectedValue(
-                new Error("no rollout found for thread id session-1"),
-            );
+        appServer.threadResume = vi.fn().mockRejectedValue(new Error("no rollout found for thread id session-1"));
         await initialize(fixture);
 
         await expect(
@@ -134,6 +126,6 @@ describe("CodexACPAgent - loadSession auth", () => {
                 cwd: "/test/project",
                 mcpServers: [],
             }),
-        ).rejects.toMatchObject({ code: -32000 });
+        ).rejects.toMatchObject({code: -32000});
     });
 });

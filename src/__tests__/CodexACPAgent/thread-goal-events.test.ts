@@ -116,16 +116,11 @@ describe("CodexEventHandler - thread goal events", () => {
             },
         };
 
-        await setupPromptAndSendNotifications(
-            mockFixture,
-            sessionId,
-            createSessionState(),
-            [
-                goalUpdatedNotification,
-                goalUpdatedNotification,
-                duplicateGoalUpdatedNotification,
-            ],
-        );
+        await setupPromptAndSendNotifications(mockFixture, sessionId, createSessionState(), [
+            goalUpdatedNotification,
+            goalUpdatedNotification,
+            duplicateGoalUpdatedNotification,
+        ]);
 
         const events = mockFixture.getAcpConnectionEvents([]);
         expect(events).toHaveLength(2);

@@ -52,18 +52,13 @@ describe("New session logout handling", () => {
 
         const errorMessage = 'Internal error: "failed to reload config: filesystem path `/tmp` must be absolute, use `~/...`, or start with `:`"';
         // The app-server answer goes through the error explanations of the client.
-        const { connection } = codexAppServerClient as unknown as {
+        const {connection} = codexAppServerClient as unknown as {
             connection: MessageConnection;
         };
-        vi.spyOn(connection, "sendRequest").mockImplementation((async (
-            method: string,
-        ) => {
-            if (method === "project/list")
-                return { data: [], nextCursor: null };
-            if (method === "project/create")
-                return { project: { id: "test-project" } };
-            if (method === "thread/start")
-                throw new ResponseError(-32603, errorMessage);
+        vi.spyOn(connection, "sendRequest").mockImplementation((async (method: string) => {
+            if (method === "project/list") return {data: [], nextCursor: null};
+            if (method === "project/create") return {project: {id: "test-project"}};
+            if (method === "thread/start") throw new ResponseError(-32603, errorMessage);
             return undefined;
         }) as never);
 
@@ -84,7 +79,7 @@ describe("New session logout handling", () => {
         const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount")
             .mockResolvedValueOnce({
                 workspaceRouting: null,
-                account: { type: "apiKey" },
+                account: {type: "apiKey"},
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({

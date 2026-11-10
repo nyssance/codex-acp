@@ -28,11 +28,9 @@ export class AcpToolCallRenderer {
             ...(facts.input === undefined ? {} : {rawInput: facts.input}),
             ...(facts.opaqueResult === undefined ? {} : {rawOutput: facts.opaqueResult}),
         };
-        const meta = this.capabilities.airToolCallContract
-            ? this.airMeta(facts)
-            : this.standardMeta(facts);
+        const meta = this.capabilities.airToolCallContract ? this.airMeta(facts) : this.standardMeta(facts);
         if (facts.commandSource !== undefined) {
-            meta["codex"] = { commandSource: facts.commandSource };
+            meta["codex"] = {commandSource: facts.commandSource};
         }
         if (!this.capabilities.airToolCallContract) {
             applyStandardFields(rendered, facts.standard);
@@ -144,13 +142,8 @@ export class AcpToolCallRenderer {
      * The end of a command for a client that is not AIR.
      * V2 terminals reconcile the full output snapshot on exit; v1 chunk channels only receive unstreamed output.
      */
-    private commandEndMeta(
-        terminalId: string,
-        end: CommandEnd,
-    ): Record<string, unknown> {
-        const sendOutput =
-            (end.terminal && this.capabilities.terminalOutputSnapshot) ||
-            (end.output.length > 0 && !end.streamed);
+    private commandEndMeta(terminalId: string, end: CommandEnd): Record<string, unknown> {
+        const sendOutput = (end.terminal && this.capabilities.terminalOutputSnapshot) || (end.output.length > 0 && !end.streamed);
         return {
             ...(sendOutput ? this.outputChunk(terminalId, end.output, end.terminal) : {}),
             ...(end.terminal ? terminalExit(terminalId, end.exitCode) : {}),

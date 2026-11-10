@@ -116,10 +116,7 @@ export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate
                 sessionUpdate: "tool_call_update",
                 ...(content !== undefined
                     ? {
-                          content:
-                              content === null
-                                  ? null
-                                  : content.map(toV2ToolCallContent),
+                          content: content === null ? null : content.map(toV2ToolCallContent),
                       }
                     : {}),
             };

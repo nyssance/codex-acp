@@ -43,13 +43,8 @@ async function connectV2Client() {
     let agentConnection: unknown = null;
     const router = createAcpAgentRouter((connection) => {
         agentConnection = connection;
-        const codexAcpClient = new CodexAcpClient(
-            new CodexAppServerClient(mocks.mockCodexConnection as any),
-        );
-        vi.spyOn(
-            codexAcpClient,
-            "getAgentConfiguredModelProvider",
-        ).mockResolvedValue("openai");
+        const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
+        vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,

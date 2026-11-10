@@ -1,20 +1,20 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { testThreadPermissions } from "../native-thread-permissions";
-import {expect, vi} from 'vitest';
-import * as acp from '@agentclientprotocol/sdk/unstable';
-import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import {createAcpAgentRouter} from '../../AcpAgentRouter';
-import {CodexAcpServer} from '../../CodexAcpServer';
-import {CodexAcpClient} from '../../CodexAcpClient';
-import {CodexAppServerClient} from '../../CodexAppServerClient';
-import type {ServerNotification} from '../../app-server';
-import type {Thread, ThreadItem, Turn, TurnStatus} from '../../app-server/v2';
-import type {McpStartupResult} from '../../mcp/McpStartupTracker';
-import {createTestModel} from '../acp-test-utils';
-import {createMockConnections} from './test-utils';
-import {checkV2SessionUpdate} from './v2-session-update-guard';
+import {mkdtempSync, rmSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {testThreadPermissions} from "../native-thread-permissions";
+import {expect, vi} from "vitest";
+import * as acp from "@agentclientprotocol/sdk/unstable";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {createAcpAgentRouter} from "../../AcpAgentRouter";
+import {CodexAcpServer} from "../../CodexAcpServer";
+import {CodexAcpClient} from "../../CodexAcpClient";
+import {CodexAppServerClient} from "../../CodexAppServerClient";
+import type {ServerNotification} from "../../app-server";
+import type {Thread, ThreadItem, Turn, TurnStatus} from "../../app-server/v2";
+import type {McpStartupResult} from "../../mcp/McpStartupTracker";
+import {createTestModel} from "../acp-test-utils";
+import {createMockConnections} from "./test-utils";
+import {checkV2SessionUpdate} from "./v2-session-update-guard";
 
 export const sessionId = "thread-1";
 export const turnId = "turn-1";
@@ -76,9 +76,9 @@ export function createTurn(status: TurnStatus, id = turnId): Turn {
 export function codexResponse(method: string): unknown {
     switch (method) {
         case "project/list":
-            return { data: [], nextCursor: null };
+            return {data: [], nextCursor: null};
         case "project/create":
-            return { project: { id: "test-project" } };
+            return {project: {id: "test-project"}};
         case "thread/start":
         case "thread/resume":
             return {
@@ -160,10 +160,7 @@ export async function connectSession(
     options: {
         mcpServers?: acpV2.McpServer[];
         newSessionMeta?: Record<string, unknown>;
-        onToolCall?: (
-            params: unknown,
-            signal: AbortSignal,
-        ) => unknown | Promise<unknown>;
+        onToolCall?: (params: unknown, signal: AbortSignal) => unknown | Promise<unknown>;
         mcpStartup?: McpStartupResult;
         /** Sent on `initialize` (v2 only). */
         clientCapabilities?: acpV2.ClientCapabilities;
@@ -171,19 +168,9 @@ export async function connectSession(
         /** The Codex process exit code the agent sees (`null` = still running). */
         exitCode?: () => number | null;
         /** Answers `session/request_permission` (v2 only). Required by tests that trigger one. */
-        onRequestPermission?: (
-            request: acpV2.RequestPermissionRequest,
-            signal: AbortSignal,
-        ) =>
-            | acpV2.RequestPermissionResponse
-            | Promise<acpV2.RequestPermissionResponse>;
+        onRequestPermission?: (request: acpV2.RequestPermissionRequest, signal: AbortSignal) => acpV2.RequestPermissionResponse | Promise<acpV2.RequestPermissionResponse>;
         /** Answers `elicitation/create` (v2 only). Required by tests that trigger one. */
-        onElicitation?: (
-            request: acpV2.CreateElicitationRequest,
-            signal: AbortSignal,
-        ) =>
-            | acpV2.CreateElicitationResponse
-            | Promise<acpV2.CreateElicitationResponse>;
+        onElicitation?: (request: acpV2.CreateElicitationRequest, signal: AbortSignal) => acpV2.CreateElicitationResponse | Promise<acpV2.CreateElicitationResponse>;
         /**
          * Overrides canned Codex responses from the start, unlike `setCodexResponse` (only available
          * once `connectSession` has returned). Needed for responses a fire-and-forget background task
@@ -207,56 +194,45 @@ export async function connectSession(
     let turnStart: (params: Record<string, unknown>) => Promise<unknown> = async () => ({
         turn: createTurn("inProgress", `turn-${turnStartParams.length}`),
     });
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string, params?: any) => {
-            if (method === "initialize") return { codexHome };
-            // The session title is generated on a separate ephemeral thread; keep it out of the way.
-            if (method === "thread/start" && params?.ephemeral) {
-                return {
-                    readState: null,
-                    thread: {
-                        ...createThread(),
-                        id: titleThreadId,
-                        ephemeral: true,
-                    },
-                };
-            }
-            if (method === "turn/start" && params?.threadId === titleThreadId) {
-                return { turn: createTurn("inProgress", "title-turn") };
-            }
-            if (method !== "turn/start") {
-                const override = codexResponseOverrides.get(method);
-                return override
-                    ? await override(params)
-                    : codexResponse(method);
-            }
-            turnStartParams.push(params as Record<string, unknown>);
-            transcript.push({ codexRequest: method, params });
-            const response = await turnStart(params as Record<string, unknown>);
-            transcript.push({ codexResponse: method });
-            return response;
-        },
-    );
-    const appServer = new CodexAppServerClient(
-        mocks.mockCodexConnection as any,
-    );
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: any) => {
+        if (method === "initialize") return {codexHome};
+        // The session title is generated on a separate ephemeral thread; keep it out of the way.
+        if (method === "thread/start" && params?.ephemeral) {
+            return {
+                readState: null,
+                thread: {
+                    ...createThread(),
+                    id: titleThreadId,
+                    ephemeral: true,
+                },
+            };
+        }
+        if (method === "turn/start" && params?.threadId === titleThreadId) {
+            return {turn: createTurn("inProgress", "title-turn")};
+        }
+        if (method !== "turn/start") {
+            const override = codexResponseOverrides.get(method);
+            return override ? await override(params) : codexResponse(method);
+        }
+        turnStartParams.push(params as Record<string, unknown>);
+        transcript.push({codexRequest: method, params});
+        const response = await turnStart(params as Record<string, unknown>);
+        transcript.push({codexResponse: method});
+        return response;
+    });
+    const appServer = new CodexAppServerClient(mocks.mockCodexConnection as any);
     const codexAcpClient = new CodexAcpClient(appServer);
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
         required: false,
         account: null,
     });
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue(
-        options.mcpStartup ?? { ready: [], failed: [], cancelled: [] },
-    );
+    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue(options.mcpStartup ?? {ready: [], failed: [], cancelled: []});
     let agent: CodexAcpServer | null = null;
     const router = createAcpAgentRouter((connection) => {
         agent = new CodexAcpServer(connection, codexAcpClient, undefined, options.exitCode);
@@ -324,21 +300,13 @@ export async function connectSession(
                 }
                 return await options.onElicitation(ctx.params, ctx.signal);
             })
-            .onRequest(
-                "_alwith/tool/call",
-                { parse: (value: unknown) => value },
-                async (ctx) => {
-                    if (!options.onToolCall)
-                        throw new Error("Unexpected client tool request");
-                    return options.onToolCall(ctx.params, ctx.signal);
-                },
-            )
-            .onNotification(
-                acpV2.methods.client.elicitation.complete,
-                (ctx) => {
-                    transcript.push({ elicitationComplete: ctx.params });
-                },
-            )
+            .onRequest("_alwith/tool/call", {parse: (value: unknown) => value}, async (ctx) => {
+                if (!options.onToolCall) throw new Error("Unexpected client tool request");
+                return options.onToolCall(ctx.params, ctx.signal);
+            })
+            .onNotification(acpV2.methods.client.elicitation.complete, (ctx) => {
+                transcript.push({elicitationComplete: ctx.params});
+            })
             .connect(clientStream);
         await v2Connection.agent.request(acpV2.methods.agent.initialize, {
             protocolVersion: 2,
@@ -424,7 +392,7 @@ export async function connectSession(
                 connection.close();
                 disconnected.abort();
                 codexAcpClient.closeTransports();
-                rmSync(codexHome, { recursive: true, force: true });
+                rmSync(codexHome, {recursive: true, force: true});
             },
         },
         wireMessages,
@@ -494,10 +462,7 @@ export function createReplacementCodexAcpClient(): {
         required: false,
         account: null,
     });
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,

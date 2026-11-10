@@ -81,8 +81,7 @@ export class SessionForkOrigins {
             return;
         }
         const pending = this.pending.get(thread.id);
-        if (pending?.updatedAt === thread.updatedAt)
-            this.pending.delete(thread.id);
+        if (pending?.updatedAt === thread.updatedAt) this.pending.delete(thread.id);
         this.keepNoParent(thread);
     }
 

@@ -85,11 +85,7 @@ export class McpStartupTracker {
         options: McpServerStartupWaitOptions,
     ): Promise<McpStartupResult> {
         const uniqueServerNames = [
-            ...new Set(
-                serverNames
-                    .map((name) => name.trim())
-                    .filter((name) => name.length > 0),
-            ),
+            ...new Set(serverNames.map((name) => name.trim()).filter((name) => name.length > 0)),
         ];
         if (uniqueServerNames.length === 0) {
             return {ready: [], failed: [], cancelled: []};

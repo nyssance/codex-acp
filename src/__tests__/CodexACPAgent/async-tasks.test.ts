@@ -370,10 +370,8 @@ describe("Codex background terminal tasks", () => {
 
     it("routes the AIR stop request to the session task runtime", async () => {
         const fixture = createCodexMockTestFixture();
-        const sessionState = createTestSessionState({ sessionId: "thread-1" });
-        const stop = vi
-            .spyOn(sessionState.asyncTasks, "stop")
-            .mockResolvedValue(true);
+        const sessionState = createTestSessionState({sessionId: "thread-1"});
+        const stop = vi.spyOn(sessionState.asyncTasks, "stop").mockResolvedValue(true);
         fixture
             .getCodexAcpAgent()
             // @ts-expect-error - register the local session for the extension request path
@@ -490,130 +488,87 @@ describe("Codex background terminal tasks", () => {
         ["turn completion", () => turnCompleted("child-1")],
         ["activity interruption", childInterrupted],
         ["collaboration completion", childCompletedByCollaboration],
-    ])(
-        "publishes a child terminal before %s closes its session",
-        async (_name, terminalNotification) => {
-            const fixture = createCodexMockTestFixture();
-            await fixture.getCodexAcpAgent().initialize({
-                protocolVersion: 1,
-                clientCapabilities: {
-                    _meta: {
-                        jetbrains: {
-                            air: {
-                                version: 1,
-                                capabilities: [
-                                    "asyncTasks",
-                                    "nativeSubagentSessions",
-                                ],
-                            },
+    ])("publishes a child terminal before %s closes its session", async (_name, terminalNotification) => {
+        const fixture = createCodexMockTestFixture();
+        await fixture.getCodexAcpAgent().initialize({
+            protocolVersion: 1,
+            clientCapabilities: {
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            version: 1,
+                            capabilities: ["asyncTasks", "nativeSubagentSessions"],
                         },
                     },
                 },
-            });
-            const sessionState = createTestSessionState({
-                sessionId: "thread-1",
-            });
-            const session = new ACPSessionConnection(
-                fixture.getAcpConnection(),
-                sessionState.sessionId,
-            );
-            sessionState.subagents = new CodexSubagentEventRouter(
-                sessionState.sessionId,
-                true,
-                session,
-                () => {},
-                () => ({ currentModel: null, availableModels: [] }),
-            );
-            sessionState.asyncTasks = new CodexBackgroundTerminalTasks(
-                true,
-                sessionState.sessionId,
-                fixture.getCodexAppServerClient(),
-                session,
-            );
-            fixture
-                .getCodexAcpAgent()
-                // @ts-expect-error - register the local session for session-generation checks
-                .sessions.set(sessionState.sessionId, sessionState);
-            let childListCount = 0;
-            vi.spyOn(
-                fixture.getCodexAppServerClient(),
-                "threadBackgroundTerminalsList",
-            ).mockImplementation(async (params) =>
-                page(
-                    params.threadId === "child-1" && childListCount++ === 0
-                        ? [terminal()]
-                        : [],
-                ),
-            );
+            },
+        });
+        const sessionState = createTestSessionState({
+            sessionId: "thread-1",
+        });
+        const session = new ACPSessionConnection(fixture.getAcpConnection(), sessionState.sessionId);
+        sessionState.subagents = new CodexSubagentEventRouter(sessionState.sessionId, true, session, () => {}, () => ({currentModel: null, availableModels: []}));
+        sessionState.asyncTasks = new CodexBackgroundTerminalTasks(
+            true,
+            sessionState.sessionId,
+            fixture.getCodexAppServerClient(),
+            session,
+        );
+        fixture
+            .getCodexAcpAgent()
+            // @ts-expect-error - register the local session for session-generation checks
+            .sessions.set(sessionState.sessionId, sessionState);
+        let childListCount = 0;
+        vi.spyOn(fixture.getCodexAppServerClient(), "threadBackgroundTerminalsList")
+            .mockImplementation(async params => page(
+                params.threadId === "child-1" && childListCount++ === 0 ? [terminal()] : [],
+            ));
 
-            await setupPromptAndSendNotifications(
-                fixture,
-                sessionState.sessionId,
-                sessionState,
-                [
-                    childSpawned(),
-                    childMaterialized(),
-                    started(command(), "child-1"),
-                    terminalNotification(),
-                ],
-            );
+        await setupPromptAndSendNotifications(fixture, sessionState.sessionId, sessionState, [
+            childSpawned(),
+            childMaterialized(),
+            started(command(), "child-1"),
+            terminalNotification(),
+        ]);
 
-            await vi.waitFor(() => {
-                const spawned = fixture
-                    .getAcpConnectionEvents([])
-                    .filter((event) => event.method === "sessionUpdate")
-                    .map((event) => event.args[0])
-                    .find(
-                        (event) =>
-                            event.update.sessionUpdate === "async_task_spawned",
-                    );
-                expect(spawned).toMatchObject({
-                    sessionId: "child-1",
-                    update: {
-                        asyncTaskId: "child-1:command-1",
-                        toolCallId: "command-1",
-                    },
-                });
-                const childTerminalIndex = fixture
-                    .getAcpConnectionEvents([])
-                    .filter((event) => event.method === "sessionUpdate")
-                    .map((event) => event.args[0])
-                    .findIndex(
-                        (event) =>
-                            event.update.sessionUpdate ===
-                                "subagent_state_update" &&
-                            event.update.subagentSessionId === "child-1",
-                    );
-                const taskSpawnIndex = fixture
-                    .getAcpConnectionEvents([])
-                    .filter((event) => event.method === "sessionUpdate")
-                    .map((event) => event.args[0])
-                    .findIndex(
-                        (event) =>
-                            event.update.sessionUpdate === "async_task_spawned",
-                    );
-                expect(taskSpawnIndex).toBeGreaterThanOrEqual(0);
-                expect(childTerminalIndex).toBeGreaterThan(taskSpawnIndex);
-            });
-
-            const terminate = vi
-                .spyOn(
-                    fixture.getCodexAppServerClient(),
-                    "threadBackgroundTerminalsTerminate",
-                )
-                .mockResolvedValue({ terminated: true });
-            await expect(
-                fixture.getCodexAcpAgent().extMethod(ASYNC_TASK_STOP_METHOD, {
-                    sessionId: sessionState.sessionId,
+        await vi.waitFor(() => {
+            const spawned = fixture.getAcpConnectionEvents([])
+                .filter(event => event.method === "sessionUpdate")
+                .map(event => event.args[0])
+                .find(event => event.update.sessionUpdate === "async_task_spawned");
+            expect(spawned).toMatchObject({
+                sessionId: "child-1",
+                update: {
                     asyncTaskId: "child-1:command-1",
-                }),
-            ).resolves.toEqual({ stopped: true });
-            expect(terminate).toHaveBeenCalledWith({
-                threadId: "child-1",
-                processId: "42",
+                    toolCallId: "command-1",
+                },
             });
-        },
-    );
+            const childTerminalIndex = fixture.getAcpConnectionEvents([])
+                .filter(event => event.method === "sessionUpdate")
+                .map(event => event.args[0])
+                .findIndex(event => event.update.sessionUpdate === "subagent_state_update"
+                    && event.update.subagentSessionId === "child-1");
+            const taskSpawnIndex = fixture.getAcpConnectionEvents([])
+                .filter(event => event.method === "sessionUpdate")
+                .map(event => event.args[0])
+                .findIndex(event => event.update.sessionUpdate === "async_task_spawned");
+            expect(taskSpawnIndex).toBeGreaterThanOrEqual(0);
+            expect(childTerminalIndex).toBeGreaterThan(taskSpawnIndex);
+        });
+
+        const terminate = vi.spyOn(fixture.getCodexAppServerClient(), "threadBackgroundTerminalsTerminate")
+            .mockResolvedValue({terminated: true});
+        await expect(
+            fixture.getCodexAcpAgent().extMethod(ASYNC_TASK_STOP_METHOD, {
+                sessionId: sessionState.sessionId,
+                asyncTaskId: "child-1:command-1",
+            }),
+        ).resolves.toEqual({stopped: true});
+        expect(terminate).toHaveBeenCalledWith({
+            threadId: "child-1",
+            processId: "42",
+        });
+    });
 
     it("routes a child task stop to its owning Codex thread", async () => {
         const fixture = createFixture();

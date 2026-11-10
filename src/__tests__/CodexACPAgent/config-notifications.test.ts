@@ -41,66 +41,35 @@ function assertBeforeResponse(h: PromptSession, start: number, expected?: unknow
 
 describe.each([1, 2] as const)("ACP v%s config notifications", version => {
     it.each([
-        { configId: "mode", value: "read-only" },
-        { configId: "collaboration_mode", value: "plan" },
-        { configId: "model", value: "slow-model" },
-        { configId: "reasoning_effort", value: "high" },
-        { configId: "fast-mode", value: "on" },
-    ])(
-        "publishes complete $configId state before its response, but not for a no-op",
-        async ({ configId, value }) => {
-            const h = await connect(version);
-            try {
-                const params = {
-                    sessionId,
-                    configId,
-                    ...(version === 2
-                        ? { type: configId === "fast-mode" ? "boolean" : "id" }
-                        : {}),
-                    value:
-                        version === 2 && configId === "fast-mode"
-                            ? true
-                            : value,
-                };
-                const start = h.wireMessages.length;
-                const response = await h.request(
-                    "session/set_config_option",
-                    params,
+        {configId: "mode", value: "read-only"},
+        {configId: "collaboration_mode", value: "plan"},
+        {configId: "model", value: "slow-model"},
+        {configId: "reasoning_effort", value: "high"},
+        {configId: "fast-mode", value: "on"},
+    ])("publishes complete $configId state before its response, but not for a no-op", async ({configId, value}) => {
+        const h = await connect(version);
+        try {
+            const params = {sessionId, configId,
+                ...(version === 2 ? {type: configId === "fast-mode" ? "boolean" : "id"} : {}),
+                value: version === 2 && configId === "fast-mode" ? true : value};
+            const start = h.wireMessages.length;
+            const response = await h.request("session/set_config_option", params);
+            assertBeforeResponse(h, start, response.configOptions);
+            if (configId === "model") {
+                const options = response.configOptions.map(
+                    (option: {id?: string; configId?: string; type: string; currentValue: unknown; options: Array<{value: string}>}) => ({
+                        id: option.id ?? option.configId,
+                        currentValue: option.currentValue,
+                        values: option.options.map((value) => value.value),
+                    }),
                 );
-                assertBeforeResponse(h, start, response.configOptions);
-                if (configId === "model") {
-                    const options = response.configOptions.map(
-                        (option: {
-                            id?: string;
-                            configId?: string;
-                            type: string;
-                            currentValue: unknown;
-                            options: Array<{ value: string }>;
-                        }) => ({
-                            id: option.id ?? option.configId,
-                            currentValue: option.currentValue,
-                            values: option.options.map((value) => value.value),
-                        }),
-                    );
-                    await expect(
-                        `${JSON.stringify(options, null, 2)  }\n`,
-                    ).toMatchFileSnapshot(
-                        "data/config-notification-dependent-model.json",
-                    );
-                }
-                const repeated = h.wireMessages.length;
-                expect(
-                    (await h.request("session/set_config_option", params))
-                        .configOptions,
-                ).toEqual(response.configOptions);
-                expect(configUpdates(h.wireMessages.slice(repeated))).toEqual(
-                    [],
-                );
-            } finally {
-                h.connection.close();
+                await expect(`${JSON.stringify(options, null, 2)}\n`).toMatchFileSnapshot("data/config-notification-dependent-model.json");
             }
-        },
-    );
+            const repeated = h.wireMessages.length;
+            expect((await h.request("session/set_config_option", params)).configOptions).toEqual(response.configOptions);
+            expect(configUpdates(h.wireMessages.slice(repeated))).toEqual([]);
+        } finally { h.connection.close(); }
+    });
 
     it.each([
         {configId: "missing", value: "anything", nativeFailure: false, code: -32602},

@@ -1,8 +1,5 @@
-import { isRecord } from "./permissions/json";
-import {
-    questionReplyContent,
-    withQuestionReplyParts,
-} from "./alwith/codex/questionReplies";
+import {isRecord} from "./permissions/json";
+import {questionReplyContent, withQuestionReplyParts} from "./alwith/codex/questionReplies";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {
@@ -28,9 +25,7 @@ export type AcpV2ClientConnection = Pick<acpV2.AgentContext, "notify" | "request
 export class AcpV2Connection {
     readonly client: AcpV2ClientConnection;
     private configRevision: ((sessionId: string) => number | null) | undefined;
-    setConfigRevisionSource(
-        source: (sessionId: string) => number | null,
-    ): void {
+    setConfigRevisionSource(source: (sessionId: string) => number | null): void {
         this.configRevision = source;
     }
     private isTurnRunning: (sessionId: string) => boolean = () => true;
@@ -97,53 +92,32 @@ export class AcpV2Connection {
      * Sends a session update, rendered in the v2 wire shape, through the v2 `session/update`
      * binding. One update can render to several v2 updates (or none), sent in order.
      */
-    async updateSession(
-        sessionId: string,
-        update: AcpSessionUpdate,
-        metadata?: acpV2.UpdateSessionNotification["_meta"],
-    ): Promise<void> {
+    async updateSession(sessionId: string, update: AcpSessionUpdate, metadata?: acpV2.UpdateSessionNotification["_meta"]): Promise<void> {
         for (let v2Update of toV2SessionUpdates(update)) {
-            if (
-                acpV2.SessionUpdate.isUserMessageChunk(v2Update) &&
-                acpV2.ContentBlock.isText(v2Update.content)
-            ) {
+            if (acpV2.SessionUpdate.isUserMessageChunk(v2Update) && acpV2.ContentBlock.isText(v2Update.content)) {
                 const content = questionReplyContent(v2Update.content.text);
                 if (content) {
-                    const meta = withQuestionReplyParts(
-                        content,
-                        v2Update._meta as Record<string, unknown> | undefined,
-                    );
+                    const meta = withQuestionReplyParts(content, v2Update._meta as Record<string, unknown> | undefined);
                     const reply: acpV2.SessionUpdate = {
                         sessionUpdate: "user_message",
                         messageId: v2Update.messageId,
                         content,
-                        ...(meta ? { _meta: meta } : {}),
+                        ...(meta ? {_meta: meta} : {}),
                     };
-                    await this.client.notify(
-                        acpV2.methods.client.session.update,
-                        { sessionId, update: reply },
-                    );
+                    await this.client.notify(acpV2.methods.client.session.update, {sessionId, update: reply});
                     continue;
                 }
             }
-            const configRevision =
-                v2Update.sessionUpdate === "config_option_update"
-                    ? this.configRevision?.(sessionId)
-                    : null;
+            const configRevision = v2Update.sessionUpdate === "config_option_update" ? this.configRevision?.(sessionId) : null;
             if (configRevision != null) {
-                const meta =
-                    v2Update._meta && typeof v2Update._meta === "object"
-                        ? (v2Update._meta as Record<string, unknown>)
-                        : {};
+                const meta = v2Update._meta && typeof v2Update._meta === "object" ? (v2Update._meta as Record<string, unknown>) : {};
                 const alwith = meta["alwith"];
                 v2Update = {
                     ...v2Update,
                     _meta: {
                         ...meta,
                         alwith: {
-                            ...(alwith && typeof alwith === "object"
-                                ? alwith
-                                : {}),
+                            ...(alwith && typeof alwith === "object" ? alwith : {}),
                             configRevision,
                         },
                     },
@@ -152,7 +126,7 @@ export class AcpV2Connection {
             await this.client.notify(acpV2.methods.client.session.update, {
                 sessionId,
                 update: v2Update,
-                ...(metadata !== undefined ? { _meta: metadata } : {}),
+                ...(metadata !== undefined ? {_meta: metadata} : {}),
             });
         }
     }
@@ -410,19 +384,9 @@ export class ACPSessionConnection {
 
     forSession(sessionId: string): ACPSessionConnection { return new ACPSessionConnection(this.connection, sessionId); }
 
-    async updateV2(
-        update: acpV2.SessionUpdate,
-        sessionId = this.sessionId,
-    ): Promise<void> {
-        if (!this.v2Connection)
-            throw acp.RequestError.internalError(
-                undefined,
-                "This update requires ACP v2",
-            );
-        await this.v2Connection.client.notify(
-            acpV2.methods.client.session.update,
-            { sessionId, update },
-        );
+    async updateV2(update: acpV2.SessionUpdate, sessionId = this.sessionId): Promise<void> {
+        if (!this.v2Connection) throw acp.RequestError.internalError(undefined, "This update requires ACP v2");
+        await this.v2Connection.client.notify(acpV2.methods.client.session.update, {sessionId, update});
     }
 
     /** Domain writers can rebuild an owned metadata value without changing v2's shallow patch semantics. */
@@ -438,64 +402,37 @@ export class ACPSessionConnection {
     }
 
     /** On v2, the view renders the update in the v2 shape (`extensionOnlyV1View`). */
-    async update(
-        update: UpdateSessionEvent,
-        sessionId: string = this.sessionId,
-    ) {
+    async update(update: UpdateSessionEvent, sessionId: string = this.sessionId) {
         // Domain writers share the codex/AIR namespaces; rebuild their owned value before a shallow wire patch.
-        if (
-            this.v2Connection &&
-            update.sessionUpdate === "session_info_update" &&
-            update.title === undefined &&
-            update.updatedAt === undefined &&
-            isRecord(update._meta) &&
-            (isRecord(update._meta["codex"]) ||
-                isRecord(update._meta["jetbrains"]))
-        ) {
+        if (this.v2Connection && update.sessionUpdate === "session_info_update" && update.title === undefined && update.updatedAt === undefined && isRecord(update._meta) && (isRecord(update._meta["codex"]) || isRecord(update._meta["jetbrains"]))) {
             const patch = update._meta;
-            await this.v2Connection.patchSessionMetadata(
-                sessionId,
-                (current) => ({
-                    ...patch,
-                    ...(isRecord(patch["codex"])
-                        ? {
-                              codex: {
-                                  ...(isRecord(current["codex"])
-                                      ? current["codex"]
-                                      : {}),
-                                  ...patch["codex"],
-                              },
-                          }
-                        : {}),
-                    ...(isRecord(patch["jetbrains"])
-                        ? {
-                              jetbrains: {
-                                  ...(isRecord(current["jetbrains"])
-                                      ? current["jetbrains"]
-                                      : {}),
-                                  ...patch["jetbrains"],
-                                  ...(isRecord(patch["jetbrains"]["air"])
-                                      ? {
-                                            air: {
-                                                ...(isRecord(
-                                                    current["jetbrains"],
-                                                ) &&
-                                                isRecord(
-                                                    current["jetbrains"]["air"],
-                                                )
-                                                    ? current["jetbrains"][
-                                                          "air"
-                                                      ]
-                                                    : {}),
-                                                ...patch["jetbrains"]["air"],
-                                            },
-                                        }
-                                      : {}),
-                              },
-                          }
-                        : {}),
-                }),
-            );
+            await this.v2Connection.patchSessionMetadata(sessionId, (current) => ({
+                ...patch,
+                ...(isRecord(patch["codex"])
+                    ? {
+                          codex: {
+                              ...(isRecord(current["codex"]) ? current["codex"] : {}),
+                              ...patch["codex"],
+                          },
+                      }
+                    : {}),
+                ...(isRecord(patch["jetbrains"])
+                    ? {
+                          jetbrains: {
+                              ...(isRecord(current["jetbrains"]) ? current["jetbrains"] : {}),
+                              ...patch["jetbrains"],
+                              ...(isRecord(patch["jetbrains"]["air"])
+                                  ? {
+                                        air: {
+                                            ...(isRecord(current["jetbrains"]) && isRecord(current["jetbrains"]["air"]) ? current["jetbrains"]["air"] : {}),
+                                            ...patch["jetbrains"]["air"],
+                                        },
+                                    }
+                                  : {}),
+                          },
+                      }
+                    : {}),
+            }));
             return;
         }
         await this.connection.notify(

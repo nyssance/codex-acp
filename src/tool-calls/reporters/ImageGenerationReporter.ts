@@ -89,8 +89,7 @@ function imageResult(item: ImageGenerationItem): acp.ToolCallContent[] {
     } else if (savedPath !== undefined) {
         result.push({type: "content", content: {type: "resource_link", name: savedPath, uri: savedPath}});
     }
-    if ("fileId" in item && savedPath === undefined)
-        result.push(textContent(`Generated image attachment: ${item.fileId}`));
+    if ("fileId" in item && savedPath === undefined) result.push(textContent(`Generated image attachment: ${item.fileId}`));
     return result;
 }
 

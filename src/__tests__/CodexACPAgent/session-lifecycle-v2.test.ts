@@ -1,26 +1,18 @@
-import { testThreadPermissions } from "../native-thread-permissions";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {testThreadPermissions} from "../native-thread-permissions";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { createAcpAgentRouter } from "../../AcpAgentRouter";
-import { AcpV2Connection } from "../../ACPSessionConnection";
-import { CodexAcpServer, type SessionFailure } from "../../CodexAcpServer";
-import { CodexAcpClient } from "../../CodexAcpClient";
-import { CodexAppServerClient } from "../../CodexAppServerClient";
-import type {
-    PermissionProfileSummary,
-    SkillsListParams,
-    SkillsListResponse,
-    Thread,
-} from "../../app-server/v2";
-import { MODE_CONFIG_ID } from "../../AgentMode";
+import {createAcpAgentRouter} from "../../AcpAgentRouter";
+import {AcpV2Connection} from "../../ACPSessionConnection";
+import {CodexAcpServer, type SessionFailure} from "../../CodexAcpServer";
+import {CodexAcpClient} from "../../CodexAcpClient";
+import {CodexAppServerClient} from "../../CodexAppServerClient";
+import type {PermissionProfileSummary, SkillsListParams, SkillsListResponse, Thread} from "../../app-server/v2";
+import {MODE_CONFIG_ID} from "../../AgentMode";
 import {FAST_MODE_CONFIG_ID} from "../../FastModeConfig";
-import { createTestModel } from "../acp-test-utils";
-import { createMockConnections, mockInitializeResponse } from "./test-utils";
-import {
-    checkV2SessionUpdate,
-    expectConformingV2SessionUpdates,
-} from "./v2-session-update-guard";
+import {createTestModel} from "../acp-test-utils";
+import {createMockConnections, mockInitializeResponse} from "./test-utils";
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 const sessionId = "thread-1";
 const forkedSessionId = "fork-1";
@@ -68,9 +60,9 @@ function createThread(overrides?: Partial<Thread>): Thread {
 function codexResponse(method: string, replayTurns: Thread["turns"] = [], thread?: Partial<Thread>): Record<string, unknown> {
     switch (method) {
         case "project/list":
-            return { data: [], nextCursor: null };
+            return {data: [], nextCursor: null};
         case "project/create":
-            return { project: { id: "test-project" } };
+            return {project: {id: "test-project"}};
         case "initialize":
             return mockInitializeResponse();
         case "thread/start":
@@ -102,7 +94,7 @@ function codexResponse(method: string, replayTurns: Thread["turns"] = [], thread
             // history from both is harmless since only the second response is used.
             return {
                 readState: null,
-                thread: createThread({ ...thread, turns: replayTurns }),
+                thread: createThread({...thread, turns: replayTurns}),
             };
         case "model/list":
             return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
@@ -122,15 +114,7 @@ function codexResponse(method: string, replayTurns: Thread["turns"] = [], thread
 }
 
 /** Methods whose requests the snapshots record; the rest is session-setup noise. */
-const recordedCodexMethods = new Set([
-    "thread/start",
-    "thread/resume",
-    "thread/fork",
-    "thread/list",
-    "thread/unsubscribe",
-    "thread/archive",
-    "thread/delete",
-]);
+const recordedCodexMethods = new Set(["thread/start", "thread/resume", "thread/fork", "thread/list", "thread/unsubscribe", "thread/archive", "thread/delete"]);
 
 /** Connects a v2 client to the agent through the router, over a mocked Codex app-server. */
 async function connectV2Client(options?: {
@@ -145,86 +129,64 @@ async function connectV2Client(options?: {
     permissionProfiles?: PermissionProfileSummary[];
     activePermissionProfileId?: string;
     defaultPermissionProfileId?: string;
-    threadList?: (params: { archived?: boolean; cursor: string | null }) => unknown;
+    threadList?: (params: {archived?: boolean; cursor: string | null}) => unknown;
     serviceTier?: string | null;
 }) {
     const mocks = createMockConnections();
-    const codexRequests: Array<{ method: string; params: unknown }> = [];
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string, params?: unknown) => {
-            if (recordedCodexMethods.has(method)) {
-                codexRequests.push({ method, params });
+    const codexRequests: Array<{method: string, params: unknown}> = [];
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: unknown) => {
+        if (recordedCodexMethods.has(method)) {
+            codexRequests.push({method, params});
+        }
+        if (options?.failMethod?.method === method) {
+            throw options.failMethod.error;
+        }
+        if (method === "skills/list" && options?.listSkills) {
+            return options.listSkills(params as SkillsListParams);
+        }
+        if (method === "thread/read") await options?.beforeThreadRead?.();
+        if (method === "thread/list" && options?.threadList) return options.threadList(params as {archived?: boolean; cursor: string | null});
+        if (method === "permissionProfile/list") {
+            return {
+                data: options?.permissionProfiles ?? [],
+                nextCursor: null,
+            };
+        }
+        if (method === "config/read" && options?.defaultPermissionProfileId !== undefined) {
+            return {
+                config: {
+                    default_permissions: options.defaultPermissionProfileId,
+                },
+                origins: {},
+                layers: [],
+            };
+        }
+        const response = codexResponse(method, options?.replayTurns, options?.thread);
+        if (options?.serviceTier !== undefined) {
+            if (["thread/start", "thread/resume", "thread/fork"].includes(method)) {
+                response["serviceTier"] = options.serviceTier;
             }
-            if (options?.failMethod?.method === method) {
-                throw options.failMethod.error;
+            if (method === "model/list") {
+                response["data"] = [createTestModel({id: "gpt-5", additionalSpeedTiers: ["fast"]})];
             }
-            if (method === "skills/list" && options?.listSkills) {
-                return options.listSkills(params as SkillsListParams);
-            }
-            if (method === "thread/read") await options?.beforeThreadRead?.();
-            if (method === "thread/list" && options?.threadList)
-                return options.threadList(
-                    params as { archived?: boolean; cursor: string | null },
-                );
-            if (method === "permissionProfile/list") {
-                return {
-                    data: options?.permissionProfiles ?? [],
-                    nextCursor: null,
-                };
-            }
-            if (
-                method === "config/read" &&
-                options?.defaultPermissionProfileId !== undefined
-            ) {
-                return {
-                    config: {
-                        default_permissions: options.defaultPermissionProfileId,
-                    },
-                    origins: {},
-                    layers: [],
-                };
-            }
-            const response = codexResponse(
-                method,
-                options?.replayTurns,
-                options?.thread,
-            );
-            if (options?.serviceTier !== undefined) {
-                if (["thread/start", "thread/resume", "thread/fork"].includes(method)) {
-                    response["serviceTier"] = options.serviceTier;
-                }
-                if (method === "model/list") {
-                    response["data"] = [createTestModel({id: "gpt-5", additionalSpeedTiers: ["fast"]})];
-                }
-            }
-            if (
-                options?.activePermissionProfileId &&
-                ["thread/start", "thread/resume", "thread/fork"].includes(
-                    method,
-                )
-            ) {
-                return {
-                    ...response,
-                    activePermissionProfile: {
-                        id: options.activePermissionProfileId,
-                        extends: null,
-                    },
-                };
-            }
-            return response;
-        },
-    );
-    const codexAcpClient = new CodexAcpClient(
-        new CodexAppServerClient(mocks.mockCodexConnection as any),
-    );
+        }
+        if (options?.activePermissionProfileId && ["thread/start", "thread/resume", "thread/fork"].includes(method)) {
+            return {
+                ...response,
+                activePermissionProfile: {
+                    id: options.activePermissionProfileId,
+                    extends: null,
+                },
+            };
+        }
+        return response;
+    });
+    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
         required: false,
         account: null,
     });
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
@@ -254,11 +216,7 @@ async function connectV2Client(options?: {
     await connection.agent.request(acpV2.methods.agent.initialize, {
         protocolVersion: 2,
         info: {name: "test-client", version: "1.0.0"},
-        ...(options?.air
-            ? {capabilities: {_meta: {jetbrains: {air: {version: 1}}}}}
-            : options?.alwith
-              ? {capabilities: {_meta: {alwith: {capabilities: ["sessionIndex"]}}}}
-              : {}),
+        ...(options?.air ? {capabilities: {_meta: {jetbrains: {air: {version: 1}}}}} : options?.alwith ? {capabilities: {_meta: {alwith: {capabilities: ["sessionIndex"]}}}} : {}),
     });
     return {connection, agent: () => agent!, codexRequests, updates, emit: mocks.getUnhandledNotificationHandler()!};
 }
@@ -267,25 +225,13 @@ async function connectV2Client(options?: {
  * Waits for the updates a session publishes on its own after `session/new` or `session/resume`,
  * and returns them in a stable order (they are published concurrently).
  */
-async function waitForSessionUpdates(
-    updates: acpV2.UpdateSessionNotification[],
-    expected: Array<acpV2.SessionUpdate["sessionUpdate"]>,
-) {
-    await vi.waitFor(() =>
-        expect(
-            updates.map(({ update }) => update.sessionUpdate).toSorted(),
-        ).toEqual(expected),
-    );
-    return [...updates].toSorted((a, b) =>
-        a.update.sessionUpdate.localeCompare(b.update.sessionUpdate),
-    );
+async function waitForSessionUpdates(updates: acpV2.UpdateSessionNotification[], expected: Array<acpV2.SessionUpdate["sessionUpdate"]>) {
+    await vi.waitFor(() => expect(updates.map(({update}) => update.sessionUpdate).toSorted()).toEqual(expected));
+    return [...updates].toSorted((a, b) => a.update.sessionUpdate.localeCompare(b.update.sessionUpdate));
 }
 
 function dump(value: unknown): string {
-    return `${JSON.stringify(value, null, 2)}\n`.replaceAll(
-        /http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g,
-        "<responses-route>",
-    );
+    return `${JSON.stringify(value, null, 2)}\n`.replaceAll(/http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g, "<responses-route>");
 }
 
 describe('Session lifecycle over ACP v2', () => {
@@ -305,9 +251,8 @@ describe('Session lifecycle over ACP v2', () => {
         const response = await connection.agent.request(acpV2.methods.agent.session.new, {cwd});
         const sessionUpdates = await waitForSessionUpdates(updates, []);
 
-        await expect(
-            dump({ response, codexRequests, updates: sessionUpdates }),
-        ).toMatchFileSnapshot("data/session-lifecycle-v2-new.json");
+        await expect(dump({response, codexRequests, updates: sessionUpdates}))
+            .toMatchFileSnapshot('data/session-lifecycle-v2-new.json');
     });
 
     it('creates a session with v2 mcpServers', async () => {
@@ -510,35 +455,22 @@ describe('Session lifecycle over ACP v2', () => {
         resolveInitial(skills("older"));
         const response = await pending;
 
-        expect(
-            response.availableCommands?.some(
-                (command) => command.name === "$newer",
-            ),
-        ).toBe(true);
-        expect(
-            response.availableCommands?.some(
-                (command) => command.name === "$older",
-            ),
-        ).toBe(false);
+        expect(response.availableCommands?.some((command) => command.name === "$newer")).toBe(true);
+        expect(response.availableCommands?.some((command) => command.name === "$older")).toBe(false);
         expect(updates[0]!.update).toMatchObject({
             availableCommands: response.availableCommands,
         });
     });
 
-    it("rejects setup if the session closes during initial command discovery", async () => {
+    it('rejects setup if the session closes during initial command discovery', async () => {
         let resolveInitial!: (response: SkillsListResponse) => void;
-        const initial = new Promise<SkillsListResponse>((resolve) => {
-            resolveInitial = resolve;
-        });
+        const initial = new Promise<SkillsListResponse>(resolve => { resolveInitial = resolve; });
         const listSkills = vi.fn(() => initial);
-        const { connection, agent, updates } = await connectV2Client({
+        const {connection, agent, updates} = await connectV2Client({
             listSkills,
         });
         closeClient = () => connection.close();
-        const pending = connection.agent.request(
-            acpV2.methods.agent.session.new,
-            { cwd },
-        );
+        const pending = connection.agent.request(acpV2.methods.agent.session.new, {cwd});
         const rejected = expect(pending).rejects.toMatchObject({
             code: -32600,
         });
@@ -550,43 +482,29 @@ describe('Session lifecycle over ACP v2', () => {
         resolveInitial(skills("late"));
 
         await rejected;
-        expect(() => agent().getSessionState(sessionId)).toThrow(
-            `Session ${sessionId} not found`,
-        );
+        expect(() => agent().getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
         expect(updates).toEqual([]);
     });
 
     it("lists sessions", async () => {
-        const { connection, codexRequests } = await connectV2Client({ alwith: true });
+        const {connection, codexRequests} = await connectV2Client({alwith: true});
         closeClient = () => connection.close();
 
-        const response = await connection.agent.request(
-            acpV2.methods.agent.session.list,
-            { cwd },
-        );
+        const response = await connection.agent.request(acpV2.methods.agent.session.list, {cwd});
 
-        await expect(dump({ response, codexRequests })).toMatchFileSnapshot(
-            "data/session-lifecycle-v2-list.json",
-        );
+        await expect(dump({response, codexRequests})).toMatchFileSnapshot('data/session-lifecycle-v2-list.json');
     });
 
     it("filters the list by archive state and pages through both lists for include", async () => {
-        const { connection } = await connectV2Client({
+        const {connection} = await connectV2Client({
             alwith: true,
-            threadList: ({ archived, cursor }) =>
-                archived
-                    ? { data: [createThread({ id: "archived", sessionId: "archived" })], nextCursor: null }
-                    : cursor === null
-                      ? { data: [createThread({ id: "first", sessionId: "first" })], nextCursor: "more" }
-                      : { data: [createThread({ id: "second", sessionId: "second" })], nextCursor: null },
+            threadList: ({archived, cursor}) => (archived ? {data: [createThread({id: "archived", sessionId: "archived"})], nextCursor: null} : cursor === null ? {data: [createThread({id: "first", sessionId: "first"})], nextCursor: "more"} : {data: [createThread({id: "second", sessionId: "second"})], nextCursor: null}),
         });
         closeClient = () => connection.close();
-        const list = (params: Record<string, unknown>) =>
-            connection.agent.request(acpV2.methods.agent.session.list, { cwd, ...params });
-        const rows = (response: acpV2.ListSessionsResponse) =>
-            response.sessions.map((session) => [session.sessionId, session.archived]);
+        const list = (params: Record<string, unknown>) => connection.agent.request(acpV2.methods.agent.session.list, {cwd, ...params});
+        const rows = (response: acpV2.ListSessionsResponse) => response.sessions.map((session) => [session.sessionId, session.archived]);
 
-        const only = await list({ archived: "only" });
+        const only = await list({archived: "only"});
         expect(rows(only)).toEqual([["archived", true]]);
         expect(only.nextCursor).toBeNull();
 
@@ -595,61 +513,50 @@ describe('Session lifecycle over ACP v2', () => {
         do {
             const page: acpV2.ListSessionsResponse = await list({
                 archived: "include",
-                ...(cursor ? { cursor } : {}),
+                ...(cursor ? {cursor} : {}),
             });
             pages.push(rows(page));
             cursor = page.nextCursor;
         } while (cursor);
         // The index pages each Codex list on its own cursor and merges the archive into the first page.
         expect(pages).toEqual([
-            [["first", false], ["archived", true]],
+            [
+                ["first", false],
+                ["archived", true],
+            ],
             [["second", false]],
         ]);
 
-        await expect(list({ archived: "everything" })).rejects.toMatchObject({ code: -32602 });
-        await expect(list({ archived: "include", cursor: "more" })).rejects.toMatchObject({ code: -32602 });
+        await expect(list({archived: "everything"})).rejects.toMatchObject({code: -32602});
+        await expect(list({archived: "include", cursor: "more"})).rejects.toMatchObject({code: -32602});
     });
 
     it("closes a session", async () => {
-        const { connection, agent, codexRequests } = await connectV2Client();
+        const {connection, agent, codexRequests} = await connectV2Client();
         closeClient = () => connection.close();
         await connection.agent.request(acpV2.methods.agent.session.new, {
             cwd,
         });
         codexRequests.splice(0);
 
-        const response = await connection.agent.request(
-            acpV2.methods.agent.session.close,
-            { sessionId },
-        );
+        const response = await connection.agent.request(acpV2.methods.agent.session.close, {sessionId});
 
-        expect(() => agent().getSessionState(sessionId)).toThrow(
-            `Session ${sessionId} not found`,
-        );
-        await expect(dump({ response, codexRequests })).toMatchFileSnapshot(
-            "data/session-lifecycle-v2-close.json",
-        );
+        expect(() => agent().getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        await expect(dump({response, codexRequests})).toMatchFileSnapshot('data/session-lifecycle-v2-close.json');
     });
 
     it("deletes a session", async () => {
-        const { connection, agent, codexRequests } = await connectV2Client({ alwith: true });
+        const {connection, agent, codexRequests} = await connectV2Client({alwith: true});
         closeClient = () => connection.close();
         await connection.agent.request(acpV2.methods.agent.session.new, {
             cwd,
         });
         codexRequests.splice(0);
 
-        const response = await connection.agent.request(
-            acpV2.methods.agent.session.delete,
-            { sessionId },
-        );
+        const response = await connection.agent.request(acpV2.methods.agent.session.delete, {sessionId});
 
-        expect(() => agent().getSessionState(sessionId)).toThrow(
-            `Session ${sessionId} not found`,
-        );
-        await expect(dump({ response, codexRequests })).toMatchFileSnapshot(
-            "data/session-lifecycle-v2-delete.json",
-        );
+        expect(() => agent().getSessionState(sessionId)).toThrow(`Session ${sessionId} not found`);
+        await expect(dump({response, codexRequests})).toMatchFileSnapshot('data/session-lifecycle-v2-delete.json');
     });
 
     it.each([
@@ -661,168 +568,129 @@ describe('Session lifecycle over ACP v2', () => {
             replayFrom: null,
             snapshot: "data/session-lifecycle-v2-resume-null-replay.json",
         },
-    ])(
-        "resumes with current session info and state when replayFrom is $replayFrom",
-        async ({ replayFrom, snapshot }) => {
-            const { connection, codexRequests, updates } =
-                await connectV2Client();
-            closeClient = () => connection.close();
+    ])("resumes with current session info and state when replayFrom is $replayFrom", async ({replayFrom, snapshot}) => {
+        const {connection, codexRequests, updates} = await connectV2Client();
+        closeClient = () => connection.close();
 
-            const response = await connection.agent.request(
-                acpV2.methods.agent.session.resume,
-                {
-                    sessionId,
-                    cwd,
-                    ...(replayFrom === undefined ? {} : { replayFrom }),
-                },
-            );
-            expect(updates.at(-1)?.update).toEqual({
-                sessionUpdate: "state_update",
-                state: "idle",
-            });
-            // Commands are in the response; current info and foreground state are notified.
-            const sessionUpdates = await waitForSessionUpdates(updates, [
-                "session_info_update",
-                "session_info_update",
-                "session_info_update",
-                "state_update",
-            ]);
+        const response = await connection.agent.request(acpV2.methods.agent.session.resume, {
+            sessionId, cwd, ...(replayFrom === undefined ? {} : {replayFrom}),
+        });
+        expect(updates.at(-1)?.update).toEqual({
+            sessionUpdate: "state_update",
+            state: "idle",
+        });
+        // Commands are in the response; current info and foreground state are notified.
+        const sessionUpdates = await waitForSessionUpdates(updates, ["session_info_update", "session_info_update", "session_info_update", "state_update"]);
 
-            await expect(
-                dump({ response, codexRequests, updates: sessionUpdates }),
-            ).toMatchFileSnapshot(snapshot);
-        },
-    );
+        await expect(dump({response, codexRequests, updates: sessionUpdates}))
+            .toMatchFileSnapshot(snapshot);
+    });
 
     it.each([
-        { name: "Current name", preview: "Old preview", title: "Current name" },
-        { name: null, preview: "", title: null },
-    ])(
-        "synchronizes the current title as $title rather than leaving a retained title",
-        async ({ name, preview, title }) => {
-            const { connection, updates } = await connectV2Client({
-                thread: { name, preview },
-            });
-            closeClient = () => connection.close();
+        {name: "Current name", preview: "Old preview", title: "Current name"},
+        {name: null, preview: "", title: null},
+    ])("synchronizes the current title as $title rather than leaving a retained title", async ({name, preview, title}) => {
+        const {connection, updates} = await connectV2Client({
+            thread: {name, preview},
+        });
+        closeClient = () => connection.close();
 
-            await connection.agent.request(acpV2.methods.agent.session.resume, {
-                sessionId,
-                cwd,
-            });
-            expect(
-                updates.find(
-                    ({ update }) =>
-                        update.sessionUpdate === "session_info_update" &&
-                        update._meta === null,
-                )?.update,
-            ).toEqual({
+        await connection.agent.request(acpV2.methods.agent.session.resume, {
+            sessionId,
+            cwd,
+        });
+        expect(updates.find(({update}) => update.sessionUpdate === "session_info_update" && update._meta === null)?.update).toEqual({
+            sessionUpdate: "session_info_update",
+            title,
+            _meta: null,
+        });
+    });
+
+    it.each([undefined, null, {type: "start" as const}])('resynchronizes metadata with replayFrom %s', async replayFrom => {
+        const {connection, agent, updates} = await connectV2Client();
+        closeClient = () => connection.close();
+        await connection.agent.request(acpV2.methods.agent.session.resume, {
+            sessionId,
+            cwd,
+        });
+        const failure: SessionFailure = {
+            id: "current-incident",
+            revision: 1,
+            category: "service",
+            severity: "warning",
+            title: "Retrying",
+            actions: ["retry"],
+        };
+        agent().getSessionState(sessionId).sessionFailure = failure;
+        // @ts-expect-error - exercise the shared outbound path as well as direct v2 publication
+        const outbound = agent().connection as acp.AgentContext;
+        await outbound.notify(acp.methods.client.session.update, {
+            sessionId,
+            update: {
                 sessionUpdate: "session_info_update",
-                title,
-                _meta: null,
-            });
-        },
-    );
-
-    it.each([undefined, null, { type: "start" as const }])(
-        "resynchronizes metadata with replayFrom %s",
-        async (replayFrom) => {
-            const { connection, agent, updates } = await connectV2Client();
-            closeClient = () => connection.close();
-            await connection.agent.request(acpV2.methods.agent.session.resume, {
-                sessionId,
-                cwd,
-            });
-            const failure: SessionFailure = {
-                id: "current-incident",
-                revision: 1,
-                category: "service",
-                severity: "warning",
-                title: "Retrying",
-                actions: ["retry"],
-            };
-            agent().getSessionState(sessionId).sessionFailure = failure;
-            // @ts-expect-error - exercise the shared outbound path as well as direct v2 publication
-            const outbound = agent().connection as acp.AgentContext;
-            await outbound.notify(acp.methods.client.session.update, {
-                sessionId,
-                update: {
-                    sessionUpdate: "session_info_update",
-                    _meta: {
-                        shared: { nested: null },
-                        removed: true,
-                        ns: { old: true },
+                _meta: {
+                    shared: {nested: null},
+                    removed: true,
+                    ns: {old: true},
+                },
+            },
+            _meta: {sharedEvent: {literal: null}},
+        });
+        await vi.waitFor(() =>
+            expect(updates.at(-1)?._meta).toEqual({
+                sharedEvent: {literal: null},
+            }),
+        );
+        await AcpV2Connection.of(outbound)!.client.notify("session/update", {
+            sessionId,
+            update: {
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    direct: true,
+                    removed: null,
+                    ns: {literal: null},
+                    jetbrains: {
+                        air: {version: 1, sessionFailure: failure},
                     },
                 },
-                _meta: { sharedEvent: { literal: null } },
-            });
-            await vi.waitFor(() =>
-                expect(updates.at(-1)?._meta).toEqual({
-                    sharedEvent: { literal: null },
-                }),
-            );
-            await AcpV2Connection.of(outbound)!.client.notify(
-                "session/update",
-                {
-                    sessionId,
-                    update: {
-                        sessionUpdate: "session_info_update",
-                        _meta: {
-                            direct: true,
-                            removed: null,
-                            ns: { literal: null },
-                            jetbrains: {
-                                air: { version: 1, sessionFailure: failure },
-                            },
-                        },
-                    },
-                    _meta: { oneOff: { literal: null } },
-                },
-            );
-            await vi.waitFor(() =>
-                expect(updates.at(-1)?._meta).toEqual({
-                    oneOff: { literal: null },
-                }),
-            );
+            },
+            _meta: {oneOff: {literal: null}},
+        });
+        await vi.waitFor(() =>
+            expect(updates.at(-1)?._meta).toEqual({
+                oneOff: {literal: null},
+            }),
+        );
 
-            const start = updates.length;
-            await connection.agent.request(acpV2.methods.agent.session.resume, {
-                sessionId,
-                cwd,
-                ...(replayFrom === undefined ? {} : { replayFrom }),
-            });
-            const info = updates
-                .slice(start)
-                .filter(
-                    ({ update }) =>
-                        update.sessionUpdate === "session_info_update",
-                );
-            expect(info.some(({ update }) => update._meta === null)).toBe(true);
-            let stored: Record<string, unknown> = { unseenByAgent: true };
-            for (const { update } of info) {
-                if (update._meta === null) stored = {};
-                else if (update._meta && typeof update._meta === "object") {
-                    for (const [key, value] of Object.entries(update._meta)) {
-                        if (value === null) delete stored[key];
-                        else stored[key] = value;
-                    }
+        const start = updates.length;
+        await connection.agent.request(acpV2.methods.agent.session.resume, {
+            sessionId, cwd, ...(replayFrom === undefined ? {} : {replayFrom}),
+        });
+        const info = updates.slice(start).filter(({update}) => update.sessionUpdate === "session_info_update");
+        expect(info.some(({update}) => update._meta === null)).toBe(true);
+        let stored: Record<string, unknown> = {unseenByAgent: true};
+        for (const {update} of info) {
+            if (update._meta === null) stored = {};
+            else if (update._meta && typeof update._meta === "object") {
+                for (const [key, value] of Object.entries(update._meta)) {
+                    if (value === null) delete stored[key];
+                    else stored[key] = value;
                 }
             }
-            // Both kinds of active resume retain current metadata despite state reinstallation.
-            expect(stored).toEqual({
-                codex: { threadStatus: { type: "idle" }, goal: null },
-                shared: { nested: null },
-                direct: true,
-                ns: { literal: null },
-                jetbrains: { air: { version: 1, sessionFailure: failure } },
-            });
-            expect(agent().getSessionState(sessionId).sessionFailure).toEqual(
-                failure,
-            );
-        },
-    );
+        }
+        // Both kinds of active resume retain current metadata despite state reinstallation.
+        expect(stored).toEqual({
+            codex: {threadStatus: {type: "idle"}, goal: null},
+            shared: {nested: null},
+            direct: true,
+            ns: {literal: null},
+            jetbrains: {air: {version: 1, sessionFailure: failure}},
+        });
+        expect(agent().getSessionState(sessionId).sessionFailure).toEqual(failure);
+    });
 
-    it("does not restore metadata from a closed session lifetime", async () => {
-        const { connection, agent, updates } = await connectV2Client();
+    it('does not restore metadata from a closed session lifetime', async () => {
+        const {connection, agent, updates} = await connectV2Client();
         closeClient = () => connection.close();
         await connection.agent.request(acpV2.methods.agent.session.resume, {
             sessionId,
@@ -834,7 +702,7 @@ describe('Session lifecycle over ACP v2', () => {
             sessionId,
             update: {
                 sessionUpdate: "session_info_update",
-                _meta: { oldLifetime: true },
+                _meta: {oldLifetime: true},
             },
         });
         await connection.agent.request(acpV2.methods.agent.session.close, {
@@ -845,25 +713,19 @@ describe('Session lifecycle over ACP v2', () => {
             sessionId,
             cwd,
         });
-        const info = updates.filter(
-            ({ update }) => update.sessionUpdate === "session_info_update",
-        );
-        expect(info.map(({ update }) => update._meta)).toEqual([
-            { codex: { threadStatus: { type: "idle" }, goal: null } },
-            null,
-            { codex: { threadStatus: { type: "idle" }, goal: null } },
-        ]);
+        const info = updates.filter(({update}) => update.sessionUpdate === "session_info_update");
+        expect(info.map(({update}) => update._meta)).toEqual([{codex: {threadStatus: {type: "idle"}, goal: null}}, null, {codex: {threadStatus: {type: "idle"}, goal: null}}]);
     });
 
-    it("rejects resume with an unknown replayFrom type", async () => {
-        const { connection, agent, codexRequests } = await connectV2Client();
+    it('rejects resume with an unknown replayFrom type', async () => {
+        const {connection, agent, codexRequests} = await connectV2Client();
         closeClient = () => connection.close();
 
         const error = await connection.agent
             .request(acpV2.methods.agent.session.resume, {
                 sessionId,
                 cwd,
-                replayFrom: { type: "_checkpoint", checkpointId: "c-1" },
+                replayFrom: {type: "_checkpoint", checkpointId: "c-1"},
             })
             .then(
                 () => null,
@@ -1005,80 +867,55 @@ describe('Session lifecycle over ACP v2', () => {
             sessionId,
             cwd,
         });
-        await waitForSessionUpdates(updates, [
-            "session_info_update",
-            "session_info_update",
-            "session_info_update",
-            "state_update",
-        ]);
+        await waitForSessionUpdates(updates, ["session_info_update", "session_info_update", "session_info_update", "state_update"]);
 
-        expect(
-            updates.some(
-                ({ update }) =>
-                    update.sessionUpdate.endsWith("_message_chunk") ||
-                    update.sessionUpdate.endsWith("_message") ||
-                    update.sessionUpdate === "tool_call",
-            ),
-        ).toBe(false);
+        expect(updates.some(({update}) => update.sessionUpdate.endsWith("_message_chunk")
+            || update.sessionUpdate.endsWith("_message")
+            || update.sessionUpdate === "tool_call")).toBe(false);
     });
 
-    it("forks a session, dropping modes and using v2-shaped configOptions", async () => {
-        const { connection, codexRequests, updates } = await connectV2Client();
+    it('forks a session, dropping modes and using v2-shaped configOptions', async () => {
+        const {connection, codexRequests, updates} = await connectV2Client();
         closeClient = () => connection.close();
 
-        const response = await connection.agent.request(
-            acpV2.methods.agent.session.fork,
-            {
-                sessionId,
-                cwd,
-                mcpServers: [],
-            },
-        );
+        const response = await connection.agent.request(acpV2.methods.agent.session.fork, {
+            sessionId,
+            cwd,
+            mcpServers: [],
+        });
 
         expect("modes" in response).toBe(false);
         expect(Array.isArray(response.configOptions)).toBe(true);
         // The fork advertises its own commands in the response, without a notification.
-        expect(
-            updates.some(
-                ({ update }) =>
-                    update.sessionUpdate === "available_commands_update",
-            ),
-        ).toBe(false);
-        await expect(dump({ response, codexRequests })).toMatchFileSnapshot(
-            "data/session-lifecycle-v2-fork.json",
-        );
+        expect(updates.some(({update}) => update.sessionUpdate === "available_commands_update")).toBe(false);
+        await expect(dump({response, codexRequests})).toMatchFileSnapshot('data/session-lifecycle-v2-fork.json');
     });
 
     it("replays fork history before replying, preserving native fork boundaries", async () => {
-        const { connection, updates, codexRequests } = await connectV2Client({
+        const {connection, updates, codexRequests} = await connectV2Client({
             replayTurns,
         });
         closeClient = () => connection.close();
-        const response = await connection.agent.request(
-            acpV2.methods.agent.session.fork,
-            {
-                sessionId,
-                cwd,
-                _meta: { codex: { lastTurnId: "turn-1" } },
-            },
-        );
+        const response = await connection.agent.request(acpV2.methods.agent.session.fork, {
+            sessionId,
+            cwd,
+            _meta: {codex: {lastTurnId: "turn-1"}},
+        });
         expect(codexRequests).toContainEqual({
             method: "thread/fork",
-            params: expect.objectContaining({ lastTurnId: "turn-1" }),
+            params: expect.objectContaining({lastTurnId: "turn-1"}),
         });
-        const messages = updates.filter(
-            ({ update }) => update.sessionUpdate === "agent_message_chunk",
-        );
+        const messages = updates.filter(({update}) => update.sessionUpdate === "agent_message_chunk");
         expect(messages.length).toBeGreaterThan(0);
         for (const event of messages) {
             expect(event.sessionId).toBe(response.sessionId);
             expect(event.update).toMatchObject({
-                _meta: { codex: { historyReplay: true, turnId: "turn-1" } },
+                _meta: {codex: {historyReplay: true, turnId: "turn-1"}},
             });
         }
     });
 
-    it('installs the forked session so it is immediately usable', async () => {
+    it("installs the forked session so it is immediately usable", async () => {
         const {connection, agent} = await connectV2Client();
         closeClient = () => connection.close();
 
@@ -1130,99 +967,48 @@ describe('Session lifecycle over ACP v2', () => {
 });
 
 describe("ALwith read-only ownership", () => {
-    it.each([null, "start"] as const)(
-        "opens a foreign writer with replayFrom %s without mutating or cancelling it",
-        async (replayFrom) => {
-            const client = await connectV2Client({
-                failMethod: {
-                    method: "thread/resume",
-                    error: Object.assign(
-                        new Error(
-                            `thread ${sessionId} already has an active writer`,
-                        ),
-                        { code: -32600 },
-                    ),
-                },
+    it.each([null, "start"] as const)("opens a foreign writer with replayFrom %s without mutating or cancelling it", async (replayFrom) => {
+        const client = await connectV2Client({
+            failMethod: {
+                method: "thread/resume",
+                error: Object.assign(new Error(`thread ${sessionId} already has an active writer`), {code: -32600}),
+            },
+        });
+        try {
+            const response = await client.connection.agent.request(acpV2.methods.agent.session.resume, {
+                sessionId,
+                cwd,
+                replayFrom: replayFrom === null ? null : {type: "start"},
             });
-            try {
-                const response = await client.connection.agent.request(
-                    acpV2.methods.agent.session.resume,
-                    {
-                        sessionId,
-                        cwd,
-                        replayFrom:
-                            replayFrom === null ? null : { type: "start" },
-                    },
-                );
-                expect(response._meta).toMatchObject({
-                    codex: { readOnly: true, reason: "active_writer" },
-                });
-                await expect(
-                    client.connection.agent.request(
-                        acpV2.methods.agent.session.prompt,
-                        {
-                            sessionId,
-                            prompt: [{ type: "text", text: "must not send" }],
-                        },
-                    ),
-                ).rejects.toThrow("another Codex client");
-                await expect(
-                    client.connection.agent.request(
-                        acpV2.methods.agent.session.setConfigOption,
-                        {
-                            sessionId,
-                            configId: "mode",
-                            type: "id",
-                            value: "read-only",
-                        },
-                    ),
-                ).rejects.toThrow("another Codex client");
-                await expect(
-                    client.agent().cancel({ sessionId }),
-                ).rejects.toThrow("another Codex client");
-                await expect(
-                    client.connection.agent.request(
-                        acpV2.methods.agent.session.delete,
-                        { sessionId },
-                    ),
-                ).rejects.toThrow("another Codex client");
-                for (const method of [
-                    acpV2.methods.agent.session.archive,
-                    acpV2.methods.agent.session.unarchive,
-                ]) {
-                    await expect(
-                        client.connection.agent.request(method, { sessionId }),
-                    ).rejects.toThrow("another Codex client");
-                }
-                await expect(
-                    client.connection.agent.request(
-                        acpV2.methods.agent.session.setTitle,
-                        { sessionId, title: "forbidden rename" },
-                    ),
-                ).rejects.toThrow("another Codex client");
-                expect(
-                    client.codexRequests.some((request) =>
-                        [
-                            "thread/delete",
-                            "thread/archive",
-                            "thread/unarchive",
-                            "thread/name/set",
-                        ].includes(request.method),
-                    ),
-                ).toBe(false);
-
-                await client.connection.agent.request(
-                    acpV2.methods.agent.session.close,
-                    { sessionId },
-                );
-                expect(
-                    client.codexRequests.some(
-                        (request) => request.method === "thread/unsubscribe",
-                    ),
-                ).toBe(false);
-            } finally {
-                client.connection.close();
+            expect(response._meta).toMatchObject({
+                codex: {readOnly: true, reason: "active_writer"},
+            });
+            await expect(
+                client.connection.agent.request(acpV2.methods.agent.session.prompt, {
+                    sessionId,
+                    prompt: [{type: "text", text: "must not send"}],
+                }),
+            ).rejects.toThrow("another Codex client");
+            await expect(
+                client.connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
+                    sessionId,
+                    configId: "mode",
+                    type: "id",
+                    value: "read-only",
+                }),
+            ).rejects.toThrow("another Codex client");
+            await expect(client.agent().cancel({sessionId})).rejects.toThrow("another Codex client");
+            await expect(client.connection.agent.request(acpV2.methods.agent.session.delete, {sessionId})).rejects.toThrow("another Codex client");
+            for (const method of [acpV2.methods.agent.session.archive, acpV2.methods.agent.session.unarchive]) {
+                await expect(client.connection.agent.request(method, {sessionId})).rejects.toThrow("another Codex client");
             }
-        },
-    );
+            await expect(client.connection.agent.request(acpV2.methods.agent.session.setTitle, {sessionId, title: "forbidden rename"})).rejects.toThrow("another Codex client");
+            expect(client.codexRequests.some((request) => ["thread/delete", "thread/archive", "thread/unarchive", "thread/name/set"].includes(request.method))).toBe(false);
+
+            await client.connection.agent.request(acpV2.methods.agent.session.close, {sessionId});
+            expect(client.codexRequests.some((request) => request.method === "thread/unsubscribe")).toBe(false);
+        } finally {
+            client.connection.close();
+        }
+    });
 });

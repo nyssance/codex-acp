@@ -307,35 +307,32 @@ describe("Session config options", () => {
 
     it("honors INITIAL_AGENT_MODE=permission-profile:team-default before the active profile", async () => {
         vi.stubEnv("INITIAL_AGENT_MODE", "permission-profile:team-default");
-        const { fast } = buildModels();
-        const { response } = await createSession("fast-model[medium]", [fast], {
+        const {fast} = buildModels();
+        const {response} = await createSession("fast-model[medium]", [fast], {
             activePermissionProfileId: "other",
             permissionProfiles: [
-                { id: "team-default", description: null, allowed: true },
-                { id: "other", description: null, allowed: true },
-                { id: "blocked", description: null, allowed: false },
+                {id: "team-default", description: null, allowed: true},
+                {id: "other", description: null, allowed: true},
+                {id: "blocked", description: null, allowed: false},
             ],
         });
 
         expect(response.modes?.currentModeId).toBe("permission-profile:team-default");
     });
 
-    it.each(["permission-profile:blocked", "permission-profile:missing"])(
-        "rejects INITIAL_AGENT_MODE=%s instead of falling back to the default mode",
-        async (initialMode) => {
-            vi.stubEnv("INITIAL_AGENT_MODE", initialMode);
-            const { fast } = buildModels();
-            await expect(
-                createSession("fast-model[medium]", [fast], {
-                    activePermissionProfileId: "other",
-                    permissionProfiles: [
-                        { id: "other", description: null, allowed: true },
-                        { id: "blocked", description: null, allowed: false },
-                    ],
-                }),
-            ).rejects.toThrow(`Unknown INITIAL_AGENT_MODE: ${initialMode}`);
-        },
-    );
+    it.each(["permission-profile:blocked", "permission-profile:missing"])("rejects INITIAL_AGENT_MODE=%s instead of falling back to the default mode", async (initialMode) => {
+        vi.stubEnv("INITIAL_AGENT_MODE", initialMode);
+        const {fast} = buildModels();
+        await expect(
+            createSession("fast-model[medium]", [fast], {
+                activePermissionProfileId: "other",
+                permissionProfiles: [
+                    {id: "other", description: null, allowed: true},
+                    {id: "blocked", description: null, allowed: false},
+                ],
+            }),
+        ).rejects.toThrow(`Unknown INITIAL_AGENT_MODE: ${initialMode}`);
+    });
 
     it("keeps the legacy models list as combined model/effort entries", async () => {
         const {fast, slow} = buildModels();
@@ -400,46 +397,37 @@ describe("Session config options", () => {
             expect(result.configOptions.find(option => option.id === "mode")?.currentValue).toBe(modeId);
         }
 
-            const appServer = fixture.getCodexAppServerClient();
-            vi.spyOn(appServer, "listSkills").mockResolvedValue({ data: [] });
-            const turn: Turn = {
-                rootTurnId: null,
-                id: "turn-id",
-                items: [],
-                itemsView: "notLoaded",
-                status: "inProgress",
-                error: null,
-                startedAt: null,
-                completedAt: null,
-                durationMs: null,
-            };
-            const turnStart = vi
-                .spyOn(appServer, "turnStart")
-                .mockResolvedValue({ turn });
-            vi.spyOn(appServer, "awaitTurnCompleted").mockResolvedValue({
-                threadId: response.sessionId,
-                turn: { ...turn, status: "completed" },
-            });
+        const appServer = fixture.getCodexAppServerClient();
+        vi.spyOn(appServer, "listSkills").mockResolvedValue({data: []});
+        const turn: Turn = {
+            rootTurnId: null,
+            id: "turn-id",
+            items: [],
+            itemsView: "notLoaded",
+            status: "inProgress",
+            error: null,
+            startedAt: null,
+            completedAt: null,
+            durationMs: null,
+        };
+        const turnStart = vi.spyOn(appServer, "turnStart").mockResolvedValue({turn});
+        vi.spyOn(appServer, "awaitTurnCompleted").mockResolvedValue({
+            threadId: response.sessionId,
+            turn: {...turn, status: "completed"},
+        });
 
         await codexAcpAgent.prompt({
             sessionId: response.sessionId,
             prompt: [{type: "text", text: "Create summary.md containing PINEAPPLE."}],
         });
 
-            // Assert the actual outgoing policy, independently of the preset object.
-            // Additional session roots are writable only in the workspace-write preset.
-            const policies = turnStart.mock.calls.map(
-                ([{ approvalPolicy, approvalsReviewer, sandboxPolicy }]) => ({
-                    approvalPolicy,
-                    approvalsReviewer,
-                    sandboxPolicy,
-                }),
-            );
-            await expect(
-                `${JSON.stringify(policies, null, 2)}\n`,
-            ).toMatchFileSnapshot(`data/${modeId}-mode-policy.json`);
-        },
-    );
+        // Assert the actual outgoing policy, independently of the preset object.
+        // Additional session roots are writable only in the workspace-write preset.
+        const policies = turnStart.mock.calls.map(([{approvalPolicy, approvalsReviewer, sandboxPolicy}]) => ({
+            approvalPolicy, approvalsReviewer, sandboxPolicy,
+        }));
+        await expect(`${JSON.stringify(policies, null, 2)}\n`).toMatchFileSnapshot(`data/${modeId}-mode-policy.json`);
+    });
 
     it("changes to a custom permission profile via setSessionConfigOption", async () => {
         const {fast} = buildModels();

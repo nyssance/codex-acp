@@ -20,12 +20,9 @@ describe("PathUtils", () => {
         ["C:repo", false],
         [String.raw`\repo`, false],
         ["/workspace\0", false],
-    ] as const)(
-        "checks the ACP absolute-path syntax: %j",
-        (value, expected) => {
-            expect(isAbsoluteProtocolPath(value)).toBe(expected);
-        },
-    );
+    ] as const)("checks the ACP absolute-path syntax: %j", (value, expected) => {
+        expect(isAbsoluteProtocolPath(value)).toBe(expected);
+    });
 
     it("normalizes Windows paths for comparison", () => {
         expect(arePathsEqual(
@@ -43,12 +40,8 @@ describe("PathUtils", () => {
 
     it("detects Windows absolute paths on any host platform", () => {
         expect(isAbsolutePathLike("D:/workspace/sample-project")).toBe(true);
-        expect(
-            isAbsolutePathLike(String.raw`D:\workspace\sample-project`),
-        ).toBe(true);
-        expect(isAbsolutePathLike(String.raw`\\Server\Share\Project`)).toBe(
-            true,
-        );
+        expect(isAbsolutePathLike(String.raw`D:\workspace\sample-project`)).toBe(true);
+        expect(isAbsolutePathLike(String.raw`\\Server\Share\Project`)).toBe(true);
         expect(isAbsolutePathLike("sample-project")).toBe(false);
     });
 

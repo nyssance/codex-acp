@@ -1,15 +1,8 @@
-import type {
-    ACPSessionConnection,
-    UpdateSessionEvent,
-} from "./ACPSessionConnection";
-import { AIR_GOAL_KEY, JETBRAINS_META_KEY, withAirMeta } from "./AirExtension";
-import { recordOrNull } from "./permissions/json";
-import {
-    GOAL_CONTROL_METHOD,
-    type GoalSnapshot,
-    type GoalStatus,
-} from "./GoalExtension";
-import type { ThreadGoal } from "./app-server/v2";
+import type {ACPSessionConnection, UpdateSessionEvent} from "./ACPSessionConnection";
+import {AIR_GOAL_KEY, JETBRAINS_META_KEY, withAirMeta} from "./AirExtension";
+import {recordOrNull} from "./permissions/json";
+import {GOAL_CONTROL_METHOD, type GoalSnapshot, type GoalStatus} from "./GoalExtension";
+import type {ThreadGoal} from "./app-server/v2";
 
 export type ThreadGoalSnapshot = GoalSnapshot;
 
@@ -49,31 +42,17 @@ export function sameThreadGoalSnapshot(
 ): boolean {
     if (left === undefined) return false;
     if (left === null || right === null) return left === right;
-    return (
-        left.objective === right.objective &&
-        left.status === right.status &&
-        left.tokenBudget === right.tokenBudget &&
-        left.createdAt === right.createdAt &&
-        left.updatedAt === right.updatedAt &&
-        left.tokensUsed === right.tokensUsed &&
-        left.timeUsedSeconds === right.timeUsedSeconds
-    );
+    return left.objective === right.objective && left.status === right.status && left.tokenBudget === right.tokenBudget && left.createdAt === right.createdAt && left.updatedAt === right.updatedAt && left.tokensUsed === right.tokensUsed && left.timeUsedSeconds === right.timeUsedSeconds;
 }
 
 /** v2 exposes goals without requiring the client to impersonate AIR. */
-export function goalSessionInfoUpdate(
-    goal: ThreadGoalSnapshot | null,
-    airClient: boolean,
-    v2 = false,
-): UpdateSessionEvent | null {
+export function goalSessionInfoUpdate(goal: ThreadGoalSnapshot | null, airClient: boolean, v2 = false): UpdateSessionEvent | null {
     if (v2)
         return {
             sessionUpdate: "session_info_update",
             _meta: {
-                ...(airClient
-                    ? withAirMeta(undefined, AIR_GOAL_KEY, goal)
-                    : {}),
-                codex: { goal },
+                ...(airClient ? withAirMeta(undefined, AIR_GOAL_KEY, goal) : {}),
+                codex: {goal},
             },
         };
     if (!airClient) return null;
@@ -84,23 +63,15 @@ export function goalSessionInfoUpdate(
 }
 
 /** v2 replaces whole namespace values, so compose the current `codex` and AIR values at publication time. */
-export function publishGoalSessionInfo(
-    session: ACPSessionConnection,
-    goal: ThreadGoalSnapshot | null,
-    airClient: boolean,
-): Promise<void> {
+export function publishGoalSessionInfo(session: ACPSessionConnection, goal: ThreadGoalSnapshot | null, airClient: boolean): Promise<void> {
     if (session.protocolVersion === 2) {
         return session.patchSessionMetadata((current) => ({
             ...(airClient
                 ? {
-                      [JETBRAINS_META_KEY]: withAirMeta(
-                          current,
-                          AIR_GOAL_KEY,
-                          goal,
-                      )[JETBRAINS_META_KEY],
+                      [JETBRAINS_META_KEY]: withAirMeta(current, AIR_GOAL_KEY, goal)[JETBRAINS_META_KEY],
                   }
                 : {}),
-            codex: { ...recordOrNull(current["codex"]), goal },
+            codex: {...recordOrNull(current["codex"]), goal},
         }));
     }
     const update = goalSessionInfoUpdate(goal, airClient);

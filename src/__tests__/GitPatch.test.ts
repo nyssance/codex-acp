@@ -13,9 +13,7 @@ describe("GitPatch", () => {
     it.each(["/repo/a.txt", String.raw`C:\repo\a.txt`, String.raw`\\server\share\a.txt`])(
         "keeps native absolute paths in ACP v2 patches: %s",
         (filePath) => {
-            const quoted = filePath.includes("\\")
-                ? JSON.stringify(filePath)
-                : filePath;
+            const quoted = filePath.includes("\\") ? JSON.stringify(filePath) : filePath;
             const target = filePath.replace("a.txt", "b.txt");
             const quotedTarget = target.includes("\\") ? JSON.stringify(target) : target;
             expect(createUpdateGitPatch(filePath, target, "@@ -1 +1 @@\n-old\n+new\n", "absolute")).toBe(
@@ -98,10 +96,7 @@ describe("GitPatch", () => {
             + "+++ /dev/null\n"
             + "@@ -1 +0,0 @@\n-last\n\\ No newline at end of file\n",
         );
-        expect(parsePatch(patch!)[0]!.hunks[0]!.lines).toEqual([
-            "-last",
-            String.raw`\ No newline at end of file`,
-        ]);
+        expect(parsePatch(patch!)[0]!.hunks[0]!.lines).toEqual(["-last", String.raw`\ No newline at end of file`]);
     });
 
     it("builds no patch for an empty, binary or huge file", () => {
@@ -119,9 +114,7 @@ describe("GitPatch", () => {
         expect(createDeletedFileGitPatch("/w/huge.txt", text)).toBeNull();
         const lines = text.split("\n").length - 1;
         const update = `@@ -1 +1,${lines} @@\n-a\n${text.replaceAll(/^line$/gm, "+line")}`;
-        expect(
-            createUpdateGitPatch("/w/huge.txt", "/w/huge.txt", update),
-        ).toBeNull();
+        expect(createUpdateGitPatch("/w/huge.txt", "/w/huge.txt", update)).toBeNull();
     });
 
     it("builds no patch for a malformed or empty update diff", () => {

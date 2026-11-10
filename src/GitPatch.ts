@@ -194,9 +194,7 @@ function limited(patch: string): string | null {
  */
 function gitPath(filePath: string, style: PatchPathStyle): string {
     if (style === "absolute") return filePath;
-    const slashed = /^[A-Za-z]:\\/.test(filePath)
-        ? filePath.replaceAll("\\", "/")
-        : filePath;
+    const slashed = /^[A-Za-z]:\\/.test(filePath) ? filePath.replaceAll("\\", "/") : filePath;
     return slashed.replace(/^\/+/, "");
 }
 

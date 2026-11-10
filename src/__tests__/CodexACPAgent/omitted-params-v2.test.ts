@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type { AnyMessage } from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { createAcpAgentRouter } from "../../AcpAgentRouter";
-import { CodexAcpServer } from "../../CodexAcpServer";
-import { CodexAcpClient } from "../../CodexAcpClient";
-import { CodexAppServerClient } from "../../CodexAppServerClient";
-import { createMockConnections, mockInitializeResponse } from "./test-utils";
-import { expectConformingV2SessionUpdates } from "./v2-session-update-guard";
+import type {AnyMessage} from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {createAcpAgentRouter} from "../../AcpAgentRouter";
+import {CodexAcpServer} from "../../CodexAcpServer";
+import {CodexAcpClient} from "../../CodexAcpClient";
+import {CodexAppServerClient} from "../../CodexAppServerClient";
+import {createMockConnections, mockInitializeResponse} from "./test-utils";
+import {expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 /**
  * Raw JSON-RPC connection to the router. Unlike the typed `acpV2.client(...)` wrapper (which
@@ -18,43 +18,29 @@ function connectRaw() {
     const mocks = createMockConnections();
     // `account/read` reports an already-authenticated API-key account, so `session/list` and
     // `auth/logout` don't hit the auth-required path.
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string) => {
-            switch (method) {
-                case "initialize":
-                    return mockInitializeResponse();
-                case "account/read":
-                    return {
-                        workspaceRouting: null,
-                        account: { type: "apiKey" },
-                        requiresOpenaiAuth: true,
-                    };
-                case "thread/list":
-                    return { data: [], nextCursor: null };
-                case "account/logout":
-                    // `logout()` awaits this notification before resolving.
-                    setImmediate(() =>
-                        mocks.notificationHandlers.get("account/updated")?.({
-                            authMode: null,
-                            planType: null,
-                        }),
-                    );
-                    return {};
-                default:
-                    return {};
-            }
-        },
-    );
-    const codexAcpClient = new CodexAcpClient(
-        new CodexAppServerClient(mocks.mockCodexConnection as any),
-    );
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
-    const router = createAcpAgentRouter(
-        (connection) => new CodexAcpServer(connection, codexAcpClient),
-    );
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string) => {
+        switch (method) {
+            case "initialize":
+                return mockInitializeResponse();
+            case "account/read":
+                return {
+                    workspaceRouting: null,
+                    account: {type: "apiKey"},
+                    requiresOpenaiAuth: true,
+                };
+            case "thread/list":
+                return {data: [], nextCursor: null};
+            case "account/logout":
+                // `logout()` awaits this notification before resolving.
+                setImmediate(() => mocks.notificationHandlers.get("account/updated")?.({authMode: null, planType: null}));
+                return {};
+            default:
+                return {};
+        }
+    });
+    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
+    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acpV2.ndJsonStream(agentToClient.writable, clientToAgent.readable));

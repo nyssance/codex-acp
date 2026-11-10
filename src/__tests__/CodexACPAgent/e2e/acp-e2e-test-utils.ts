@@ -1,14 +1,8 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
-import { describe, expect } from "vitest";
-import type { AgentMode } from "../../../AgentMode";
-import {
-    CODEX_API_KEY_ENV_VAR,
-    OPENAI_API_KEY_ENV_VAR,
-} from "../../../CodexAuthMethod";
-import {
-    createSpawnedAgentFixture,
-    type SpawnedAgentFixture,
-} from "./spawned-agent-fixture";
+import {describe, expect} from "vitest";
+import type {AgentMode} from "../../../AgentMode";
+import {CODEX_API_KEY_ENV_VAR, OPENAI_API_KEY_ENV_VAR} from "../../../CodexAuthMethod";
+import {createSpawnedAgentFixture, type SpawnedAgentFixture,} from "./spawned-agent-fixture";
 
 export {
     createPermissionResponder,

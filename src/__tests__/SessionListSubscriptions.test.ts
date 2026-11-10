@@ -65,37 +65,25 @@ function thread(id: string, overrides: Partial<Thread> = {}): Thread {
 
 /** An app-server with a thread table: `thread/list` sorts by `updatedAt`, newest first, and pages by offset. */
 class FakeCodex {
-    readonly threads = new Map<string, { thread: Thread; archived: boolean }>();
-    readonly threadList = vi.fn(
-        async (params: ThreadListParams): Promise<ThreadListResponse> => {
-            const cwds =
-                params.cwd === undefined || params.cwd === null
-                    ? null
-                    : [params.cwd].flat();
-            const rows = [...this.threads.values()]
-                .filter(
-                    (entry) => entry.archived === (params.archived ?? false),
-                )
-                .filter(
-                    (entry) => cwds === null || cwds.includes(entry.thread.cwd),
-                )
-                .map((entry) => entry.thread)
-                .toSorted((left, right) => right.updatedAt - left.updatedAt);
-            const offset = params.cursor ? Number(params.cursor) : 0;
-            const limit = params.limit ?? 25;
-            const data = rows.slice(offset, offset + limit);
-            return {
-                readStates: null,
-                data,
-                nextCursor:
-                    offset + limit < rows.length
-                        ? String(offset + limit)
-                        : null,
-                backwardsCursor: null,
-            };
-        },
-    );
-    readonly threadRead = vi.fn(async ({ threadId }: { threadId: string }) => {
+    readonly threads = new Map<string, {thread: Thread, archived: boolean}>();
+    readonly threadList = vi.fn(async (params: ThreadListParams): Promise<ThreadListResponse> => {
+        const cwds = params.cwd === undefined || params.cwd === null ? null : [params.cwd].flat();
+        const rows = [...this.threads.values()]
+            .filter((entry) => entry.archived === (params.archived ?? false))
+            .filter((entry) => cwds === null || cwds.includes(entry.thread.cwd))
+            .map((entry) => entry.thread)
+            .toSorted((left, right) => right.updatedAt - left.updatedAt);
+        const offset = params.cursor ? Number(params.cursor) : 0;
+        const limit = params.limit ?? 25;
+        const data = rows.slice(offset, offset + limit);
+        return {
+            readStates: null,
+            data,
+            nextCursor: offset + limit < rows.length ? String(offset + limit) : null,
+            backwardsCursor: null,
+        };
+    });
+    readonly threadRead = vi.fn(async ({threadId}: {threadId: string}) => {
         const entry = this.threads.get(threadId);
         if (entry === undefined) throw new Error(`thread not found: ${threadId}`);
         const archivedPath = `${HOME}/archived_sessions/rollout-${threadId}.jsonl`;
@@ -409,14 +397,10 @@ describe("SessionListSubscriptions", () => {
         // No group has a row of the thread yet: it is read, and both get it.
         subscriptions.observe(own("thread/name/updated", {threadId: "old"}));
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
-        expect(
-            codex.threadRead.mock.calls.map((call) => call[0].threadId),
-        ).toEqual(["old"]);
+        expect(codex.threadRead.mock.calls.map((call) => call[0].threadId)).toEqual(["old"]);
         expect(
             sent
-                .filter((changes) =>
-                    changes.sessions.some((row) => row.sessionId === "old"),
-                )
+                .filter((changes) => changes.sessions.some((row) => row.sessionId === "old"))
                 .map((changes) => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([repo, worktree].toSorted());
@@ -756,12 +740,8 @@ describe("SessionListSubscriptions", () => {
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
 
         expect(codex.scans()).toHaveLength(1);
-        expect(
-            sent.map((changes) => changes.subscriptionId).toSorted(),
-        ).toEqual([first, second].toSorted());
-        expect(
-            sent.every((changes) => ids(changes.sessions).join() === "a"),
-        ).toBe(true);
+        expect(sent.map((changes) => changes.subscriptionId).toSorted()).toEqual([first, second].toSorted());
+        expect(sent.every((changes) => ids(changes.sessions).join() === "a")).toBe(true);
 
         subscriptions.unsubscribe(first);
         sent.length = 0;
@@ -784,9 +764,7 @@ describe("SessionListSubscriptions", () => {
         listener().stateChanged();
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
 
-        expect(
-            sent.flatMap((changes) => ids(changes.sessions)).toSorted(),
-        ).toEqual(["archived", "worktree"]);
+        expect(sent.flatMap((changes) => ids(changes.sessions)).toSorted()).toEqual(["archived", "worktree"]);
         subscriptions.dispose();
     });
 
@@ -830,11 +808,7 @@ describe("SessionListSubscriptions", () => {
         subscriptions.observe(own("thread/deleted", {threadId: "unknown"}));
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
 
-        expect(
-            sent
-                .map((changes) => [changes.subscriptionId, changes.removed])
-                .toSorted(),
-        ).toEqual(
+        expect(sent.map((changes) => [changes.subscriptionId, changes.removed]).toSorted()).toEqual(
             [
                 [repo, ["unknown"]],
                 [other, ["unknown"]],
@@ -855,13 +829,11 @@ describe("SessionListSubscriptions", () => {
                 thread: codex.threads.get("title")!.thread,
             }),
         );
-        subscriptions.observe(
-            own("turn/started", { threadId: "title", turn: {} }),
-        );
+        subscriptions.observe(own("turn/started", {threadId: "title", turn: {}}));
         subscriptions.observe(
             own("thread/status/changed", {
                 threadId: "fresh",
-                status: { type: "idle" },
+                status: {type: "idle"},
             }),
         );
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
@@ -930,21 +902,14 @@ describe("SessionListSubscriptions", () => {
         await vi.advanceTimersByTimeAsync(timings.minChangeIntervalMs);
 
         expect(sent).toHaveLength(3);
-        expect([sent[0]!.subscriptionId, sent[0]!.sessions[0]!.title]).toEqual([
-            first,
-            "one",
-        ]);
+        expect([sent[0]!.subscriptionId, sent[0]!.sessions[0]!.title]).toEqual([first, "one"]);
         expect(
             sent
                 .slice(1)
                 .map((changes) => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([first, second].toSorted());
-        expect(
-            sent
-                .slice(1)
-                .every((changes) => changes.sessions[0]!.title === "two"),
-        ).toBe(true);
+        expect(sent.slice(1).every((changes) => changes.sessions[0]!.title === "two")).toBe(true);
         subscriptions.dispose();
     });
 
@@ -1022,9 +987,7 @@ describe("SessionListSubscriptions", () => {
         listener().stateChanged();
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
 
-        expect(
-            sent.map((changes) => changes.subscriptionId).toSorted(),
-        ).toEqual([repo, worktree].toSorted());
+        expect(sent.map((changes) => changes.subscriptionId).toSorted()).toEqual([repo, worktree].toSorted());
         subscriptions.dispose();
     });
 
@@ -1260,23 +1223,17 @@ describe("SessionListSubscriptions with the CODEX_HOME watch on disk", () => {
         const threadId = "01a0637c-5b99-7242-9064-04545d605fe0";
         const rollout = `rollout-2026-10-08T13-21-48-${threadId}.jsonl`;
         const codex = new FakeCodex();
-        codex.put(
-            thread(threadId, { path: path.join(home, "sessions", rollout) }),
-        );
-        codex.threadRead.mockImplementation(
-            async ({ threadId: id }: { threadId: string }) => {
-                const entry = codex.threads.get(id)!;
-                return {
-                    readState: null,
-                    thread: {
-                        ...entry.thread,
-                        path: entry.archived
-                            ? path.join(home, "archived_sessions", rollout)
-                            : entry.thread.path,
-                    },
-                };
-            },
-        );
+        codex.put(thread(threadId, {path: path.join(home, "sessions", rollout)}));
+        codex.threadRead.mockImplementation(async ({threadId: id}: {threadId: string}) => {
+            const entry = codex.threads.get(id)!;
+            return {
+                readState: null,
+                thread: {
+                    ...entry.thread,
+                    path: entry.archived ? path.join(home, "archived_sessions", rollout) : entry.thread.path,
+                },
+            };
+        });
         const sent: SessionListChanges[] = [];
         const subscriptions = new SessionListSubscriptions({
             reader: () => codex,

@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
-import { createCodexMockTestFixture, createTestModel } from "../acp-test-utils";
-import type { Thread } from "../../app-server/v2";
-import { testThreadPermissions } from "../native-thread-permissions";
+import {describe, expect, it, vi} from "vitest";
+import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
+import type {Thread} from "../../app-server/v2";
+import {testThreadPermissions} from "../native-thread-permissions";
 
 // Codex materializes a thread's rollout file on the thread's first user
 // message, so every rollout-backed call fails this way for a session that was
@@ -54,21 +54,19 @@ function createFixture() {
     const fixture = createCodexMockTestFixture();
     const client = fixture.getCodexAcpClient();
     const appServer = fixture.getCodexAppServerClient();
-    client.readAuthRequirement = vi
-        .fn()
-        .mockResolvedValue({ required: false, account: null });
+    client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
     client.getAccount = vi.fn().mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    client.listSkills = vi.fn().mockResolvedValue({ data: [] });
+    client.listSkills = vi.fn().mockResolvedValue({data: []});
     appServer.listModels = vi.fn().mockResolvedValue({
         readStates: null,
         data: [createTestModel()],
         nextCursor: null,
     });
-    return { fixture, client, appServer };
+    return {fixture, client, appServer};
 }
 
 describe("sessions Codex has not materialized on disk", () => {
@@ -118,8 +116,12 @@ describe("sessions Codex has not materialized on disk", () => {
                 data: [{id: "dev", description: null, allowed: true}], nextCursor: null,
             });
             appServer.threadResume = vi.fn().mockResolvedValue({
-                thread: createLiveThread(), model: "model-id", modelProvider: "openai",
-                reasoningEffort: "medium", serviceTier: null, ...testThreadPermissions(),
+                thread: createLiveThread(),
+                model: "model-id",
+                modelProvider: "openai",
+                reasoningEffort: "medium",
+                serviceTier: null,
+                ...testThreadPermissions(),
             });
 
             const response = await fixture.getCodexAcpAgent()[method]({sessionId: threadId, cwd: "/test/cwd", mcpServers: []});
@@ -129,13 +131,9 @@ describe("sessions Codex has not materialized on disk", () => {
     );
 
     it("resumes from the live thread when thread/resume finds no rollout", async () => {
-        const { fixture, appServer } = createFixture();
-        appServer.threadResume = vi
-            .fn()
-            .mockRejectedValue(NO_ROLLOUT(threadId));
-        appServer.threadRead = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread: createLiveThread() });
+        const {fixture, appServer} = createFixture();
+        appServer.threadResume = vi.fn().mockRejectedValue(NO_ROLLOUT(threadId));
+        appServer.threadRead = vi.fn().mockResolvedValue({readState: null, thread: createLiveThread()});
 
         const response = await fixture.getCodexAcpAgent().resumeSession({
             sessionId: threadId,
@@ -148,13 +146,9 @@ describe("sessions Codex has not materialized on disk", () => {
     });
 
     it("loads an unmaterialized thread with empty history instead of paging it", async () => {
-        const { fixture, appServer } = createFixture();
-        appServer.threadResume = vi
-            .fn()
-            .mockRejectedValue(NO_ROLLOUT(threadId));
-        appServer.threadRead = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread: createLiveThread() });
+        const {fixture, appServer} = createFixture();
+        appServer.threadResume = vi.fn().mockRejectedValue(NO_ROLLOUT(threadId));
+        appServer.threadRead = vi.fn().mockResolvedValue({readState: null, thread: createLiveThread()});
         appServer.threadTurnsList = vi.fn();
 
         await expect(fixture.getCodexAcpAgent().loadSession({
@@ -220,13 +214,9 @@ describe("sessions Codex has not materialized on disk", () => {
 
 describe("session/load and a title generation left over from an earlier turn", () => {
     it("waits for the rename to land before answering", async () => {
-        const { fixture, appServer } = createFixture();
-        appServer.threadResume = vi
-            .fn()
-            .mockRejectedValue(NO_ROLLOUT(threadId));
-        appServer.threadRead = vi
-            .fn()
-            .mockResolvedValue({ readState: null, thread: createLiveThread() });
+        const {fixture, appServer} = createFixture();
+        appServer.threadResume = vi.fn().mockRejectedValue(NO_ROLLOUT(threadId));
+        appServer.threadRead = vi.fn().mockResolvedValue({readState: null, thread: createLiveThread()});
         appServer.threadStart = vi.fn().mockResolvedValue({
             thread: createLiveThread(),
             model: "model-id",

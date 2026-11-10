@@ -76,16 +76,10 @@ export class CodexSubagentSubscriptions {
     }
 
     async readChildThread(threadId: string): Promise<Thread | null> {
-        const session = [...this.sessions.values()].find((session) =>
-            session.children.has(threadId),
-        );
-        const { thread } = await this.client.threadRead({ threadId });
+        const session = [...this.sessions.values()].find(session => session.children.has(threadId));
+        const {thread} = await this.client.threadRead({threadId});
         if (thread?.id !== threadId) return null;
-        if (
-            session &&
-            this.sessions.get(session.current.rootSessionId) === session
-        )
-            this.rememberParent(session, thread);
+        if (session && this.sessions.get(session.current.rootSessionId) === session) this.rememberParent(session, thread);
         return thread;
     }
 

@@ -395,9 +395,7 @@ export async function readSessionIndexPage(
         }
         if (taken.length > 0) {
             const last = recencyOf(taken.at(-1)!.thread);
-            const ids = taken
-                .filter((row) => recencyOf(row.thread) === last)
-                .map((row) => row.thread.id);
+            const ids = taken.filter((row) => recencyOf(row.thread) === last).map((row) => row.thread.id);
             state.after = {
                 recency: last,
                 ids: state.after?.recency === last ? [...state.after.ids, ...ids] : ids,

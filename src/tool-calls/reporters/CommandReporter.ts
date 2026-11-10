@@ -88,9 +88,7 @@ export class CommandReporter {
         const facts = completionFacts(item, streamed, withName);
         return {
             ...facts,
-            ...(item.source === "userShell"
-                ? { commandSource: "userShell" as const }
-                : {}),
+            ...(item.source === "userShell" ? {commandSource: "userShell" as const} : {}),
             standard: {
                 content: null,
                 commandEnd: {
@@ -184,21 +182,11 @@ export function commandUsesTerminal(item: CommandItem): boolean {
 
 function startFacts(item: CommandItem): ToolFacts {
     const name = commandToolName(item.source);
-    const action =
-        item.source === "userShell"
-            ? undefined
-            : singleAction(item.commandActions);
+    const action = item.source === "userShell" ? undefined : singleAction(item.commandActions);
     return {
-        ...commandActionFacts(
-            item.id,
-            item.status,
-            item.cwd,
-            action ?? { type: "unknown", command: item.command },
-        ),
-        ...(name === undefined ? {} : { name }),
-        ...(item.source === "userShell"
-            ? { commandSource: "userShell" as const }
-            : {}),
+        ...commandActionFacts(item.id, item.status, item.cwd, action ?? {type: "unknown", command: item.command}),
+        ...(name === undefined ? {} : {name}),
+        ...(item.source === "userShell" ? {commandSource: "userShell" as const} : {}),
     };
 }
 

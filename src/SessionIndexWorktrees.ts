@@ -66,7 +66,7 @@ function linkedWorktreeCwdsOrNull(cwd: string): string[] | null {
     const worktrees = canonicalize(worktreesPath);
     if (worktrees === null) return null;
     const registered = fs
-        .readdirSync(worktrees, { withFileTypes: true })
+        .readdirSync(worktrees, {withFileTypes: true})
         .filter((entry) => entry.isDirectory())
         .map((entry) => entry.name)
         .toSorted();
@@ -236,10 +236,7 @@ export function isCodexWorktreeCwd(cwd: string): boolean {
 
 /** Whether `cwd` is a Windows UNC path, as `\\server\share\…` or `\\wsl.localhost\…`, whose reads can be slow. */
 export function isUncPath(cwd: string): boolean {
-    return (
-        cwd.startsWith(String.raw`\\`) ||
-        (process.platform === "win32" && cwd.startsWith("//"))
-    );
+    return cwd.startsWith(String.raw`\\`) || (process.platform === "win32" && cwd.startsWith("//"));
 }
 
 /**
@@ -321,12 +318,8 @@ function mainWorktreeRootOrNull(directory: string): string | null {
 function mainRootOfDotGitFile(dotGit: string, worktree: string): string | null {
     const line = readFirstLine(dotGit);
     if (!line?.startsWith(GITDIR_PREFIX)) return null;
-    const gitDir = resolveAgainst(
-        worktree,
-        kotlinTrim(line.slice(GITDIR_PREFIX.length)),
-    );
-    if (gitDir === null || !namesEqual(parentName(gitDir), "worktrees"))
-        return null;
+    const gitDir = resolveAgainst(worktree, kotlinTrim(line.slice(GITDIR_PREFIX.length)));
+    if (gitDir === null || !namesEqual(parentName(gitDir), "worktrees")) return null;
     const commonDir = commonDirOf(gitDir);
     if (commonDir === null || !namesEqual(path.basename(commonDir), DOT_GIT) || !isDirectory(commonDir)) return null;
     return path.dirname(commonDir);
@@ -391,10 +384,7 @@ function readFirstLine(file: string): string | null {
 }
 
 const KOTLIN_WHITESPACE = String.raw`[\t\n\v\f\r\u001c-\u001f\p{Zs}\p{Zl}\p{Zp}]`;
-const KOTLIN_TRIM = new RegExp(
-    `^${KOTLIN_WHITESPACE}+|${KOTLIN_WHITESPACE}+$`,
-    "gu",
-);
+const KOTLIN_TRIM = new RegExp(`^${KOTLIN_WHITESPACE}+|${KOTLIN_WHITESPACE}+$`, "gu");
 
 /** Kotlin's `String.trim()`: Java whitespace and Unicode space separators, but not a byte order mark as in JavaScript. */
 function kotlinTrim(value: string): string {

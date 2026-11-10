@@ -110,17 +110,13 @@ describe('session/prompt over ACP v2', () => {
 
         expect(clientUserMessageId).toEqual(expect.any(String));
         expect(messageId).toBe(clientUserMessageId);
-        const userMessages = client.transcript
-            .flatMap((entry) =>
-                "sessionUpdate" in entry ? [entry.sessionUpdate] : [],
-            )
-            .filter((update) => update.sessionUpdate === "user_message_chunk");
+        const userMessages = client.transcript.flatMap((entry) => ("sessionUpdate" in entry ? [entry.sessionUpdate] : [])).filter((update) => update.sessionUpdate === "user_message_chunk");
         expect(userMessages).toEqual([
             {
                 sessionUpdate: "user_message_chunk",
                 messageId,
-                content: { type: "text", text: "Hello" },
-                _meta: { codex: { turnId } },
+                content: {type: "text", text: "Hello"},
+                _meta: {codex: {turnId}},
             },
         ]);
         // Foreground work starts before insertion; acceptance still waits for the user-message echo.
@@ -168,17 +164,9 @@ describe('session/prompt over ACP v2', () => {
         const results = [];
         for (const [index, [info, message, expectedText]] of (
             [
-                [
-                    "usageLimitExceeded",
-                    "You've hit your usage limit.",
-                    "You've hit your usage limit.",
-                ],
+                ["usageLimitExceeded", "You've hit your usage limit.", "You've hit your usage limit."],
                 // unauthorized routes through the ACP login flow instead of echoing the provider's text.
-                [
-                    "unauthorized",
-                    "Your access token could not be refreshed.",
-                    "Authentication required",
-                ],
+                ["unauthorized", "Your access token could not be refreshed.", "Authentication required"],
             ] as const
         ).entries()) {
             const id = `turn-${index + 1}`;
@@ -191,38 +179,17 @@ describe('session/prompt over ACP v2', () => {
 
             const transcript = client.transcript.slice(start);
             // The inserted request remains successful; terminal failure belongs to idle/error.
-            expect(stateUpdates(transcript)).toEqual([
-                { state: "running" },
-                { state: "idle", stopReason: "error" },
-            ]);
-            const messageType =
-                info === "unauthorized"
-                    ? "agent_message_chunk"
-                    : "agent_message";
-            const agentMessages = sessionUpdates(transcript).filter(
-                (update) => update.sessionUpdate === messageType,
-            );
-            const content = { type: "text", text: expectedText };
+            expect(stateUpdates(transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "error"}]);
+            const messageType = info === "unauthorized" ? "agent_message_chunk" : "agent_message";
+            const agentMessages = sessionUpdates(transcript).filter((update) => update.sessionUpdate === messageType);
+            const content = {type: "text", text: expectedText};
             expect(agentMessages.length).toBeGreaterThan(0);
             for (const update of agentMessages)
                 expect(update).toMatchObject({
-                    content:
-                        messageType === "agent_message" ? [content] : content,
+                    content: messageType === "agent_message" ? [content] : content,
                 });
-            if (messageType === "agent_message")
-                expect(
-                    new Set(
-                        agentMessages.map((update) =>
-                            "messageId" in update ? update.messageId : null,
-                        ),
-                    ),
-                ).toEqual(new Set([`codex-error:${id}`]));
-            const text = indexOf(
-                transcript,
-                (entry) =>
-                    "sessionUpdate" in entry &&
-                    entry.sessionUpdate.sessionUpdate === messageType,
-            );
+            if (messageType === "agent_message") expect(new Set(agentMessages.map((update) => ("messageId" in update ? update.messageId : null)))).toEqual(new Set([`codex-error:${id}`]));
+            const text = indexOf(transcript, (entry) => "sessionUpdate" in entry && entry.sessionUpdate.sessionUpdate === messageType);
             expect(indexOf(transcript, isState("running"))).toBeLessThan(text);
             expect(text).toBeLessThan(indexOf(transcript, isState("idle")));
             results.push({info, transcript: stableTranscript(transcript, messageId)});
@@ -378,12 +345,7 @@ describe('session/prompt over ACP v2', () => {
 
         expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
         const idle = sessionUpdates(client.transcript).at(-1);
-        await expect(
-            dump(
-                idle,
-                client.turnStartParams[0]!["clientUserMessageId"] as string,
-            ),
-        ).toMatchFileSnapshot("data/prompt-v2-idle-usage-and-quota.json");
+        await expect(dump(idle, client.turnStartParams[0]!["clientUserMessageId"] as string)).toMatchFileSnapshot("data/prompt-v2-idle-usage-and-quota.json");
     });
 
     it('ends observed foreground work if the runtime dies before acknowledging turn/start', async () => {
@@ -461,9 +423,7 @@ describe('session/prompt over ACP v2', () => {
             steers.push(params as Record<string, unknown>);
             return {};
         });
-        const { messageId } = await client.sendPrompt([
-            { type: "text", text: "Again" },
-        ]);
+        const {messageId} = await client.sendPrompt([{type: "text", text: "Again"}]);
         expect(steers).toEqual([
             expect.objectContaining({
                 threadId: sessionId,
@@ -472,29 +432,20 @@ describe('session/prompt over ACP v2', () => {
             }),
         ]);
         expect(client.turnStartParams).toHaveLength(1);
-        expect(stateUpdates(client.transcript)).toEqual([{ state: "running" }]);
-        expect(
-            sessionUpdates(client.transcript).some(
-                (update) =>
-                    update.sessionUpdate === "user_message_chunk" &&
-                    update.messageId === messageId,
-            ),
-        ).toBe(false);
+        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
+        expect(sessionUpdates(client.transcript).some((update) => update.sessionUpdate === "user_message_chunk" && update.messageId === messageId)).toBe(false);
         client.emit(itemCompleted(userMessageItem(messageId, "Again")));
         await settle();
         expect(sessionUpdates(client.transcript)).toContainEqual({
             sessionUpdate: "user_message_chunk",
             messageId,
-            content: { type: "text", text: "Again" },
-            _meta: { codex: { turnId } },
+            content: {type: "text", text: "Again"},
+            _meta: {codex: {turnId}},
         });
         client.emit(turnCompleted());
         await client.promptRunFinished();
         await settle();
-        expect(stateUpdates(client.transcript)).toEqual([
-            { state: "running" },
-            { state: "idle", stopReason: "end_turn" },
-        ]);
+        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
     });
 
     it("accepts repeated running prompts in the same native turn", async () => {
@@ -508,26 +459,18 @@ describe('session/prompt over ACP v2', () => {
         });
         const ids: string[] = [];
         for (const text of ["Two", "Three"]) {
-            const { messageId } = await client.sendPrompt([
-                { type: "text", text },
-            ]);
+            const {messageId} = await client.sendPrompt([{type: "text", text}]);
             ids.push(messageId);
             client.emit(itemStarted(userMessageItem(messageId, text)));
         }
         await settle();
         expect(new Set(ids).size).toBe(2);
-        expect(steers.map((params) => params["expectedTurnId"])).toEqual([
-            turnId,
-            turnId,
-        ]);
+        expect(steers.map((params) => params["expectedTurnId"])).toEqual([turnId, turnId]);
         expect(client.turnStartParams).toHaveLength(1);
         client.emit(turnCompleted());
         await client.promptRunFinished();
         await settle();
-        expect(stateUpdates(client.transcript)).toEqual([
-            { state: "running" },
-            { state: "idle", stopReason: "end_turn" },
-        ]);
+        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
     });
 
     it('queues a local slash command behind a running prompt', async () => {
@@ -570,16 +513,12 @@ describe('session/prompt over ACP v2', () => {
             await settle();
             throw new Error("no active turn to steer");
         });
-        const response = client.sendPrompt([{ type: "text", text: "Again" }]);
+        const response = client.sendPrompt([{type: "text", text: "Again"}]);
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
-        const messageId = client.turnStartParams[1]![
-            "clientUserMessageId"
-        ] as string;
+        const messageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
         client.emit(turnStarted("turn-2"));
-        client.emit(
-            itemCompleted(userMessageItem(messageId, "Again"), "turn-2"),
-        );
-        expect(await response).toEqual({ messageId });
+        client.emit(itemCompleted(userMessageItem(messageId, "Again"), "turn-2"));
+        expect(await response).toEqual({messageId});
         client.emit(turnCompleted("turn-2"));
         await client.promptRunFinished(1);
     });
@@ -592,13 +531,13 @@ describe('session/prompt over ACP v2', () => {
             steers.push(params as Record<string, unknown>);
             return {};
         });
-        const first = client.sendPrompt([{ type: "text", text: "One" }]);
+        const first = client.sendPrompt([{type: "text", text: "One"}]);
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
-        const second = client.sendPrompt([{ type: "text", text: "Two" }]);
+        const second = client.sendPrompt([{type: "text", text: "Two"}]);
         client.emit(turnStarted());
         client.emit(itemCompleted(userMessageItem(client.turnStartParams[0]!["clientUserMessageId"] as string)));
         await first;
-        const { messageId } = await second;
+        const {messageId} = await second;
         expect(steers).toEqual([
             expect.objectContaining({
                 expectedTurnId: turnId,
@@ -943,14 +882,14 @@ describe('session/prompt over ACP v2', () => {
             {
                 sessionUpdate: "user_message_chunk",
                 messageId,
-                content: { type: "text", text: "Hello" },
-                _meta: { codex: { turnId } },
+                content: {type: "text", text: "Hello"},
+                _meta: {codex: {turnId}},
             },
             {
                 sessionUpdate: "user_message_chunk",
                 messageId: implementationId,
-                content: { type: "text", text: "Implement the approved plan." },
-                _meta: { codex: { turnId: "turn-2" } },
+                content: {type: "text", text: "Implement the approved plan."},
+                _meta: {codex: {turnId: "turn-2"}},
             },
         ]);
 
@@ -995,18 +934,15 @@ describe('session/prompt over ACP v2', () => {
         const start = client.transcript.length;
         let steeredId = "";
         client.setCodexResponse("turn/steer", async (params) => {
-            steeredId = (params as { clientUserMessageId: string })
-                .clientUserMessageId;
+            steeredId = (params as {clientUserMessageId: string}).clientUserMessageId;
             return {};
         });
-        const response = client.sendPrompt([{ type: "text", text: "Hello" }]);
+        const response = client.sendPrompt([{type: "text", text: "Hello"}]);
         await vi.waitFor(() => expect(steeredId).not.toBe(""));
 
         const clientUserMessageId = steeredId;
-        client.emit(
-            itemCompleted(userMessageItem(clientUserMessageId), "goal-turn"),
-        );
-        const { messageId } = await response;
+        client.emit(itemCompleted(userMessageItem(clientUserMessageId), "goal-turn"));
+        const {messageId} = await response;
         expect(messageId).toBe(clientUserMessageId);
 
         client.emit(turnCompleted("goal-turn"));
@@ -1015,20 +951,14 @@ describe('session/prompt over ACP v2', () => {
         const transcript = client.transcript.slice(start);
         // No second `running`: the goal turn's own `running` already covers this prompt. Exactly
         // one `idle`, sent by this prompt once the adopted turn ends.
-        expect(stateUpdates(transcript)).toEqual([
-            { state: "idle", stopReason: "end_turn" },
-        ]);
-        const userMessages = transcript
-            .flatMap((entry) =>
-                "sessionUpdate" in entry ? [entry.sessionUpdate] : [],
-            )
-            .filter((update) => update.sessionUpdate === "user_message_chunk");
+        expect(stateUpdates(transcript)).toEqual([{state: "idle", stopReason: "end_turn"}]);
+        const userMessages = transcript.flatMap((entry) => ("sessionUpdate" in entry ? [entry.sessionUpdate] : [])).filter((update) => update.sessionUpdate === "user_message_chunk");
         expect(userMessages).toEqual([
             {
                 sessionUpdate: "user_message_chunk",
                 messageId,
-                content: { type: "text", text: "Hello" },
-                _meta: { codex: { turnId: "goal-turn" } },
+                content: {type: "text", text: "Hello"},
+                _meta: {codex: {turnId: "goal-turn"}},
             },
         ]);
     });
@@ -1044,11 +974,10 @@ describe('session/prompt over ACP v2', () => {
         const start = client.transcript.length;
         let steeredId = "";
         client.setCodexResponse("turn/steer", async (params) => {
-            steeredId = (params as { clientUserMessageId: string })
-                .clientUserMessageId;
+            steeredId = (params as {clientUserMessageId: string}).clientUserMessageId;
             return {};
         });
-        const response = client.sendPrompt([{ type: "text", text: "Hello" }]);
+        const response = client.sendPrompt([{type: "text", text: "Hello"}]);
         await vi.waitFor(() => expect(steeredId).not.toBe(""));
 
         // Codex drops the steered input: the adopted turn is interrupted before it lands.
@@ -1056,7 +985,7 @@ describe('session/prompt over ACP v2', () => {
         await settle();
 
         // Acceptance is independent of insertion and native turn completion.
-        await expect(response).resolves.toEqual({ messageId: steeredId });
+        await expect(response).resolves.toEqual({messageId: steeredId});
         const transcript = client.transcript.slice(start);
         expect(transcript.some(entry => "sessionUpdate" in entry && entry.sessionUpdate.sessionUpdate === "user_message_chunk"))
             .toBe(false);
@@ -1107,38 +1036,29 @@ describe('session/prompt over ACP v2', () => {
         const start = client.transcript.length;
         let steeredId = "";
         client.setCodexResponse("turn/steer", async (params) => {
-            steeredId = (params as { clientUserMessageId: string })
-                .clientUserMessageId;
+            steeredId = (params as {clientUserMessageId: string}).clientUserMessageId;
             return {};
         });
-        const response = client.sendPrompt([{ type: "text", text: "Hello" }]);
+        const response = client.sendPrompt([{type: "text", text: "Hello"}]);
         await vi.waitFor(() => expect(steeredId).not.toBe(""));
 
         const clientUserMessageId = steeredId;
-        client.emit(
-            itemCompleted(userMessageItem(clientUserMessageId), "goal-turn"),
-        );
-        const { messageId } = await response;
+        client.emit(itemCompleted(userMessageItem(clientUserMessageId), "goal-turn"));
+        const {messageId} = await response;
         expect(messageId).toBe(clientUserMessageId);
 
         client.emit(turnCompleted("goal-turn"));
         await settle();
 
         const transcript = client.transcript.slice(start);
-        expect(stateUpdates(transcript)).toEqual([
-            { state: "idle", stopReason: "end_turn" },
-        ]);
-        const userMessages = transcript
-            .flatMap((entry) =>
-                "sessionUpdate" in entry ? [entry.sessionUpdate] : [],
-            )
-            .filter((update) => update.sessionUpdate === "user_message_chunk");
+        expect(stateUpdates(transcript)).toEqual([{state: "idle", stopReason: "end_turn"}]);
+        const userMessages = transcript.flatMap((entry) => ("sessionUpdate" in entry ? [entry.sessionUpdate] : [])).filter((update) => update.sessionUpdate === "user_message_chunk");
         expect(userMessages).toEqual([
             {
                 sessionUpdate: "user_message_chunk",
                 messageId,
-                content: { type: "text", text: "Hello" },
-                _meta: { codex: { turnId: "goal-turn" } },
+                content: {type: "text", text: "Hello"},
+                _meta: {codex: {turnId: "goal-turn"}},
             },
         ]);
     });

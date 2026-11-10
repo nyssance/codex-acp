@@ -1,5 +1,5 @@
-import type { AgentMode } from "./AgentMode";
-import type { ModeKind } from "./app-server/ModeKind";
+import type {AgentMode} from "./AgentMode";
+import type {ModeKind} from "./app-server/ModeKind";
 import type {
     ApprovalsReviewer,
     AskForApproval,

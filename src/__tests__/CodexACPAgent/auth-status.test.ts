@@ -33,13 +33,11 @@ function authStatusUpdates(fixture: CodexMockTestFixture): AuthStatus[] {
 }
 
 function mockAccount(fixture: CodexMockTestFixture, account: Account | null) {
-    return vi
-        .spyOn(fixture.getCodexAcpClient(), "getAccount")
-        .mockResolvedValue({
-            workspaceRouting: null,
-            account,
-            requiresOpenaiAuth: account === null,
-        });
+    return vi.spyOn(fixture.getCodexAcpClient(), "getAccount").mockResolvedValue({
+        workspaceRouting: null,
+        account,
+        requiresOpenaiAuth: account === null,
+    });
 }
 
 /** Waits for the fire-and-forget publishes of `initialize` and `account/updated`. */
@@ -121,38 +119,24 @@ describe("authStatus extension", () => {
         it.each([
             ["wire", "Custom name", undefined],
             ["WIRE", "wire", "https://example.invalid/other-backend"],
-            [
-                "  WiRe  ",
-                "JetBrains Central CLI proxy",
-                "http://127.0.0.1:12345/wire/redacted/codex/openai/v1",
-            ],
-        ])(
-            "uses active ID %j independently of name and URL",
-            async (provider, name, baseUrl) => {
-                const fixture = createCodexMockTestFixture();
-                const configRead = vi
-                    .spyOn(fixture.getCodexAppServerClient(), "configRead")
-                    .mockResolvedValue(
-                        providerConfig(provider!, name!, baseUrl),
-                    );
-                const accountRead = mockAccount(fixture, {
-                    type: "chatgpt",
-                    workspaceName: null,
-                    email: "unused@example.com",
-                    planType: "plus",
-                });
-                expect(await initializeAndAwaitFirstPush(fixture)).toEqual(
-                    centralStatus,
-                );
-                expect(configRead).toHaveBeenCalledWith({
-                    includeLayers: false,
-                });
-                expect(accountRead).not.toHaveBeenCalled();
-                expect(
-                    JSON.stringify(authStatusUpdates(fixture)),
-                ).not.toContain("redacted");
-            },
-        );
+            ["  WiRe  ", "JetBrains Central CLI proxy", "http://127.0.0.1:12345/wire/redacted/codex/openai/v1"],
+        ])("uses active ID %j independently of name and URL", async (provider, name, baseUrl) => {
+            const fixture = createCodexMockTestFixture();
+            const configRead = vi.spyOn(fixture.getCodexAppServerClient(), "configRead")
+                .mockResolvedValue(providerConfig(provider!, name!, baseUrl));
+            const accountRead = mockAccount(fixture, {
+                type: "chatgpt",
+                workspaceName: null,
+                email: "unused@example.com",
+                planType: "plus",
+            });
+            expect(await initializeAndAwaitFirstPush(fixture)).toEqual(centralStatus);
+            expect(configRead).toHaveBeenCalledWith({
+                includeLayers: false,
+            });
+            expect(accountRead).not.toHaveBeenCalled();
+            expect(JSON.stringify(authStatusUpdates(fixture))).not.toContain("redacted");
+        });
 
         it("retains ordinary provider display even when its friendly name is wire", async () => {
             const fixture = createCodexMockTestFixture();
@@ -162,22 +146,15 @@ describe("authStatus extension", () => {
 
         it("preserves launch ID priority over a Central entry in config", async () => {
             const fixture = createCodexMockTestFixture();
-            const configRead = vi
-                .spyOn(fixture.getCodexAppServerClient(), "configRead")
-                .mockResolvedValue(providerConfig("wire"));
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "getModelProvider",
-            ).mockReturnValue("openai");
+            const configRead = vi.spyOn(fixture.getCodexAppServerClient(), "configRead").mockResolvedValue(providerConfig("wire"));
+            vi.spyOn(fixture.getCodexAcpClient(), "getModelProvider").mockReturnValue("openai");
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
                 email: "user@example.com",
                 planType: "plus",
             });
-            expect(await initializeAndAwaitFirstPush(fixture)).toEqual(
-                CHAT_GPT_PLUS,
-            );
+            expect(await initializeAndAwaitFirstPush(fixture)).toEqual(CHAT_GPT_PLUS);
             expect(configRead).not.toHaveBeenCalled();
         });
 
@@ -287,10 +264,9 @@ describe("authStatus extension", () => {
                 email: "user@example.com",
                 planType: "plus",
             });
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "getAgentConfiguredModelProvider",
-            ).mockResolvedValue("custom-provider");
+            vi.spyOn(fixture.getCodexAcpClient(), "getAgentConfiguredModelProvider").mockResolvedValue(
+                "custom-provider",
+            );
 
             expect(await initializeAndAwaitFirstPush(fixture))
                 .toEqual({kind: "gateway", label: "Custom model gateway", detail: "custom-provider"});
@@ -336,9 +312,7 @@ describe("authStatus extension", () => {
                 email: null,
                 planType: "unknown",
             });
-            expect(
-                await initializeAndAwaitFirstPush(unknownPlanFixture),
-            ).toEqual({
+            expect(await initializeAndAwaitFirstPush(unknownPlanFixture)).toEqual({
                 kind: "account",
                 label: "ChatGPT",
                 account: {plan: "unknown"},
@@ -379,10 +353,7 @@ describe("authStatus extension", () => {
     describe("_auth/status_update notification", () => {
         it("is sent after a successful authenticate", async () => {
             const fixture = createCodexMockTestFixture();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -402,10 +373,7 @@ describe("authStatus extension", () => {
         it("reports the agent-owned login while client-driven routing is active", async () => {
             const fixture = createCodexMockTestFixture();
             const agent = fixture.getCodexAcpAgent();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -435,7 +403,7 @@ describe("authStatus extension", () => {
                 planType: "pro",
             });
 
-            await agent.authenticate({ methodId: "chat-gpt" });
+            await agent.authenticate({methodId: "chat-gpt"});
             accountSpy.mockResolvedValue({
                 workspaceRouting: null,
                 account: null,
@@ -455,10 +423,7 @@ describe("authStatus extension", () => {
 
         it("is sent when the app-server pushes account/updated", async () => {
             const fixture = createCodexMockTestFixture();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -483,10 +448,7 @@ describe("authStatus extension", () => {
 
         it("drops the last known email when the account kind changes", async () => {
             const fixture = createCodexMockTestFixture();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -506,10 +468,7 @@ describe("authStatus extension", () => {
 
         it("maps the bedrockAccessKeys auth mode to external Bedrock", async () => {
             const fixture = createCodexMockTestFixture();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -529,10 +488,7 @@ describe("authStatus extension", () => {
 
         it("is not sent again while the identity is unchanged", async () => {
             const fixture = createCodexMockTestFixture();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -554,10 +510,7 @@ describe("authStatus extension", () => {
 
         it("is sent again once the identity actually changes", async () => {
             const fixture = createCodexMockTestFixture();
-            vi.spyOn(
-                fixture.getCodexAcpClient(),
-                "authenticate",
-            ).mockResolvedValue(true);
+            vi.spyOn(fixture.getCodexAcpClient(), "authenticate").mockResolvedValue(true);
             const accountSpy = mockAccount(fixture, {
                 type: "chatgpt",
                 workspaceName: null,
@@ -684,23 +637,13 @@ describe("accountFromUpdated", () => {
     });
 
     it("keeps the email of a ChatGPT account and takes the new plan", () => {
-        expect(
-            accountFromUpdated(
-                { authMode: "chatgpt", planType: "pro" },
-                chatGpt,
-            ),
-        ).toEqual({
+        expect(accountFromUpdated({authMode: "chatgpt", planType: "pro"}, chatGpt)).toEqual({
             type: "chatgpt",
             workspaceName: null,
             email: "user@example.com",
             planType: "pro",
         });
-        expect(
-            accountFromUpdated(
-                { authMode: "chatgpt", planType: null },
-                { type: "apiKey" },
-            ),
-        ).toEqual({
+        expect(accountFromUpdated({authMode: "chatgpt", planType: null}, {type: "apiKey"})).toEqual({
             type: "chatgpt",
             email: null,
             planType: "unknown",

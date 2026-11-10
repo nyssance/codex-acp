@@ -1,22 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import type {ServerNotification} from "../../app-server";
 import type {ThreadItem} from "../../app-server/v2";
-import {
-    agentMessageDelta,
-    commandExecutionItem,
-    connectSession,
-    codexResponse,
-    createThread,
-    createTurn,
-    cwd,
-    itemStarted,
-    sessionId,
-    turnId,
-    turnStarted,
-    turnCompleted,
-    userMessageItem,
-    type PromptSession,
-} from "./v2-prompt-harness";
+import {agentMessageDelta, commandExecutionItem, connectSession, codexResponse, createThread, createTurn, cwd, itemStarted, sessionId, turnId, turnStarted, turnCompleted, userMessageItem, type PromptSession} from "./v2-prompt-harness";
 import {expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 import {subagentProtocol} from "../../subagents/AcpSubagents";
 import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY, withAirMeta} from "../../AirExtension";
@@ -104,25 +89,14 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
                         sessionUpdate: "subagent_update",
                         sessionId: childId,
                         _meta: expect.objectContaining({
-                            codex: { threadId: worker, parentTurnId: turnId },
+                            codex: {threadId: worker, parentTurnId: turnId},
                         }),
                     }),
                 }),
             }),
         );
-        expect(
-            childUpdates().filter(
-                (entry) =>
-                    entry.update.sessionUpdate === "subagent_update" &&
-                    entry.update.capabilities != null &&
-                    Object.keys(entry.update.capabilities).length === 0,
-            ),
-        ).toHaveLength(1);
-        expect(
-            childUpdates().some(
-                (entry) => entry.update.sessionUpdate === "user_message_chunk",
-            ),
-        ).toBe(false);
+        expect(childUpdates().filter((entry) => entry.update.sessionUpdate === "subagent_update" && entry.update.capabilities != null && Object.keys(entry.update.capabilities).length === 0)).toHaveLength(1);
+        expect(childUpdates().some((entry) => entry.update.sessionUpdate === "user_message_chunk")).toBe(false);
     });
 
     it("waits for immediate parentage and announces ancestors before child traffic", async () => {
@@ -375,7 +349,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
             cwd,
             approvalPolicy: "on-request" as const,
             approvalsReviewer: "user" as const,
-            sandboxPolicy: { type: "readOnly" as const, networkAccess: false },
+            sandboxPolicy: {type: "readOnly" as const, networkAccess: false},
             activePermissionProfile: null,
             model,
             modelProvider: "test",

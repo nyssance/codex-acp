@@ -1,15 +1,8 @@
-import { StringDecoder } from "node:string_decoder";
-import type { Writable } from "node:stream";
-import { finished, type Readable } from "node:stream";
-import { Emitter } from "vscode-jsonrpc/node";
-import type {
-    DataCallback,
-    Disposable,
-    Message,
-    MessageReader,
-    MessageWriter,
-    PartialMessageInfo,
-} from "vscode-jsonrpc/node";
+import {StringDecoder} from "node:string_decoder";
+import type {Writable} from "node:stream";
+import {finished, type Readable} from "node:stream";
+import {Emitter} from "vscode-jsonrpc/node";
+import type {DataCallback, Disposable, Message, MessageReader, MessageWriter, PartialMessageInfo} from "vscode-jsonrpc/node";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {logger} from "./Logger";
 
@@ -92,8 +85,7 @@ export function readableToWeb(readable: Readable): ReadableStream<Uint8Array> {
             const next = await iterator.next();
             if (next.done) controller.close();
             else {
-                if (!(next.value instanceof Uint8Array))
-                    throw new TypeError("Expected byte stream");
+                if (!(next.value instanceof Uint8Array)) throw new TypeError("Expected byte stream");
                 controller.enqueue(next.value);
             }
         },
@@ -103,10 +95,7 @@ export function readableToWeb(readable: Readable): ReadableStream<Uint8Array> {
     });
 }
 
-export function createJsonStream(
-    readable: Readable,
-    writable: Writable,
-): acp.Stream {
+export function createJsonStream(readable: Readable, writable: Writable): acp.Stream {
     const writeLine = createLineWriter(writable);
     // The SDK writes only its parse error replies to this stream.
     const errorReplies = new WritableStream<Uint8Array>({

@@ -1,11 +1,6 @@
-import { describe, expect, it } from "vitest";
-import type { JsonObject } from "../JsonSnapshot";
-import {
-    jsonSnapshot,
-    jsonText,
-    sameJson,
-    type JsonTree,
-} from "../JsonSnapshot";
+import {describe, expect, it} from "vitest";
+import type {JsonObject} from "../JsonSnapshot";
+import {jsonSnapshot, jsonText, sameJson, type JsonTree} from "../JsonSnapshot";
 
 /** The text of a snapshot, like `JSON.stringify` of the value. */
 function text(tree: JsonTree | undefined): string | undefined {
@@ -32,147 +27,14 @@ const ownProto = JSON.parse('{"__proto__": {"x": 1}, "a": 1}') as unknown;
 const sparse = new Array<number>(3);
 sparse[0] = 1;
 sparse[2] = 3;
-const functionWithToJson = Object.assign(() => 1, { toJSON: () => 1 });
-const keyEcho = { toJSON: (key: string) => `key:${key}` };
-const overriddenCall = Object.assign(() => 2, { call: () => 1 });
-const proxied = new Proxy(
-    { "1": "a", "2": "b" },
-    { ownKeys: () => ["2", "1"] },
-);
-const rawJson = (JSON as { rawJSON?: (text: string) => unknown }).rawJSON;
+const functionWithToJson = Object.assign(() => 1, {toJSON: () => 1});
+const keyEcho = {toJSON: (key: string) => `key:${key}`};
+const overriddenCall = Object.assign(() => 2, {call: () => 1});
+const proxied = new Proxy({"1": "a", "2": "b"}, {ownKeys: () => ["2", "1"]});
+const rawJson = (JSON as {rawJSON?: (text: string) => unknown}).rawJSON;
 
 /** Values with the edge cases of `JSON.stringify`, each compared with every other value and with itself. */
-const VALUES: unknown[] = [
-    null,
-    true,
-    false,
-    0,
-    -0,
-    1,
-    1.5,
-    Number.NaN,
-    Infinity,
-    -Infinity,
-    "",
-    "a",
-    "b",
-    "0",
-    "null",
-    '"a"',
-    "\n",
-    " ",
-    "\ud800",
-    [],
-    [null],
-    [undefined],
-    [() => 1],
-    [Symbol("s")],
-    [Number.NaN],
-    sparse,
-    [1, null, 3],
-    [1, 2, 3],
-    [1, 2],
-    [[1], 2],
-    ["a", "b"],
-    ["b", "a"],
-    {},
-    { a: 1 },
-    { a: "1" },
-    { a: undefined },
-    { a: () => 1 },
-    { a: Symbol("s") },
-    { a: 1, b: undefined },
-    { b: 1 },
-    { a: 1, b: 2 },
-    { b: 2, a: 1 },
-    { a: { b: [1, { c: "x" }] } },
-    { a: { b: [1, { c: "y" }] } },
-    { "1": 1, "0": 0 },
-    { "0": 0, "1": 1 },
-    nullPrototype,
-    ownProto,
-    { __proto__: { inherited: 1 }, a: 1 },
-    new Date(0),
-    { at: new Date(0) },
-    { toJSON: () => "x" },
-    { toJSON: () => undefined },
-    { a: { toJSON: () => undefined } },
-    [{ toJSON: () => 1 }],
-    { a: { toJSON: () => undefined }, b: 1 },
-    keyEcho,
-    { a: keyEcho },
-    [keyEcho],
-    functionWithToJson,
-    { f: functionWithToJson },
-    [functionWithToJson],
-    new Box(1),
-    { box: new Box(1) },
-    new Map([["a", 1]]),
-    new Set([1]),
-    Object(Symbol("s")),
-    Object("a"),
-    Object(1),
-    Object(true),
-    Object(Number.NaN),
-    { n: Object(2) },
-    new Uint8Array([1, 2]),
-    () => 1,
-    Symbol("s"),
-    nested(300, 1),
-    nested(300, 2),
-    nested(300, keyEcho),
-    nested(301, keyEcho),
-    nested(300, { f: functionWithToJson }),
-    { value: 1 },
-    { box: { value: 1 } },
-    [new Box(1), { value: 1 }],
-    [{ value: 1 }, new Box(1)],
-    { toJSON: overriddenCall },
-    { toJSON: () => new Date(0) },
-    { toJSON: () => ({ toJSON: () => 1 }) },
-    { toJSON: () => new Box(2) },
-    { toJSON: () => [new Date(0)] },
-    { toJSON: () => Object(5) },
-    { toJSON: () => Symbol("s") },
-    { toJSON: () => () => 1 },
-    proxied,
-    { "1": "a", "2": "b" },
-    { "2": "b", "1": "a" },
-    new Proxy([1, 2], {}),
-    nested(300, proxied),
-    nested(300, { "1": "a", "2": "b" }),
-    { toJSON: () => ({ toJSON: () => undefined, a: 1 }) },
-    { a: 1 },
-    { toJSON: () => ({ toJSON: () => 2 }) },
-    { toJSON: 1 },
-    { toJSON: () => 1 },
-    Object.setPrototypeOf(Object(false), Object.prototype),
-    Object.setPrototypeOf(Object(true), Object.prototype),
-    {},
-    Object.setPrototypeOf(Object("s"), Object.prototype),
-    Object.setPrototypeOf(Object(7), Object.prototype),
-    null,
-    { d: new Date(0) },
-    { d: "1970-01-01T00:00:00.000Z" },
-    ...(rawJson === undefined
-        ? []
-        : [
-              rawJson("9007199254740992"),
-              rawJson("9007199254740993"),
-              9007199254740992,
-              rawJson("1e2"),
-              100,
-              rawJson(String.raw`"\u0061"`),
-              "a",
-              rawJson("123"),
-              { rawJSON: "123" },
-              123,
-              { a: rawJson("1") },
-              { a: 1 },
-              { a: rawJson('"x"') },
-              { a: "x" },
-          ]),
-];
+const VALUES: unknown[] = [null, true, false, 0, -0, 1, 1.5, Number.NaN, Infinity, -Infinity, "", "a", "b", "0", "null", '"a"', "\n", " ", "\ud800", [], [null], [undefined], [() => 1], [Symbol("s")], [Number.NaN], sparse, [1, null, 3], [1, 2, 3], [1, 2], [[1], 2], ["a", "b"], ["b", "a"], {}, {a: 1}, {a: "1"}, {a: undefined}, {a: () => 1}, {a: Symbol("s")}, {a: 1, b: undefined}, {b: 1}, {a: 1, b: 2}, {b: 2, a: 1}, {a: {b: [1, {c: "x"}]}}, {a: {b: [1, {c: "y"}]}}, {"1": 1, "0": 0}, {"0": 0, "1": 1}, nullPrototype, ownProto, {__proto__: {inherited: 1}, a: 1}, new Date(0), {at: new Date(0)}, {toJSON: () => "x"}, {toJSON: () => undefined}, {a: {toJSON: () => undefined}}, [{toJSON: () => 1}], {a: {toJSON: () => undefined}, b: 1}, keyEcho, {a: keyEcho}, [keyEcho], functionWithToJson, {f: functionWithToJson}, [functionWithToJson], new Box(1), {box: new Box(1)}, new Map([["a", 1]]), new Set([1]), Object(Symbol("s")), Object("a"), Object(1), Object(true), Object(Number.NaN), {n: Object(2)}, new Uint8Array([1, 2]), () => 1, Symbol("s"), nested(300, 1), nested(300, 2), nested(300, keyEcho), nested(301, keyEcho), nested(300, {f: functionWithToJson}), {value: 1}, {box: {value: 1}}, [new Box(1), {value: 1}], [{value: 1}, new Box(1)], {toJSON: overriddenCall}, {toJSON: () => new Date(0)}, {toJSON: () => ({toJSON: () => 1})}, {toJSON: () => new Box(2)}, {toJSON: () => [new Date(0)]}, {toJSON: () => Object(5)}, {toJSON: () => Symbol("s")}, {toJSON: () => () => 1}, proxied, {"1": "a", "2": "b"}, {"2": "b", "1": "a"}, new Proxy([1, 2], {}), nested(300, proxied), nested(300, {"1": "a", "2": "b"}), {toJSON: () => ({toJSON: () => undefined, a: 1})}, {a: 1}, {toJSON: () => ({toJSON: () => 2})}, {toJSON: 1}, {toJSON: () => 1}, Object.setPrototypeOf(Object(false), Object.prototype), Object.setPrototypeOf(Object(true), Object.prototype), {}, Object.setPrototypeOf(Object("s"), Object.prototype), Object.setPrototypeOf(Object(7), Object.prototype), null, {d: new Date(0)}, {d: "1970-01-01T00:00:00.000Z"}, ...(rawJson === undefined ? [] : [rawJson("9007199254740992"), rawJson("9007199254740993"), 9007199254740992, rawJson("1e2"), 100, rawJson(String.raw`"\u0061"`), "a", rawJson("123"), {rawJSON: "123"}, 123, {a: rawJson("1")}, {a: 1}, {a: rawJson('"x"')}, {a: "x"}])];
 
 describe("jsonSnapshot", () => {
     it("serializes to the text of JSON.stringify for every edge case", () => {
@@ -328,26 +190,8 @@ describe("sameJson", () => {
             seed = (seed * 1103515245 + 12345) % 2147483648;
             return seed / 2147483648;
         };
-        const pick = <T>(items: readonly T[]): T =>
-            items[Math.floor(random() * items.length)]!;
-        const leaves: unknown[] = [
-            null,
-            true,
-            false,
-            0,
-            -0,
-            1,
-            2,
-            Number.NaN,
-            "",
-            "a",
-            "b",
-            "ab",
-            "ba",
-            undefined,
-            () => 1,
-            keyEcho,
-        ];
+        const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+        const leaves: unknown[] = [null, true, false, 0, -0, 1, 2, Number.NaN, "", "a", "b", "ab", "ba", undefined, () => 1, keyEcho];
         const generate = (depth: number): unknown => {
             const roll = random();
             if (depth > 3 || roll < 0.4) return pick(leaves);
@@ -378,11 +222,7 @@ describe("sameJson", () => {
                     const [key, item] = pick(entries);
                     return {...value, [key]: mutate(item, depth + 1)};
                 }
-                return Object.fromEntries(
-                    random() < 0.5
-                        ? entries.toReversed()
-                        : [...entries, [pick(["a", "d"]), pick(leaves)]],
-                );
+                return Object.fromEntries(random() < 0.5 ? entries.toReversed() : [...entries, [pick(["a", "d"]), pick(leaves)]]);
             }
             return random() < 0.5 ? pick(leaves) : value;
         };

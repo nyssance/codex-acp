@@ -1,13 +1,10 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import type { AcpClientConnection } from "../ACPSessionConnection";
-import type { ServerNotification } from "../app-server";
-import { CodexElicitationHandler } from "../CodexElicitationHandler";
-import { CodexApprovalHandler } from "../permissions/CodexApprovalHandler";
-import {
-    PermissionLifecycleContext,
-    type PermissionPromptContext,
-} from "../permissions/lifecycle";
-import type { AcpToolCallRenderer } from "../tool-calls/AcpToolCallRenderer";
+import type {AcpClientConnection} from "../ACPSessionConnection";
+import type {ServerNotification} from "../app-server";
+import {CodexElicitationHandler} from "../CodexElicitationHandler";
+import {CodexApprovalHandler} from "../permissions/CodexApprovalHandler";
+import {PermissionLifecycleContext, type PermissionPromptContext} from "../permissions/lifecycle";
+import type {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
 
 /** Child interactions outlive the parent's prompt and attachment handlers. */
 export class SubagentInteractionHandlers {

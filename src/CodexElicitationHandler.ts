@@ -24,32 +24,15 @@ import {
     type PersistValue,
     type McpElicitationContext,
 } from "./permissions/mcp";
-import type { PermissionPromptContext } from "./permissions/lifecycle";
-import type { AcpToolCallRenderer } from "./tool-calls/AcpToolCallRenderer";
-import {
-    subagentInteractionSignal,
-    subagentToolCallId,
-    withSubagentUserAction,
-} from "./subagents/SubagentInteraction";
-import { ElicitationReporter } from "./tool-calls/reporters/ElicitationReporter";
-import {
-    isRecord,
-    normalizeJsonObject,
-    normalizeJsonValue,
-    recordOrNull,
-} from "./permissions/json";
-import {
-    AIR_CUSTOM_ANSWER_KEY,
-    LEGACY_AIR_CUSTOM_ANSWER_KEY,
-    isAirClient,
-    withAirMeta,
-} from "./AirExtension";
+import type {PermissionPromptContext} from "./permissions/lifecycle";
+import type {AcpToolCallRenderer} from "./tool-calls/AcpToolCallRenderer";
+import {subagentInteractionSignal, subagentToolCallId, withSubagentUserAction} from "./subagents/SubagentInteraction";
+import {ElicitationReporter} from "./tool-calls/reporters/ElicitationReporter";
+import {isRecord, normalizeJsonObject, normalizeJsonValue, recordOrNull} from "./permissions/json";
+import {AIR_CUSTOM_ANSWER_KEY, LEGACY_AIR_CUSTOM_ANSWER_KEY, isAirClient, withAirMeta} from "./AirExtension";
 type AcpBackedMcpElicitationParams = Extract<
     McpServerElicitationRequestParams,
-    | { mode: "form" }
-    | { mode: "openai/form" }
-    | { mode: "openaiForm" }
-    | { mode: "url" }
+    {mode: "form"} | {mode: "openai/form"} | {mode: "openaiForm"} | {mode: "url"}
 >;
 
 const USER_INPUT_NOTE_FIELD_SUFFIX = "_note";

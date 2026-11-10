@@ -75,13 +75,7 @@ describe("AIR golden snapshots", () => {
 const RECORD_BASELINE = process.env["RECORD_SCENARIO_BASELINE"] === "1";
 
 function baselineFile(profile: ProfileName, name: string): string {
-    return path.join(
-        import.meta.dirname,
-        "data",
-        "baseline",
-        profile,
-        `${name}.jsonl`,
-    );
+    return path.join(import.meta.dirname, "data", "baseline", profile, `${name}.jsonl`);
 }
 
 /** The baseline of a scenario. Zed has a file only where its messages differ from the plain client. */
@@ -480,12 +474,7 @@ describe("subagents", () => {
     for (const tool of CONTROL_TOOLS) {
         it(`air: gets a replayed ${tool} as the tool call that the live session reports`, async () => {
             const endState = tool === "closeAgent" ? "completed" : "running";
-            const spawn = collab(
-                "spawn-1",
-                "spawnAgent",
-                "completed",
-                "running",
-            );
+            const spawn = collab("spawn-1", "spawnAgent", "completed", "running");
             const activity = {
                 model: null,
                 reasoningEffort: null,
@@ -495,19 +484,8 @@ describe("subagents", () => {
                 agentThreadId: CHILD_THREAD_ID,
                 agentPath: "/root/weather",
             };
-            const control = (
-                status: "inProgress" | "completed",
-                state: "running" | "completed",
-            ) =>
-                collab(
-                    "control-1",
-                    tool,
-                    status,
-                    state,
-                    SESSION_ID,
-                    CHILD_THREAD_ID,
-                    "Use Celsius.",
-                );
+            const control = (status: "inProgress" | "completed", state: "running" | "completed") =>
+                collab("control-1", tool, status, state, SESSION_ID, CHILD_THREAD_ID, "Use Celsius.");
             const reported = async (each: Scenario) =>
                 normalize(await runScenario(each, "air"))
                     .filter((message) => message.method === "session/update")
@@ -518,9 +496,7 @@ describe("subagents", () => {
                                 update: Update;
                             },
                     )
-                    .filter(
-                        ({ update }) => update["toolCallId"] === "control-1",
-                    );
+                    .filter(({update}) => update["toolCallId"] === "control-1");
             const live = await reported({
                 name: `live-${tool}`,
                 steps: [
@@ -758,9 +734,7 @@ describe("AIR", () => {
             goal: {version: 1, controlMethod: "_session/goal", actions: ["set", "pause", "resume", "clear"]},
             capabilities: expect.any(Array),
         });
-        expect([...air["capabilities"]].toSorted()).toEqual(
-            [...AIR_CAPABILITY_NAMES].toSorted(),
-        );
+        expect([...air["capabilities"]].toSorted()).toEqual([...AIR_CAPABILITY_NAMES].toSorted());
     });
 
     it("gets terminal_output_delta chunks, the raw stdin in terminal_input, and terminal_exit without rawOutput", () => {
@@ -931,9 +905,7 @@ describe("AIR", () => {
     }
 
     it("gets no key of the pre-contract shape", () => {
-        const text = SCENARIOS.map((each) =>
-            JSON.stringify(recording("air", each.name)),
-        ).join("\n");
+        const text = SCENARIOS.map(each => JSON.stringify(recording("air", each.name))).join("\n");
         expect(text).not.toContain("formatted_output");
         expect(text).not.toContain("\"codex\"");
         expect(text).not.toContain("diffStats");

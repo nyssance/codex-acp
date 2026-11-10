@@ -243,7 +243,7 @@ describe("/mcp command", () => {
         mockFixture.clearAcpConnectionDump();
         const prompt = mockFixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "/mcp reconnect" }],
+            prompt: [{type: "text", text: "/mcp reconnect"}],
         });
         await vi.advanceTimersByTimeAsync(MCP_RECONNECT_STARTUP_TIMEOUT_MS);
         await prompt;
@@ -436,7 +436,7 @@ describe("/mcp command", () => {
         mockFixture.clearAcpConnectionDump();
         const prompt = mockFixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "/mcp reconnect" }],
+            prompt: [{type: "text", text: "/mcp reconnect"}],
         });
         await vi.advanceTimersByTimeAsync(MCP_RECONNECT_STARTUP_TIMEOUT_MS - 1);
         expect(messageText(mockFixture)).toBe("");
@@ -471,7 +471,7 @@ describe("/mcp command", () => {
         const prompt = mockFixture.getCodexAcpAgent().prompt(
             {
                 sessionId,
-                prompt: [{ type: "text", text: "/mcp reconnect" }],
+                prompt: [{type: "text", text: "/mcp reconnect"}],
             },
             cancel.signal,
         );
@@ -494,7 +494,7 @@ describe("/mcp command", () => {
         mockFixture.clearAcpConnectionDump();
         const prompt = mockFixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "/mcp reconnect" }],
+            prompt: [{type: "text", text: "/mcp reconnect"}],
         });
         await vi.waitFor(() => expect(reload).toHaveBeenCalled());
         await vi.waitFor(() => expect(pendingStartupWaits(mockFixture)).toBe(1));
@@ -526,15 +526,11 @@ describe("/mcp command", () => {
         const prompt = mockFixture.getCodexAcpAgent().prompt(
             {
                 sessionId,
-                prompt: [{ type: "text", text: "/mcp reconnect" }],
+                prompt: [{type: "text", text: "/mcp reconnect"}],
             },
             cancel.signal,
         );
-        await vi.waitFor(() =>
-            expect(
-                elicitationEvents(mockFixture, "createElicitation"),
-            ).toHaveLength(1),
-        );
+        await vi.waitFor(() => expect(elicitationEvents(mockFixture, "createElicitation")).toHaveLength(1));
         expect(pendingOauthWaits(mockFixture)).toBe(1);
         cancel.abort();
 

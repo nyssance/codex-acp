@@ -93,10 +93,7 @@ describe("Approval Events", () => {
             command: "/bin/zsh -c npm test",
             cwd: "/workspace",
             reason: "Needed to verify the changes.",
-            availableDecisions: availableDecisions as Exclude<
-                CommandParams["availableDecisions"],
-                undefined
-            >,
+            availableDecisions: availableDecisions as Exclude<CommandParams["availableDecisions"], undefined>,
             ...overrides,
         };
     }
@@ -263,11 +260,7 @@ describe("Approval Events", () => {
             fixture.setPermissionResponse({
                 outcome: {outcome: "selected", optionId: ApprovalOptionId.AcceptWithExecpolicyAmendment},
             });
-            const amendment = [
-                String.raw`C:\Program Files\PowerShell\7\pwsh.exe`,
-                "-Command",
-                "@'\nsecret\n'@",
-            ];
+            const amendment = [String.raw`C:\Program Files\PowerShell\7\pwsh.exe`, "-Command", "@'\nsecret\n'@"];
             const decision = {
                 acceptWithExecpolicyAmendment: {
                     execpolicy_amendment: amendment,

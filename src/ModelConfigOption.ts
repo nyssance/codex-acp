@@ -1,4 +1,4 @@
-import type { GatewayGroup } from "./alwith/agent/providers";
+import type {GatewayGroup} from "./alwith/agent/providers";
 import type {SessionConfigOption} from "@agentclientprotocol/sdk/unstable";
 import type {ReasoningEffort} from "./app-server";
 import type {Model, ReasoningEffortOption} from "./app-server/v2";
@@ -78,24 +78,15 @@ export function createModelConfigOption(
                       {
                           group: "chatgpt",
                           name: "ChatGPT",
-                          options: options.filter(
-                              (option) =>
-                                  !groups.some((group) =>
-                                      group.modelIds.includes(option.value),
-                                  ),
-                          ),
+                          options: options.filter((option) => !groups.some((group) => group.modelIds.includes(option.value))),
                       },
                       ...groups.map((group) => ({
                           group: group.id,
                           name: group.name,
-                          options: options.filter((option) =>
-                              group.modelIds.includes(option.value),
-                          ),
+                          options: options.filter((option) => group.modelIds.includes(option.value)),
                       })),
                   ].filter((group) => group.options.length > 0),
-        ...(recommendation
-            ? {_meta: withAirMeta(undefined, AIR_RECOMMENDED_CONFIG_VALUE_KEY, recommendation)}
-            : {}),
+        ...(recommendation ? {_meta: withAirMeta(undefined, AIR_RECOMMENDED_CONFIG_VALUE_KEY, recommendation)} : {}),
     };
 }
 

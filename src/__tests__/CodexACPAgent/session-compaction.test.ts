@@ -116,7 +116,7 @@ describe("session compaction", () => {
         const firstCompaction = fixture.getAcpConnectionEvents([]);
         await fixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "Continue again." }],
+            prompt: [{type: "text", text: "Continue again."}],
         });
         fixture.clearAcpConnectionDump();
         await sendNotifications(fixture, [
@@ -132,17 +132,12 @@ describe("session compaction", () => {
 
     it("delivers the lifecycle and finishes a manual /compact request", async () => {
         const fixture = await createFixture();
-        const compactStart = vi.spyOn(
-            fixture.getCodexAppServerClient(),
-            "threadCompactStart",
-        );
+        const compactStart = vi.spyOn(fixture.getCodexAppServerClient(), "threadCompactStart");
         const prompt = fixture.getCodexAcpAgent().prompt({
             sessionId,
-            prompt: [{ type: "text", text: "/compact" }],
+            prompt: [{type: "text", text: "/compact"}],
         });
-        await vi.waitFor(() =>
-            expect(compactStart).toHaveBeenCalledWith({ threadId: sessionId }),
-        );
+        await vi.waitFor(() => expect(compactStart).toHaveBeenCalledWith({threadId: sessionId}));
         await sendNotifications(fixture, [
             compactionStarted(),
             compactionCompleted(),
@@ -371,7 +366,7 @@ describe("session compaction", () => {
             account: null,
             requiresOpenaiAuth: false,
         });
-        vi.spyOn(client, "listSkills").mockResolvedValue({ data: [] });
+        vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(appServer, "listModels").mockResolvedValue({
             data: [model],
             nextCursor: null,
@@ -409,7 +404,7 @@ describe("session compaction", () => {
             protocolVersion: 1,
             clientCapabilities: compactionCapabilities,
         });
-        await agent.loadSession({ sessionId, cwd: thread.cwd, mcpServers: [] });
+        await agent.loadSession({sessionId, cwd: thread.cwd, mcpServers: []});
 
         const timelineUpdates = fixture.getAcpConnectionEvents([]).filter(event =>
             event.method === "sessionUpdate"
@@ -488,7 +483,7 @@ async function createFixture(clientCapabilities: acp.ClientCapabilities = compac
     });
     await agent.prompt({
         sessionId,
-        prompt: [{ type: "text", text: "Continue." }],
+        prompt: [{type: "text", text: "Continue."}],
     });
     await awaitFirstAuthStatusPush(fixture);
     fixture.clearAcpConnectionDump();

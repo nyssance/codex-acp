@@ -1,17 +1,17 @@
-import { testThreadPermissions } from "../native-thread-permissions";
-import {afterEach, describe, expect, it, vi} from 'vitest';
-import * as acp from '@agentclientprotocol/sdk/unstable';
-import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import {createAcpAgentRouter} from '../../AcpAgentRouter';
-import {CodexAcpServer} from '../../CodexAcpServer';
-import {CodexAcpClient} from '../../CodexAcpClient';
-import {CodexAppServerClient} from '../../CodexAppServerClient';
-import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY} from '../../AirExtension';
-import type {Thread} from '../../app-server/v2';
-import {createCodexMockTestFixture, createTestModel} from '../acp-test-utils';
-import {createMockConnections} from './test-utils';
-import {commandExecutionItem, createTurn} from './v2-prompt-harness';
-import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
+import {testThreadPermissions} from "../native-thread-permissions";
+import {afterEach, describe, expect, it, vi} from "vitest";
+import * as acp from "@agentclientprotocol/sdk/unstable";
+import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {createAcpAgentRouter} from "../../AcpAgentRouter";
+import {CodexAcpServer} from "../../CodexAcpServer";
+import {CodexAcpClient} from "../../CodexAcpClient";
+import {CodexAppServerClient} from "../../CodexAppServerClient";
+import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY} from "../../AirExtension";
+import type {Thread} from "../../app-server/v2";
+import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
+import {createMockConnections} from "./test-utils";
+import {commandExecutionItem, createTurn} from "./v2-prompt-harness";
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 const sessionId = "thread-1";
 const cwd = "/workspace";
@@ -181,10 +181,7 @@ function codexResponse(
     switch (method) {
         case "thread/turns/list":
             return {
-                data:
-                    params?.sortDirection === "desc"
-                        ? replayTurns.slice(-1)
-                        : replayTurns,
+                data: params?.sortDirection === "desc" ? replayTurns.slice(-1) : replayTurns,
                 nextCursor: null,
                 backwardsCursor: null,
             };
@@ -202,9 +199,7 @@ function codexResponse(
         case "thread/start":
         case "thread/resume":
             return {
-                thread: createThread(
-                    paginated ? { historyMode: "paginated" } : {},
-                ),
+                thread: createThread(paginated ? {historyMode: "paginated"} : {}),
                 ...testThreadPermissions(),
                 model: "gpt-5",
                 modelProvider: "openai",
@@ -216,7 +211,7 @@ function codexResponse(
         case "thread/read":
             return {
                 readState: null,
-                thread: createThread({ turns: replayTurns }),
+                thread: createThread({turns: replayTurns}),
             };
         case "model/list":
             return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
@@ -240,26 +235,15 @@ async function connectV2Client(options?: {
     paginated?: boolean;
 }) {
     const mocks = createMockConnections();
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string, params?: any) =>
-            codexResponse(
-                method,
-                params,
-                options?.replayTurns,
-                options?.paginated,
-            ),
-    );
-    const codexAcpClient = new CodexAcpClient(
-        new CodexAppServerClient(mocks.mockCodexConnection as any),
-    );
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: any) => (
+        codexResponse(method, params, options?.replayTurns, options?.paginated)
+    ));
+    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
         required: false,
         account: null,
     });
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
@@ -270,9 +254,7 @@ async function connectV2Client(options?: {
         failed: [],
         cancelled: [],
     });
-    const router = createAcpAgentRouter(
-        (connection) => new CodexAcpServer(connection, codexAcpClient),
-    );
+    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
@@ -358,213 +340,146 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             replayFrom: {type: "start"},
         });
 
-        const messages = updates.filter(
-            ({ update }) =>
-                update.sessionUpdate.endsWith("_message_chunk") ||
-                update.sessionUpdate === "agent_message" ||
-                update.sessionUpdate.endsWith("_thought_chunk") ||
-                update.sessionUpdate === "agent_thought",
-        );
-        for (const { update } of messages) {
+        const messages = updates.filter(({update}) => update.sessionUpdate.endsWith("_message_chunk") || update.sessionUpdate === "agent_message" || update.sessionUpdate.endsWith("_thought_chunk") || update.sessionUpdate === "agent_thought");
+        for (const {update} of messages) {
             if (update._meta === null) {
-                expect(["agent_message", "agent_thought"]).toContain(
-                    update.sessionUpdate,
-                );
+                expect(["agent_message", "agent_thought"]).toContain(update.sessionUpdate);
                 expect("content" in update && update.content).toEqual([]);
                 continue;
             }
             const meta = update._meta as Record<string, unknown>;
-            const originalTurn = reviewReplayTurns.find((turn) =>
-                turn.items.some(
-                    (item) =>
-                        "messageId" in update && item.id === update.messageId,
-                ),
-            );
-            expect(meta["codex"]).toMatchObject({ historyReplay: true });
+            const originalTurn = reviewReplayTurns.find((turn) => turn.items.some((item) => "messageId" in update && item.id === update.messageId));
+            expect(meta["codex"]).toMatchObject({historyReplay: true});
             if (originalTurn)
                 expect(meta["codex"]).toMatchObject({
                     turnId: originalTurn.id,
                 });
         }
-        await expect(dump(messages)).toMatchFileSnapshot(
-            "data/v2-resume-replay-review-and-hide.json",
-        );
+        await expect(dump(messages)).toMatchFileSnapshot("data/v2-resume-replay-review-and-hide.json");
         assertPrimerBeforeEveryChunk(updates);
     });
 
-    it.each([false, true])(
-        "replays an empty failed turn with stable identity and timing (paginated: %s)",
-        async (paginated) => {
-            const failed: Thread["turns"][number] = {
-                ...reviewReplayTurns[0]!,
-                id: "failed-turn",
-                items: [],
-                status: "failed",
-                startedAt: 10,
-                completedAt: 12,
-                durationMs: 2000,
-                error: {
-                    message: "Capacity exhausted",
-                    additionalDetails: null,
-                    codexErrorInfo: "serverOverloaded",
-                    misalignment: null,
+    it.each([false, true])("replays an empty failed turn with stable identity and timing (paginated: %s)", async (paginated) => {
+        const failed: Thread["turns"][number] = {
+            ...reviewReplayTurns[0]!,
+            id: "failed-turn",
+            items: [],
+            status: "failed",
+            startedAt: 10,
+            completedAt: 12,
+            durationMs: 2000,
+            error: {
+                message: "Capacity exhausted",
+                additionalDetails: null,
+                codexErrorInfo: "serverOverloaded",
+                misalignment: null,
+            },
+        };
+        const {connection, updates} = await connectV2Client({
+            replayTurns: [failed],
+            paginated,
+        });
+        closeClient = () => connection.close();
+        await connection.agent.request(acpV2.methods.agent.session.resume, {
+            sessionId,
+            cwd,
+            replayFrom: {type: "start"},
+        });
+        const failure = updates.map((event) => event.update).find((update) => update.sessionUpdate === "agent_message_chunk" && update.messageId === "codex-error:failed-turn");
+        expect(failure).toMatchObject({
+            content: {text: "Capacity exhausted"},
+            _meta: {
+                codex: {
+                    historyReplay: true,
+                    turnId: "failed-turn",
+                    turnStartedAt: 10000,
+                    turnCompletedAt: 12000,
+                    turnDurationMs: 2000,
+                    error: {codexErrorInfo: "serverOverloaded"},
                 },
-            };
-            const { connection, updates } = await connectV2Client({
-                replayTurns: [failed],
-                paginated,
-            });
-            closeClient = () => connection.close();
-            await connection.agent.request(acpV2.methods.agent.session.resume, {
-                sessionId,
-                cwd,
-                replayFrom: { type: "start" },
-            });
-            const failure = updates
-                .map((event) => event.update)
-                .find(
-                    (update) =>
-                        update.sessionUpdate === "agent_message_chunk" &&
-                        update.messageId === "codex-error:failed-turn",
-                );
-            expect(failure).toMatchObject({
-                content: { text: "Capacity exhausted" },
-                _meta: {
-                    codex: {
-                        historyReplay: true,
-                        turnId: "failed-turn",
-                        turnStartedAt: 10000,
-                        turnCompletedAt: 12000,
-                        turnDurationMs: 2000,
-                        error: { codexErrorInfo: "serverOverloaded" },
-                    },
-                },
-            });
-            assertPrimerBeforeEveryChunk(updates);
-        },
-    );
+            },
+        });
+        assertPrimerBeforeEveryChunk(updates);
+    });
 
     it.each([
-        { native: false, paginated: false },
-        { native: false, paginated: true },
-        { native: true, paginated: false },
-        { native: true, paginated: true },
-    ])(
-        "resynchronizes entity metadata on every replay (AIR: $native, paginated: $paginated)",
-        async ({ native, paginated }) => {
-            const replayTurns: Thread["turns"] = [
-                {
-                    ...createTurn("completed"),
-                    itemsView: "full",
-                    items: [
-                        {
-                            ...commandExecutionItem("command", "completed"),
-                            aggregatedOutput: "Recorded output",
-                        },
-                        {
-                            type: "mcpToolCall",
-                            id: "mcp",
-                            server: "docs",
-                            tool: "lookup",
-                            status: "completed",
-                            arguments: {},
-                            appContext: null,
-                            mcpAppUi: null,
-                            pluginId: null,
-                            readOnlyHint: null,
-                            result: null,
-                            error: null,
-                            durationMs: null,
-                        },
-                        { type: "contextCompaction", id: "compaction" },
-                    ],
-                },
-            ];
-            const { connection, updates } = await connectV2Client({
-                replayTurns,
-                paginated,
-                capabilities: {
-                    ...(native
-                        ? {
-                              _meta: {
-                                  jetbrains: {
-                                      air: {
-                                          version: 1,
-                                          capabilities: [
-                                              AIR_NATIVE_SUBAGENT_SESSIONS_KEY,
-                                          ],
-                                      },
+        {native: false, paginated: false},
+        {native: false, paginated: true},
+        {native: true, paginated: false},
+        {native: true, paginated: true},
+    ])("resynchronizes entity metadata on every replay (AIR: $native, paginated: $paginated)", async ({native, paginated}) => {
+        const replayTurns: Thread["turns"] = [
+            {
+                ...createTurn("completed"),
+                itemsView: "full",
+                items: [
+                    {
+                        ...commandExecutionItem("command", "completed"),
+                        aggregatedOutput: "Recorded output",
+                    },
+                    {
+                        type: "mcpToolCall",
+                        id: "mcp",
+                        server: "docs",
+                        tool: "lookup",
+                        status: "completed",
+                        arguments: {},
+                        appContext: null,
+                        mcpAppUi: null,
+                        pluginId: null,
+                        readOnlyHint: null,
+                        result: null,
+                        error: null,
+                        durationMs: null,
+                    },
+                    {type: "contextCompaction", id: "compaction"},
+                ],
+            },
+        ];
+        const {connection, updates} = await connectV2Client({
+            replayTurns, paginated,
+            capabilities: {
+                ...(native
+                    ? {
+                          _meta: {
+                              jetbrains: {
+                                  air: {
+                                      version: 1,
+                                      capabilities: [AIR_NATIVE_SUBAGENT_SESSIONS_KEY],
                                   },
                               },
-                          }
-                        : {}),
-                },
-            });
-            closeClient = () => connection.close();
-            for (let replay = 0; replay < 2; replay++) {
-                const start = updates.length;
-                await connection.agent.request(
-                    acpV2.methods.agent.session.resume,
-                    { sessionId, cwd, replayFrom: { type: "start" } },
-                );
-                const current = updates
-                    .slice(start)
-                    .map(({ update }) => update);
-                const metadata = (
-                    match: (update: acpV2.SessionUpdate) => boolean,
-                ) =>
-                    current
-                        .filter(match)
-                        .map((update) => update._meta)
-                        .filter((meta) => meta !== undefined)
-                        .map((meta) => {
-                            if (meta === null) return null;
-                            const { codex, ...rest } = meta as Record<
-                                string,
-                                unknown
-                            >;
-                            if (codex !== undefined)
-                                expect(codex).toMatchObject({
-                                    historyReplay: true,
-                                    turnId: "turn-1",
-                                });
-                            return rest;
-                        })
-                        .filter(
-                            (meta) =>
-                                meta === null || Object.keys(meta).length > 0,
-                        );
-                expect(
-                    metadata(
-                        (update) =>
-                            acpV2.SessionUpdate.isTerminalUpdate(update) &&
-                            update.terminalId === "command",
-                    ),
-                ).toEqual([null]);
-                expect(
-                    metadata(
-                        (update) =>
-                            acpV2.SessionUpdate.isToolCallUpdate(update) &&
-                            update.toolCallId === "command",
-                    ),
-                ).toEqual([null]);
-                expect(
-                    metadata(
-                        (update) =>
-                            acpV2.SessionUpdate.isToolCallUpdate(update) &&
-                            update.toolCallId === "mcp",
-                    ),
-                ).toEqual([null, { is_mcp_tool_call: true }]);
-                expect(
-                    metadata(
-                        (update) =>
-                            acpV2.SessionUpdate.isCompactionUpdate(update) &&
-                            update.compactionId === "compaction",
-                    ),
-                ).toEqual([null]);
-            }
-        },
-    );
+                          },
+                      }
+                    : {}),
+            },
+        });
+        closeClient = () => connection.close();
+        for (let replay = 0; replay < 2; replay++) {
+            const start = updates.length;
+            await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, replayFrom: {type: "start"}});
+            const current = updates.slice(start).map(({update}) => update);
+            const metadata = (match: (update: acpV2.SessionUpdate) => boolean) =>
+                current
+                    .filter(match)
+                    .map((update) => update._meta)
+                    .filter((meta) => meta !== undefined)
+                    .map((meta) => {
+                        if (meta === null) return null;
+                        const {codex, ...rest} = meta as Record<string, unknown>;
+                        if (codex !== undefined)
+                            expect(codex).toMatchObject({
+                                historyReplay: true,
+                                turnId: "turn-1",
+                            });
+                        return rest;
+                    })
+                    .filter((meta) => meta === null || Object.keys(meta).length > 0);
+            expect(metadata((update) => acpV2.SessionUpdate.isTerminalUpdate(update) && update.terminalId === "command")).toEqual([null]);
+            expect(metadata((update) => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "command")).toEqual([null]);
+            expect(metadata((update) => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "mcp")).toEqual([null, {is_mcp_tool_call: true}]);
+            expect(metadata((update) => acpV2.SessionUpdate.isCompactionUpdate(update) && update.compactionId === "compaction")).toEqual([null]);
+        }
+    });
 
     it('hides the reviewer prompt the same way when the history arrives one item per page', async () => {
         const replay = async (paginated: boolean) => {
@@ -593,15 +508,13 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
         const agent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        codexAcpClient.readAuthRequirement = vi
-            .fn()
-            .mockResolvedValue({ required: false, account: null });
+        codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
         codexAcpClient.getAccount = vi.fn().mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
-        codexAcpClient.listSkills = vi.fn().mockResolvedValue({ data: [] });
+        codexAcpClient.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
         appServer.threadResume = vi.fn().mockResolvedValue({
@@ -615,12 +528,12 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             cwd,
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
             readState: null,
-            thread: createThread({ turns: reviewReplayTurns }),
+            thread: createThread({turns: reviewReplayTurns}),
         });
 
         await agent.initialize({protocolVersion: 1});
@@ -761,11 +674,11 @@ describe('resume replay of Codex file citations', () => {
             cwd,
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
-            thread: createThread({ turns: citationTurns }),
+            thread: createThread({turns: citationTurns}),
         });
 
         await agent.initialize({protocolVersion: 1});
@@ -834,11 +747,11 @@ describe('resume replay of async question answers', () => {
             cwd,
             approvalPolicy: "never",
             approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
+            sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
-            thread: createThread({ turns: answerTurns }),
+            thread: createThread({turns: answerTurns}),
         });
 
         await agent.initialize({protocolVersion: 1});

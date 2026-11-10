@@ -29,17 +29,13 @@ async function connect(version: 1 | 2, capabilities: string[]) {
         required: false,
         account: null,
     });
-    vi.spyOn(client, "getAgentConfiguredModelProvider").mockResolvedValue(
-        "openai",
-    );
+    vi.spyOn(client, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(client, "getAccount").mockResolvedValue({
         account: null,
         requiresOpenaiAuth: false,
         workspaceRouting: null,
     });
-    const router = createAcpAgentRouter(
-        (connection) => new CodexAcpServer(connection, client),
-    );
+    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, client));
     const incoming = new TransformStream<Uint8Array, Uint8Array>();
     const outgoing = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acp.ndJsonStream(outgoing.writable, incoming.readable));

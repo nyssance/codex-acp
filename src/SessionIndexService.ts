@@ -7,23 +7,16 @@
 
 import path from "node:path";
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import { RequestError } from "@agentclientprotocol/sdk/unstable";
-import {
-    ACPSessionConnection,
-    type AcpClientConnection,
-} from "./ACPSessionConnection";
-import {
-    clientSupportsAirCapability,
-    publishAirSessionMetadata,
-    withAirMeta,
-} from "./AirExtension";
-import type { ServerNotification } from "./app-server";
-import type { CodexAcpClient } from "./CodexAcpClient";
-import type { SessionState } from "./CodexAcpServer";
-import { sessionNotFoundRequestError } from "./CodexThreadErrors";
-import { logger } from "./Logger";
-import { arePathBasenamesEqual, isAbsolutePathLike } from "./PathUtils";
-import type { Thread } from "./app-server/v2";
+import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import {ACPSessionConnection, type AcpClientConnection} from "./ACPSessionConnection";
+import {clientSupportsAirCapability, publishAirSessionMetadata, withAirMeta} from "./AirExtension";
+import type {ServerNotification} from "./app-server";
+import type {CodexAcpClient} from "./CodexAcpClient";
+import type {SessionState} from "./CodexAcpServer";
+import {sessionNotFoundRequestError} from "./CodexThreadErrors";
+import {logger} from "./Logger";
+import {arePathBasenamesEqual, isAbsolutePathLike} from "./PathUtils";
+import type {Thread} from "./app-server/v2";
 import {
     AIR_ARCHIVED_KEY,
     AIR_SESSION_ARCHIVE_KEY,
@@ -55,12 +48,7 @@ import {canonicalCwds, CodexWorktreeMarks, isUncPath, linkedWorktreeCwds} from "
 import {SessionForkOrigins} from "./SessionForkOrigins";
 import {SessionListSubscriptions, type SessionListSubscriptionTimings, type ThreadEntry} from "./SessionListSubscriptions";
 import {SessionWriteQueue} from "./SessionWriteQueue";
-import {
-    ALWITH_SESSION_INDEX_KEY,
-    clientSupportsAlwithCapability,
-    standardArchivedFilter,
-    standardSessionRow,
-} from "./alwith/agent/sessionList";
+import {ALWITH_SESSION_INDEX_KEY, clientSupportsAlwithCapability, standardArchivedFilter, standardSessionRow} from "./alwith/agent/sessionList";
 import type {SerializeTitleWrite} from "./TitleGenerator";
 import {readSessionBatchMetadata} from "./SessionBatchGet";
 
@@ -259,11 +247,8 @@ export class SessionIndexService {
         return this.renameSession(sessionId, title);
     }
 
-    async renameSession(
-        sessionId: string,
-        title: string,
-    ): Promise<Record<string, never>> {
-        await this.setTitle({ sessionId, title });
+    async renameSession(sessionId: string, title: string): Promise<Record<string, never>> {
+        await this.setTitle({sessionId, title});
         return {};
     }
 
@@ -279,29 +264,13 @@ export class SessionIndexService {
      * as `thread/archive` unloads a loaded thread: it is closed as `session/close` closes it, then archived.
      * Unarchiving loads nothing: the client loads the session again to work in it.
      */
-    async setArchived(
-        { sessionId }: SessionArchiveRequest,
-        archived: boolean,
-    ): Promise<Record<string, never>> {
-        this.require(
-            archived ? SESSION_ARCHIVE_METHOD : SESSION_UNARCHIVE_METHOD,
-        );
-        return this.archiveSession(
-            sessionId,
-            archived,
-            withAirMeta(undefined, AIR_ARCHIVED_KEY, archived),
-        );
+    async setArchived({sessionId}: SessionArchiveRequest, archived: boolean): Promise<Record<string, never>> {
+        this.require(archived ? SESSION_ARCHIVE_METHOD : SESSION_UNARCHIVE_METHOD);
+        return this.archiveSession(sessionId, archived, withAirMeta(undefined, AIR_ARCHIVED_KEY, archived));
     }
 
-    async archiveSession(
-        sessionId: string,
-        archived: boolean,
-        meta: Record<string, unknown>,
-    ): Promise<Record<string, never>> {
-        logger.log(
-            archived ? "Archiving session..." : "Unarchiving session...",
-            { sessionId },
-        );
+    async archiveSession(sessionId: string, archived: boolean, meta: Record<string, unknown>): Promise<Record<string, never>> {
+        logger.log(archived ? "Archiving session..." : "Unarchiving session...", {sessionId});
         await this.host.ensureAppServer();
         // Read before the fence, which counts as open.
         const open = this.host.hasLocalSession(sessionId);
@@ -396,23 +365,20 @@ export class SessionIndexService {
      * cwd is a UNC path, such as `\\wsl.localhost\…`, is not checked and not marked.
      */
     private async rows(entries: ThreadEntry[], skipUncCwds = false): Promise<acp.SessionInfo[]> {
-        const inAgentWorktree = (cwd: string): boolean =>
-            !(skipUncCwds && isUncPath(cwd)) && this.codexWorktrees.isCodexWorktreeCwd(cwd);
-        return await Promise.all(entries.map(async entry => {
-            if (entry.read) this.forkOrigins.readElsewhere(entry.thread);
-            const forkedFromId = this.forkOrigins.originOf(entry.thread);
-            const thread = forkedFromId === entry.thread.forkedFromId ? entry.thread : {...entry.thread, forkedFromId};
-            const activity = this.activity.activityOf(thread);
-            // A row with a state is of a thread loaded here: a restart of the app-server changes it.
-            if (activity?.state !== undefined) this.rowsWithState.add(thread.id);
-            else this.rowsWithState.delete(thread.id);
-            const row = sessionIndexSessionInfo(thread, entry.archived, activity, inAgentWorktree(thread.cwd));
-            return this.withActiveAdditionalDirectories(
-                this.standardRows
-                    ? await standardSessionRow(this.host.client().appServerClient, thread, entry.archived, row)
-                    : row,
-            );
-        }));
+        const inAgentWorktree = (cwd: string): boolean => !(skipUncCwds && isUncPath(cwd)) && this.codexWorktrees.isCodexWorktreeCwd(cwd);
+        return await Promise.all(
+            entries.map(async (entry) => {
+                if (entry.read) this.forkOrigins.readElsewhere(entry.thread);
+                const forkedFromId = this.forkOrigins.originOf(entry.thread);
+                const thread = forkedFromId === entry.thread.forkedFromId ? entry.thread : {...entry.thread, forkedFromId};
+                const activity = this.activity.activityOf(thread);
+                // A row with a state is of a thread loaded here: a restart of the app-server changes it.
+                if (activity?.state !== undefined) this.rowsWithState.add(thread.id);
+                else this.rowsWithState.delete(thread.id);
+                const row = sessionIndexSessionInfo(thread, entry.archived, activity, inAgentWorktree(thread.cwd));
+                return this.withActiveAdditionalDirectories(this.standardRows ? await standardSessionRow(this.host.client().appServerClient, thread, entry.archived, row) : row);
+            }),
+        );
     }
 
     private withActiveAdditionalDirectories(session: acp.SessionInfo): acp.SessionInfo {

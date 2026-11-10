@@ -17,15 +17,13 @@ async function startSessionWithMcpServers(mcpServers: Array<AcpMcpServer> | unde
     vi.spyOn(codexAppServerClient, "configRead").mockResolvedValue({
         config: {mcp_servers: Object.fromEntries(configuredNames.map(name => [name, {}]))}, origins: {}, layers: [],
     } as any);
-    const threadStartSpy = vi
-        .spyOn(codexAppServerClient, "threadStart")
-        .mockResolvedValue({
-            readState: null,
-            thread: { id: "thread-id" } as any,
-            model: "gpt-5",
-            reasoningEffort: "medium",
-            serviceTier: null,
-        } as any);
+    const threadStartSpy = vi.spyOn(codexAppServerClient, "threadStart").mockResolvedValue({
+        readState: null,
+        thread: {id: "thread-id"} as any,
+        model: "gpt-5",
+        reasoningEffort: "medium",
+        serviceTier: null,
+    } as any);
     vi.spyOn(codexAppServerClient, "listModels").mockResolvedValue({
         data: [createTestModel({id: "gpt-5"})],
         nextCursor: null,
@@ -109,31 +107,23 @@ describe('MCP server config from ACP v1 and v2 session requests', () => {
         ["v1", undefined, "files"],
         ["v2", "stdio", "files"],
         ["sanitized collision", "stdio", "file server"],
-    ])(
-        "rejects duplicate names before configured-server filtering: %s",
-        async (_label, type, name) => {
-            const server = {
-                name,
-                command: "mcp-fs",
-                args: [],
-                env: [],
-                ...(type ? { type } : {}),
-            } as AcpMcpServer;
-            const duplicate = {
-                ...server,
-                name: name.replaceAll(' ', "_"),
-            } as AcpMcpServer;
-            await expect(
-                startSessionWithMcpServers(
-                    [server, duplicate],
-                    [duplicate.name as string],
-                ),
-            ).rejects.toMatchObject({
-                code: -32602,
-                data: { name: duplicate.name },
-            });
-        },
-    );
+    ])("rejects duplicate names before configured-server filtering: %s", async (_label, type, name) => {
+        const server = {
+            name,
+            command: "mcp-fs",
+            args: [],
+            env: [],
+            ...(type ? {type} : {}),
+        } as AcpMcpServer;
+        const duplicate = {
+            ...server,
+            name: name.replaceAll(" ", "_"),
+        } as AcpMcpServer;
+        await expect(startSessionWithMcpServers([server, duplicate], [duplicate.name as string])).rejects.toMatchObject({
+            code: -32602,
+            data: {name: duplicate.name},
+        });
+    });
 
     it('uses the last stdio environment entry with a repeated name', async () => {
         const config = await startSessionWithMcpServers([{type: "stdio", name: "files", command: "mcp-fs",

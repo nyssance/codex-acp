@@ -1,14 +1,7 @@
-import type { SessionUpdate as V2SessionUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { turnErrorUpdate } from "./alwith/agent/turnErrors";
-import type {
-    ServerNotification
-} from "./app-server";
-import type {
-    SessionFailure,
-    SessionFailureAction,
-    SessionFailureCategory,
-    SessionState,
-} from "./CodexAcpServer";
+import type {SessionUpdate as V2SessionUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {turnErrorUpdate} from "./alwith/agent/turnErrors";
+import type {ServerNotification} from "./app-server";
+import type {SessionFailure, SessionFailureAction, SessionFailureCategory, SessionState} from "./CodexAcpServer";
 import {type Error as AcpError, type PlanEntry, RequestError} from "@agentclientprotocol/sdk/unstable";
 import {ACPSessionConnection, type AcpClientConnection, type UpdateSessionEvent} from "./ACPSessionConnection";
 import {normalizeSessionTitle} from "./SessionTitle";
@@ -50,17 +43,8 @@ import {ImageViewReporter} from "./tool-calls/reporters/ImageViewReporter";
 import {McpToolReporter} from "./tool-calls/reporters/McpToolReporter";
 import {WebSearchReporter} from "./tool-calls/reporters/WebSearchReporter";
 import {CodexPlanStream, structuredPlanUpdate} from "./CodexPlanStream";
-import {
-    type CodexFailureKind,
-    codexFailureKind,
-    isAuthenticationRequired,
-    SESSION_FAILURE_POLICY,
-} from "./CodexFailures";
-import {
-    createMessagePhaseMeta,
-    createAgentTextMessageChunk,
-    createAgentTextThoughtChunk,
-} from "./ContentChunks";
+import {type CodexFailureKind, codexFailureKind, isAuthenticationRequired, SESSION_FAILURE_POLICY} from "./CodexFailures";
+import {createMessagePhaseMeta, createAgentTextMessageChunk, createAgentTextThoughtChunk} from "./ContentChunks";
 import {goalSessionInfoUpdate, sameThreadGoalSnapshot, toThreadGoalSnapshot} from "./ThreadGoalSnapshot";
 import {logger} from "./Logger";
 import {recordOrNull} from "./permissions/json";
@@ -136,11 +120,8 @@ export class CodexEventHandler {
             startedAt: number;
             workEndedAt: number | null;
             message:
-                | (Extract<
-                      V2SessionUpdate,
-                      { sessionUpdate: "agent_message" }
-                  > & {
-                      _meta: { codex: Record<string, unknown> };
+                | (Extract<V2SessionUpdate, {sessionUpdate: "agent_message"}> & {
+                      _meta: {codex: Record<string, unknown>};
                   })
                 | null;
         }
@@ -411,18 +392,8 @@ export class CodexEventHandler {
         if (ignoredBySubagents) return;
         if (updateEvent === undefined) updateEvent = await this.createUpdateEvent(notification);
         if (updateEvent) {
-            const hasContent = Object.keys(updateEvent).some(
-                (key) =>
-                    key !== "sessionUpdate" &&
-                    key !== "toolCallId" &&
-                    key !== "_meta",
-            );
-            if (
-                hasContent &&
-                this.session.protocolVersion === 2 &&
-                "turnId" in notification.params &&
-                typeof notification.params.turnId === "string"
-            ) {
+            const hasContent = Object.keys(updateEvent).some((key) => key !== "sessionUpdate" && key !== "toolCallId" && key !== "_meta");
+            if (hasContent && this.session.protocolVersion === 2 && "turnId" in notification.params && typeof notification.params.turnId === "string") {
                 const meta = updateEvent._meta;
                 const codex = meta?.["codex"];
                 updateEvent = {
@@ -430,18 +401,13 @@ export class CodexEventHandler {
                     _meta: {
                         ...meta,
                         codex: {
-                            ...(codex && typeof codex === "object"
-                                ? codex
-                                : {}),
+                            ...(codex && typeof codex === "object" ? codex : {}),
                             turnId: notification.params.turnId,
                         },
                     },
                 };
             }
-            await this.publishUpdate(
-                updateEvent,
-                this.subagents.notificationSessionId(notification),
-            );
+            await this.publishUpdate(updateEvent, this.subagents.notificationSessionId(notification));
         }
     }
 
@@ -576,10 +542,7 @@ export class CodexEventHandler {
                 return await this.createErrorEvent(notification.params);
             case "turn/started":
                 // Without Codex's start time the turn carries no timing.
-                if (
-                    this.session.protocolVersion === 2 &&
-                    notification.params.turn.startedAt !== null
-                ) {
+                if (this.session.protocolVersion === 2 && notification.params.turn.startedAt !== null) {
                     this.liveTurnTiming.set(notification.params.turn.id, {
                         startedAt: notification.params.turn.startedAt * 1000,
                         workEndedAt: null,
@@ -599,8 +562,7 @@ export class CodexEventHandler {
                     this.liveTurnTiming.delete(turn.id);
                     if (timing?.message && turn.completedAt !== null) {
                         const completedAt = turn.completedAt * 1000;
-                        const durationMs =
-                            turn.durationMs ?? completedAt - timing.startedAt;
+                        const durationMs = turn.durationMs ?? completedAt - timing.startedAt;
                         await this.session.updateV2(
                             {
                                 ...timing.message,
@@ -616,11 +578,7 @@ export class CodexEventHandler {
                                                   // Codex reports the start in whole seconds and the final
                                                   // answer in milliseconds, so the difference can exceed the
                                                   // turn's own millisecond duration by under a second.
-                                                  workDurationMs: Math.min(
-                                                      durationMs,
-                                                      timing.workEndedAt -
-                                                          timing.startedAt,
-                                                  ),
+                                                  workDurationMs: Math.min(durationMs, timing.workEndedAt - timing.startedAt),
                                               }),
                                     },
                                 },
@@ -635,29 +593,11 @@ export class CodexEventHandler {
                 this.latestRootTurnId = this.sessionState.currentTurnId ?? this.latestRootTurnId;
                 this.sessionState.currentTurnId = null;
                 this.sessionState.interruptTurnId = null;
-                if (
-                    this.session.protocolVersion === 2 &&
-                    notification.params.turn.status === "failed"
-                ) {
+                if (this.session.protocolVersion === 2 && notification.params.turn.status === "failed") {
                     if (!this.supportsTypedSessionFailures) {
                         const turn = notification.params.turn;
-                        const error =
-                            turn.error ??
-                            (this.terminalTurnError?.turnId === turn.id
-                                ? this.terminalTurnError.error
-                                : null);
-                        if (
-                            error &&
-                            !this.isAuthenticationRequiredError(
-                                error.codexErrorInfo,
-                            )
-                        )
-                            await this.session.updateV2(
-                                turnErrorUpdate(turn.id, error),
-                                this.subagents.notificationSessionId(
-                                    notification,
-                                ),
-                            );
+                        const error = turn.error ?? (this.terminalTurnError?.turnId === turn.id ? this.terminalTurnError.error : null);
+                        if (error && !this.isAuthenticationRequiredError(error.codexErrorInfo)) await this.session.updateV2(turnErrorUpdate(turn.id, error), this.subagents.notificationSessionId(notification));
                     }
                     for (const update of this.sessionState.openToolCalls.finishOutstanding()) {
                         await this.session.update(update, this.subagents.notificationSessionId(notification));
@@ -723,12 +663,7 @@ export class CodexEventHandler {
                 return this.createWarningEvent(notification.params);
             case "guardianWarning":
                 // Review summaries already have a tool item; failures and interruptions do not.
-                if (
-                    /^Automatic approval review \w+ \(risk:/i.test(
-                        notification.params.message,
-                    )
-                )
-                    return null;
+                if (/^Automatic approval review \w+ \(risk:/i.test(notification.params.message)) return null;
                 return this.createWarningEvent(notification.params);
             case "deprecationNotice":
                 return this.createDeprecationNoticeEvent(notification.params);
@@ -879,19 +814,9 @@ export class CodexEventHandler {
 
     private createAgentMessageText(text: string, itemId: string, threadId: string): UpdateSessionEvent | null {
         if (text.length === 0) return null;
-        const phase =
-            this.streamsFor(threadId).agentMessagePhases.get(itemId) ?? null;
-        const meta = createMessagePhaseMeta(
-            phase,
-            this.sessionState.clientCapabilities.airClient,
-        );
-        return createAgentTextMessageChunk(
-            text,
-            itemId,
-            this.session.protocolVersion === 2
-                ? { ...meta, codex: { phase } }
-                : meta,
-        );
+        const phase = this.streamsFor(threadId).agentMessagePhases.get(itemId) ?? null;
+        const meta = createMessagePhaseMeta(phase, this.sessionState.clientCapabilities.airClient);
+        return createAgentTextMessageChunk(text, itemId, this.session.protocolVersion === 2 ? {...meta, codex: {phase}} : meta);
     }
 
     private async createConfigWarningEvent(event: ConfigWarningNotification): Promise<UpdateSessionEvent> {
@@ -945,11 +870,7 @@ export class CodexEventHandler {
         }
         this.sessionState.currentGoal = goalSnapshot;
 
-        return goalSessionInfoUpdate(
-            goalSnapshot,
-            this.sessionState.clientCapabilities.airClient,
-            this.session.protocolVersion === 2,
-        );
+        return goalSessionInfoUpdate(goalSnapshot, this.sessionState.clientCapabilities.airClient, this.session.protocolVersion === 2);
     }
 
     private createThreadGoalClearedEvent(_event: ThreadGoalClearedNotification): UpdateSessionEvent | null {
@@ -959,11 +880,7 @@ export class CodexEventHandler {
         }
         this.sessionState.currentGoal = null;
 
-        return goalSessionInfoUpdate(
-            null,
-            this.sessionState.clientCapabilities.airClient,
-            this.session.protocolVersion === 2,
-        );
+        return goalSessionInfoUpdate(null, this.sessionState.clientCapabilities.airClient, this.session.protocolVersion === 2);
     }
 
     private createReasoningDeltaEvent(
@@ -982,16 +899,10 @@ export class CodexEventHandler {
         return createAgentTextThoughtChunk(text, messageId);
     }
 
-    private async createItemEvent(
-        event: ItemStartedNotification,
-    ): Promise<UpdateSessionEvent | null> {
-        if (
-            event.item.type === "agentMessage" &&
-            event.item.phase === "final_answer"
-        ) {
+    private async createItemEvent(event: ItemStartedNotification): Promise<UpdateSessionEvent | null> {
+        if (event.item.type === "agentMessage" && event.item.phase === "final_answer") {
             const timing = this.liveTurnTiming.get(event.turnId);
-            if (timing?.workEndedAt === null)
-                timing.workEndedAt = event.startedAtMs;
+            if (timing?.workEndedAt === null) timing.workEndedAt = event.startedAtMs;
         }
         switch (event.item.type) {
             case "fileChange":
@@ -1025,10 +936,7 @@ export class CodexEventHandler {
                             content: [
                                 {
                                     type: "text",
-                                    text: renderFileCitations(
-                                        event.item.text,
-                                        this.sessionState.cwd,
-                                    ),
+                                    text: renderFileCitations(event.item.text, this.sessionState.cwd),
                                 },
                             ],
                             _meta: {
@@ -1097,10 +1005,7 @@ export class CodexEventHandler {
                 return this.renderer.render(this.subagents.legacyCollaborationCompleted(event.item));
             case "agentMessage":
                 this.rememberAgentMessagePhase(event.item, event.threadId);
-                const finalChunk = this.flushAgentMessageText(
-                    event.item,
-                    event.threadId,
-                );
+                const finalChunk = this.flushAgentMessageText(event.item, event.threadId);
                 if (this.session.protocolVersion === 2) {
                     if (finalChunk)
                         await this.session.update(
@@ -1116,10 +1021,7 @@ export class CodexEventHandler {
                         content: [
                             {
                                 type: "text" as const,
-                                text: renderFileCitations(
-                                    event.item.text,
-                                    this.sessionState.cwd,
-                                ),
+                                text: renderFileCitations(event.item.text, this.sessionState.cwd),
                             },
                         ],
                         _meta: {
@@ -1294,9 +1196,7 @@ export class CodexEventHandler {
             failuresShownAsMessages.add(this.failure);
         }
         if (this.session.protocolVersion === 2) {
-            await this.session.updateV2(
-                turnErrorUpdate(params.turnId, params.error),
-            );
+            await this.session.updateV2(turnErrorUpdate(params.turnId, params.error));
             return null;
         }
         return createAgentTextMessageChunk(`${readableServiceErrorMessage(params.error.message)}\n\n`);
@@ -1487,9 +1387,7 @@ export class CodexEventHandler {
         };
     }
 
-    private handleRateLimitsUpdated(
-        params: AccountRateLimitsUpdatedNotification,
-    ): void {
+    private handleRateLimitsUpdated(params: AccountRateLimitsUpdatedNotification): void {
         this.sessionState.rateLimits ??= new Map();
         const limitId = params.rateLimits.limitId ?? "codex";
         const existingEntry = this.sessionState.rateLimits.get(limitId);
@@ -1498,8 +1396,7 @@ export class CodexEventHandler {
             : {...params.rateLimits, limitId};
         this.sessionState.rateLimits.set(limitId, {
             limitId,
-            limitName:
-                snapshot.limitName ?? existingEntry?.limitName ?? limitId,
+            limitName: snapshot.limitName ?? existingEntry?.limitName ?? limitId,
             snapshot,
         });
     }

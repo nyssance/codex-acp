@@ -71,7 +71,7 @@ async function createAgent(kind: ClientKind, threads: Thread[] = [createThread()
     const appServer = fixture.getCodexAppServerClient();
     const readAuthRequirement = vi
         .spyOn(client, "readAuthRequirement")
-        .mockResolvedValue({ required: false, account: null });
+        .mockResolvedValue({required: false, account: null});
     const threadList = vi.spyOn(appServer, "threadList").mockResolvedValue({
         readStates: null,
         data: threads,
@@ -331,27 +331,27 @@ describe("session/list", () => {
 
         fixture.sendServerNotification({
             method: "turn/started",
-            params: { threadId: "failed", turn: turn("inProgress", null) },
+            params: {threadId: "failed", turn: turn("inProgress", null)},
         } as never);
         threadList.mockResolvedValue({
             readStates: null,
             data: [
                 createThread({
                     id: "failed",
-                    status: { type: "active", activeFlags: [] },
+                    status: {type: "active", activeFlags: []},
                 }),
             ],
             nextCursor: null,
             backwardsCursor: null,
         });
-        expect(await stateOf()).toEqual({ failed: "running" });
+        expect(await stateOf()).toEqual({failed: "running"});
         threadList.mockResolvedValue({
             readStates: null,
-            data: [createThread({ id: "failed", status: { type: "idle" } })],
+            data: [createThread({id: "failed", status: {type: "idle"}})],
             nextCursor: null,
             backwardsCursor: null,
         });
-        expect(await stateOf()).toEqual({ failed: "idle" });
+        expect(await stateOf()).toEqual({failed: "idle"});
     });
 
     it("answers state reviewing in Codex review mode, under requires_action and over running and error", async () => {
@@ -379,19 +379,15 @@ describe("session/list", () => {
             completedAt: 500,
             durationMs: 1,
         });
-        const { fixture, agent, threadList } =
-            await createAgent("sessionIndex");
+        const {fixture, agent, threadList} = await createAgent("sessionIndex");
         const listWith = async (status: Thread["status"]) => {
             threadList.mockResolvedValue({
                 readStates: null,
-                data: [createThread({ status })],
+                data: [createThread({status})],
                 nextCursor: null,
                 backwardsCursor: null,
             });
-            return (
-                (await agent.listSessions({ cwd: "/repo/project" }))
-                    .sessions[0]!._meta as any
-            ).jetbrains.air.state;
+            return ((await agent.listSessions({cwd: "/repo/project"})).sessions[0]!._meta as any).jetbrains.air.state;
         };
         fixture.sendServerNotification({method: "turn/started", params: {threadId, turn: turn("inProgress")}} as never);
         fixture.sendServerNotification({method: "item/started", params: {threadId, turnId: "turn-1", item: item("enteredReviewMode"), startedAtMs: 1}} as never);
@@ -428,7 +424,7 @@ describe("session/list", () => {
                     sessionId: threadId,
                     cwd: "/repo/project",
                     title: "First message",
-                    _meta: { codex: { projectId: null } },
+                    _meta: {codex: {projectId: null}},
                     updatedAt: "1970-01-01T00:03:20.000Z",
                 },
             ],
@@ -500,11 +496,7 @@ describe("session/list", () => {
                 nextCursor,
                 backwardsCursor: null,
             });
-            if (params.archived)
-                return page(
-                    [createThread({ id: "archived-10", recencyAt: 10 })],
-                    null,
-                );
+            if (params.archived) return page([createThread({id: "archived-10", recencyAt: 10})], null);
             return params.cursor === null
                 ? page([], "unarchived-2")
                 : page([createThread({id: "unarchived-20", recencyAt: 20})], null);
@@ -529,7 +521,7 @@ describe("session/list", () => {
             inFlight--;
             return {
                 readStates: null,
-                data: [createThread({ id: params.archived ? "a" : "u" })],
+                data: [createThread({id: params.archived ? "a" : "u"})],
                 nextCursor: null,
                 backwardsCursor: null,
             };
@@ -570,13 +562,10 @@ describe("session/list", () => {
     });
 
     it("binds the cursor of an unarchived or an all list to its archived value", async () => {
-        const { agent, threadList } = await createAgent("sessionIndex");
+        const {agent, threadList} = await createAgent("sessionIndex");
         threadList.mockResolvedValue({
             readStates: null,
-            data: [
-                createThread({ id: "a", recencyAt: 20 }),
-                createThread({ id: "b", recencyAt: 10 }),
-            ],
+            data: [createThread({id: "a", recencyAt: 20}), createThread({id: "b", recencyAt: 10})],
             nextCursor: null,
             backwardsCursor: null,
         });
@@ -603,7 +592,7 @@ describe("session/list", () => {
                 const id = params.archived ? "archived" : "unarchived";
                 return {
                     readStates: null,
-                    data: [createThread({ id, recencyAt: 10 })],
+                    data: [createThread({id, recencyAt: 10})],
                     nextCursor: null,
                     backwardsCursor: null,
                 };
@@ -623,7 +612,7 @@ describe("session/list", () => {
             page++;
             return {
                 readStates: null,
-                data: [createThread({ cwd: "/repo/other" })],
+                data: [createThread({cwd: "/repo/other"})],
                 nextCursor: `codex-${page}`,
                 backwardsCursor: null,
             };
@@ -638,13 +627,10 @@ describe("session/list", () => {
     });
 
     it("ties a cursor to the cwd and the scope of the list, but not to the limit", async () => {
-        const { agent, threadList } = await createAgent("sessionIndex");
+        const {agent, threadList} = await createAgent("sessionIndex");
         threadList.mockResolvedValue({
             readStates: null,
-            data: [
-                createThread({ id: "a", recencyAt: 20 }),
-                createThread({ id: "b", recencyAt: 10 }),
-            ],
+            data: [createThread({id: "a", recencyAt: 20}), createThread({id: "b", recencyAt: 10})],
             nextCursor: null,
             backwardsCursor: null,
         });
@@ -713,7 +699,7 @@ describe("session/list", () => {
 
         threadList.mockResolvedValueOnce({
             readStates: null,
-            data: [createThread({ id: otherThreadId, recencyAt: 200 })],
+            data: [createThread({id: otherThreadId, recencyAt: 200})],
             nextCursor: null,
             backwardsCursor: null,
         });
@@ -722,7 +708,7 @@ describe("session/list", () => {
             cursor: response.nextCursor ?? null,
         });
         expect(next).toMatchObject({
-            sessions: [{ sessionId: otherThreadId }],
+            sessions: [{sessionId: otherThreadId}],
             nextCursor: null,
         });
         expect(threadList.mock.calls[2]?.[0].cursor).toBe("cursor-3");
@@ -779,11 +765,8 @@ describe("session/list", () => {
     });
 
     it("filters a relative cwd by basename and keeps the list options", async () => {
-        const { agent, threadList } = await createAgent("sessionIndex");
-        const page = (
-            data: Thread[],
-            nextCursor: string | null,
-        ): ThreadListResponse => ({
+        const {agent, threadList} = await createAgent("sessionIndex");
+        const page = (data: Thread[], nextCursor: string | null): ThreadListResponse => ({
             readStates: null,
             data,
             nextCursor,
@@ -815,10 +798,8 @@ describe("session/list", () => {
     });
 
     it("fills a relative cwd page from several Codex pages, cut to the limit, and continues inside a Codex page", async () => {
-        const { agent, threadList } = await createAgent("sessionIndex");
-        const rows = ["a", "b", "c"].map((id) =>
-            createThread({ id, cwd: `/repo/${id}/project` }),
-        );
+        const {agent, threadList} = await createAgent("sessionIndex");
+        const rows = ["a", "b", "c"].map((id) => createThread({id, cwd: `/repo/${id}/project`}));
         threadList.mockResolvedValue({
             readStates: null,
             data: rows,
@@ -829,7 +810,7 @@ describe("session/list", () => {
             agent.listSessions({
                 cwd: "project",
                 cursor,
-                _meta: { jetbrains: { air: { list: { limit: 2 } } } },
+                _meta: {jetbrains: {air: {list: {limit: 2}}}},
             });
 
         const first = await list(null);
@@ -842,7 +823,7 @@ describe("session/list", () => {
             })
             .mockResolvedValueOnce({
                 readStates: null,
-                data: [createThread({ id: "d", cwd: "/repo/d/project" })],
+                data: [createThread({id: "d", cwd: "/repo/d/project"})],
                 nextCursor: null,
                 backwardsCursor: null,
             });
@@ -875,23 +856,16 @@ describe("session/list", () => {
     });
 
     it("continues a relative cwd list after its last row when rows come or go in between", async () => {
-        const { agent, threadList } = await createAgent("sessionIndex");
-        const row = (id: string, recencyAt: number) =>
-            createThread({ id, cwd: `/repo/${id}/project`, recencyAt });
-        const [a, b, c, d] = [
-            row("a", 40),
-            row("b", 30),
-            row("c", 20),
-            row("d", 10),
-        ];
+        const {agent, threadList} = await createAgent("sessionIndex");
+        const row = (id: string, recencyAt: number) => createThread({id, cwd: `/repo/${id}/project`, recencyAt});
+        const [a, b, c, d] = [row("a", 40), row("b", 30), row("c", 20), row("d", 10)];
         const list = (cursor: string | null) =>
             agent.listSessions({
                 cwd: "project",
                 cursor,
-                _meta: { jetbrains: { air: { list: { limit: 2 } } } },
+                _meta: {jetbrains: {air: {list: {limit: 2}}}},
             });
-        const ids = (response: acp.ListSessionsResponse) =>
-            response.sessions.map((session) => session.sessionId);
+        const ids = (response: acp.ListSessionsResponse) => response.sessions.map((session) => session.sessionId);
         threadList.mockResolvedValueOnce({
             readStates: null,
             data: [a, b, c, d],
@@ -924,10 +898,7 @@ describe("session/list", () => {
             const {agent: other, threadList} = await createAgent("sessionIndex");
             threadList.mockResolvedValueOnce({
                 readStates: null,
-                data: [
-                    createThread({ id: "a", cwd: "/x/project" }),
-                    createThread({ id: "b", cwd: "/y/project" }),
-                ],
+                data: [createThread({id: "a", cwd: "/x/project"}), createThread({id: "b", cwd: "/y/project"})],
                 nextCursor: null,
                 backwardsCursor: null,
             });
@@ -974,10 +945,8 @@ describe("session/list", () => {
                 },
             });
         const activities = async () =>
-            (await agent.listSessions({ cwd: "/repo/project" })).sessions.map(
-                (session) =>
-                    (session._meta as any)?.jetbrains?.air?.lastTurnEndedAt ??
-                    null,
+            (await agent.listSessions({cwd: "/repo/project"})).sessions.map(
+                (session) => (session._meta as any)?.jetbrains?.air?.lastTurnEndedAt ?? null,
             );
         completed(threadId);
         completed("ephemeral-title-thread");
@@ -995,13 +964,13 @@ describe("session/list", () => {
             return page === 70
                 ? {
                       readStates: null,
-                      data: [createThread({ cwd: "/repo/project" })],
+                      data: [createThread({cwd: "/repo/project"})],
                       nextCursor: null,
                       backwardsCursor: null,
                   }
                 : {
                       readStates: null,
-                      data: [createThread({ cwd: "/repo/other" })],
+                      data: [createThread({cwd: "/repo/other"})],
                       nextCursor: `codex-${page}`,
                       backwardsCursor: null,
                   };
@@ -1054,24 +1023,20 @@ describe("_session/list/subscribe", () => {
             updatedAt: 400,
             path: "/codex-home/sessions/rollout.jsonl",
         });
-        const threadRead = vi
-            .spyOn(appServer, "threadRead")
-            .mockResolvedValue({ readState: null, thread: running });
+        const threadRead = vi.spyOn(appServer, "threadRead").mockResolvedValue({readState: null, thread: running});
 
         fixture.sendServerNotification({method: "thread/status/changed", params: {threadId, status: {type: "active", activeFlags: []}}});
         await vi.advanceTimersByTimeAsync(100);
 
-        expect(threadRead).toHaveBeenCalledWith({ threadId });
+        expect(threadRead).toHaveBeenCalledWith({threadId});
         vi.mocked(appServer.threadList).mockResolvedValue({
             readStates: null,
             data: [running],
             nextCursor: null,
             backwardsCursor: null,
         });
-        const listed = await agent.listSessions({ cwd: "/repo/project" });
-        expect(listChanges(fixture)).toEqual([
-            { subscriptionId, sessions: listed.sessions, removed: [] },
-        ]);
+        const listed = await agent.listSessions({cwd: "/repo/project"});
+        expect(listChanges(fixture)).toEqual([{subscriptionId, sessions: listed.sessions, removed: []}]);
 
         expect(agent.sessionIndex.unsubscribeList({subscriptionId})).toEqual({});
         expect(agent.sessionIndex.unsubscribeList({subscriptionId})).toEqual({});
@@ -1131,10 +1096,7 @@ describe("_session/list/subscribe", () => {
         const listed = createThread({
             path: "/codex-home/sessions/rollout.jsonl",
         });
-        const { fixture, agent, threadList, appServer } = await createAgent(
-            "sessionIndex",
-            [listed],
-        );
+        const {fixture, agent, threadList, appServer} = await createAgent("sessionIndex", [listed]);
         threadList.mockImplementation(async (params) => ({
             readStates: null,
             data: params.archived ? [] : [listed],
@@ -1143,9 +1105,9 @@ describe("_session/list/subscribe", () => {
         }));
         const threadRead = vi.spyOn(appServer, "threadRead").mockResolvedValue({
             readState: null,
-            thread: { ...listed, forkedFromId: parent },
+            thread: {...listed, forkedFromId: parent},
         });
-        const { subscriptionId } = await agent.sessionIndex.subscribeList({
+        const {subscriptionId} = await agent.sessionIndex.subscribeList({
             cwd: "/repo/project",
         });
 
@@ -1169,9 +1131,8 @@ describe("_session/list/subscribe", () => {
             const link = `${dir}-link`;
             fs.symlinkSync(dir, link);
             vi.useFakeTimers();
-            const { fixture, agent, appServer } =
-                await createAgent("sessionIndex");
-            await agent.sessionIndex.subscribeList({ cwd: link });
+            const {fixture, agent, appServer} = await createAgent("sessionIndex");
+            await agent.sessionIndex.subscribeList({cwd: link});
             vi.spyOn(appServer, "threadRead").mockResolvedValue({
                 readState: null,
                 thread: createThread({
@@ -1280,7 +1241,7 @@ describe("_session/rename", () => {
         await openLocalSession(fixture, threadId);
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
             readState: null,
-            thread: { id: "ephemeral" },
+            thread: {id: "ephemeral"},
         } as never);
         vi.spyOn(appServer, "runTurn").mockResolvedValue({
             turn: {items: [{type: "agentMessage", text: JSON.stringify({title: "Automatic"})}]},
@@ -1315,7 +1276,7 @@ describe("_session/rename", () => {
         const turn = deferred<unknown>();
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
             readState: null,
-            thread: { id: "ephemeral" },
+            thread: {id: "ephemeral"},
         } as never);
         vi.spyOn(appServer, "runTurn").mockReturnValue(turn.promise as never);
         const threadSetName = vi.spyOn(appServer, "threadSetName").mockResolvedValue({});
@@ -1336,7 +1297,7 @@ describe("_session/rename", () => {
         const turn = deferred<unknown>();
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
             readState: null,
-            thread: { id: "ephemeral" },
+            thread: {id: "ephemeral"},
         } as never);
         vi.spyOn(appServer, "runTurn").mockReturnValue(turn.promise as never);
         const threadSetName = vi.spyOn(appServer, "threadSetName").mockResolvedValue({});
@@ -1356,20 +1317,19 @@ describe("_session/rename", () => {
         await openLocalSession(fixture, threadId);
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
             readState: null,
-            thread: { id: "ephemeral" },
+            thread: {id: "ephemeral"},
         } as never);
         vi.spyOn(appServer, "runTurn").mockResolvedValue({
             turn: {
                 items: [
                     {
                         type: "agentMessage",
-                        text: JSON.stringify({ title: "Automatic" }),
+                        text: JSON.stringify({title: "Automatic"}),
                     },
                 ],
             },
         } as never);
-        const threadSetName = vi
-            .spyOn(appServer, "threadSetName")
+        const threadSetName = vi.spyOn(appServer, "threadSetName")
             .mockRejectedValueOnce(new Error("app-server busy"))
             .mockResolvedValue({});
 
@@ -1385,14 +1345,14 @@ describe("_session/rename", () => {
         const turn = deferred<unknown>();
         vi.spyOn(appServer, "threadStart").mockResolvedValue({
             readState: null,
-            thread: { id: "ephemeral" },
+            thread: {id: "ephemeral"},
         } as never);
         const titleTurn = {
             turn: {
                 items: [
                     {
                         type: "agentMessage",
-                        text: JSON.stringify({ title: "Automatic" }),
+                        text: JSON.stringify({title: "Automatic"}),
                     },
                 ],
             },
@@ -1420,9 +1380,7 @@ describe("_session/rename", () => {
     it("answers the archived reason for an archived thread and does not unarchive it", async () => {
         const {agent, appServer, client} = await createAgent("sessionIndex");
         vi.spyOn(client, "getHomePath").mockReturnValue("/home/user/.codex");
-        vi.spyOn(appServer, "threadSetName").mockRejectedValue(
-            missingRolloutError(),
-        );
+        vi.spyOn(appServer, "threadSetName").mockRejectedValue(missingRolloutError());
         const threadRead = vi
             .spyOn(appServer, "threadRead")
             .mockResolvedValueOnce({
@@ -1521,7 +1479,7 @@ describe("_session/archive and _session/unarchive", () => {
             } as never)
             .mockResolvedValueOnce({
                 readState: null,
-                thread: createThread({ path: null }),
+                thread: createThread({path: null}),
             } as never);
 
         await expect(agent.sessionIndex.setArchived({sessionId: threadId}, true)).rejects.toMatchObject({code: -32002, data: {sessionId: threadId}});
@@ -1737,7 +1695,7 @@ describe("_session/batch_get", () => {
         const list = await agent.listSessions({});
         expect(list.sessions.map(row => row.sessionId)).not.toContain(old.id);
         threadList.mockClear();
-        read.mockImplementation(async ({ threadId }) => ({
+        read.mockImplementation(async ({threadId}) => ({
             readState: null,
             thread: rows.find((row) => row.id === threadId)!,
         }));
@@ -1749,37 +1707,27 @@ describe("_session/batch_get", () => {
         // A current stored copy is supplied by Codex, exactly as it is for list: no adapter copy scan/merge.
         threadList.mockImplementation(async (params) => ({
             readStates: null,
-            data: rows.filter(
-                (row) => (row.id === archived.id) === params.archived,
-            ),
+            data: rows.filter((row) => (row.id === archived.id) === params.archived),
             nextCursor: null,
             backwardsCursor: null,
         }));
         const all = await agent.listSessions({
-            _meta: { jetbrains: { air: { list: { archived: "all" } } } },
+            _meta: {jetbrains: {air: {list: {archived: "all"}}}},
         });
         expect(batch).toEqual({
-            sessions: requested.map((id) =>
-                all.sessions.find((row) => row.sessionId === id),
-            ),
+            sessions: requested.map((id) => all.sessions.find((row) => row.sessionId === id)),
         });
-        expect(
-            (batch.sessions[0]!._meta as any).jetbrains.air.agentWorktree,
-        ).toBe(true);
-        expect((batch.sessions[1]!._meta as any).jetbrains.air.state).toBe(
-            "running",
-        );
-        expect((batch.sessions[2]!._meta as any).jetbrains.air.archived).toBe(
-            true,
-        );
+        expect((batch.sessions[0]!._meta as any).jetbrains.air.agentWorktree).toBe(true);
+        expect((batch.sessions[1]!._meta as any).jetbrains.air.state).toBe("running");
+        expect((batch.sessions[2]!._meta as any).jetbrains.air.archived).toBe(true);
     });
 
     it("shares live activity and additional directories with session/list", async () => {
         const {agent, client, read, threadList, fixture, root} = await setup();
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         await openLocalSession(fixture, threadId, [root]);
-        const current = createThread({ status: { type: "idle" } });
-        read.mockResolvedValue({ readState: null, thread: current });
+        const current = createThread({status: {type: "idle"}});
+        read.mockResolvedValue({readState: null, thread: current});
         threadList.mockResolvedValue({
             readStates: null,
             data: [current],
@@ -1812,31 +1760,23 @@ describe("_session/batch_get", () => {
     });
 
     it.each([
-        { ephemeral: true },
-        { source: "exec" },
-        { source: { subAgent: "review" } },
-        { preview: "" },
-        { path: null },
-    ] as Partial<Thread>[])(
-        "omits a thread that session/list does not show: %j",
-        async (hidden) => {
-            const { agent, read } = await setup();
-            const listed = createThread({ id: "listed" });
-            read.mockImplementation(async ({ threadId }) => ({
-                readState: null,
-                thread:
-                    threadId === "hidden"
-                        ? createThread({ id: "hidden", ...hidden })
-                        : listed,
-            }));
-            const result = await agent.sessionIndex.batchGet({
-                sessionIds: ["hidden", listed.id],
-            });
-            expect(result.sessions.map((row) => row.sessionId)).toEqual([
-                listed.id,
-            ]);
-        },
-    );
+        {ephemeral: true},
+        {source: "exec"},
+        {source: {subAgent: "review"}},
+        {preview: ""},
+        {path: null},
+    ] as Partial<Thread>[])("omits a thread that session/list does not show: %j", async hidden => {
+        const {agent, read} = await setup();
+        const listed = createThread({id: "listed"});
+        read.mockImplementation(async ({threadId}) => ({
+            readState: null,
+            thread: threadId === "hidden" ? createThread({id: "hidden", ...hidden}) : listed,
+        }));
+        const result = await agent.sessionIndex.batchGet({
+            sessionIds: ["hidden", listed.id],
+        });
+        expect(result.sessions.map((row) => row.sessionId)).toEqual([listed.id]);
+    });
 
     it("does no store or process work for empty input", async () => {
         const {agent, read, threadList, client} = await setup();
@@ -1851,24 +1791,18 @@ describe("_session/batch_get", () => {
         Object.assign(new Error("no rollout found for thread id known"), {code: -32600}),
         Object.assign(new Error("failed to read thread metadata: database is locked"), {code: -32603}),
         new Error("unexpected backend failure"),
-    ])(
-        "omits failed metadata reads and continues in request order: %s",
-        async (error) => {
-            const { agent, read } = await setup();
-            const before = createThread({ id: "before" });
-            const after = createThread({ id: "after" });
-            read.mockResolvedValueOnce({ readState: null, thread: before })
-                .mockRejectedValueOnce(error)
-                .mockResolvedValueOnce({ readState: null, thread: after });
-            const result = await agent.sessionIndex.batchGet({
-                sessionIds: [before.id, "known", after.id],
-            });
-            expect(result.sessions.map((row) => row.sessionId)).toEqual([
-                before.id,
-                after.id,
-            ]);
-        },
-    );
+    ])("omits failed metadata reads and continues in request order: %s", async error => {
+        const {agent, read} = await setup();
+        const before = createThread({id: "before"});
+        const after = createThread({id: "after"});
+        read.mockResolvedValueOnce({readState: null, thread: before})
+            .mockRejectedValueOnce(error)
+            .mockResolvedValueOnce({readState: null, thread: after});
+        const result = await agent.sessionIndex.batchGet({
+            sessionIds: [before.id, "known", after.id],
+        });
+        expect(result.sessions.map((row) => row.sessionId)).toEqual([before.id, after.id]);
+    });
 
     it("reads at most 8 ids at a time and keeps request order when reads finish out of order", async () => {
         const {agent, read} = await setup();
@@ -1891,7 +1825,7 @@ describe("_session/batch_get", () => {
             pending
                 .splice(0)
                 .toReversed()
-                .forEach(({ settle }) => settle());
+                .forEach(({settle}) => settle());
         }
         expect((await result).sessions.map(row => row.sessionId)).toEqual(ids.filter((_, index) => index % 3 !== 0));
         expect(maxInFlight).toBe(8);
@@ -1922,25 +1856,22 @@ describe("_session/batch_get", () => {
     it("returns unarchived rows without a local Codex home", async () => {
         const {agent, client, read} = await setup();
         vi.spyOn(client, "getHomePath").mockReturnValue(null);
-        read.mockResolvedValue({ readState: null, thread: createThread() });
+        read.mockResolvedValue({readState: null, thread: createThread()});
         const result = await agent.sessionIndex.batchGet({
             sessionIds: [threadId],
         });
-        expect(
-            result.sessions.map((row) => [
-                row.sessionId,
-                (row._meta as any).jetbrains.air.archived,
-            ]),
-        ).toEqual([[threadId, false]]);
+        expect(result.sessions.map((row) => [row.sessionId, (row._meta as any).jetbrains.air.archived])).toEqual([
+            [threadId, false],
+        ]);
     });
 
     it("does not emit a backend-normalized ID that was not requested", async () => {
-        const { agent, read } = await setup();
-        read.mockResolvedValue({ readState: null, thread: createThread() });
+        const {agent, read} = await setup();
+        read.mockResolvedValue({readState: null, thread: createThread()});
         expect(
             await agent.sessionIndex.batchGet({
                 sessionIds: [threadId.toUpperCase()],
             }),
-        ).toEqual({ sessions: [] });
+        ).toEqual({sessions: []});
     });
 });

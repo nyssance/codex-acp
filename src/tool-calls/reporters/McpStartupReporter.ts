@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import type { McpStartupResult } from "../../mcp/McpStartupTracker";
-import { textContent } from "../AcpToolCallRenderer";
-import type { ToolFacts } from "../ToolFacts";
+import {randomUUID} from "node:crypto";
+import type {McpStartupResult} from "../../mcp/McpStartupTracker";
+import {textContent} from "../AcpToolCallRenderer";
+import type {ToolFacts} from "../ToolFacts";
 
 /** Reports the MCP servers that failed to start or were not started. Each report is a new, failed tool call. */
 export class McpStartupReporter {

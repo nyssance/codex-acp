@@ -94,7 +94,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
         await client.request("session/resume", {
             sessionId: secondSessionId,
             cwd,
-            replayFrom: { type: "start" },
+            replayFrom: {type: "start"},
         });
         await settle();
         client.emit(turnCompletedFor(secondSessionId, secondTurnId));
@@ -196,7 +196,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
         };
         client.setCodexResponse("thread/read", async () => ({
             readState: null,
-            thread: { ...createThread(), turns: [replayedTurn] },
+            thread: {...createThread(), turns: [replayedTurn]},
         }));
         fireGoalTurnDuring(client, "model/list");
 

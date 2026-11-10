@@ -264,10 +264,7 @@ export function accountFromUpdated(notification: AccountUpdatedNotification, pre
                 type: "chatgpt",
                 email: previousChatGpt?.email ?? null,
                 workspaceName: previousChatGpt?.workspaceName ?? null,
-                planType:
-                    notification.planType ??
-                    previousChatGpt?.planType ??
-                    "unknown",
+                planType: notification.planType ?? previousChatGpt?.planType ?? "unknown",
             };
         }
         case "apikey":

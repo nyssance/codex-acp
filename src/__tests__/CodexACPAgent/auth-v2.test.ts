@@ -67,82 +67,72 @@ async function connectV2Client(options: {loginSucceeds?: boolean} = {}) {
     const codexRequests: Array<{method: string, params: unknown}> = [];
     let loggedIn = false;
     // Codex answers a login or logout request first, then pushes the outcome.
-    const pushNotification = (method: string, params: unknown) =>
-        setImmediate(() => {
-            mocks.notificationHandlers.get(method)?.(params);
-        });
-    mocks.mockCodexConnection.sendRequest.mockImplementation(
-        async (method: string, params?: unknown) => {
-            if (recordedCodexMethods.has(method)) {
-                codexRequests.push({ method, params });
-            }
-            switch (method) {
-                case "project/list":
-                    return { data: [], nextCursor: null };
-                case "project/create":
-                    return { project: { id: "test-project" } };
-                case "account/read":
-                    return {
-                        workspaceRouting: null,
-                        account: loggedIn ? { type: "apiKey" } : null,
-                        requiresOpenaiAuth: true,
-                    };
-                case "account/login/start":
-                    loggedIn = loginSucceeds;
-                    pushNotification("account/login/completed", {
-                        loginId: null,
-                        success: loginSucceeds,
-                        error: loginSucceeds ? null : "invalid key",
-                        onboardingEntrypoint: null,
-                    });
-                    return { type: "apiKey" };
-                case "account/logout":
-                    loggedIn = false;
-                    pushNotification("account/updated", {
-                        authMode: null,
-                        planType: null,
-                    });
-                    return {};
-                case "thread/start":
-                    return {
-                        thread: createThread(),
-                        model: "gpt-5",
-                        modelProvider: "openai",
-                        reasoningEffort: "medium",
-                        serviceTier: null,
-                        turnsBackwardsCursor: null,
-                    };
-                case "model/list":
-                    return {
-                        data: [createTestModel({ id: "gpt-5" })],
-                        nextCursor: null,
-                    };
-                case "skills/list":
-                    return { data: [] };
-                case "config/read":
-                    return { config: {}, origins: {}, layers: [] };
-                case "thread/goal/get":
-                    return { goal: null };
-                default:
-                    return {};
-            }
-        },
-    );
-    const codexAcpClient = new CodexAcpClient(
-        new CodexAppServerClient(mocks.mockCodexConnection as any),
-    );
-    vi.spyOn(
-        codexAcpClient,
-        "getAgentConfiguredModelProvider",
-    ).mockResolvedValue("openai");
+    const pushNotification = (method: string, params: unknown) => setImmediate(() => {
+        mocks.notificationHandlers.get(method)?.(params);
+    });
+    mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: unknown) => {
+        if (recordedCodexMethods.has(method)) {
+            codexRequests.push({method, params});
+        }
+        switch (method) {
+            case "project/list":
+                return {data: [], nextCursor: null};
+            case "project/create":
+                return {project: {id: "test-project"}};
+            case "account/read":
+                return {
+                    workspaceRouting: null,
+                    account: loggedIn ? {type: "apiKey"} : null,
+                    requiresOpenaiAuth: true,
+                };
+            case "account/login/start":
+                loggedIn = loginSucceeds;
+                pushNotification("account/login/completed", {
+                    loginId: null,
+                    success: loginSucceeds,
+                    error: loginSucceeds ? null : "invalid key",
+                    onboardingEntrypoint: null,
+                });
+                return {type: "apiKey"};
+            case "account/logout":
+                loggedIn = false;
+                pushNotification("account/updated", {
+                    authMode: null,
+                    planType: null,
+                });
+                return {};
+            case "thread/start":
+                return {
+                    thread: createThread(),
+                    model: "gpt-5",
+                    modelProvider: "openai",
+                    reasoningEffort: "medium",
+                    serviceTier: null,
+                    turnsBackwardsCursor: null,
+                };
+            case "model/list":
+                return {
+                    data: [createTestModel({id: "gpt-5"})],
+                    nextCursor: null,
+                };
+            case "skills/list":
+                return {data: []};
+            case "config/read":
+                return {config: {}, origins: {}, layers: []};
+            case "thread/goal/get":
+                return {goal: null};
+            default:
+                return {};
+        }
+    });
+    const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
+    vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
         ready: [],
         failed: [],
         cancelled: [],
     });
-    const router = createAcpAgentRouter(
-        (connection) => new CodexAcpServer(connection, codexAcpClient),
-    );
+    const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
     router.connect(acp.ndJsonStream(agentToClient.writable, clientToAgent.readable));
@@ -162,10 +152,7 @@ function toError(err: {code: number, message: string, data?: unknown}) {
 }
 
 function dump(value: unknown): string {
-    return `${JSON.stringify(value, null, 2)}\n`.replaceAll(
-        /http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g,
-        "<responses-route>",
-    );
+    return `${JSON.stringify(value, null, 2)}\n`.replaceAll(/http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}/g, "<responses-route>");
 }
 
 const apiKeyLogin: acpV2.LoginAuthRequest = {

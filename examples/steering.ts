@@ -317,7 +317,7 @@ async function stopAgent(agentProcess: ChildProcess): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    const { workspaceDir, clueCount } = await createTreasureHunt();
+    const {workspaceDir, clueCount} = await createTreasureHunt();
     const agentProcess = spawn(process.execPath, ["run", "--silent", "start"], {
         cwd: repositoryRoot,
         env: createAgentEnvironment(),

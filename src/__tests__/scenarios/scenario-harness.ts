@@ -92,7 +92,7 @@ function thread(items: Record<string, unknown>[], cwd: string): Record<string, u
         createdAt: 1,
         updatedAt: 2,
         recencyAt: null,
-        status: { type: "idle" },
+        status: {type: "idle"},
         path: null,
         cwd,
         cliVersion: "0.0.0",
@@ -105,9 +105,7 @@ function thread(items: Record<string, unknown>[], cwd: string): Record<string, u
         agentRole: null,
         gitInfo: null,
         name: null,
-        turns: [
-            { ...turn("history-turn", "completed"), itemsView: "full", items },
-        ],
+        turns: [{...turn("history-turn", "completed"), itemsView: "full", items}],
     };
 }
 
@@ -157,15 +155,13 @@ async function runInWorkspace(
 
     const anyClient = client as any;
     const anyAppServer = appServer as any;
-    anyClient.readAuthRequirement = vi
-        .fn()
-        .mockResolvedValue({ required: false, account: null });
+    anyClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
     anyClient.getAccount = vi.fn().mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    anyClient.listSkills = vi.fn().mockResolvedValue({ data: [] });
+    anyClient.listSkills = vi.fn().mockResolvedValue({data: []});
     anyClient.newSession = vi.fn().mockResolvedValue({
         sessionId: SESSION_ID,
         currentModelId: `${model.id}[medium]`,
@@ -192,7 +188,7 @@ async function runInWorkspace(
         cwd: workspace,
         approvalPolicy: "never",
         approvalsReviewer: "user",
-        sandbox: { type: "dangerFullAccess" },
+        sandbox: {type: "dangerFullAccess"},
         reasoningEffort: model.defaultReasoningEffort,
     });
     anyAppServer.threadReadWithHistory = vi.fn().mockResolvedValue({
@@ -358,10 +354,7 @@ export function canonical(value: unknown): unknown {
     return Object.fromEntries(
         Object.keys(value)
             .toSorted()
-            .map((key) => [
-                key,
-                canonical((value as Record<string, unknown>)[key]),
-            ]),
+            .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
     );
 }
 

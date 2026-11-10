@@ -50,9 +50,7 @@ function updates(client: PromptSession) {
 }
 
 function lastIdle(client: PromptSession) {
-    const idle = updates(client)
-        .filter(acpV2.SessionUpdate.isStateUpdate)
-        .findLast(acpV2.StateUpdate.isIdle);
+    const idle = updates(client).filter(acpV2.SessionUpdate.isStateUpdate).findLast(acpV2.StateUpdate.isIdle);
     expect(idle).toBeDefined();
     return idle!;
 }
@@ -78,27 +76,16 @@ describe("standard ACP v2 terminal failures", () => {
         await client.promptRunFinished();
         await settle();
 
-            const idle = lastIdle(client);
-            expect(idle).toMatchObject({
-                state: "idle",
-                stopReason: "error",
-                error: { code: -32603, message: "Try again later." },
-            });
-            expect(JSON.stringify(idle)).not.toContain("private diagnostics");
-            if (air)
-                expect(idle._meta).toHaveProperty(
-                    "jetbrains.air.sessionFailure.severity",
-                    "error",
-                );
-            else expect(idle._meta).not.toHaveProperty("jetbrains");
-            await expect(
-                dump(
-                    idle,
-                    client.turnStartParams[0]!["clientUserMessageId"] as string,
-                ),
-            ).toMatchFileSnapshot(
-                `data/structured-failure-v2-provider-${air ? "air" : "plain"}.json`,
-            );
+        const idle = lastIdle(client);
+        expect(idle).toMatchObject({
+            state: "idle",
+            stopReason: "error",
+            error: {code: -32603, message: "Try again later."},
+        });
+        expect(JSON.stringify(idle)).not.toContain("private diagnostics");
+        if (air) expect(idle._meta).toHaveProperty("jetbrains.air.sessionFailure.severity", "error");
+        else expect(idle._meta).not.toHaveProperty("jetbrains");
+        await expect(dump(idle, client.turnStartParams[0]!["clientUserMessageId"] as string)).toMatchFileSnapshot(`data/structured-failure-v2-provider-${air ? "air" : "plain"}.json`);
 
         await client.request("session/resume", {sessionId, cwd});
         expect(lastIdle(client)).toEqual({sessionUpdate: "state_update", state: "idle"});
@@ -114,16 +101,8 @@ describe("standard ACP v2 terminal failures", () => {
         await client.promptRunFinished();
         await settle();
 
-            await expect(
-                dump(
-                    lastIdle(client),
-                    client.turnStartParams[0]!["clientUserMessageId"] as string,
-                ),
-            ).toMatchFileSnapshot(
-                `data/structured-failure-v2-workspace-routing-${air ? "air" : "plain"}.json`,
-            );
-        },
-    );
+        await expect(dump(lastIdle(client), client.turnStartParams[0]!["clientUserMessageId"] as string)).toMatchFileSnapshot(`data/structured-failure-v2-workspace-routing-${air ? "air" : "plain"}.json`);
+    });
 
     it.each([false, true])("reports auth failure before insertion through both the request and idle/error (%s)", async air => {
         client = await connectSession(2, air ? {
@@ -138,31 +117,13 @@ describe("standard ACP v2 terminal failures", () => {
         await client.promptRunFinished();
         await settle();
 
-            expect(
-                updates(client).some(
-                    (update) => update.sessionUpdate === "user_message_chunk",
-                ),
-            ).toBe(false);
-            expect(lastIdle(client)).toMatchObject({
-                state: "idle",
-                stopReason: "error",
-                error: { code: -32000, message: "Authentication required" },
-            });
-            expect(JSON.stringify(lastIdle(client))).not.toContain(
-                "private token-refresh diagnostic",
-            );
-            await expect(
-                dump(
-                    lastIdle(client),
-                    client.turnStartParams[0]?.[
-                        "clientUserMessageId"
-                    ] as string,
-                ),
-            ).toMatchFileSnapshot(
-                "data/structured-failure-v2-pre-insertion-auth.json",
-            );
-        },
-    );
+        expect(updates(client).some(update => update.sessionUpdate === "user_message_chunk")).toBe(false);
+        expect(lastIdle(client)).toMatchObject({
+            state: "idle", stopReason: "error", error: {code: -32000, message: "Authentication required"},
+        });
+        expect(JSON.stringify(lastIdle(client))).not.toContain("private token-refresh diagnostic");
+        await expect(dump(lastIdle(client), client.turnStartParams[0]?.["clientUserMessageId"] as string)).toMatchFileSnapshot("data/structured-failure-v2-pre-insertion-auth.json");
+    });
 
     it("does not turn a retried model error or a failed tool into terminal session failure", async () => {
         client = await connectSession();
@@ -201,33 +162,14 @@ describe("standard ACP v2 terminal failures", () => {
         if (owner === "prompt") await client.promptRunFinished();
         await settle();
 
-            const rendered = updates(client);
-            const failedTool = rendered.findIndex(
-                (update) =>
-                    update.sessionUpdate === "tool_call_update" &&
-                    update.toolCallId === "unfinished-tool" &&
-                    update.status === "failed",
-            );
-            expect(failedTool).toBeGreaterThanOrEqual(0);
-            expect(rendered.indexOf(lastIdle(client))).toBeGreaterThan(
-                failedTool,
-            );
-            expect(lastIdle(client)).toHaveProperty(
-                "error.message",
-                "Provider unavailable",
-            );
-            await expect(
-                dump(
-                    lastIdle(client),
-                    client.turnStartParams[0]?.[
-                        "clientUserMessageId"
-                    ] as string,
-                ),
-            ).toMatchFileSnapshot(
-                `data/structured-failure-v2-${owner}-idle.json`,
-            );
-        },
-    );
+        const rendered = updates(client);
+        const failedTool = rendered.findIndex(update => update.sessionUpdate === "tool_call_update"
+            && update.toolCallId === "unfinished-tool" && update.status === "failed");
+        expect(failedTool).toBeGreaterThanOrEqual(0);
+        expect(rendered.indexOf(lastIdle(client))).toBeGreaterThan(failedTool);
+        expect(lastIdle(client)).toHaveProperty("error.message", "Provider unavailable");
+        await expect(dump(lastIdle(client), client.turnStartParams[0]?.["clientUserMessageId"] as string)).toMatchFileSnapshot(`data/structured-failure-v2-${owner}-idle.json`);
+    });
 
     it("keeps cancellation authoritative when the runtime reports an error while aborting", async () => {
         client = await connectSession();
@@ -263,16 +205,9 @@ describe("standard ACP v2 terminal failures", () => {
 
         expect(lastIdle(client)).toMatchObject({
             stopReason: "error",
-            error: { code: -32603, message: "Implementation failed" },
+            error: {code: -32603, message: "Implementation failed"},
         });
-        await expect(
-            dump(
-                lastIdle(client),
-                client.turnStartParams[0]?.["clientUserMessageId"] as string,
-            ),
-        ).toMatchFileSnapshot(
-            "data/structured-failure-v2-implementation-idle.json",
-        );
+        await expect(dump(lastIdle(client), client.turnStartParams[0]?.["clientUserMessageId"] as string)).toMatchFileSnapshot("data/structured-failure-v2-implementation-idle.json");
     });
 
     it("does not send a terminal state for an idle background error", async () => {

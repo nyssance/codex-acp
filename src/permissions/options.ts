@@ -77,9 +77,7 @@ export function commandDecisionOptions(
     }
 
     const orderedOptions = [...options].toSorted(
-        (left, right) =>
-            permissionOptionOrder(left.option) -
-            permissionOptionOrder(right.option),
+        (left, right) => permissionOptionOrder(left.option) - permissionOptionOrder(right.option),
     );
     const hasAllow = orderedOptions.some(({option}) => option.kind === "allow_once" || option.kind === "allow_always");
     const hasReject = orderedOptions.some(({option}) => option.kind === "reject_once" || option.kind === "reject_always");

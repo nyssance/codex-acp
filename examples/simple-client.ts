@@ -97,8 +97,7 @@ if (ARGV.includes("--help") || ARGV.includes("-h")) {
 }
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const AGENT_ENTRY =
-    process.env["AGENT_ENTRY"] ?? path.join(repoRoot, "dist", "index.js");
+const AGENT_ENTRY = process.env["AGENT_ENTRY"] ?? path.join(repoRoot, "dist", "index.js");
 const CWD = process.env["CWD"] ?? process.cwd();
 const BUILD = !ARGV.includes("--no-build");
 
@@ -126,8 +125,7 @@ const EXIT_TIMEOUT_MS = 5_000;
 // ---------------------------------------------------------------- output
 
 const COLOR = process.stderr.isTTY && !process.env["NO_COLOR"];
-const paint = (code: string, text: string) =>
-    COLOR ? `\x1b[${code}m${text}\x1b[0m` : text;
+const paint = (code: string, text: string) => (COLOR ? `\x1b[${code}m${text}\x1b[0m` : text);
 const dim = (text: string) => paint("2", text);
 
 const TTY = process.stdin.isTTY && process.stderr.isTTY;
@@ -247,16 +245,12 @@ async function main() {
     if (BUILD) {
         await build(DEBUG_PORT !== undefined);
     } else if (!existsSync(AGENT_ENTRY)) {
-        log(
-            `${AGENT_ENTRY} not found — run \`bun run build\` first, or unset --no-build`,
-        );
+        log(`${AGENT_ENTRY} not found — run \`bun run build\` first, or unset --no-build`);
         process.exit(1);
     }
 
     const runtimeArgs =
-        DEBUG_PORT === undefined
-            ? [AGENT_ENTRY]
-            : [`--inspect-brk=${DEBUG_PORT}`, AGENT_ENTRY];
+        DEBUG_PORT === undefined ? [AGENT_ENTRY] : [`--inspect-brk=${DEBUG_PORT}`, AGENT_ENTRY];
     const child = spawn(process.execPath, runtimeArgs, {
         cwd: repoRoot,
         stdio: ["pipe", "pipe", "pipe"],
@@ -354,9 +348,7 @@ async function main() {
         sessionId = session.sessionId;
     } catch (err) {
         log(`session/new failed: ${err}`);
-        log(
-            "if this is an auth error, log in first: bunx --bun @openai/codex auth login",
-        );
+        log("if this is an auth error, log in first: bunx --bun @openai/codex auth login");
         await shutdown("session/new failed", 1);
         return;
     }

@@ -162,7 +162,7 @@ describe("session notices", () => {
             },
             {
                 method: "thread/compacted",
-                params: { threadId: childSessionId, turnId: "child-turn" },
+                params: {threadId: childSessionId, turnId: "child-turn"},
             },
             {
                 method: "warning",
@@ -175,7 +175,7 @@ describe("session notices", () => {
                 method: "turn/completed",
                 params: {
                     threadId: childSessionId,
-                    turn: { ...createTurn("completed"), id: "child-turn" },
+                    turn: {...createTurn("completed"), id: "child-turn"},
                 },
             },
             {
@@ -187,9 +187,7 @@ describe("session notices", () => {
             },
         ]);
 
-        await expect(fixture.getAcpConnectionDump([])).toMatchFileSnapshot(
-            "data/session-notices-native-child.json",
-        );
+        await expect(fixture.getAcpConnectionDump([])).toMatchFileSnapshot("data/session-notices-native-child.json");
     });
 
     it("keeps live notices out of loaded session history", async () => {
@@ -207,7 +205,7 @@ describe("session notices", () => {
             account: null,
             requiresOpenaiAuth: false,
         });
-        vi.spyOn(client, "listSkills").mockResolvedValue({ data: [] });
+        vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(appServer, "listModels").mockResolvedValue({
             data: [model],
             nextCursor: null,

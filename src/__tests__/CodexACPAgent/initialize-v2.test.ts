@@ -38,10 +38,7 @@ function connectRouter() {
     const router = createAcpAgentRouter((connection) => {
         const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
         codexClient = codexAcpClient;
-        vi.spyOn(
-            codexAcpClient,
-            "getAgentConfiguredModelProvider",
-        ).mockResolvedValue("openai");
+        vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -141,10 +138,7 @@ describe('CodexACPAgent - initialize over ACP v2', () => {
             // @ts-expect-error - inspect the committed capability view after a failed repeat
             clientSupportsFormElicitation(h.agent().clientCapabilities),
         ).toBe(false);
-        await expect(initialize(v2ClientCapabilities)).resolves.toHaveProperty(
-            "protocolVersion",
-            2,
-        );
+        await expect(initialize(v2ClientCapabilities)).resolves.toHaveProperty("protocolVersion", 2);
     });
 
     it('still routes a v1 initialize to the unchanged v1 chain', async () => {

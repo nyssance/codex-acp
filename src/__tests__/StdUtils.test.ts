@@ -15,9 +15,7 @@ function read(chunks: Buffer[]): Promise<unknown[]> {
 
 describe("createJSONRPCReader", () => {
     it("keeps a character whose UTF-8 bytes span two chunks", async () => {
-        const bytes = Buffer.from(
-            `${JSON.stringify({ method: "m", params: { text: "я" } })}\n`,
-        );
+        const bytes = Buffer.from(`${JSON.stringify({method: "m", params: {text: "я"}})}\n`);
         const split = bytes.indexOf(Buffer.from("я")) + 1;
 
         const messages = await read([bytes.subarray(0, split), bytes.subarray(split)]);
@@ -27,11 +25,7 @@ describe("createJSONRPCReader", () => {
 
     it("keeps a message whose string holds U+2028 or U+2029 in one line", async () => {
         // JSON allows these characters unescaped. readline ended a line at them and lost the message.
-        const messages = await read([
-            Buffer.from(
-                `${JSON.stringify({ id: 1, result: { text: "a\u2028b\u2029c" } })}\n`,
-            ),
-        ]);
+        const messages = await read([Buffer.from(`${JSON.stringify({id: 1, result: {text: "a\u2028b\u2029c"}})}\n`)]);
 
         expect(messages).toEqual([{jsonrpc: "2.0", id: 1, result: {text: "a\u2028b\u2029c"}}]);
     });
@@ -56,9 +50,7 @@ describe("createJSONRPCReader", () => {
 
     it("reads a 20 MB line in linear time", async () => {
         const text = "x".repeat(20 * 1024 * 1024);
-        const bytes = Buffer.from(
-            `${JSON.stringify({ method: "m", params: { text } })}\n`,
-        );
+        const bytes = Buffer.from(`${JSON.stringify({method: "m", params: {text}})}\n`);
         const chunks: Buffer[] = [];
         for (let start = 0; start < bytes.length; start += 64 * 1024) {
             chunks.push(bytes.subarray(start, start + 64 * 1024));
@@ -151,13 +143,7 @@ describe("createJsonStream", () => {
         await writer.write(message);
         await writer.write({jsonrpc: "2.0", id: 1, result: {}});
 
-        expect(Buffer.concat(chunks)).toEqual(
-            Buffer.from(
-                new TextEncoder().encode(
-                    `${JSON.stringify(message)}\n${JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} })}\n`,
-                ),
-            ),
-        );
+        expect(Buffer.concat(chunks)).toEqual(Buffer.from(new TextEncoder().encode(`${JSON.stringify(message)}\n${JSON.stringify({jsonrpc: "2.0", id: 1, result: {}})}\n`)));
     });
 
     it("rejects a message write after the output stream failed", async () => {

@@ -63,122 +63,75 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", version => {
     });
     async function connect(options: Parameters<typeof connectSession>[1] = {}) {
         h = await connectSession(version, {
-            v1ClientCapabilities: { subagents: {} },
+            v1ClientCapabilities: {subagents: {}},
             ...options,
         });
     }
-    const load = () =>
-        h.request(version === 1 ? "session/load" : "session/resume", {
-            sessionId,
-            cwd,
-            mcpServers: [],
-            ...(version === 2 ? { replayFrom: { type: "start" } } : {}),
-        });
-    const childUpdates = (id = childId) =>
-        h.scopedUpdates.filter((entry) => entry.sessionId === id);
-    const gap = () =>
-        h.scopedUpdates.filter(
-            (entry) =>
-                entry.sessionId === sessionId &&
-                entry.update.sessionUpdate === "agent_thought_chunk" &&
-                entry.update.messageId === `${sessionId}:subagent-history-gap`,
-        );
-    const text = (value: string) =>
-        h.scopedUpdates.some(
-            (entry) =>
-                entry.update.sessionUpdate === "agent_message_chunk" &&
-                entry.update.content !== null &&
-                typeof entry.update.content === "object" &&
-                "text" in entry.update.content &&
-                entry.update.content.text === value,
-        );
+    const load = () => h.request(version === 1 ? "session/load" : "session/resume", {
+        sessionId, cwd, mcpServers: [], ...(version === 2 ? {replayFrom: {type: "start"}} : {}),
+    });
+    const childUpdates = (id = childId) => h.scopedUpdates.filter(entry => entry.sessionId === id);
+    const gap = () => h.scopedUpdates.filter(entry => entry.sessionId === sessionId
+        && entry.update.sessionUpdate === "agent_thought_chunk" && entry.update.messageId === `${sessionId}:subagent-history-gap`);
+    const text = (value: string) => h.scopedUpdates.some(entry => entry.update.sessionUpdate === "agent_message_chunk"
+        && entry.update.content !== null && typeof entry.update.content === "object"
+        && "text" in entry.update.content && entry.update.content.text === value);
 
-    it.each(["activity", "collab"] as const)(
-        "replays retained child content before the response without runtime authority (%s)",
-        async (format) => {
-            await connect();
-            const { reads, resumes } = history(h, {
-                [sessionId]: {
-                    items: [
-                        format === "activity" ? activity() : spawn(),
-                        message("parent", "Parent history"),
-                    ],
-                },
-                [worker]: {
-                    parent: "foreign-root",
-                    items: [message("saved", "Saved child answer")],
-                },
-            });
-            const start = h.wireMessages.length;
-            await load();
-            const boundary = h.scopedUpdates.length;
-            await flush(h);
-            expect(text("Saved child answer")).toBe(true);
-            expect(h.scopedUpdates).toContainEqual(
-                expect.objectContaining({
-                    sessionId,
-                    update: expect.objectContaining({
-                        sessionUpdate: "subagent_update",
-                        sessionId: childId,
-                        _meta: {
-                            codex: {
-                                threadId: worker,
-                                parentTurnId: "child-turn",
-                            },
+    it.each(["activity", "collab"] as const)("replays retained child content before the response without runtime authority (%s)", async format => {
+        await connect();
+        const {reads, resumes} = history(h, {
+            [sessionId]: {
+                items: [format === "activity" ? activity() : spawn(), message("parent", "Parent history")],
+            },
+            [worker]: {
+                parent: "foreign-root",
+                items: [message("saved", "Saved child answer")],
+            },
+        });
+        const start = h.wireMessages.length;
+        await load();
+        const boundary = h.scopedUpdates.length;
+        await flush(h);
+        expect(text("Saved child answer")).toBe(true);
+        expect(h.scopedUpdates).toContainEqual(
+            expect.objectContaining({
+                sessionId,
+                update: expect.objectContaining({
+                    sessionUpdate: "subagent_update",
+                    sessionId: childId,
+                    _meta: {
+                        codex: {
+                            threadId: worker,
+                            parentTurnId: "child-turn",
                         },
-                    }),
+                    },
                 }),
-            );
-            expect(text("Parent history")).toBe(true);
-            expect(resumes).toEqual([sessionId]);
-            expect(
-                reads.filter((read) => read.id === worker && read.includeTurns),
-            ).toHaveLength(1);
-            expect(
-                h.scopedUpdates
-                    .slice(boundary)
-                    .filter((entry) => entry.sessionId === childId),
-            ).toEqual([]);
-            expect(
-                h.transcript.some(
-                    (entry) =>
-                        "permissionRequest" in entry ||
-                        "elicitationRequest" in entry,
-                ),
-            ).toBe(false);
-            const frames = h.wireMessages
-                .slice(start)
-                .flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
-            const response = frames.findIndex(
-                (frame) =>
-                    "result" in frame &&
-                    frame.result !== null &&
-                    typeof frame.result === "object" &&
-                    "configOptions" in frame.result,
-            );
-            const replay = frames.findIndex(
-                (frame) =>
-                    "method" in frame &&
-                    frame.method === "session/update" &&
-                    (
-                        frame.params as {
-                            sessionId: string;
-                            update: { messageId?: string };
-                        }
-                    ).sessionId === childId &&
-                    (frame.params as { update: { messageId?: string } }).update
-                        .messageId === "saved",
-            );
-            expect(replay).toBeGreaterThanOrEqual(0);
-            expect(response).toBeGreaterThan(replay);
-            expect(gap()).toEqual([]);
-            await expect(
-                JSON.stringify(childUpdates(), null, 2),
-            ).toMatchFileSnapshot(
-                `data/subagent-replay-v${version}-transcript.json`,
-            );
-        },
-    );
+            }),
+        );
+        expect(text("Parent history")).toBe(true);
+        expect(resumes).toEqual([sessionId]);
+        expect(reads.filter((read) => read.id === worker && read.includeTurns)).toHaveLength(1);
+        expect(h.scopedUpdates.slice(boundary).filter((entry) => entry.sessionId === childId)).toEqual([]);
+        expect(h.transcript.some((entry) => "permissionRequest" in entry || "elicitationRequest" in entry)).toBe(false);
+        const frames = h.wireMessages.slice(start).flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
+        const response = frames.findIndex((frame) => "result" in frame && frame.result !== null && typeof frame.result === "object" && "configOptions" in frame.result);
+        const replay = frames.findIndex(
+            (frame) =>
+                "method" in frame &&
+                frame.method === "session/update" &&
+                (
+                    frame.params as {
+                        sessionId: string;
+                        update: {messageId?: string};
+                    }
+                ).sessionId === childId &&
+                (frame.params as {update: {messageId?: string}}).update.messageId === "saved",
+        );
+        expect(replay).toBeGreaterThanOrEqual(0);
+        expect(response).toBeGreaterThan(replay);
+        expect(gap()).toEqual([]);
+        await expect(JSON.stringify(childUpdates(), null, 2)).toMatchFileSnapshot(`data/subagent-replay-v${version}-transcript.json`);
+    });
 
     it("visits a conversation once even when both spawn formats and repeated assignments name it", async () => {
         await connect();
@@ -245,7 +198,7 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", version => {
                     sessionUpdate: "subagent_update",
                     sessionId: childId,
                     _meta: {
-                        codex: { threadId: worker, parentTurnId: "child-turn" },
+                        codex: {threadId: worker, parentTurnId: "child-turn"},
                     },
                 }),
             }),

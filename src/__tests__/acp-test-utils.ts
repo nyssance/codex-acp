@@ -1,4 +1,4 @@
-import { createRequire } from "node:module";
+import {createRequire} from "node:module";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import type {CreateElicitationResponse, McpServerStdio, RequestPermissionResponse} from "@agentclientprotocol/sdk/unstable";
 import {CodexAcpClient} from '../CodexAcpClient';
@@ -188,19 +188,12 @@ export function createBaseTestFixture(config: ConnectionConfig): TestFixture {
 }
 
 function bundledCodexPath(): string {
-    const packageFile = createRequire(import.meta.url).resolve(
-        `@openai/codex-${process.platform}-${process.arch}/package.json`,
-    );
+    const packageFile = createRequire(import.meta.url).resolve(`@openai/codex-${process.platform}-${process.arch}/package.json`);
     const vendor = path.join(path.dirname(packageFile), "vendor");
     const targets = fs.readdirSync(vendor);
-    if (targets.length !== 1)
-        throw new Error(
-            "Expected exactly one target in the Codex platform package",
-        );
+    if (targets.length !== 1) throw new Error("Expected exactly one target in the Codex platform package");
     const target = path.join(vendor, targets[0]!);
-    const manifest = JSON.parse(
-        fs.readFileSync(path.join(target, "codex-package.json"), "utf8"),
-    ) as { entrypoint: string };
+    const manifest = JSON.parse(fs.readFileSync(path.join(target, "codex-package.json"), "utf8")) as {entrypoint: string};
     return path.join(target, manifest.entrypoint);
 }
 
@@ -261,9 +254,7 @@ export function writeCodexHomeConfig(
 }
 
 function escapeTOML(value: string): string {
-    return value
-        .replaceAll("\\", String.raw`\\`)
-        .replaceAll('"', String.raw`\"`);
+    return value.replaceAll("\\", String.raw`\\`).replaceAll('"', String.raw`\"`);
 }
 
 export function removeDirectoryWithRetry(directory: string): void {
@@ -312,12 +303,10 @@ export function createCodexMockTestFixture(
         response: { action: 'cancel' }
     };
 
-    const mockProjects: Array<{ id: string; name: string; roots: unknown[] }> =
-        [];
+    const mockProjects: Array<{id: string; name: string; roots: unknown[]}> = [];
     const mockCodexConnection = {
         sendRequest: (method: string, params?: any) => {
-            if (method === "thread/backgroundTerminals/list")
-                return Promise.resolve({ data: [], nextCursor: null });
+            if (method === "thread/backgroundTerminals/list") return Promise.resolve({data: [], nextCursor: null});
             if (method === "project/list")
                 return Promise.resolve({
                     data: mockProjects,
@@ -325,9 +314,7 @@ export function createCodexMockTestFixture(
                 });
             if (method === "project/read")
                 return Promise.resolve({
-                    project: mockProjects.find(
-                        (project) => project.id === params.projectId,
-                    ),
+                    project: mockProjects.find((project) => project.id === params.projectId),
                 });
             if (method === "project/create") {
                 const project = {
@@ -336,11 +323,11 @@ export function createCodexMockTestFixture(
                     roots: params.roots,
                 };
                 mockProjects.push(project);
-                return Promise.resolve({ project });
+                return Promise.resolve({project});
             }
             return Promise.resolve(
                 method === "config/read"
-                    ? { config: {}, origins: {}, layers: [] }
+                    ? {config: {}, origins: {}, layers: []}
                     : method === "account/read"
                       ? {
                             account: null,
@@ -575,21 +562,19 @@ export function setupPromptTestSession(sessionOverrides?: Partial<SessionState>)
 
 export function mockPromptTurn(fixture: CodexMockTestFixture, sessionId: string) {
     const codexAppServerClient = fixture.getCodexAppServerClient();
-    const turnStartSpy = vi
-        .spyOn(codexAppServerClient, "turnStart")
-        .mockResolvedValue({
-            turn: {
-                rootTurnId: null,
-                id: "turn-id",
-                items: [],
-                itemsView: "notLoaded",
-                status: "inProgress",
-                error: null,
-                startedAt: null,
-                completedAt: null,
-                durationMs: null,
-            },
-        });
+    const turnStartSpy = vi.spyOn(codexAppServerClient, "turnStart").mockResolvedValue({
+        turn: {
+            rootTurnId: null,
+            id: "turn-id",
+            items: [],
+            itemsView: "notLoaded",
+            status: "inProgress",
+            error: null,
+            startedAt: null,
+            completedAt: null,
+            durationMs: null,
+        }
+    });
     vi.spyOn(codexAppServerClient, "awaitTurnCompleted").mockResolvedValue({
         threadId: sessionId,
         turn: {

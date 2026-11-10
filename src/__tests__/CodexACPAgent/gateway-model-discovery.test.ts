@@ -1,4 +1,4 @@
-import { testThreadPermissions } from "../native-thread-permissions";
+import {testThreadPermissions} from "../native-thread-permissions";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {
@@ -45,10 +45,7 @@ function createFixture(
         data: models,
         nextCursor: null,
     });
-    vi.spyOn(
-        fixture.getCodexAcpClient(),
-        "readAuthRequirement",
-    ).mockResolvedValue({ required: false, account: null });
+    vi.spyOn(fixture.getCodexAcpClient(), "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(fixture.getCodexAcpClient(), "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
@@ -125,10 +122,7 @@ describe("Gateway model discovery (providers/set)", () => {
         const response = await openSession(fixture, "gpt-5.4");
 
         expect(modelOptionValues(response)).toEqual(["gpt-5.4", "mini"]);
-        expect(
-            fixture.getCodexAcpAgent().getSessionState(response.sessionId)
-                .currentModelId,
-        ).toBe("gpt-5.4[high]");
+        expect(fixture.getCodexAcpAgent().getSessionState(response.sessionId).currentModelId).toBe("gpt-5.4[high]");
     });
 
     it("replaces a thread model the gateway does not list with the narrowed default, also on turn/start", async () => {
@@ -147,11 +141,9 @@ describe("Gateway model discovery (providers/set)", () => {
         const turnStart = mockPromptTurn(fixture, response.sessionId);
         await fixture.getCodexAcpAgent().prompt({
             sessionId: response.sessionId,
-            prompt: [{ type: "text", text: "hi" }],
+            prompt: [{type: "text", text: "hi"}],
         });
-        expect(turnStart).toHaveBeenCalledWith(
-            expect.objectContaining({ model: "gpt-5.4", effort: "medium" }),
-        );
+        expect(turnStart).toHaveBeenCalledWith(expect.objectContaining({model: "gpt-5.4", effort: "medium"}));
     });
 
     it("keeps a thread model that the gateway lists but Codex does not know", async () => {
@@ -396,28 +388,20 @@ describe("Gateway model discovery (providers/set)", () => {
     });
 
     it("narrows the models of an open session after providers/set and widens them after providers/disable", async () => {
-        const replacements = [createFixture(), createFixture()].map(
-            (replacementFixture) => {
-                vi.spyOn(
-                    replacementFixture.getCodexAppServerClient(),
-                    "threadResume",
-                ).mockResolvedValue({
-                    ...testThreadPermissions(),
-                    thread: { id: "thread-id" },
-                    model: "gpt-5.5",
-                    modelProvider: "custom-gateway",
-                    reasoningEffort: "high",
-                    serviceTier: null,
-                } as never);
-                const client = replacementFixture.getCodexAcpClient();
-                vi.spyOn(client, "initialize").mockResolvedValue();
-                return client;
-            },
-        );
-        const restart = vi
-            .fn()
-            .mockResolvedValueOnce(replacements[0])
-            .mockResolvedValueOnce(replacements[1]);
+        const replacements = [createFixture(), createFixture()].map(replacementFixture => {
+            vi.spyOn(replacementFixture.getCodexAppServerClient(), "threadResume").mockResolvedValue({
+                ...testThreadPermissions(),
+                thread: {id: "thread-id"},
+                model: "gpt-5.5",
+                modelProvider: "custom-gateway",
+                reasoningEffort: "high",
+                serviceTier: null,
+            } as never);
+            const client = replacementFixture.getCodexAcpClient();
+            vi.spyOn(client, "initialize").mockResolvedValue();
+            return client;
+        });
+        const restart = vi.fn().mockResolvedValueOnce(replacements[0]).mockResolvedValueOnce(replacements[1]);
         fetchMock.mockResolvedValue(listing(["gpt-5.4", "gpt-5.4-mini"]));
         const fixture = createFixture(codexModels(), restart);
         const agent = fixture.getCodexAcpAgent();

@@ -1,4 +1,4 @@
-import { createRequire } from "node:module";
+import {createRequire} from "node:module";
 // noinspection ES6RedundantAwait
 
 import {describe, expect, it, vi, beforeEach} from 'vitest';
@@ -22,13 +22,8 @@ describe('MCP session configuration', { timeout: 40_000 }, () => {
         const mcpServer: McpServerStdio = {
             name: "test-mcp",
             command: process.execPath,
-            args: [
-                createRequire(import.meta.url).resolve(
-                    "mcp-hello-world/build/stdio.js",
-                ),
-                "example",
-            ],
-            env: [{ name: "example", value: "example" }],
+            args: [createRequire(import.meta.url).resolve("mcp-hello-world/build/stdio.js"), "example"],
+            env: [{name: "example", value: "example"}],
         };
 
         const newSessionResponse = await codexAcpAgent.newSession({cwd: "", mcpServers: [mcpServer]});
@@ -48,13 +43,8 @@ describe('MCP session configuration', { timeout: 40_000 }, () => {
         const mcpServer: McpServerStdio = {
             name: "test-mcp",
             command: process.execPath,
-            args: [
-                createRequire(import.meta.url).resolve(
-                    "mcp-hello-world/build/stdio.js",
-                ),
-                "example",
-            ],
-            env: [{ name: "example", value: "example" }],
+            args: [createRequire(import.meta.url).resolve("mcp-hello-world/build/stdio.js"), "example"],
+            env: [{name: "example", value: "example"}],
         };
 
         const newSessionResponse = await codexAcpAgent.newSession({cwd: "", mcpServers: [mcpServer]});

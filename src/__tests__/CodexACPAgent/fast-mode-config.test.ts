@@ -240,11 +240,9 @@ describe("Fast mode session config", () => {
 
         await codexAcpAgent.prompt({sessionId: "session-id", prompt: [{type: "text", text: "test"}]});
 
-        expect(turnStartSpy).toHaveBeenCalledWith(
-            expect.objectContaining({
-                serviceTier: "fast",
-            }),
-        );
+        expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({
+            serviceTier: "fast",
+        }));
     });
 
     it("explicitly clears service tier when Fast mode is off", async () => {

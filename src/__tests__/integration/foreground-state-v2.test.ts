@@ -1,4 +1,4 @@
-import { readableToWeb } from "../../StdUtils";
+import {readableToWeb} from "../../StdUtils";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {spawn} from "node:child_process";
 import {once} from "node:events";
@@ -27,7 +27,7 @@ describeIntegration("integration: ACP v2 foreground state", () => {
         });
         const processHandle = spawn(process.execPath, ["src/index.ts"], {
             cwd: process.cwd(),
-            env: { ...process.env, CODEX_HOME: codexHome },
+            env: {...process.env, CODEX_HOME: codexHome},
             stdio: ["pipe", "pipe", "pipe"],
         });
         let stderr = "";
@@ -38,12 +38,7 @@ describeIntegration("integration: ACP v2 foreground state", () => {
             .onNotification(acpV2.methods.client.session.update, (ctx) => {
                 updates.push(ctx.params);
             })
-            .connect(
-                acpV2.ndJsonStream(
-                    Writable.toWeb(processHandle.stdin),
-                    readableToWeb(processHandle.stdout),
-                ),
-            );
+            .connect(acpV2.ndJsonStream(Writable.toWeb(processHandle.stdin), readableToWeb(processHandle.stdout)));
         try {
             await connection.agent.request(acpV2.methods.agent.initialize, {
                 protocolVersion: 2,
@@ -71,23 +66,13 @@ describeIntegration("integration: ACP v2 foreground state", () => {
             await vi.waitFor(
                 () => {
                     expect(
-                        updates.some(
-                            ({ sessionId, update }) =>
-                                sessionId === failedSession.sessionId &&
-                                update.sessionUpdate === "state_update" &&
-                                update.state === "idle",
-                        ),
+                        updates.some(({sessionId, update}) => sessionId === failedSession.sessionId && update.sessionUpdate === "state_update" && update.state === "idle"),
                         stderr,
                     ).toBe(true);
                 },
-                { timeout: 10_000 },
+                {timeout: 10_000},
             );
-            const failedIdle = updates.findLast(
-                ({ sessionId, update }) =>
-                    sessionId === failedSession.sessionId &&
-                    update.sessionUpdate === "state_update" &&
-                    update.state === "idle",
-            )?.update;
+            const failedIdle = updates.findLast(({sessionId, update}) => sessionId === failedSession.sessionId && update.sessionUpdate === "state_update" && update.state === "idle")?.update;
             expect(failedIdle).toMatchObject({
                 state: "idle", stopReason: "error", error: {code: -32000, message: "Authentication required"},
             });
@@ -95,23 +80,38 @@ describeIntegration("integration: ACP v2 foreground state", () => {
             mock.setErrorResponse(null);
             if (recovery === "gateway") {
                 await connection.agent.request(acpV2.methods.agent.providers.set, {
-                    providerId: "openai", apiType: "openai", baseUrl: mock.baseUrl,
+                    providerId: "openai",
+                    apiType: "openai",
+                    baseUrl: mock.baseUrl,
                     _meta: {codex: {id: "recovery", mode: "catalog", name: "Recovery"}, alwith: {models: [{id: INTEGRATION_MODEL_ID.model, label: "Recovery model"}]}},
                 });
                 await connection.agent.request(acpV2.methods.agent.session.setConfigOption, {
-                    sessionId: failedSession.sessionId, configId: "model", type: "id", value: `gateway:recovery:${INTEGRATION_MODEL_ID.model}`,
+                    sessionId: failedSession.sessionId,
+                    configId: "model",
+                    type: "id",
+                    value: `gateway:recovery:${INTEGRATION_MODEL_ID.model}`,
                 });
                 const offset = updates.length;
                 mock.enqueue(textResponse("provider-recovered"), textResponse("Provider recovery test"));
                 await connection.agent.request(acpV2.methods.agent.session.prompt, {
-                    sessionId: failedSession.sessionId, prompt: [{type: "text", text: "Continue on the new provider"}],
+                    sessionId: failedSession.sessionId,
+                    prompt: [{type: "text", text: "Continue on the new provider"}],
                 });
-                await vi.waitFor(() => {
-                    expect(updates.slice(offset).some(({sessionId, update}) => sessionId === failedSession.sessionId
-                        && update.sessionUpdate === "state_update" && update.state === "idle" && update.stopReason === "end_turn"), stderr).toBe(true);
-                }, {timeout: 10_000});
-                expect(updates.slice(offset).flatMap(({update}) => acpV2.SessionUpdate.isAgentMessageChunk(update)
-                    && acpV2.ContentBlock.isText(update.content) ? [update.content.text] : []).join("")).toBe("provider-recovered");
+                await vi.waitFor(
+                    () => {
+                        expect(
+                            updates.slice(offset).some(({sessionId, update}) => sessionId === failedSession.sessionId && update.sessionUpdate === "state_update" && update.state === "idle" && update.stopReason === "end_turn"),
+                            stderr,
+                        ).toBe(true);
+                    },
+                    {timeout: 10_000},
+                );
+                expect(
+                    updates
+                        .slice(offset)
+                        .flatMap(({update}) => (acpV2.SessionUpdate.isAgentMessageChunk(update) && acpV2.ContentBlock.isText(update.content) ? [update.content.text] : []))
+                        .join(""),
+                ).toBe("provider-recovered");
             }
             await connection.agent.request(acpV2.methods.agent.session.close, {sessionId: failedSession.sessionId});
             updates.splice(0);
@@ -149,12 +149,7 @@ describeIntegration("integration: ACP v2 foreground state", () => {
                 const replayedMessages = updates.some(({update}) => update.sessionUpdate === "user_message"
                     || update.sessionUpdate === "user_message_chunk");
                 expect(replayedMessages).toBe(replayFrom != null);
-                const info = updates
-                    .findLast(
-                        ({ update }) =>
-                            update.sessionUpdate === "session_info_update" &&
-                            "title" in update,
-                    );
+                const info = updates.findLast(({update}) => update.sessionUpdate === "session_info_update" && "title" in update);
                 expect(info?.update).toHaveProperty("title");
                 const lastMessage = updates.map(({update}) => update.sessionUpdate).lastIndexOf("agent_message_chunk");
                 expect(updates.indexOf(info!)).toBeGreaterThan(lastMessage);
