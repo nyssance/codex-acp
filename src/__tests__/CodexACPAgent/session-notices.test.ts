@@ -91,55 +91,33 @@ describe("session notices", () => {
     });
 
     it("buffers child notices until the child session exists and stops them when it closes", async () => {
-        const fixture = await createFixture(
-            {
-                ...noticeCapabilities,
-                _meta: {
-                    jetbrains: {
-                        air: {
-                            version: 1,
-                            capabilities: ["nativeSubagentSessions"],
-                        },
-                    },
+        const fixture = await createFixture({
+            ...noticeCapabilities,
+            _meta: {jetbrains: {air: {version: 1, capabilities: ["nativeSubagentSessions"]}}},
+        }, true);
+        await sendNotifications(fixture, [{
+            method: "item/started",
+            params: {
+                threadId: sessionId,
+                turnId,
+                startedAtMs: 0,
+                item: {
+                    type: "collabAgentToolCall",
+                    id: "spawn-notice-child",
+                    tool: "spawnAgent",
+                    status: "inProgress",
+                    senderThreadId: sessionId,
+                    receiverThreadIds: [childSessionId],
+                    prompt: "Check the delegated task.",
+                    model: null,
+                    reasoningEffort: null,
+                    agentsStates: {[childSessionId]: {status: "running", message: null}},
                 },
             },
-            true,
-        );
-        await sendNotifications(fixture, [
-            {
-                method: "item/started",
-                params: {
-                    threadId: sessionId,
-                    turnId,
-                    startedAtMs: 0,
-                    item: {
-                        type: "collabAgentToolCall",
-                        id: "spawn-notice-child",
-                        tool: "spawnAgent",
-                        status: "inProgress",
-                        senderThreadId: sessionId,
-                        receiverThreadIds: [childSessionId],
-                        prompt: "Check the delegated task.",
-                        model: null,
-                        reasoningEffort: null,
-                        agentsStates: {
-                            [childSessionId]: {
-                                status: "running",
-                                message: null,
-                            },
-                        },
-                    },
-                },
-            },
-            {
-                method: "warning",
-                params: {
-                    threadId: childSessionId,
-                    message: "Child integration unavailable",
-                },
-            },
-            modelRerouted(childSessionId),
-        ]);
+        }, {
+            method: "warning",
+            params: {threadId: childSessionId, message: "Child integration unavailable"},
+        }, modelRerouted(childSessionId)]);
         expect(fixture.getAcpConnectionEvents([])).toEqual([]);
 
         await sendNotifications(fixture, [
@@ -166,24 +144,15 @@ describe("session notices", () => {
             },
             {
                 method: "warning",
-                params: {
-                    threadId: sessionId,
-                    message: "Root integration unavailable",
-                },
+                params: {threadId: sessionId, message: "Root integration unavailable"},
             },
             {
                 method: "turn/completed",
-                params: {
-                    threadId: childSessionId,
-                    turn: {...createTurn("completed"), id: "child-turn"},
-                },
+                params: {threadId: childSessionId, turn: {...createTurn("completed"), id: "child-turn"}},
             },
             {
                 method: "warning",
-                params: {
-                    threadId: childSessionId,
-                    message: "Late child warning",
-                },
+                params: {threadId: childSessionId, message: "Late child warning"},
             },
         ]);
 
@@ -196,20 +165,14 @@ describe("session notices", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         const model = createTestModel();
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
-        vi.spyOn(appServer, "listModels").mockResolvedValue({
-            data: [model],
-            nextCursor: null,
-        });
+        vi.spyOn(appServer, "listModels").mockResolvedValue({data: [model], nextCursor: null});
         const thread = createThread();
         vi.spyOn(appServer, "threadResume").mockResolvedValue({
             runtimeWorkspaceRoots: [],

@@ -1,17 +1,17 @@
 import {testThreadPermissions} from "../native-thread-permissions";
-import {afterEach, describe, expect, it, vi} from "vitest";
-import * as acp from "@agentclientprotocol/sdk/unstable";
-import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {createAcpAgentRouter} from "../../AcpAgentRouter";
-import {CodexAcpServer} from "../../CodexAcpServer";
-import {CodexAcpClient} from "../../CodexAcpClient";
-import {CodexAppServerClient} from "../../CodexAppServerClient";
-import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY} from "../../AirExtension";
-import type {Thread} from "../../app-server/v2";
-import {createCodexMockTestFixture, createTestModel} from "../acp-test-utils";
-import {createMockConnections} from "./test-utils";
-import {commandExecutionItem, createTurn} from "./v2-prompt-harness";
-import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import * as acp from '@agentclientprotocol/sdk/unstable';
+import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import {createAcpAgentRouter} from '../../AcpAgentRouter';
+import {CodexAcpServer} from '../../CodexAcpServer';
+import {CodexAcpClient} from '../../CodexAcpClient';
+import {CodexAppServerClient} from '../../CodexAppServerClient';
+import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY} from '../../AirExtension';
+import type {Thread} from '../../app-server/v2';
+import {createCodexMockTestFixture, createTestModel} from '../acp-test-utils';
+import {createMockConnections} from './test-utils';
+import {commandExecutionItem, createTurn} from './v2-prompt-harness';
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 const sessionId = "thread-1";
 const cwd = "/workspace";
@@ -239,21 +239,14 @@ async function connectV2Client(options?: {
         codexResponse(method, params, options?.replayTurns, options?.paginated)
     ));
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
-        ready: [],
-        failed: [],
-        cancelled: [],
-    });
+    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
@@ -340,7 +333,10 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             replayFrom: {type: "start"},
         });
 
-        const messages = updates.filter(({update}) => update.sessionUpdate.endsWith("_message_chunk") || update.sessionUpdate === "agent_message" || update.sessionUpdate.endsWith("_thought_chunk") || update.sessionUpdate === "agent_thought");
+        const messages = updates.filter(({update}) => update.sessionUpdate.endsWith("_message_chunk")
+        || update.sessionUpdate === "agent_message"
+        || update.sessionUpdate.endsWith("_thought_chunk")
+        || update.sessionUpdate === "agent_thought");
         for (const {update} of messages) {
             if (update._meta === null) {
                 expect(["agent_message", "agent_thought"]).toContain(update.sessionUpdate);
@@ -355,7 +351,7 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
                     turnId: originalTurn.id,
                 });
         }
-        await expect(dump(messages)).toMatchFileSnapshot("data/v2-resume-replay-review-and-hide.json");
+        await expect(dump(messages)).toMatchFileSnapshot('data/v2-resume-replay-review-and-hide.json');
         assertPrimerBeforeEveryChunk(updates);
     });
 
@@ -408,49 +404,21 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
         {native: true, paginated: false},
         {native: true, paginated: true},
     ])("resynchronizes entity metadata on every replay (AIR: $native, paginated: $paginated)", async ({native, paginated}) => {
-        const replayTurns: Thread["turns"] = [
-            {
-                ...createTurn("completed"),
-                itemsView: "full",
-                items: [
-                    {
-                        ...commandExecutionItem("command", "completed"),
-                        aggregatedOutput: "Recorded output",
-                    },
-                    {
-                        type: "mcpToolCall",
-                        id: "mcp",
-                        server: "docs",
-                        tool: "lookup",
-                        status: "completed",
-                        arguments: {},
-                        appContext: null,
-                        mcpAppUi: null,
-                        pluginId: null,
-                        readOnlyHint: null,
-                        result: null,
-                        error: null,
-                        durationMs: null,
-                    },
-                    {type: "contextCompaction", id: "compaction"},
-                ],
-            },
-        ];
+        const replayTurns: Thread["turns"] = [{
+            ...createTurn("completed"),
+            itemsView: "full",
+            items: [
+                {...commandExecutionItem("command", "completed"), aggregatedOutput: "Recorded output"},
+                {type: "mcpToolCall", id: "mcp", server: "docs", tool: "lookup", status: "completed",
+                    arguments: {}, appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: null,
+                    result: null, error: null, durationMs: null},
+                {type: "contextCompaction", id: "compaction"},
+            ],
+        }];
         const {connection, updates} = await connectV2Client({
             replayTurns, paginated,
             capabilities: {
-                ...(native
-                    ? {
-                          _meta: {
-                              jetbrains: {
-                                  air: {
-                                      version: 1,
-                                      capabilities: [AIR_NATIVE_SUBAGENT_SESSIONS_KEY],
-                                  },
-                              },
-                          },
-                      }
-                    : {}),
+                ...(native ? {_meta: {jetbrains: {air: {version: 1, capabilities: [AIR_NATIVE_SUBAGENT_SESSIONS_KEY]}}}} : {}),
             },
         });
         closeClient = () => connection.close();
@@ -459,9 +427,7 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, replayFrom: {type: "start"}});
             const current = updates.slice(start).map(({update}) => update);
             const metadata = (match: (update: acpV2.SessionUpdate) => boolean) =>
-                current
-                    .filter(match)
-                    .map((update) => update._meta)
+                current.filter(match).map((update) => update._meta)
                     .filter((meta) => meta !== undefined)
                     .map((meta) => {
                         if (meta === null) return null;
@@ -677,9 +643,7 @@ describe('resume replay of Codex file citations', () => {
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
-            thread: createThread({turns: citationTurns}),
-        });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: createThread({turns: citationTurns})});
 
         await agent.initialize({protocolVersion: 1});
         await agent.loadSession({sessionId, cwd, mcpServers: []});
@@ -750,9 +714,7 @@ describe('resume replay of async question answers', () => {
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
-            thread: createThread({turns: answerTurns}),
-        });
+        appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: createThread({turns: answerTurns})});
 
         await agent.initialize({protocolVersion: 1});
         await agent.loadSession({sessionId, cwd, mcpServers: []});

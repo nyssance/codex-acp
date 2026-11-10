@@ -170,13 +170,7 @@ export function withFeatureChanges(messages: RecordedMessage[]): RecordedMessage
         }
         if (update?.["sessionUpdate"] !== "available_commands_update") return message;
         const commands = (update["availableCommands"] as unknown[]).map((command) => (JSON.stringify(canonical(command)) === baselineMcp ? MCP_COMMAND : command));
-        return {
-            ...message,
-            params: {
-                ...(message.params as Json),
-                update: {...update, availableCommands: commands},
-            },
-        };
+        return {...message, params: {...(message.params as Json), update: {...update, availableCommands: commands}}};
     });
 }
 

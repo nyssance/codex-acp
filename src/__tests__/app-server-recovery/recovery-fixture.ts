@@ -39,7 +39,7 @@ function thread(id: string) {
         modelProvider: "openai",
         createdAt: 0,
         updatedAt: 0,
-        status: { type: "idle" },
+        status: {type: "idle"},
         path: null,
         cwd: "/work",
         cliVersion: "0",
@@ -58,23 +58,19 @@ export function defaultAnswer(method: string, params: unknown): unknown {
     const p = (params ?? {}) as {threadId?: string, ephemeral?: boolean};
     switch (method) {
         case "project/list":
-            return { data: [], nextCursor: null };
+            return {data: [], nextCursor: null};
         case "project/create":
             return { project: { id: "test-project" } };
-        case "initialize":
-            return { userAgent: "codex-test", codexHome: "/codex-home" };
-        case "model/list":
-            return { data: [MODEL], nextCursor: null };
+        case "initialize": return {userAgent: "codex-test", codexHome: "/codex-home"};
+        case "model/list": return {data: [MODEL], nextCursor: null};
         case "account/read":
             return {
                 workspaceRouting: null,
                 account: null,
                 requiresOpenaiAuth: false,
             };
-        case "config/read":
-            return { config: {}, origins: {}, layers: null };
-        case "skills/list":
-            return { data: [] };
+        case "config/read": return {config: {}, origins: {}, layers: null};
+        case "skills/list": return {data: []};
         case "thread/start":
             return {
                 ...testThreadPermissions(),
@@ -96,23 +92,11 @@ export function defaultAnswer(method: string, params: unknown): unknown {
                 itemsBackwardsCursor: null,
                 cwd: "/work",
             };
-        case "turn/start":
-            return {
-                turn: {
-                    id: `turn-${Math.random().toString(36).slice(2, 8)}`,
-                    items: [],
-                    status: "inProgress",
-                    error: null,
-                },
-            };
-        case "thread/list":
-            return { data: [], nextCursor: null };
-        case "thread/goal/get":
-            return { goal: null };
-        case "thread/backgroundTerminals/list":
-            return { data: [], nextCursor: null };
-        default:
-            return {};
+        case "turn/start": return {turn: {id: `turn-${Math.random().toString(36).slice(2, 8)}`, items: [], status: "inProgress", error: null}};
+        case "thread/list": return {data: [], nextCursor: null};
+        case "thread/goal/get": return {goal: null};
+        case "thread/backgroundTerminals/list": return {data: [], nextCursor: null};
+        default: return {};
     }
 }
 

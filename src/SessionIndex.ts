@@ -375,11 +375,7 @@ export async function readSessionIndexPage(
             .flatMap(([index, page]) =>
                 page.rows
                     .filter((row) => recencyOf(row) >= bound)
-                    .map((thread) => ({
-                        thread,
-                        archived: sideArchived(index),
-                        index,
-                    })),
+                    .map((thread) => ({thread, archived: sideArchived(index), index})),
             );
         // A stable sort: rows as recent as each other keep the Codex order, unarchived first.
         candidates.sort((left, right) => recencyOf(right.thread) - recencyOf(left.thread));

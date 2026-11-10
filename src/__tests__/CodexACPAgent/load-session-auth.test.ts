@@ -27,14 +27,7 @@ function loadFixture(): CodexMockTestFixture {
         activePermissionProfile: null,
         multiAgentMode: "explicitRequestOnly",
         initialTurnsPage: null,
-        thread: {
-            id: SESSION_ID,
-            historyMode: "paginated",
-            turns: [],
-            cwd: "/test/project",
-            name: null,
-            preview: "",
-        },
+        thread: {id: SESSION_ID, historyMode: "paginated", turns: [], cwd: "/test/project", name: null, preview: ""},
         itemsBackwardsCursor: "item:last",
         model: model.id,
         modelProvider: "openai",
@@ -71,11 +64,7 @@ describe("CodexACPAgent - loadSession auth", () => {
             .mockImplementation(() => new Promise<GetAccountResponse>(resolve => answer = resolve));
         await initialize(fixture);
 
-        const load = fixture.getCodexAcpAgent().loadSession({
-            sessionId: SESSION_ID,
-            cwd: "/test/project",
-            mcpServers: [],
-        });
+        const load = fixture.getCodexAcpAgent().loadSession({sessionId: SESSION_ID, cwd: "/test/project", mcpServers: []});
         await vi.waitFor(() => expect(appServer.threadResume).toHaveBeenCalledTimes(1));
         answer(SIGNED_IN);
         await load;
@@ -96,13 +85,8 @@ describe("CodexACPAgent - loadSession auth", () => {
         const closeSpy = vi.spyOn(client, "closeSession").mockResolvedValue(undefined as never);
         await initialize(fixture);
 
-        await expect(
-            fixture.getCodexAcpAgent().loadSession({
-                sessionId: SESSION_ID,
-                cwd: "/test/project",
-                mcpServers: [],
-            }),
-        ).rejects.toMatchObject({code: -32000});
+        await expect(fixture.getCodexAcpAgent().loadSession({sessionId: SESSION_ID, cwd: "/test/project", mcpServers: []}))
+            .rejects.toMatchObject({code: -32000});
 
         expect(closeSpy).toHaveBeenCalledWith(SESSION_ID);
         expect(appServer.threadItemsList).not.toHaveBeenCalled();
@@ -120,12 +104,7 @@ describe("CodexACPAgent - loadSession auth", () => {
         appServer.threadResume = vi.fn().mockRejectedValue(new Error("no rollout found for thread id session-1"));
         await initialize(fixture);
 
-        await expect(
-            fixture.getCodexAcpAgent().loadSession({
-                sessionId: SESSION_ID,
-                cwd: "/test/project",
-                mcpServers: [],
-            }),
-        ).rejects.toMatchObject({code: -32000});
+        await expect(fixture.getCodexAcpAgent().loadSession({sessionId: SESSION_ID, cwd: "/test/project", mcpServers: []}))
+            .rejects.toMatchObject({code: -32000});
     });
 });

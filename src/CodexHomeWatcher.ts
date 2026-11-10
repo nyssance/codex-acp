@@ -305,9 +305,7 @@ function listArchivedThreadIds(dir: string): Set<string> {
 
 function listWalFiles(home: string): string[] {
     try {
-        return fs
-            .readdirSync(home)
-            .filter((name) => STATE_DB_WAL_PATTERN.test(name))
+        return fs.readdirSync(home).filter((name) => STATE_DB_WAL_PATTERN.test(name))
             .toSorted();
     } catch {
         return [];

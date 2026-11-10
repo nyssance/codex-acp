@@ -420,10 +420,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             child.path ??= normalizeAgentPath(path);
             return this.announce(threadId, child.parentSessionId, path, undefined, false, parentTurnId);
         }
-        const parent = this.parentFor({
-            path: normalizeAgentPath(path),
-            notifications: new PendingNotificationBuffer(threadId),
-        });
+        const parent = this.parentFor({path: normalizeAgentPath(path), notifications: new PendingNotificationBuffer(threadId)});
         return parent === undefined ? null : this.announce(threadId, parent, path, undefined, false, parentTurnId);
     }
 

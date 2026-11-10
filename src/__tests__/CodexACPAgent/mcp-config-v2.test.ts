@@ -108,21 +108,13 @@ describe('MCP server config from ACP v1 and v2 session requests', () => {
         ["v2", "stdio", "files"],
         ["sanitized collision", "stdio", "file server"],
     ])("rejects duplicate names before configured-server filtering: %s", async (_label, type, name) => {
-        const server = {
-            name,
-            command: "mcp-fs",
-            args: [],
-            env: [],
-            ...(type ? {type} : {}),
-        } as AcpMcpServer;
+        const server = {name, command: "mcp-fs", args: [], env: [], ...(type ? {type} : {})} as AcpMcpServer;
         const duplicate = {
             ...server,
             name: name.replaceAll(" ", "_"),
         } as AcpMcpServer;
-        await expect(startSessionWithMcpServers([server, duplicate], [duplicate.name as string])).rejects.toMatchObject({
-            code: -32602,
-            data: {name: duplicate.name},
-        });
+        await expect(startSessionWithMcpServers([server, duplicate], [duplicate.name as string]))
+            .rejects.toMatchObject({code: -32602, data: {name: duplicate.name}});
     });
 
     it('uses the last stdio environment entry with a repeated name', async () => {

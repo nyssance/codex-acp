@@ -70,26 +70,15 @@ describe("CodexACPAgent - loadSession", () => {
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({readState: null, thread});
         await agent.initialize({protocolVersion: 1, clientCapabilities: {}});
-        await agent.loadSession({
-            sessionId: thread.id,
-            cwd: "/workspace",
-            mcpServers: [],
-        });
-        const updates = fixture
-            .getAcpConnectionEvents([])
+        await agent.loadSession({sessionId: thread.id, cwd: "/workspace", mcpServers: []});
+        const updates = fixture.getAcpConnectionEvents([])
             .filter((event) => event.method === "sessionUpdate")
             .map((event) => event.args[0].update)
             .filter((update) => update.sessionUpdate === "user_message_chunk");
         expect(
-            updates.map((update) => ({
-                messageId: update.messageId,
-                content: update.content,
-            })),
+            updates.map((update) => ({messageId: update.messageId, content: update.content})),
         ).toEqual(
-            cases.map(({content}, index) => ({
-                messageId: `native-${index}`,
-                content,
-            })),
+            cases.map(({content}, index) => ({messageId: `native-${index}`, content})),
         );
     });
 
@@ -127,32 +116,13 @@ describe("CodexACPAgent - loadSession", () => {
                         id: `user-${index}`,
                         clientId: null,
                         content: [
-                            ...(index === 3
-                                ? [
-                                      {
-                                          type: "localImage",
-                                          path: "/workspace/screen #1.png",
-                                      },
-                                      {
-                                          type: "localAudio",
-                                          path: "/workspace/screen #1.png",
-                                      },
-                                      {
-                                          type: "mention",
-                                          name: "Same image",
-                                          path: "/workspace/screen #1.png",
-                                      },
-                                  ]
-                                : []),
+                            ...(index === 3 ? [
+                                {type: "localImage", path: "/workspace/screen #1.png"},
+                                {type: "localAudio", path: "/workspace/screen #1.png"},
+                                {type: "mention", name: "Same image", path: "/workspace/screen #1.png"},
+                            ] : []),
                             {type: "text", text, text_elements: []},
-                            ...(index === 3
-                                ? [
-                                      {
-                                          type: "localImage",
-                                          path: "/workspace/other.png",
-                                      },
-                                  ]
-                                : []),
+                            ...(index === 3 ? [{type: "localImage", path: "/workspace/other.png"}] : []),
                         ],
                     })),
                 },
@@ -969,14 +939,7 @@ describe("CodexACPAgent - loadSession", () => {
             activePermissionProfile: null,
             multiAgentMode: "explicitRequestOnly",
             initialTurnsPage: null,
-            thread: {
-                id: "session-1",
-                historyMode: "paginated",
-                turns: [],
-                cwd: "/test/project",
-                name: null,
-                preview: "",
-            },
+            thread: {id: "session-1", historyMode: "paginated", turns: [], cwd: "/test/project", name: null, preview: ""},
             itemsBackwardsCursor: "item:last",
             model: model.id,
             modelProvider: "openai",
@@ -1020,14 +983,7 @@ describe("CodexACPAgent - loadSession", () => {
             activePermissionProfile: null,
             multiAgentMode: "explicitRequestOnly",
             initialTurnsPage: null,
-            thread: {
-                id: "session-1",
-                historyMode: "paginated",
-                turns: [],
-                cwd: "/test/project",
-                name: null,
-                preview: "",
-            },
+            thread: {id: "session-1", historyMode: "paginated", turns: [], cwd: "/test/project", name: null, preview: ""},
             itemsBackwardsCursor: "item:last",
             model: model.id,
             modelProvider: "openai",

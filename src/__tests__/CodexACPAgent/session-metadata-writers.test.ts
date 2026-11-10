@@ -113,11 +113,8 @@ describe("V2 namespace transactions", () => {
     it("composes concurrent AIR writers at publication time", async () => {
         const h = await connectSession(2);
         try {
-            const session = new ACPSessionConnection(
-                // @ts-expect-error - exercise the writer on the actual shared client connection
-                h.agent.connection,
-                sessionId,
-            );
+            // @ts-expect-error - exercise the writer on the actual shared client connection
+            const session = new ACPSessionConnection(h.agent.connection, sessionId);
             await Promise.all([
                 publishAirSessionMetadata(session, "first", {literal: null}),
                 publishAirSessionMetadata(session, "second", true),

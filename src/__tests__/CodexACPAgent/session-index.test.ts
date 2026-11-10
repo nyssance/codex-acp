@@ -69,9 +69,7 @@ async function createAgent(kind: ClientKind, threads: Thread[] = [createThread()
     const agent = fixture.getCodexAcpAgent();
     const client = fixture.getCodexAcpClient();
     const appServer = fixture.getCodexAppServerClient();
-    const readAuthRequirement = vi
-        .spyOn(client, "readAuthRequirement")
-        .mockResolvedValue({required: false, account: null});
+    const readAuthRequirement = vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     const threadList = vi.spyOn(appServer, "threadList").mockResolvedValue({
         readStates: null,
         data: threads,
@@ -329,18 +327,10 @@ describe("session/list", () => {
 
         expect(await stateOf()).toEqual({failed: "error", errored: "error", cancelled: "idle", broken: "error", foreign: null});
 
-        fixture.sendServerNotification({
-            method: "turn/started",
-            params: {threadId: "failed", turn: turn("inProgress", null)},
-        } as never);
+        fixture.sendServerNotification({method: "turn/started", params: {threadId: "failed", turn: turn("inProgress", null)}} as never);
         threadList.mockResolvedValue({
             readStates: null,
-            data: [
-                createThread({
-                    id: "failed",
-                    status: {type: "active", activeFlags: []},
-                }),
-            ],
+            data: [createThread({id: "failed", status: {type: "active", activeFlags: []}})],
             nextCursor: null,
             backwardsCursor: null,
         });
@@ -355,26 +345,14 @@ describe("session/list", () => {
     });
 
     it("answers state reviewing in Codex review mode, under requires_action and over running and error", async () => {
-        const item = (type: string) => ({
-            type,
-            id: `${type}-1`,
-            review: "Review the diff",
-        });
+        const item = (type: string) => ({type, id: `${type}-1`, review: "Review the diff"});
         const turn = (status: string) => ({
             rootTurnId: null,
             id: "turn-1",
             items: [],
             itemsView: "notLoaded",
             status,
-            error:
-                status === "failed"
-                    ? {
-                          message: "boom",
-                          codexErrorInfo: null,
-                          additionalDetails: null,
-                          misalignment: null,
-                      }
-                    : null,
+            error: status === "failed" ? {message: "boom", codexErrorInfo: null, additionalDetails: null, misalignment: null} : null,
             startedAt: 400,
             completedAt: 500,
             durationMs: 1,
@@ -703,14 +681,8 @@ describe("session/list", () => {
             nextCursor: null,
             backwardsCursor: null,
         });
-        const next = await agent.listSessions({
-            cwd: "/repo/project",
-            cursor: response.nextCursor ?? null,
-        });
-        expect(next).toMatchObject({
-            sessions: [{sessionId: otherThreadId}],
-            nextCursor: null,
-        });
+        const next = await agent.listSessions({cwd: "/repo/project", cursor: response.nextCursor ?? null});
+        expect(next).toMatchObject({sessions: [{sessionId: otherThreadId}], nextCursor: null});
         expect(threadList.mock.calls[2]?.[0].cursor).toBe("cursor-3");
     });
 
@@ -806,12 +778,7 @@ describe("session/list", () => {
             nextCursor: "codex-2",
             backwardsCursor: null,
         });
-        const list = (cursor: string | null) =>
-            agent.listSessions({
-                cwd: "project",
-                cursor,
-                _meta: {jetbrains: {air: {list: {limit: 2}}}},
-            });
+        const list = (cursor: string | null) => agent.listSessions({cwd: "project", cursor, _meta: {jetbrains: {air: {list: {limit: 2}}}}});
 
         const first = await list(null);
         threadList
@@ -859,12 +826,7 @@ describe("session/list", () => {
         const {agent, threadList} = await createAgent("sessionIndex");
         const row = (id: string, recencyAt: number) => createThread({id, cwd: `/repo/${id}/project`, recencyAt});
         const [a, b, c, d] = [row("a", 40), row("b", 30), row("c", 20), row("d", 10)];
-        const list = (cursor: string | null) =>
-            agent.listSessions({
-                cwd: "project",
-                cursor,
-                _meta: {jetbrains: {air: {list: {limit: 2}}}},
-            });
+        const list = (cursor: string | null) => agent.listSessions({cwd: "project", cursor, _meta: {jetbrains: {air: {list: {limit: 2}}}}});
         const ids = (response: acp.ListSessionsResponse) => response.sessions.map((session) => session.sessionId);
         threadList.mockResolvedValueOnce({
             readStates: null,
@@ -945,7 +907,8 @@ describe("session/list", () => {
                 },
             });
         const activities = async () =>
-            (await agent.listSessions({cwd: "/repo/project"})).sessions.map(
+            (await agent.listSessions({cwd: "/repo/project"})).sessions
+                .map(
                 (session) => (session._meta as any)?.jetbrains?.air?.lastTurnEndedAt ?? null,
             );
         completed(threadId);
@@ -1053,10 +1016,7 @@ describe("_session/list/subscribe", () => {
         const {subscriptionId} = await agent.sessionIndex.subscribeList({cwd: "/repo/project"});
         fixture.clearAcpConnectionDump();
         const name = `Renamed ${"y".repeat(MAX_SESSION_TITLE_LENGTH)}`;
-        const renamed = createThread({
-            name,
-            path: "/codex-home/sessions/rollout.jsonl",
-        });
+        const renamed = createThread({name, path: "/codex-home/sessions/rollout.jsonl"});
         vi.spyOn(appServer, "threadRead").mockResolvedValue({
             readState: null,
             thread: renamed,
@@ -1093,9 +1053,7 @@ describe("_session/list/subscribe", () => {
     it("delivers the fork parent that thread/read gives, after a first row without it", async () => {
         const parent = "01a0637c-5b99-7242-9064-04545d605fdd";
         // As `thread/list` answers it: no forkedFromId.
-        const listed = createThread({
-            path: "/codex-home/sessions/rollout.jsonl",
-        });
+        const listed = createThread({path: "/codex-home/sessions/rollout.jsonl"});
         const {fixture, agent, threadList, appServer} = await createAgent("sessionIndex", [listed]);
         threadList.mockImplementation(async (params) => ({
             readStates: null,
@@ -1107,9 +1065,7 @@ describe("_session/list/subscribe", () => {
             readState: null,
             thread: {...listed, forkedFromId: parent},
         });
-        const {subscriptionId} = await agent.sessionIndex.subscribeList({
-            cwd: "/repo/project",
-        });
+        const {subscriptionId} = await agent.sessionIndex.subscribeList({cwd: "/repo/project"});
 
         const first = await agent.listSessions({cwd: "/repo/project"});
         expect((first.sessions[0]!._meta as any).jetbrains.air.forkedFrom).toBeUndefined();
@@ -1135,10 +1091,7 @@ describe("_session/list/subscribe", () => {
             await agent.sessionIndex.subscribeList({cwd: link});
             vi.spyOn(appServer, "threadRead").mockResolvedValue({
                 readState: null,
-                thread: createThread({
-                    cwd: dir,
-                    path: `${dir}/rollout.jsonl`,
-                }),
+                thread: createThread({cwd: dir, path: `${dir}/rollout.jsonl`}),
             });
 
             fixture.sendServerNotification({method: "thread/name/updated", params: {threadId}} as never);
@@ -1163,10 +1116,7 @@ describe("_session/list/subscribe", () => {
             fixture.clearAcpConnectionDump();
             vi.spyOn(appServer, "threadRead").mockResolvedValue({
                 readState: null,
-                thread: createThread({
-                    cwd: worktrees[0]!,
-                    path: path.join(root, "rollout.jsonl"),
-                }),
+                thread: createThread({cwd: worktrees[0]!, path: path.join(root, "rollout.jsonl")}),
             });
 
             fixture.sendServerNotification({method: "thread/name/updated", params: {threadId}} as never);
@@ -1320,14 +1270,7 @@ describe("_session/rename", () => {
             thread: {id: "ephemeral"},
         } as never);
         vi.spyOn(appServer, "runTurn").mockResolvedValue({
-            turn: {
-                items: [
-                    {
-                        type: "agentMessage",
-                        text: JSON.stringify({title: "Automatic"}),
-                    },
-                ],
-            },
+            turn: {items: [{type: "agentMessage", text: JSON.stringify({title: "Automatic"})}]},
         } as never);
         const threadSetName = vi.spyOn(appServer, "threadSetName")
             .mockRejectedValueOnce(new Error("app-server busy"))
@@ -1347,19 +1290,8 @@ describe("_session/rename", () => {
             readState: null,
             thread: {id: "ephemeral"},
         } as never);
-        const titleTurn = {
-            turn: {
-                items: [
-                    {
-                        type: "agentMessage",
-                        text: JSON.stringify({title: "Automatic"}),
-                    },
-                ],
-            },
-        };
-        vi.spyOn(appServer, "runTurn")
-            .mockReturnValueOnce(turn.promise as never)
-            .mockResolvedValue(titleTurn as never);
+        const titleTurn = {turn: {items: [{type: "agentMessage", text: JSON.stringify({title: "Automatic"})}]}};
+        vi.spyOn(appServer, "runTurn").mockReturnValueOnce(turn.promise as never).mockResolvedValue(titleTurn as never);
         const renameWrite = deferred<Record<string, never>>();
         const threadSetName = vi.spyOn(appServer, "threadSetName")
             .mockReturnValueOnce(renameWrite.promise)
@@ -1381,13 +1313,10 @@ describe("_session/rename", () => {
         const {agent, appServer, client} = await createAgent("sessionIndex");
         vi.spyOn(client, "getHomePath").mockReturnValue("/home/user/.codex");
         vi.spyOn(appServer, "threadSetName").mockRejectedValue(missingRolloutError());
-        const threadRead = vi
-            .spyOn(appServer, "threadRead")
+        const threadRead = vi.spyOn(appServer, "threadRead")
             .mockResolvedValueOnce({
                 readState: null,
-                thread: createThread({
-                    path: "/home/user/.codex/archived_sessions/rollout-1.jsonl",
-                }),
+                thread: createThread({path: "/home/user/.codex/archived_sessions/rollout-1.jsonl"}),
             } as never)
             .mockRejectedValueOnce(missingRolloutError());
         const threadUnarchive = vi.spyOn(appServer, "threadUnarchive");
@@ -1452,15 +1381,11 @@ describe("_session/archive and _session/unarchive", () => {
         threadRead
             .mockResolvedValueOnce({
                 readState: null,
-                thread: createThread({
-                    path: `${codexHome}/archived_sessions/rollout-1.jsonl`,
-                }),
+                thread: createThread({path: `${codexHome}/archived_sessions/rollout-1.jsonl`}),
             } as never)
             .mockResolvedValueOnce({
                 readState: null,
-                thread: createThread({
-                    path: `${codexHome}/sessions/2026/10/07/rollout-1.jsonl`,
-                }),
+                thread: createThread({path: `${codexHome}/sessions/2026/10/07/rollout-1.jsonl`}),
             } as never);
 
         await expect(agent.sessionIndex.setArchived({sessionId: threadId}, true)).resolves.toEqual({});
@@ -1473,9 +1398,7 @@ describe("_session/archive and _session/unarchive", () => {
         threadRead
             .mockResolvedValueOnce({
                 readState: null,
-                thread: createThread({
-                    path: `${codexHome}/sessions/rollout-1.jsonl`,
-                }),
+                thread: createThread({path: `${codexHome}/sessions/rollout-1.jsonl`}),
             } as never)
             .mockResolvedValueOnce({
                 readState: null,
@@ -1711,9 +1634,7 @@ describe("_session/batch_get", () => {
             nextCursor: null,
             backwardsCursor: null,
         }));
-        const all = await agent.listSessions({
-            _meta: {jetbrains: {air: {list: {archived: "all"}}}},
-        });
+        const all = await agent.listSessions({_meta: {jetbrains: {air: {list: {archived: "all"}}}}});
         expect(batch).toEqual({
             sessions: requested.map((id) => all.sessions.find((row) => row.sessionId === id)),
         });
@@ -1734,25 +1655,11 @@ describe("_session/batch_get", () => {
             nextCursor: null,
             backwardsCursor: null,
         });
-        fixture.sendServerNotification({
-            method: "turn/completed",
-            params: {
-                threadId,
-                turn: {
-                    id: "turn-1",
-                    items: [],
-                    itemsView: "notLoaded",
-                    status: "completed",
-                    error: null,
-                    startedAt: 400,
-                    completedAt: 500,
-                    durationMs: 100,
-                },
-            },
-        } as never);
-        const batch = await agent.sessionIndex.batchGet({
-            sessionIds: [threadId],
-        });
+        fixture.sendServerNotification({method: "turn/completed", params: {threadId, turn: {
+            id: "turn-1", items: [], itemsView: "notLoaded", status: "completed", error: null,
+            startedAt: 400, completedAt: 500, durationMs: 100,
+        }}} as never);
+        const batch = await agent.sessionIndex.batchGet({sessionIds: [threadId]});
         const list = await agent.listSessions({});
         expect(batch.sessions).toEqual(list.sessions);
         expect(batch.sessions[0]!.additionalDirectories).toEqual([root]);
@@ -1772,9 +1679,7 @@ describe("_session/batch_get", () => {
             readState: null,
             thread: threadId === "hidden" ? createThread({id: "hidden", ...hidden}) : listed,
         }));
-        const result = await agent.sessionIndex.batchGet({
-            sessionIds: ["hidden", listed.id],
-        });
+        const result = await agent.sessionIndex.batchGet({sessionIds: ["hidden", listed.id]});
         expect(result.sessions.map((row) => row.sessionId)).toEqual([listed.id]);
     });
 
@@ -1798,9 +1703,7 @@ describe("_session/batch_get", () => {
         read.mockResolvedValueOnce({readState: null, thread: before})
             .mockRejectedValueOnce(error)
             .mockResolvedValueOnce({readState: null, thread: after});
-        const result = await agent.sessionIndex.batchGet({
-            sessionIds: [before.id, "known", after.id],
-        });
+        const result = await agent.sessionIndex.batchGet({sessionIds: [before.id, "known", after.id]});
         expect(result.sessions.map((row) => row.sessionId)).toEqual([before.id, after.id]);
     });
 
@@ -1822,8 +1725,7 @@ describe("_session/batch_get", () => {
         while (read.mock.calls.length < ids.length || pending.length > 0) {
             await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0));
             // Settle the latest read first.
-            pending
-                .splice(0)
+            pending.splice(0)
                 .toReversed()
                 .forEach(({settle}) => settle());
         }
@@ -1857,21 +1759,13 @@ describe("_session/batch_get", () => {
         const {agent, client, read} = await setup();
         vi.spyOn(client, "getHomePath").mockReturnValue(null);
         read.mockResolvedValue({readState: null, thread: createThread()});
-        const result = await agent.sessionIndex.batchGet({
-            sessionIds: [threadId],
-        });
-        expect(result.sessions.map((row) => [row.sessionId, (row._meta as any).jetbrains.air.archived])).toEqual([
-            [threadId, false],
-        ]);
+        const result = await agent.sessionIndex.batchGet({sessionIds: [threadId]});
+        expect(result.sessions.map((row) => [row.sessionId, (row._meta as any).jetbrains.air.archived])).toEqual([[threadId, false]]);
     });
 
     it("does not emit a backend-normalized ID that was not requested", async () => {
         const {agent, read} = await setup();
         read.mockResolvedValue({readState: null, thread: createThread()});
-        expect(
-            await agent.sessionIndex.batchGet({
-                sessionIds: [threadId.toUpperCase()],
-            }),
-        ).toEqual({sessions: []});
+        expect(await agent.sessionIndex.batchGet({sessionIds: [threadId.toUpperCase()]})).toEqual({sessions: []});
     });
 });

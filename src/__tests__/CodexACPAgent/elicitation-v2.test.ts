@@ -359,11 +359,7 @@ describe('elicitation/create over ACP v2', () => {
         });
         const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
         vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-        vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
-            ready: [],
-            failed: [],
-            cancelled: [],
-        });
+        vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
         const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
         const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
         const agentToClient = new TransformStream<Uint8Array, Uint8Array>();

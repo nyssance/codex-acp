@@ -170,12 +170,12 @@ describe("CodexEventHandler - auth error events", () => {
     });
 
     it.each([
-        { name: "legacy error text", capabilities: undefined },
-        { name: "typed failure", capabilities: typedFailureCapabilities },
+        {name: "legacy error text", capabilities: undefined},
+        {name: "typed failure", capabilities: typedFailureCapabilities},
     ])(
         "explains an unreachable ChatGPT backend as a connection failure in the $name",
-        async ({ capabilities }) => {
-            const { result, updates } = await runPromptWithError(
+        async ({capabilities}) => {
+            const {result, updates} = await runPromptWithError(
                 createTestSessionState({
                     sessionId: "workspace-routing-session",
                     account: {
@@ -186,17 +186,12 @@ describe("CodexEventHandler - auth error events", () => {
                     },
                 }),
                 {
-                    message: "workspace routing discovery failed",
-                    codexErrorInfo: "other",
-                    additionalDetails: null,
-                    misalignment: null,
+                    message: "workspace routing discovery failed", codexErrorInfo: "other", additionalDetails: null, misalignment: null,
                 },
                 false,
                 capabilities,
             );
-            await expect(
-                JSON.stringify({ result, updates }, null, 2),
-            ).toMatchFileSnapshot(
+            await expect(JSON.stringify({result, updates}, null, 2)).toMatchFileSnapshot(
                 `data/workspace-routing-failed-v1-${capabilities ? "typed-failure" : "legacy"}.json`,
             );
         },
@@ -245,7 +240,7 @@ describe("CodexEventHandler - auth error events", () => {
         expect(JSON.stringify(result)).not.toContain("secret raw details");
         expect(updates).toEqual([]);
 
-        const serialized = JSON.stringify({ jsonrpc: "2.0", id: 1, result });
+        const serialized = JSON.stringify({jsonrpc: "2.0", id: 1, result});
         const wire = JSON.parse(serialized);
         expect(wire.result._meta.jetbrains.air.sessionFailure).toEqual(
             expect.objectContaining({id: "turn-id:error", category: "service"}),
@@ -644,30 +639,27 @@ describe("CodexEventHandler - auth error events", () => {
         });
         await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
 
-        const updates = mockFixture
-            .getAcpConnectionEvents([])
+        const updates = mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.args[0]?.update !== undefined)
             .map((event) => event.args[0].update);
-        expect(updates).toEqual([
-            {
-                sessionUpdate: "session_info_update",
-                _meta: {
-                    jetbrains: {
-                        air: {
-                            version: 1,
-                            sessionFailure: {
-                                id: "completed-turn:error",
-                                revision: 1,
-                                category: "service",
-                                severity: "error",
-                                title: "Codex is temporarily overloaded.",
-                                actions: ["retry"],
-                            },
+        expect(updates).toEqual([{
+            sessionUpdate: "session_info_update",
+            _meta: {
+                jetbrains: {
+                    air: {
+                        version: 1,
+                        sessionFailure: {
+                            id: "completed-turn:error",
+                            revision: 1,
+                            category: "service",
+                            severity: "error",
+                            title: "Codex is temporarily overloaded.",
+                            actions: ["retry"],
                         },
                     },
                 },
             },
-        ]);
+        }]);
         expect(JSON.stringify(updates)).not.toContain("secret late details");
     });
 
@@ -713,34 +705,28 @@ describe("CodexEventHandler - auth error events", () => {
         });
         await mockFixture.getCodexAcpClient().waitForSessionNotifications(sessionState.sessionId);
 
-        const updates = mockFixture
-            .getAcpConnectionEvents([])
+        const updates = mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.args[0]?.update !== undefined)
             .map((event) => event.args[0].update);
-        expect(updates).toEqual([
-            {
-                sessionUpdate: "session_info_update",
-                _meta: {
-                    jetbrains: {
-                        air: {
-                            version: 1,
-                            sessionFailure: {
-                                id: "completed-turn:error",
-                                revision: 1,
-                                category: "connection",
-                                severity: "warning",
-                                title: "Reconnecting... 1/5",
-                                actions: [],
-                            },
+        expect(updates).toEqual([{
+            sessionUpdate: "session_info_update",
+            _meta: {
+                jetbrains: {
+                    air: {
+                        version: 1,
+                        sessionFailure: {
+                            id: "completed-turn:error",
+                            revision: 1,
+                            category: "connection",
+                            severity: "warning",
+                            title: "Reconnecting... 1/5",
+                            actions: [],
                         },
                     },
                 },
             },
-        ]);
-        expect(sessionState.sessionFailure).toMatchObject({
-            id: "completed-turn:error",
-            severity: "warning",
-        });
+        }]);
+        expect(sessionState.sessionFailure).toMatchObject({id: "completed-turn:error", severity: "warning"});
         expect(JSON.stringify(updates)).not.toContain("secret retry detail");
     });
 
@@ -786,37 +772,29 @@ describe("CodexEventHandler - auth error events", () => {
             commandResult.resolve({handled: true});
             await expect(promptPromise).resolves.toMatchObject({stopReason: "end_turn"});
 
-            const updates = mockFixture
-                .getAcpConnectionEvents([])
+            const updates = mockFixture.getAcpConnectionEvents([])
                 .filter((event) => event.args[0]?.update !== undefined)
                 .map((event) => event.args[0].update);
-            expect(updates).toEqual([
-                {
-                    sessionUpdate: "session_info_update",
-                    _meta: {
-                        jetbrains: {
-                            air: {
-                                version: 1,
-                                sessionFailure: {
-                                    id: "late-provider-turn:error",
-                                    revision: 1,
-                                    category: "service",
-                                    severity: "error",
-                                    title: "Codex is temporarily overloaded.",
-                                    actions: ["retry"],
-                                },
+            expect(updates).toEqual([{
+                sessionUpdate: "session_info_update",
+                _meta: {
+                    jetbrains: {
+                        air: {
+                            version: 1,
+                            sessionFailure: {
+                                id: "late-provider-turn:error",
+                                revision: 1,
+                                category: "service",
+                                severity: "error",
+                                title: "Codex is temporarily overloaded.",
+                                actions: ["retry"],
                             },
                         },
                     },
                 },
-            ]);
-            expect(sessionState.sessionFailure).toMatchObject({
-                severity: "error",
-                revision: 1,
-            });
-            expect(JSON.stringify(updates)).not.toContain(
-                "secret slash command detail",
-            );
+            }]);
+            expect(sessionState.sessionFailure).toMatchObject({severity: "error", revision: 1});
+            expect(JSON.stringify(updates)).not.toContain("secret slash command detail");
         } finally {
             commandSpy.mockRestore();
         }
@@ -1092,8 +1070,7 @@ async function runPromptWithError(
     }
     return {
         result,
-        updates: mockFixture
-            .getAcpConnectionEvents([])
+        updates: mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.args[0]?.update !== undefined)
             .map((event) => event.args[0].update),
     };
@@ -1139,8 +1116,7 @@ async function runPromptWithCompletedTurn(
     }
     return {
         result,
-        updates: mockFixture
-            .getAcpConnectionEvents([])
+        updates: mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.args[0]?.update !== undefined)
             .map((event) => event.args[0].update),
     };

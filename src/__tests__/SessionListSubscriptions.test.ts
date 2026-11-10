@@ -89,10 +89,7 @@ class FakeCodex {
         const archivedPath = `${HOME}/archived_sessions/rollout-${threadId}.jsonl`;
         return {
             readState: null,
-            thread: {
-                ...entry.thread,
-                path: entry.archived ? archivedPath : entry.thread.path,
-            },
+            thread: {...entry.thread, path: entry.archived ? archivedPath : entry.thread.path},
         };
     });
 
@@ -399,8 +396,7 @@ describe("SessionListSubscriptions", () => {
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
         expect(codex.threadRead.mock.calls.map((call) => call[0].threadId)).toEqual(["old"]);
         expect(
-            sent
-                .filter((changes) => changes.sessions.some((row) => row.sessionId === "old"))
+            sent.filter((changes) => changes.sessions.some((row) => row.sessionId === "old"))
                 .map((changes) => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([repo, worktree].toSorted());
@@ -409,8 +405,7 @@ describe("SessionListSubscriptions", () => {
         subscriptions.observe(own("thread/deleted", {threadId: "old"}));
         await vi.advanceTimersByTimeAsync(timings.minChangeIntervalMs);
         expect(
-            sent
-                .filter((changes) => changes.removed.includes("old"))
+            sent.filter((changes) => changes.removed.includes("old"))
                 .map((changes) => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([repo, worktree].toSorted());
@@ -809,10 +804,7 @@ describe("SessionListSubscriptions", () => {
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
 
         expect(sent.map((changes) => [changes.subscriptionId, changes.removed]).toSorted()).toEqual(
-            [
-                [repo, ["unknown"]],
-                [other, ["unknown"]],
-            ].toSorted(),
+            [[repo, ["unknown"]], [other, ["unknown"]]].toSorted(),
         );
         subscriptions.dispose();
     });
@@ -830,12 +822,7 @@ describe("SessionListSubscriptions", () => {
             }),
         );
         subscriptions.observe(own("turn/started", {threadId: "title", turn: {}}));
-        subscriptions.observe(
-            own("thread/status/changed", {
-                threadId: "fresh",
-                status: {type: "idle"},
-            }),
-        );
+        subscriptions.observe(own("thread/status/changed", {threadId: "fresh", status: {type: "idle"}}));
         await vi.advanceTimersByTimeAsync(timings.ownChangeDelayMs);
 
         expect(codex.threadRead.mock.calls.map(call => call[0].threadId)).toEqual(["fresh"]);
@@ -904,9 +891,7 @@ describe("SessionListSubscriptions", () => {
         expect(sent).toHaveLength(3);
         expect([sent[0]!.subscriptionId, sent[0]!.sessions[0]!.title]).toEqual([first, "one"]);
         expect(
-            sent
-                .slice(1)
-                .map((changes) => changes.subscriptionId)
+            sent.slice(1).map((changes) => changes.subscriptionId)
                 .toSorted(),
         ).toEqual([first, second].toSorted());
         expect(sent.slice(1).every((changes) => changes.sessions[0]!.title === "two")).toBe(true);
@@ -1178,10 +1163,7 @@ describe("SessionListSubscriptions with a CODEX_HOME on disk", () => {
         fs.appendFileSync(log, `${JSON.stringify({id: "b", thread_name: "renamed elsewhere", updated_at: "x"})}\n`);
         listener().stateChanged();
         await vi.advanceTimersByTimeAsync(timings.maxWaitMs);
-        expect(archivedOf().toSorted()).toEqual([
-            ["a", "Prompt of a", true],
-            ["b", "renamed elsewhere", true],
-        ]);
+        expect(archivedOf().toSorted()).toEqual([["a", "Prompt of a", true], ["b", "renamed elsewhere", true]]);
 
         sent.length = 0;
         codex.update("a", {}, false);
@@ -1228,10 +1210,7 @@ describe("SessionListSubscriptions with the CODEX_HOME watch on disk", () => {
             const entry = codex.threads.get(id)!;
             return {
                 readState: null,
-                thread: {
-                    ...entry.thread,
-                    path: entry.archived ? path.join(home, "archived_sessions", rollout) : entry.thread.path,
-                },
+                thread: {...entry.thread, path: entry.archived ? path.join(home, "archived_sessions", rollout) : entry.thread.path},
             };
         });
         const sent: SessionListChanges[] = [];

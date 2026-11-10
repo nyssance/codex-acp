@@ -131,9 +131,7 @@ describe("authStatus extension", () => {
                 planType: "plus",
             });
             expect(await initializeAndAwaitFirstPush(fixture)).toEqual(centralStatus);
-            expect(configRead).toHaveBeenCalledWith({
-                includeLayers: false,
-            });
+            expect(configRead).toHaveBeenCalledWith({includeLayers: false});
             expect(accountRead).not.toHaveBeenCalled();
             expect(JSON.stringify(authStatusUpdates(fixture))).not.toContain("redacted");
         });
@@ -264,9 +262,8 @@ describe("authStatus extension", () => {
                 email: "user@example.com",
                 planType: "plus",
             });
-            vi.spyOn(fixture.getCodexAcpClient(), "getAgentConfiguredModelProvider").mockResolvedValue(
-                "custom-provider",
-            );
+            vi.spyOn(fixture.getCodexAcpClient(), "getAgentConfiguredModelProvider")
+                .mockResolvedValue("custom-provider");
 
             expect(await initializeAndAwaitFirstPush(fixture))
                 .toEqual({kind: "gateway", label: "Custom model gateway", detail: "custom-provider"});
@@ -637,18 +634,15 @@ describe("accountFromUpdated", () => {
     });
 
     it("keeps the email of a ChatGPT account and takes the new plan", () => {
-        expect(accountFromUpdated({authMode: "chatgpt", planType: "pro"}, chatGpt)).toEqual({
+        expect(accountFromUpdated({authMode: "chatgpt", planType: "pro"}, chatGpt))
+            .toEqual({
             type: "chatgpt",
             workspaceName: null,
             email: "user@example.com",
             planType: "pro",
         });
-        expect(accountFromUpdated({authMode: "chatgpt", planType: null}, {type: "apiKey"})).toEqual({
-            type: "chatgpt",
-            email: null,
-            planType: "unknown",
-            workspaceName: null,
-        });
+        expect(accountFromUpdated({authMode: "chatgpt", planType: null}, {type: "apiKey"}))
+            .toEqual({type: "chatgpt", email: null, planType: "unknown", workspaceName: null});
     });
 
     it("maps an API key and keeps the account for a mode with no account shape", () => {

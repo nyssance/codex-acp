@@ -160,10 +160,7 @@ describe("compact command lifecycle", () => {
             fixture.sendServerNotification(turnCompleted("interrupted"));
             return {};
         });
-        const prompt = fixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "/compact"}],
-        });
+        const prompt = fixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/compact"}]});
         await vi.waitFor(() => expect(start).toHaveBeenCalled());
         startCompaction(fixture);
         await fixture.getCodexAcpClient().waitForSessionNotifications(sessionId);
@@ -177,10 +174,7 @@ describe("compact command lifecycle", () => {
     it("returns the failed compact turn through ACP failure handling", async () => {
         const fixture = await commandFixture();
         const start = vi.spyOn(fixture.getCodexAppServerClient(), "threadCompactStart").mockResolvedValue({});
-        const prompt = fixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "/compact"}],
-        });
+        const prompt = fixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/compact"}]});
         await vi.waitFor(() => expect(start).toHaveBeenCalled());
         startCompaction(fixture);
         fixture.sendServerNotification(turnCompleted("failed"));
@@ -229,15 +223,9 @@ function turn(status: Turn["status"]): Turn {
         items: [],
         itemsView: "full",
         status,
-        error:
-            status === "failed"
-                ? {
-                      message: "Compaction service failed.",
-                      codexErrorInfo: "serverOverloaded",
-                      additionalDetails: null,
-                      misalignment: null,
-                  }
-                : null,
+        error: status === "failed" ? {
+            message: "Compaction service failed.", codexErrorInfo: "serverOverloaded", additionalDetails: null, misalignment: null,
+        } : null,
         startedAt: null,
         completedAt: null,
         durationMs: null,

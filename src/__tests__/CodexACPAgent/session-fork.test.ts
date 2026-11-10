@@ -10,10 +10,7 @@ describe("ACP session fork", () => {
         const client = fixture.getCodexAcpClient();
         const model = createTestModel({id: "gpt-5"});
 
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -61,10 +58,7 @@ describe("ACP session fork", () => {
         const client = fixture.getCodexAcpClient();
         const mcpStartup = deferred<McpStartupResult>();
 
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -108,10 +102,7 @@ describe("ACP session fork", () => {
         const agent = fixture.getCodexAcpAgent();
         const client = fixture.getCodexAcpClient();
 
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -156,10 +147,7 @@ describe("fork lineage response metadata", () => {
             forkedFromId: "source",
             forkedAtTurnId: "selected-turn",
         };
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,

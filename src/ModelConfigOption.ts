@@ -86,7 +86,9 @@ export function createModelConfigOption(
                           options: options.filter((option) => group.modelIds.includes(option.value)),
                       })),
                   ].filter((group) => group.options.length > 0),
-        ...(recommendation ? {_meta: withAirMeta(undefined, AIR_RECOMMENDED_CONFIG_VALUE_KEY, recommendation)} : {}),
+        ...(recommendation
+            ? {_meta: withAirMeta(undefined, AIR_RECOMMENDED_CONFIG_VALUE_KEY, recommendation)}
+            : {}),
     };
 }
 

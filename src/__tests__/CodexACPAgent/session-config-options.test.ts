@@ -61,10 +61,7 @@ async function createSession(
     const codexAcpAgent = fixture.getCodexAcpAgent();
     const codexAcpClient = fixture.getCodexAcpClient();
 
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
@@ -570,10 +567,7 @@ describe("Session config options", () => {
         const codexAcpClient = fixture.getCodexAcpClient();
         const {fast} = buildModels();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,

@@ -96,10 +96,7 @@ async function connectV2Client(options: {loginSucceeds?: boolean} = {}) {
                 return {type: "apiKey"};
             case "account/logout":
                 loggedIn = false;
-                pushNotification("account/updated", {
-                    authMode: null,
-                    planType: null,
-                });
+                pushNotification("account/updated", {authMode: null, planType: null});
                 return {};
             case "thread/start":
                 return {
@@ -111,10 +108,7 @@ async function connectV2Client(options: {loginSucceeds?: boolean} = {}) {
                     turnsBackwardsCursor: null,
                 };
             case "model/list":
-                return {
-                    data: [createTestModel({id: "gpt-5"})],
-                    nextCursor: null,
-                };
+                return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
             case "skills/list":
                 return {data: []};
             case "config/read":
@@ -127,11 +121,7 @@ async function connectV2Client(options: {loginSucceeds?: boolean} = {}) {
     });
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
-        ready: [],
-        failed: [],
-        cancelled: [],
-    });
+    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();

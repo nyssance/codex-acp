@@ -184,10 +184,7 @@ describe("ACP session close", () => {
             args: ["broken"],
             env: [],
         };
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -261,14 +258,8 @@ describe("ACP session close", () => {
         const fixture = createCodexMockTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         const codexAcpClient = fixture.getCodexAcpClient();
-        await codexAcpAgent.initialize({
-            protocolVersion: 1,
-            clientCapabilities: {elicitation: {url: {}}},
-        });
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        await codexAcpAgent.initialize({protocolVersion: 1, clientCapabilities: {elicitation: {url: {}}}});
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -555,10 +546,7 @@ async function createSession(options: {
     const codexAcpClient = fixture.getCodexAcpClient();
     const model = createTestModel();
 
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,

@@ -79,7 +79,7 @@ describe("New session logout handling", () => {
         const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount")
             .mockResolvedValueOnce({
                 workspaceRouting: null,
-                account: {type: "apiKey"},
+                account: { type: "apiKey" },
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({

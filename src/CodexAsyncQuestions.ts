@@ -44,9 +44,7 @@ export function asyncQuestionItemId(messageId: string, index: number): string {
 export function formatAsyncQuestionReply(replies: readonly AsyncQuestionReply[]): string {
     const bounded = replies.map(reply => ({
         ...reply,
-        question: [...reply.question]
-            .slice(0, MAX_REPLY_FIELD_LENGTH)
-            .join("")
+        question: [...reply.question].slice(0, MAX_REPLY_FIELD_LENGTH).join("")
             .replaceAll(/[\r\n]/g, " "),
     }));
     if (bounded.some(reply => reply.questionItemId.length > MAX_REPLY_FIELD_LENGTH)) {

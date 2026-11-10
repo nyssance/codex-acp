@@ -11,38 +11,21 @@ describe.each([1, 2] as const)("ACP v%s background teardown", (version) => {
         h.setCodexResponse("thread/backgroundTerminals/list", async params => {
             events.push({list: params});
             const cursor = (params as {cursor: string | null}).cursor;
-            return {
-                data: [
-                    {
-                        itemId: cursor === null ? "one" : "two",
-                        processId: cursor === null ? "1" : "2",
-                        command: "sleep",
-                    },
-                ],
-                nextCursor: cursor === null ? "next" : null,
-            };
+            return {data: [{itemId: cursor === null ? "one" : "two", processId: cursor === null ? "1" : "2", command: "sleep"}],
+                nextCursor: cursor === null ? "next" : null};
         });
         h.setCodexResponse("thread/backgroundTerminals/terminate", async params => {
             events.push({terminate: params});
             await stopping;
             return {terminated: true};
         });
-        h.setCodexResponse("thread/unsubscribe", async () => {
-            events.push("unsubscribe");
-            return {status: "unsubscribed"};
-        });
-        h.setCodexResponse("thread/archive", async () => {
-            events.push("archive");
-            return {};
-        });
+        h.setCodexResponse("thread/unsubscribe", async () => { events.push("unsubscribe"); return {status: "unsubscribed"}; });
+        h.setCodexResponse("thread/archive", async () => { events.push("archive"); return {}; });
         h.setCodexResponse("thread/delete", async () => {
             events.push("delete");
             return {};
         });
-        const closed = h.request(method, {sessionId}).then((result) => {
-            events.push("response");
-            return result;
-        });
+        const closed = h.request(method, {sessionId}).then((result) => { events.push("response"); return result; });
         try {
             await vi.waitFor(() => expect(events).toHaveLength(3));
             expect(events).toEqual([

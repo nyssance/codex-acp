@@ -9,13 +9,8 @@ import {stubGatewayModelListing} from "../acp-test-utils";
 
 stubGatewayModelListing(["gpt-5"]);
 
-const prompt = (text: string) => ({
-    mode: "append",
-    content: [{type: "text", text}],
-});
-const air = {
-    _meta: {jetbrains: {air: {customInstructions: "AIR instructions"}}},
-};
+const prompt = (text: string) => ({mode: "append", content: [{type: "text", text}]});
+const air = {_meta: {jetbrains: {air: {customInstructions: "AIR instructions"}}}};
 
 describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) => {
     let client: PromptSession;
@@ -23,25 +18,13 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
 
     async function connect() {
         const calls: Array<{method: string; params: any}> = [];
-        let thread: Thread = {
-            ...createThread(),
-            path: "/workspace/rollout.jsonl",
-        };
+        let thread: Thread = {...createThread(), path: "/workspace/rollout.jsonl"};
         let reportUnload = true;
         const methods = ["thread/start", "thread/resume", "thread/fork", "thread/read", "thread/unsubscribe"];
         client = await connectSession(version, {
             codexResponses: {
-                "config/read": async () => ({
-                    config: {
-                        developer_instructions: "Configured instructions",
-                    },
-                    origins: {},
-                    layers: [],
-                }),
-                "thread/backgroundTerminals/list": async () => ({
-                    data: [],
-                    nextCursor: null,
-                }),
+                "config/read": async () => ({config: {developer_instructions: "Configured instructions"}, origins: {}, layers: []}),
+                "thread/backgroundTerminals/list": async () => ({data: [], nextCursor: null}),
                 ...Object.fromEntries(
                     methods.map((method) => [
                         method,
@@ -55,17 +38,11 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
                                     thread: {...thread, id: "fork-1"},
                                 };
                             }
-                            if (
-                                method === "thread/resume" &&
-                                reportUnload &&
-                                calls.at(-2)?.method === "thread/unsubscribe"
-                            ) {
+                            if (method === "thread/resume" && reportUnload
+                                && calls.at(-2)?.method === "thread/unsubscribe") {
                                 client.emit({
                                     method: "thread/status/changed",
-                                    params: {
-                                        threadId: sessionId,
-                                        status: {type: "notLoaded"},
-                                    },
+                                    params: {threadId: sessionId, status: {type: "notLoaded"}},
                                 });
                             }
                             return codexResponse(method);
@@ -91,14 +68,9 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
             ...(isAir ? air : {}),
         });
         await expect(
-            `${JSON.stringify(
-                calls.map(({method, params}) => ({
-                    method,
-                    developerInstructions: params.developerInstructions,
-                })),
-                null,
-                2,
-            )}\n`,
+            `${JSON.stringify(calls.map(({method, params}) => ({
+                method, developerInstructions: params.developerInstructions,
+            })), null, 2)}\n`,
         ).toMatchFileSnapshot(
             `data/system-prompt-v${version}-${isAir ? "air" : "configured"}.json`,
         );
@@ -106,15 +78,8 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
 
     it("preserves the legacy AIR-only path", async () => {
         const {calls} = await connect();
-        await client.request("session/new", {
-            cwd,
-            mcpServers: [],
-            ...air,
-        });
-        expect(calls[0]).toMatchObject({
-            method: "thread/start",
-            params: {developerInstructions: "AIR instructions"},
-        });
+        await client.request("session/new", {cwd, mcpServers: [], ...air});
+        expect(calls[0]).toMatchObject({method: "thread/start", params: {developerInstructions: "AIR instructions"}});
     });
 
     it("reloads changed instructions without appending the previous client prompt", async () => {
@@ -130,11 +95,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
 
     it("keeps known instructions on omitted, null, and identical prompts without detaching", async () => {
         const {calls} = await connect();
-        await client.request("session/new", {
-            cwd,
-            mcpServers: [],
-            systemPrompt: prompt("Keep"),
-        });
+        await client.request("session/new", {cwd, mcpServers: [], systemPrompt: prompt("Keep")});
         calls.length = 0;
         for (const systemPrompt of [undefined, null, prompt("Keep")]) {
             await client.request("session/resume", {sessionId, cwd, mcpServers: [], ...(systemPrompt === undefined ? {} : {systemPrompt})});
@@ -158,12 +119,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         const {calls} = await connect();
         await client.request("session/new", {cwd, mcpServers: [], systemPrompt: prompt("Source"), ...air});
         calls.length = 0;
-        await client.request("session/fork", {
-            sessionId,
-            cwd,
-            mcpServers: [],
-            systemPrompt: prompt("Fork"),
-        });
+        await client.request("session/fork", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Fork")});
         expect(calls.map((call) => call.method)).toEqual(
             version === 2 ? ["thread/fork", "thread/read", "thread/read"] : ["thread/fork"],
         );
@@ -175,33 +131,15 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
     it.each([
         {mode: "override", content: [{type: "text", text: "x"}]},
         {mode: "_custom", content: [{type: "text", text: "x"}]},
-        {
-            mode: "append",
-            content: [{type: "image", data: "", mimeType: "image/png"}],
-        },
+        {mode: "append", content: [{type: "image", data: "", mimeType: "image/png"}]},
         {mode: "append", content: []},
-    ])(
-        "rejects unsupported system prompts before any lifecycle operation",
-        async (systemPrompt) => {
-            const {calls} = await connect();
-            for (const method of [
-                "session/new",
-                "session/resume",
-                "session/fork",
-                ...(version === 1 ? ["session/load"] : []),
-            ]) {
-                await expect(
-                    client.request(method, {
-                        sessionId,
-                        cwd,
-                        mcpServers: [],
-                        systemPrompt,
-                    }),
-                ).rejects.toMatchObject({code: -32602});
-            }
-            expect(calls).toEqual([]);
-        },
-    );
+    ])("rejects unsupported system prompts before any lifecycle operation", async (systemPrompt) => {
+        const {calls} = await connect();
+        for (const method of ["session/new", "session/resume", "session/fork", ...(version === 1 ? ["session/load"] : [])]) {
+            await expect(client.request(method, {sessionId, cwd, mcpServers: [], systemPrompt})).rejects.toMatchObject({code: -32602});
+        }
+        expect(calls).toEqual([]);
+    });
 
     it("rejects a changed prompt while work is running without cancelling it", async () => {
         const {calls} = await connect();
@@ -256,14 +194,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
     it("does not stop background terminals to reload instructions", async () => {
         const {calls} = await connect();
         client.setCodexResponse("thread/backgroundTerminals/list", async () => ({
-            data: [
-                {
-                    itemId: "background-1",
-                    processId: "42",
-                    command: "sleep 60",
-                },
-            ],
-            nextCursor: null,
+            data: [{itemId: "background-1", processId: "42", command: "sleep 60"}], nextCursor: null,
         }));
         await expect(client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Background")}))
             .rejects.toMatchObject({code: -32602});
@@ -280,24 +211,12 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         const pending = client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Changed")});
         void pending.catch(() => {});
         await vi.waitFor(() => expect(readConfig).toHaveBeenCalled());
-        await expect(client.sendPrompt([{type: "text", text: "Race"}])).rejects.toMatchObject({
-            code: -32600,
-        });
-        await expect(
-            client.request("session/set_config_option", {
-                sessionId,
-                configId: "mode",
-                value: "agent",
-                ...(version === 2 ? {type: "id"} : {}),
-            }),
-        ).rejects.toMatchObject({code: -32600});
-        await expect(
-            client.request("session/resume", {
-                sessionId,
-                cwd,
-                mcpServers: [],
-            }),
-        ).rejects.toMatchObject({code: -32600});
+        await expect(client.sendPrompt([{type: "text", text: "Race"}])).rejects.toMatchObject({code: -32600});
+        await expect(client.request("session/set_config_option", {
+            sessionId, configId: "mode", value: "agent", ...(version === 2 ? {type: "id"} : {}),
+        }))
+            .rejects.toMatchObject({code: -32600});
+        await expect(client.request("session/resume", {sessionId, cwd, mcpServers: []})).rejects.toMatchObject({code: -32600});
         resolveConfig({config: {}, origins: {}, layers: []});
         await pending;
         expect(client.agent.getSessionState(sessionId).instructions?.text).toBe("Changed");
@@ -311,24 +230,10 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
             if (++resumed === 1) throw new Error("Resume failed");
             return codexResponse("thread/resume");
         });
-        await expect(
-            client.request("session/resume", {
-                sessionId,
-                cwd,
-                mcpServers: [],
-                systemPrompt: prompt("Failed"),
-            }),
-        ).rejects.toMatchObject({code: -32603});
-        expect(calls.map((call) => call.method)).toEqual([
-            "thread/read",
-            "thread/unsubscribe",
-            "thread/resume",
-            "thread/resume",
-        ]);
-        expect(calls.at(-1)?.params).toEqual({
-            threadId: sessionId,
-            excludeTurns: true,
-        });
+        await expect(client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Failed")}))
+            .rejects.toMatchObject({code: -32603});
+        expect(calls.map((call) => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume", "thread/resume"]);
+        expect(calls.at(-1)?.params).toEqual({threadId: sessionId, excludeTurns: true});
         expect(client.agent.getSessionState(sessionId).instructions).toBeUndefined();
         client.emit({method: "turn/started", params: {threadId: sessionId, turn: createTurn("inProgress")}} as any);
         await settle();

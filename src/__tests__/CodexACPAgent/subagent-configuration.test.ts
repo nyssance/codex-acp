@@ -12,10 +12,7 @@ const activity = (model: string | null = null, effort: ReasoningEffort | null = 
     itemStarted({type: "subAgentActivity", id: "activity", kind: "started", agentThreadId: worker,
         agentPath: path, model, reasoningEffort: effort});
 const onWorker = (event: ServerNotification): ServerNotification =>
-    ({
-        ...event,
-        params: {...event.params, threadId: worker},
-    }) as ServerNotification;
+    ({...event, params: {...event.params, threadId: worker}}) as ServerNotification;
 function settings(model: string, effort: ReasoningEffort | null): ThreadSettings {
     return {
         multiAgentMode: "explicitRequestOnly" as const,
@@ -31,14 +28,7 @@ function settings(model: string, effort: ReasoningEffort | null): ThreadSettings
         summary: null,
         serviceTier: null,
         personality: null,
-        collaborationMode: {
-            mode: "default",
-            settings: {
-                model,
-                reasoning_effort: effort,
-                developer_instructions: null,
-            },
-        },
+        collaborationMode: {mode: "default", settings: {model, reasoning_effort: effort, developer_instructions: null}},
     };
 }
 type Option = {id?: string; configId?: string; category?: string; currentValue: string; options: Array<{value: string}>};

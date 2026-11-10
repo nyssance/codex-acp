@@ -59,17 +59,9 @@ describeIntegration("integration: live standard subagents", () => {
         });
         appendFileSync(join(codexHome, "config.toml"), "\nfeatures.multi_agent = true\nfeatures.multi_agent_v2 = true\n");
         const processHandle = spawn("bun", ["src/index.ts"], {
-            cwd: process.cwd(),
-            env: {
-                ...process.env,
-                CODEX_HOME: codexHome,
+            cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome,
                 // Only the fixed local fixture script bypasses host sandbox restrictions.
-                ...(ending === "terminal"
-                    ? {
-                          INITIAL_AGENT_MODE: AgentMode.AgentFullAccess.id,
-                      }
-                    : {}),
-            },
+                ...(ending === "terminal" ? {INITIAL_AGENT_MODE: AgentMode.AgentFullAccess.id} : {})},
             stdio: ["pipe", "pipe", "pipe"],
         });
         let stderr = "";
@@ -84,48 +76,18 @@ describeIntegration("integration: live standard subagents", () => {
             notify(method: string, params: unknown): Promise<void>;
         };
         const request = async (method: string, params: unknown) => {
-            try {
-                return await context.request(method, params, {
-                    cancellationSignal: AbortSignal.timeout(15_000),
-                });
-            } catch (error) {
-                if (error instanceof Error) error.message = `${method}: ${error.message}\n${stderr}`;
-                throw error;
-            }
+            try { return await context.request(method, params, {cancellationSignal: AbortSignal.timeout(15_000)}); }
+            catch (error) { if (error instanceof Error) error.message = `${method}: ${error.message}\n${stderr}`; throw error; }
         };
         try {
-            await request(
-                "initialize",
-                version === 1
-                    ? {
-                          protocolVersion: 1,
-                          clientCapabilities: {
-                              subagents: {},
-                              auth: {_meta: {gateway: true}},
-                          },
-                      }
-                    : {
-                          protocolVersion: 2,
-                          info: {
-                              name: "standard-live-test",
-                              version: "1",
-                          },
-                          capabilities: {
-                              auth: {_meta: {gateway: true}},
-                          },
-                      },
-            );
+            await request("initialize", version === 1
+                ? {protocolVersion: 1, clientCapabilities: {subagents: {}, auth: {_meta: {gateway: true}}}}
+                : {protocolVersion: 2, info: {name: "standard-live-test", version: "1"}, capabilities: {auth: {_meta: {gateway: true}}}});
             await request(version === 1 ? "authenticate" : "auth/login", {
                 methodId: "gateway", _meta: {gateway: {baseUrl: mock.baseUrl, headers: {}}},
             });
-            const {sessionId} = await request("session/new", {
-                cwd,
-                mcpServers: [],
-            });
-            const prompt = request("session/prompt", {
-                sessionId,
-                prompt: [{type: "text", text: "Delegate once"}],
-            });
+            const {sessionId} = await request("session/new", {cwd, mcpServers: []});
+            const prompt = request("session/prompt", {sessionId, prompt: [{type: "text", text: "Delegate once"}]});
             void prompt.catch(() => {});
             await vi.waitFor(() => {
                 expect(childRequested, stderr).toBe(true);
@@ -165,32 +127,25 @@ describeIntegration("integration: live standard subagents", () => {
             await vi.waitFor(() => expect(directoryReported(updates.slice(before))).toBe(true));
             await vi.waitFor(() => expect(cancelGranted(updates.slice(before))).toBe(true));
             if (ending === "complete") {
-                const fork = await request("session/fork", {
-                    sessionId,
-                    cwd,
-                    mcpServers: [],
-                });
+                const fork = await request("session/fork", {sessionId, cwd, mcpServers: []});
                 await load(fork.sessionId);
                 const copied = updates.filter(entry => entry.sessionId === fork.sessionId && entry.update.sessionUpdate === "subagent_update");
                 expect(copied.length).toBeGreaterThan(0);
                 expect(copied.every((entry) => entry.update.sessionId !== childId)).toBe(true);
-                await request("session/close", {
-                    sessionId: fork.sessionId,
-                });
+                await request("session/close", {sessionId: fork.sessionId});
             } else if (ending === "terminal") {
                 releaseChild();
                 await vi.waitFor(
                     () =>
                         expect(
-                            updates.some((entry) => entry.sessionId === childId && (version === 2 ? entry.update.sessionUpdate === "terminal_update" && typeof entry.update.command === "string" : entry.update._meta?.terminal_info)),
+                            updates.some((entry) => entry.sessionId === childId && (version === 2
+                                ? entry.update.sessionUpdate === "terminal_update" && typeof entry.update.command === "string"
+                                : entry.update._meta?.terminal_info)),
                             stderr,
                         ).toBe(true),
                     {timeout: 15_000},
                 );
-                await request("session/prompt", {
-                    sessionId,
-                    prompt: [{type: "text", text: "Continue independently"}],
-                });
+                await request("session/prompt", {sessionId, prompt: [{type: "text", text: "Continue independently"}]});
                 const terminalStart = updates.length;
                 writeFileSync(join(cwd, "release-child"), "");
                 await vi.waitFor(() => {
@@ -205,9 +160,7 @@ describeIntegration("integration: live standard subagents", () => {
                 }, {timeout: 15_000});
             } else if (ending === "child-cancel") {
                 const boundary = updates.length;
-                await context.notify("session/cancel", {
-                    sessionId: childId,
-                });
+                await context.notify("session/cancel", {sessionId: childId});
                 await vi.waitFor(
                     () =>
                         expect(
@@ -216,10 +169,7 @@ describeIntegration("integration: live standard subagents", () => {
                         ).toBe(true),
                     {timeout: 15_000},
                 );
-                await request("session/prompt", {
-                    sessionId,
-                    prompt: [{type: "text", text: "Continue independently"}],
-                });
+                await request("session/prompt", {sessionId, prompt: [{type: "text", text: "Continue independently"}]});
             } else {
                 const boundary = updates.length;
                 if (ending === "cancel") await context.notify("session/cancel", {sessionId});

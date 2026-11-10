@@ -19,10 +19,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         expectConformingV2SessionUpdates();
     });
     const connect = async (options: Parameters<typeof connectSession>[1] = {}) => {
-        h = await connectSession(version, {
-            v1ClientCapabilities: {subagents: {}},
-            ...options,
-        });
+        h = await connectSession(version, {v1ClientCapabilities: {subagents: {}}, ...options});
     };
     const roster = (thread = "worker") =>
         h.scopedUpdates.flatMap((entry) =>
@@ -45,11 +42,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
     });
     function emptyHistory() {
         h.setCodexResponse("thread/read", async (params) => ({
-            thread: {
-                ...createThread(),
-                id: (params as {threadId: string}).threadId,
-                turns: [],
-            },
+            thread: {...createThread(), id: (params as {threadId: string}).threadId, turns: []},
         }));
     }
 
@@ -58,22 +51,12 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         await start();
         await start("sibling");
         await expect(h.request("session/close", {sessionId: id("worker")})).rejects.toMatchObject({code: -32600});
-        await expect(
-            h.request("session/prompt", {
-                sessionId: id("worker"),
-                prompt: [{type: "text", text: "No"}],
-            }),
-        ).rejects.toMatchObject({code: -32600});
+        await expect(h.request("session/prompt", {sessionId: id("worker"), prompt: [{type: "text", text: "No"}]}))
+            .rejects.toMatchObject({code: -32600});
         await h.cancel(id("worker"));
         await vi.waitFor(() => expect(h.turnInterruptCalls()).toEqual([{threadId: "worker", turnId: "worker-turn"}]));
         expect(roster().some((update) => update.state != null && (update.state as {state: string}).state === "idle")).toBe(false);
-        h.emit({
-            method: "turn/completed",
-            params: {
-                threadId: "worker",
-                turn: createTurn("interrupted", "worker-turn"),
-            },
-        });
+        h.emit({method: "turn/completed", params: {threadId: "worker", turn: createTurn("interrupted", "worker-turn")}});
         await vi.waitFor(() => expect(capabilities()?.cancel).toBeNull());
         expect(roster().some(update => update.state != null
             && (update.state as {stopReason?: string}).stopReason === "cancelled")).toBe(true);
@@ -103,14 +86,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         await connect({
             onRequestPermission: (request) =>
                 new Promise((resolve) => {
-                    answers.set(request.sessionId, () =>
-                        resolve({
-                            outcome: {
-                                outcome: "selected",
-                                optionId: request.options[0]!.optionId,
-                            },
-                        }),
-                    );
+                    answers.set(request.sessionId, () => resolve({outcome: {outcome: "selected", optionId: request.options[0]!.optionId}}));
                 }),
         });
         await start();
@@ -167,13 +143,7 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         const held = new Promise<void>(resolve => { release = resolve; });
         h.agent["codexAcpClient"]["enqueueSessionNotification"](sessionId, () => held);
         try {
-            h.emit({
-                method: "thread/status/changed",
-                params: {
-                    threadId: "worker",
-                    status: {type: "notLoaded"},
-                },
-            });
+            h.emit({method: "thread/status/changed", params: {threadId: "worker", status: {type: "notLoaded"}}});
             await h.cancel(id("worker"));
             expect(h.turnInterruptCalls()).toEqual([]);
         } finally { release(); }
@@ -218,34 +188,13 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
                 threadId: string;
                 includeTurns?: boolean;
             };
-            return {
-                thread: {
-                    ...createThread(),
-                    id: threadId,
-                    parentThreadId: threadId === "worker" ? "other-root" : null,
-                    status: {type: "active", activeFlags: []},
-                    turns:
-                        threadId === sessionId && includeTurns
-                            ? [
-                                  {
-                                      ...createTurn("completed"),
-                                      itemsView: "full",
-                                      items: [
-                                          {
-                                              type: "subAgentActivity",
-                                              id: "stored-spawn",
-                                              kind: "started",
-                                              agentThreadId: "worker",
-                                              agentPath: "/root/worker",
-                                              model: null,
-                                              reasoningEffort: null,
-                                          },
-                                      ],
-                                  },
-                              ]
-                            : [],
-                },
-            };
+            return {thread: {...createThread(), id: threadId, parentThreadId: threadId === "worker" ? "other-root" : null,
+                status: {type: "active", activeFlags: []}, turns: threadId === sessionId && includeTurns ? [{
+                    ...createTurn("completed"), itemsView: "full", items: [{
+                        type: "subAgentActivity", id: "stored-spawn", kind: "started", agentThreadId: "worker",
+                        agentPath: "/root/worker", model: null, reasoningEffort: null,
+                    }],
+                }] : []}};
         });
         await load();
         await flush(h);
@@ -285,12 +234,12 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         await vi.waitFor(() => expect(grants()).toBe(beforeGrants + 1));
         const frames = h.wireMessages.slice(startIndex).flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
         const response = frames.findIndex(
-            (frame) => "result" in frame && frame.result != null && typeof frame.result === "object" && "configOptions" in frame.result,
+            (frame) => "result" in frame && frame.result != null
+                && typeof frame.result === "object" && "configOptions" in frame.result,
         );
         const grant = frames.findIndex(
             (frame) =>
-                "method" in frame &&
-                frame.method === "session/update" &&
+                "method" in frame && frame.method === "session/update" &&
                 (
                     frame.params as {
                         update: {capabilities?: {cancel?: object}};

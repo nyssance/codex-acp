@@ -281,19 +281,11 @@ export class CodexAppServerClient {
 
         this.connection.onRequest(PermissionsApprovalRequest, async (params): Promise<PermissionsRequestApprovalResponse> => {
             if (this.isStaleTurn(params.threadId, params.turnId)) {
-                return {
-                    permissions: {},
-                    scope: "turn",
-                    strictAutoReview: false,
-                };
+                return { permissions: {}, scope: "turn", strictAutoReview: false };
             }
             const handler = this.approvalHandlers.get(params.threadId);
             if (!handler) {
-                return {
-                    permissions: {},
-                    scope: "turn",
-                    strictAutoReview: false,
-                };
+                return { permissions: {}, scope: "turn", strictAutoReview: false };
             }
             return await handler.handlePermissionsRequest(params);
         });
@@ -933,24 +925,15 @@ export class CodexAppServerClient {
     }
 
     async listMcpServerStatus(params: ListMcpServerStatusParams): Promise<ListMcpServerStatusResponse> {
-        return await this.sendRequest({
-            method: "mcpServerStatus/list",
-            params,
-        });
+        return await this.sendRequest({ method: "mcpServerStatus/list", params });
     }
 
     async mcpServerReload(): Promise<McpServerRefreshResponse> {
-        return await this.sendRequest({
-            method: "config/mcpServer/reload",
-            params: undefined,
-        });
+        return await this.sendRequest({ method: "config/mcpServer/reload", params: undefined });
     }
 
     async mcpServerOauthLogin(params: McpServerOauthLoginParams): Promise<McpServerOauthLoginResponse> {
-        return await this.sendRequest({
-            method: "mcpServer/oauth/login",
-            params,
-        });
+        return await this.sendRequest({ method: "mcpServer/oauth/login", params });
     }
 
     async accountLogin(params: LoginAccountParams): Promise<LoginAccountResponse> {
@@ -968,10 +951,7 @@ export class CodexAppServerClient {
     }
 
     async accountLogout(): Promise<LogoutAccountResponse> {
-        return await this.sendRequest({
-            method: "account/logout",
-            params: undefined,
-        });
+        return await this.sendRequest({ method: "account/logout", params: undefined });
     }
 
     async configRead(params: ConfigReadParams): Promise<ConfigReadResponse> {
@@ -990,10 +970,7 @@ export class CodexAppServerClient {
     }
 
     async accountRateLimitsRead(): Promise<GetAccountRateLimitsResponse> {
-        return await this.sendRequest({
-            method: "account/rateLimits/read",
-            params: undefined,
-        });
+        return await this.sendRequest({ method: "account/rateLimits/read", params: undefined });
     }
 
     //TODO create type-safe helper

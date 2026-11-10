@@ -95,7 +95,8 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
                 }),
             }),
         );
-        expect(childUpdates().filter((entry) => entry.update.sessionUpdate === "subagent_update" && entry.update.capabilities != null && Object.keys(entry.update.capabilities).length === 0)).toHaveLength(1);
+        expect(childUpdates().filter((entry) => entry.update.sessionUpdate === "subagent_update"
+            && entry.update.capabilities != null && Object.keys(entry.update.capabilities).length === 0)).toHaveLength(1);
         expect(childUpdates().some((entry) => entry.update.sessionUpdate === "user_message_chunk")).toBe(false);
     });
 
@@ -357,14 +358,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
             effort: null,
             summary: null,
             personality: null,
-            collaborationMode: {
-                mode: "default" as const,
-                settings: {
-                    model,
-                    reasoning_effort: null,
-                    developer_instructions: null,
-                },
-            },
+            collaborationMode: {mode: "default" as const, settings: {model, reasoning_effort: null, developer_instructions: null}},
         });
         h.emit({method: "thread/settings/updated", params: {threadId: worker, threadSettings: settings("older-settings")}});
         h.emit({method: "thread/settings/updated", params: {threadId: worker, threadSettings: settings("latest-settings")}});

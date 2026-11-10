@@ -114,10 +114,7 @@ describe("session compaction", () => {
         const fixture = await createFixture();
         await sendNotifications(fixture, [compactionStarted(), compactionCompleted()]);
         const firstCompaction = fixture.getAcpConnectionEvents([]);
-        await fixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "Continue again."}],
-        });
+        await fixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "Continue again."}]});
         fixture.clearAcpConnectionDump();
         await sendNotifications(fixture, [
             compactionStarted(),
@@ -133,10 +130,7 @@ describe("session compaction", () => {
     it("delivers the lifecycle and finishes a manual /compact request", async () => {
         const fixture = await createFixture();
         const compactStart = vi.spyOn(fixture.getCodexAppServerClient(), "threadCompactStart");
-        const prompt = fixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "/compact"}],
-        });
+        const prompt = fixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/compact"}]});
         await vi.waitFor(() => expect(compactStart).toHaveBeenCalledWith({threadId: sessionId}));
         await sendNotifications(fixture, [
             compactionStarted(),
@@ -357,20 +351,14 @@ describe("session compaction", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         const model = createTestModel();
-        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
-        vi.spyOn(appServer, "listModels").mockResolvedValue({
-            data: [model],
-            nextCursor: null,
-        });
+        vi.spyOn(appServer, "listModels").mockResolvedValue({data: [model], nextCursor: null});
         const thread = createThread([
             agentMessage("before-message", "Before compaction."),
             {type: "contextCompaction", id: compactionId},
@@ -400,10 +388,7 @@ describe("session compaction", () => {
             readState: null,
             thread,
         });
-        await agent.initialize({
-            protocolVersion: 1,
-            clientCapabilities: compactionCapabilities,
-        });
+        await agent.initialize({protocolVersion: 1, clientCapabilities: compactionCapabilities});
         await agent.loadSession({sessionId, cwd: thread.cwd, mcpServers: []});
 
         const timelineUpdates = fixture.getAcpConnectionEvents([]).filter(event =>
@@ -481,10 +466,7 @@ async function createFixture(clientCapabilities: acp.ClientCapabilities = compac
             ? {...clientCapabilities, _meta: {jetbrains: {air: {version: 1, capabilities: []}}}}
             : clientCapabilities,
     });
-    await agent.prompt({
-        sessionId,
-        prompt: [{type: "text", text: "Continue."}],
-    });
+    await agent.prompt({sessionId, prompt: [{type: "text", text: "Continue."}]});
     await awaitFirstAuthStatusPush(fixture);
     fixture.clearAcpConnectionDump();
     return fixture;

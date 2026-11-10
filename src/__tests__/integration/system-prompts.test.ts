@@ -20,16 +20,9 @@ describeIntegration(
             async (version) => {
                 const mock = await startMockResponsesServer();
                 // Codex may populate plugin caches with their own tests; keep them out of Vitest discovery.
-                const temporaryRoot = join(
-                    process.cwd(),
-                    "node_modules",
-                    ".cache",
-                    "codex-acp-tests",
-                );
-                mkdirSync(temporaryRoot, { recursive: true });
-                const root = mkdtempSync(
-                    join(temporaryRoot, "system-prompts-"),
-                );
+                const temporaryRoot = join(process.cwd(), "node_modules", ".cache", "codex-acp-tests");
+                mkdirSync(temporaryRoot, {recursive: true});
+                const root = mkdtempSync(join(temporaryRoot, "system-prompts-"));
                 const cwd = join(root, "workspace");
                 const codexHome = join(root, "codex-home");
                 mkdirSync(cwd);
@@ -41,65 +34,42 @@ describeIntegration(
                     developer_instructions: "CONFIGURED_BASE_INSTRUCTIONS",
                     // Ephemeral title threads use the native provider, not the session gateway.
                     model_provider: "integration",
-                    "model_providers.integration.name":
-                        "Local integration mock",
+                    "model_providers.integration.name": "Local integration mock",
                     "model_providers.integration.base_url": mock.baseUrl,
                     "model_providers.integration.wire_api": "responses",
                 });
                 const child = spawn(process.execPath, ["src/index.ts"], {
-                    cwd: process.cwd(),
-                    env: {
-                        ...process.env,
-                        CODEX_HOME: codexHome,
-                        APP_SERVER_LOGS: root,
-                    },
-                    stdio: ["pipe", "pipe", "pipe"],
+                    cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome, APP_SERVER_LOGS: root}, stdio: ["pipe", "pipe", "pipe"],
                 });
                 let stderr = "";
-                child.stderr.on("data", (chunk) => {
-                    stderr += chunk.toString();
-                });
-                const updates: Array<{ sessionId: string; update: any }> = [];
+                child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+                const updates: Array<{sessionId: string; update: any}> = [];
                 const stream = acp.ndJsonStream(
                     Writable.toWeb(child.stdin),
                     readableToWeb(child.stdout),
                 );
                 const connection =
                     version === 1
-                        ? acp
-                              .client()
-                              .onNotification(
+                        ? acp.client().onNotification(
                                   acp.methods.client.session.update,
-                                  (ctx) => {
-                                      updates.push(ctx.params);
-                                  },
+                                  (ctx) => { updates.push(ctx.params); },
                               )
                               .connect(stream)
-                        : acpV2
-                              .client()
-                              .onNotification(
+                        : acpV2.client().onNotification(
                                   acpV2.methods.client.session.update,
-                                  (ctx) => {
-                                      updates.push(ctx.params);
-                                  },
+                                  (ctx) => { updates.push(ctx.params); },
                               )
                               .connect(stream);
                 // The untyped request overload is shared by both protocol contexts.
                 const context = connection.agent as {
-                    request(
-                        method: string,
-                        params: unknown,
-                        options: { cancellationSignal: AbortSignal },
-                    ): Promise<unknown>;
+                    request(method: string, params: unknown, options: {cancellationSignal: AbortSignal}): Promise<unknown>;
                 };
                 const request = async (
                     method: string,
                     params: unknown,
                 ): Promise<any> => {
                     try {
-                        return await context.request(method, params, {
-                            cancellationSignal: AbortSignal.timeout(15_000),
-                        });
+                        return await context.request(method, params, {cancellationSignal: AbortSignal.timeout(15_000)});
                     } catch (error) {
                         if (error instanceof Error) {
                             const log = join(root, "app-server.log");
@@ -108,10 +78,7 @@ describeIntegration(
                         throw error;
                     }
                 };
-                const systemPrompt = (text: string) => ({
-                    mode: "append",
-                    content: [{ type: "text", text }],
-                });
+                const systemPrompt = (text: string) => ({mode: "append", content: [{type: "text", text}]});
 
         async function run(sessionId: string, text: string) {
             const before = mock.requests.length;

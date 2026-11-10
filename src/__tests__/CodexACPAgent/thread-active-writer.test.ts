@@ -146,11 +146,7 @@ describe("a thread that another Codex client has loaded", () => {
             nextCursor: null,
             backwardsCursor: null,
         });
-        const response = await agent.forkSession({
-            sessionId: threadId,
-            cwd: "/test/cwd",
-            mcpServers: [],
-        });
+        const response = await agent.forkSession({sessionId: threadId, cwd: "/test/cwd", mcpServers: []});
 
         expect(response.sessionId).toBe(forkId);
         expect(appServer.threadResume).not.toHaveBeenCalled();

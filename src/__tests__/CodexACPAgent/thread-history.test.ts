@@ -7,23 +7,7 @@ function messageTurn(id: string): Turn {
     return {
         rootTurnId: null,
         id,
-        items: [
-            {
-                type: "userMessage",
-                id: `${id}-input`,
-                clientId: null,
-                content: [{type: "text", text: `Question ${id}`, text_elements: []}],
-            },
-            {
-                type: "agentMessage",
-                id: `${id}-message`,
-                text: `Answer ${id}`,
-                phase: "final_answer",
-                memoryCitation: null,
-                delivery: null,
-                questions: null,
-            },
-        ],
+        items: [{type: "userMessage", id: `${id}-input`, clientId: null, content: [{type: "text", text: `Question ${id}`, text_elements: []}]}, {type: "agentMessage", id: `${id}-message`, text: `Answer ${id}`, phase: "final_answer", memoryCitation: null, delivery: null, questions: null}],
         itemsView: "full",
         status: "completed",
         error: null,
@@ -45,11 +29,7 @@ function turnStore(stored: Turn[], pageSize = 2) {
             const data = index < 0 ? [] : stored.slice(Math.max(0, index + 1 - (limit ?? 1)), index + 1).toReversed();
             return {
                 readStates: null,
-                data: data.map((turn) => ({
-                    ...turn,
-                    items: [],
-                    itemsView: "notLoaded" as const,
-                })),
+                data: data.map((turn) => ({...turn, items: [], itemsView: "notLoaded" as const})),
                 nextCursor: null,
                 backwardsCursor: null,
             };
@@ -109,11 +89,7 @@ describe("paginated thread history", () => {
         const appServer = fixture.getCodexAppServerClient();
         const metadataRead = vi.spyOn(appServer, "threadRead").mockResolvedValue({
             readState: null,
-            thread: {
-                id: "history",
-                turns: [],
-                name: "Saved conversation",
-            } as any,
+            thread: {id: "history", turns: [], name: "Saved conversation"} as any,
         });
         const pages = vi.spyOn(appServer, "threadTurnsList")
             .mockImplementation(turnStore([messageTurn("first"), messageTurn("second"), messageTurn("third")]));
@@ -128,12 +104,7 @@ describe("paginated thread history", () => {
     });
 
     it.each([
-        {
-            mode: "paginated",
-            boundary: "item:second-message",
-            expectedIds: ["first-input", "first-message", "second-input", "second-message"],
-            pageCalls: 3,
-        },
+        {mode: "paginated", boundary: "item:second-message", expectedIds: ["first-input", "first-message", "second-input", "second-message"], pageCalls: 3},
         {mode: "paginated", boundary: null, expectedIds: [], pageCalls: 0},
         {mode: "legacy", boundary: null, expectedIds: ["first-input", "first-message", "second-input", "second-message", "new-after-resume-input", "new-after-resume-message"], pageCalls: 0},
     ] as const)("loads $mode history with resume boundary $boundary", async ({mode, boundary, expectedIds, pageCalls}) => {
@@ -143,18 +114,10 @@ describe("paginated thread history", () => {
         const stored = ["first", "second", "new-after-resume"].map(messageTurn);
         vi.spyOn(appServer, "skillsExtraRootsSet").mockResolvedValue(undefined);
         vi.spyOn(appServer, "listSkills").mockResolvedValue({data: []});
-        vi.spyOn(appServer, "listModels").mockResolvedValue({
-            data: [createTestModel({id: "gpt-5"})],
-            nextCursor: null,
-        });
+        vi.spyOn(appServer, "listModels").mockResolvedValue({data: [createTestModel({id: "gpt-5"})], nextCursor: null});
         vi.spyOn(appServer, "threadResume").mockResolvedValue({
             ...testThreadPermissions(),
-            thread: {
-                id: "history",
-                historyMode: mode,
-                name: "Resume metadata",
-                turns: [],
-            },
+            thread: {id: "history", historyMode: mode, name: "Resume metadata", turns: []},
             itemsBackwardsCursor: boundary,
             model: "gpt-5", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null,
         } as any);
@@ -230,9 +193,7 @@ describe("paginated thread history", () => {
         const pages = vi.spyOn(appServer, "threadItemsList").mockImplementation(itemStore([turn], 3));
         const requestedPages = () => pages.mock.calls.map(([params]) => `${params.sortDirection}:${params.cursor ?? "start"}`);
 
-        const historyPages = appServer.threadItemPages("history", {
-            lastItemCursor: "item:message-4",
-        });
+        const historyPages = appServer.threadItemPages("history", {lastItemCursor: "item:message-4"});
         const reader = historyPages[Symbol.asyncIterator]();
         const first = await reader.next();
         // The caller holds the first page. The second page is already requested.
@@ -266,13 +227,8 @@ describe("paginated thread history", () => {
     it("reads standalone legacy history without requiring a pagination API", async () => {
         const fixture = createCodexMockTestFixture();
         const appServer = fixture.getCodexAppServerClient();
-        const history = {
-            id: "legacy",
-            historyMode: "legacy",
-            turns: [messageTurn("first"), messageTurn("second")],
-        };
-        const read = vi
-            .spyOn(appServer, "threadRead")
+        const history = {id: "legacy", historyMode: "legacy", turns: [messageTurn("first"), messageTurn("second")]};
+        const read = vi.spyOn(appServer, "threadRead")
             .mockResolvedValueOnce({
                 readState: null,
                 thread: {...history, turns: []} as any,
@@ -333,11 +289,7 @@ describe("paginated thread history", () => {
             readState: null,
             thread: {id: "empty", turns: []} as any,
         });
-        const pages = vi.spyOn(appServer, "threadTurnsList").mockResolvedValue({
-            data: [],
-            nextCursor: null,
-            backwardsCursor: null,
-        });
+        const pages = vi.spyOn(appServer, "threadTurnsList").mockResolvedValue({data: [], nextCursor: null, backwardsCursor: null});
 
         expect((await fixture.getCodexAppServerClient().threadReadWithHistory("empty")).thread).toEqual({id: "empty", turns: []});
         expect(pages).toHaveBeenCalledTimes(1);
@@ -353,20 +305,11 @@ describe("paginated thread history", () => {
             readState: null,
             thread: {id: "history", turns: []} as any,
         });
-        const pages = vi
-            .spyOn(appServer, "threadTurnsList")
+        const pages = vi.spyOn(appServer, "threadTurnsList")
             .mockRejectedValue(new Error("Unexpected extra page request"))
-            .mockResolvedValueOnce({
-                data: [messageTurn("last")],
-                nextCursor: null,
-                backwardsCursor: null,
-            });
+            .mockResolvedValueOnce({data: [messageTurn("last")], nextCursor: null, backwardsCursor: null});
         for (const nextCursor of cursors) {
-            pages.mockResolvedValueOnce({
-                data: [],
-                nextCursor,
-                backwardsCursor: null,
-            });
+            pages.mockResolvedValueOnce({data: [], nextCursor, backwardsCursor: null});
         }
 
         await expect(fixture.getCodexAppServerClient().threadReadWithHistory("history"))

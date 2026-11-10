@@ -145,9 +145,7 @@ describe("agent file-change report", () => {
 
     it("keeps additional roots and marks rejected paths as incomplete", () => {
         const diff =
-            `${modified(
-                "src/A.kt",
-            )}diff --git /generated/out.txt /generated/out.txt\n--- /generated/out.txt\n+++ /generated/out.txt\n@@ -1 +1 @@\n-old\n+new\n` +
+            `${modified("src/A.kt")}diff --git /generated/out.txt /generated/out.txt\n--- /generated/out.txt\n+++ /generated/out.txt\n@@ -1 +1 @@\n-old\n+new\n` +
             `diff --git /outside/out.txt /outside/out.txt\n--- /outside/out.txt\n+++ /outside/out.txt\n@@ -1 +1 @@\n-old\n+new\n`;
 
         expect(createReportedAgentFileChangeReport(

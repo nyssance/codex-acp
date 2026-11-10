@@ -62,10 +62,7 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", version => {
         expectConformingV2SessionUpdates();
     });
     async function connect(options: Parameters<typeof connectSession>[1] = {}) {
-        h = await connectSession(version, {
-            v1ClientCapabilities: {subagents: {}},
-            ...options,
-        });
+        h = await connectSession(version, {v1ClientCapabilities: {subagents: {}}, ...options});
     }
     const load = () => h.request(version === 1 ? "session/load" : "session/resume", {
         sessionId, cwd, mcpServers: [], ...(version === 2 ? {replayFrom: {type: "start"}} : {}),
@@ -80,13 +77,8 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", version => {
     it.each(["activity", "collab"] as const)("replays retained child content before the response without runtime authority (%s)", async format => {
         await connect();
         const {reads, resumes} = history(h, {
-            [sessionId]: {
-                items: [format === "activity" ? activity() : spawn(), message("parent", "Parent history")],
-            },
-            [worker]: {
-                parent: "foreign-root",
-                items: [message("saved", "Saved child answer")],
-            },
+            [sessionId]: {items: [format === "activity" ? activity() : spawn(), message("parent", "Parent history")]},
+            [worker]: {parent: "foreign-root", items: [message("saved", "Saved child answer")]},
         });
         const start = h.wireMessages.length;
         await load();
@@ -114,11 +106,11 @@ describe.each([1, 2] as const)("ACP v%s recorded child replay", version => {
         expect(h.scopedUpdates.slice(boundary).filter((entry) => entry.sessionId === childId)).toEqual([]);
         expect(h.transcript.some((entry) => "permissionRequest" in entry || "elicitationRequest" in entry)).toBe(false);
         const frames = h.wireMessages.slice(start).flatMap((frame) => (Array.isArray(frame) ? frame : [frame]));
-        const response = frames.findIndex((frame) => "result" in frame && frame.result !== null && typeof frame.result === "object" && "configOptions" in frame.result);
+        const response = frames.findIndex((frame) => "result" in frame && frame.result !== null
+            && typeof frame.result === "object" && "configOptions" in frame.result);
         const replay = frames.findIndex(
             (frame) =>
-                "method" in frame &&
-                frame.method === "session/update" &&
+                "method" in frame && frame.method === "session/update" &&
                 (
                     frame.params as {
                         sessionId: string;

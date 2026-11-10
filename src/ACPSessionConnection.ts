@@ -123,11 +123,8 @@ export class AcpV2Connection {
                     },
                 };
             }
-            await this.client.notify(acpV2.methods.client.session.update, {
-                sessionId,
-                update: v2Update,
-                ...(metadata !== undefined ? {_meta: metadata} : {}),
-            });
+            await this.client.notify(acpV2.methods.client.session.update,
+                {sessionId, update: v2Update, ...(metadata !== undefined ? {_meta: metadata} : {})});
         }
     }
 
@@ -437,10 +434,7 @@ export class ACPSessionConnection {
         }
         await this.connection.notify(
             acp.methods.client.session.update,
-            asSdkSessionNotification({
-                sessionId,
-                update,
-            }),
+            asSdkSessionNotification({sessionId, update}),
         );
     }
 }

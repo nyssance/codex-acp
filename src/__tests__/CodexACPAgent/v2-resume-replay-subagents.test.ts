@@ -1,16 +1,16 @@
 import {testThreadPermissions} from "../native-thread-permissions";
-import {afterEach, describe, expect, it, vi} from "vitest";
-import * as acp from "@agentclientprotocol/sdk/unstable";
-import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {createAcpAgentRouter} from "../../AcpAgentRouter";
-import {CodexAcpServer} from "../../CodexAcpServer";
-import {CodexAcpClient} from "../../CodexAcpClient";
-import {CodexAppServerClient} from "../../CodexAppServerClient";
-import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY, AIR_ASYNC_TASKS_KEY} from "../../AirExtension";
-import type {Thread} from "../../app-server/v2";
-import {createTestModel} from "../acp-test-utils";
-import {createMockConnections} from "./test-utils";
-import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import * as acp from '@agentclientprotocol/sdk/unstable';
+import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import {createAcpAgentRouter} from '../../AcpAgentRouter';
+import {CodexAcpServer} from '../../CodexAcpServer';
+import {CodexAcpClient} from '../../CodexAcpClient';
+import {CodexAppServerClient} from '../../CodexAppServerClient';
+import {AIR_NATIVE_SUBAGENT_SESSIONS_KEY, AIR_ASYNC_TASKS_KEY} from '../../AirExtension';
+import type {Thread} from '../../app-server/v2';
+import {createTestModel} from '../acp-test-utils';
+import {createMockConnections} from './test-utils';
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 const rootId = "root-1";
 const childId = "child-1";
@@ -189,21 +189,14 @@ async function connectV2Client(
         codexResponse(method, params, turns)
     ));
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
-        ready: [],
-        failed: [],
-        cancelled: [],
-    });
+    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
@@ -324,11 +317,7 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
                         }>;
                     }
                 ).configOptions[0]!;
-                return {
-                    sessionId,
-                    value: option.currentValue,
-                    name: option.options[0]!.name,
-                };
+                return {sessionId, value: option.currentValue, name: option.options[0]!.name};
             });
         expect(childModels).toEqual(expected);
     });

@@ -65,8 +65,7 @@ function linkedWorktreeCwdsOrNull(cwd: string): string[] | null {
     if (!fs.existsSync(worktreesPath)) return result;
     const worktrees = canonicalize(worktreesPath);
     if (worktrees === null) return null;
-    const registered = fs
-        .readdirSync(worktrees, {withFileTypes: true})
+    const registered = fs.readdirSync(worktrees, {withFileTypes: true})
         .filter((entry) => entry.isDirectory())
         .map((entry) => entry.name)
         .toSorted();

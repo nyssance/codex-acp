@@ -80,9 +80,15 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         const transportEvents = keyFixture.getCodexConnectionEvents([...ignoredFields, "upgrade"]);
         const transportMethods = transportEvents.flatMap((event) => ("method" in event ? [event.method] : []));
-        const loginRequest = transportEvents.find((event) => event.eventType === "request" && "method" in event && event.method === "account/login/start");
-        const loginResponse = transportEvents.find((event) => event.eventType === "response" && "type" in event && event.type === "apiKey");
-        const threadStartResponse = transportEvents.find((event) => event.eventType === "response" && "modelProvider" in event && "approvalPolicy" in event);
+        const loginRequest = transportEvents.find((event) => event.eventType === "request" &&
+        "method" in event &&
+        event.method === "account/login/start");
+        const loginResponse = transportEvents.find((event) => event.eventType === "response" &&
+        "type" in event &&
+        event.type === "apiKey");
+        const threadStartResponse = transportEvents.find((event) => event.eventType === "response" &&
+        "modelProvider" in event &&
+        "approvalPolicy" in event);
         expect(transportMethods.slice(0, 4)).toEqual(["account/login/start", "account/read", "account/updated", "account/read"]);
         // The live compatibility route can refresh credentials more than once; those reads
         // are transport activity, not additional login or session creation operations.
@@ -508,9 +514,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const mockFixture = createCodexMockTestFixture();
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         const threadStartSpy = vi.spyOn(codexAppServerClient, "threadStart").mockResolvedValue({
             readState: null,
             thread: {id: "thread-id"} as any,
@@ -544,9 +548,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const mockFixture = createCodexMockTestFixture();
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         const threadStartSpy = vi.spyOn(codexAppServerClient, "threadStart").mockResolvedValue({
             readState: null,
             thread: {id: "thread-id"} as any,
@@ -623,18 +625,13 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpAgent = mockFixture.getCodexAcpAgent();
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             account: null,
             requiresOpenaiAuth: false,
             workspaceRouting: null,
         });
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         const configReadSpy = vi.spyOn(codexAppServerClient, "configRead").mockResolvedValue({config} as any);
         const listPermissionProfilesSpy = vi.spyOn(codexAppServerClient, "listPermissionProfiles")
             .mockResolvedValueOnce({
@@ -713,9 +710,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         const threadResumeSpy = vi.spyOn(codexAppServerClient, "threadResume").mockResolvedValue({
             ...testThreadPermissions(),
             readState: null,
@@ -765,9 +760,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         const threadForkSpy = vi.spyOn(codexAppServerClient, "threadFork").mockResolvedValue({
             ...testThreadPermissions(),
             thread: {id: "fork-id"} as any,
@@ -813,9 +806,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(codexAppServerClient, "threadReadWithHistory").mockResolvedValue({
             readState: null,
             thread: {
@@ -913,19 +904,14 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
         });
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         // Codex sends no thread/settings/updated on a resume. Only the response holds the mode.
         vi.spyOn(codexAppServerClient, "threadResume").mockImplementation(
             async ({threadId}) =>
@@ -1032,19 +1018,14 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: true,
         });
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
-        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({
-            data: [],
-        });
+        vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(codexAppServerClient, "configRead").mockResolvedValue({
             config: {
                 model_provider: "azure",
@@ -1300,10 +1281,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const mcpStartup = deferred<McpStartupResult>();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -1349,10 +1327,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpAgent = mockFixture.getCodexAcpAgent();
         const codexAcpClient = mockFixture.getCodexAcpClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -1388,10 +1363,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpAgent = mockFixture.getCodexAcpAgent();
         const codexAcpClient = mockFixture.getCodexAcpClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -1428,10 +1400,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const mcpStartup = deferred<McpStartupResult>();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -1463,10 +1432,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpClient = mockFixture.getCodexAcpClient();
         const mcpStartup = deferred<McpStartupResult>();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -1496,10 +1462,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const codexAcpAgent = mockFixture.getCodexAcpAgent();
         const codexAcpClient = mockFixture.getCodexAcpClient();
 
-        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-            required: false,
-            account: null,
-        });
+        vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
             account: null,
@@ -1535,18 +1498,13 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             const codexAcpClient = mockFixture.getCodexAcpClient();
             const mcpStartup = deferred<McpStartupResult>();
 
-            vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-                required: false,
-                account: null,
-            });
+            vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
             vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
                 workspaceRouting: null,
                 account: null,
                 requiresOpenaiAuth: false,
             });
-            vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({
-                data: [],
-            });
+            vi.spyOn(codexAcpClient, "listSkills").mockResolvedValue({data: []});
             vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
                 sessionId: "new-id",
                 currentModelId: "gpt-5[medium]",
@@ -2221,14 +2179,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         const airUpdate = mockFixture.getAcpConnectionEvents([]).findLast((event) => event.method === "sessionUpdate" && event.args[0].update.sessionUpdate === "available_commands_update");
         const airSkill = airUpdate?.args[0].update.availableCommands.find((command: acp.AvailableCommand) => command.name === "$build");
-        expect(airSkill?._meta).toEqual({
-            jetbrains: {
-                air: {
-                    version: 1,
-                    skillPath: "/workspace/.agents/skills/build/SKILL.md",
-                },
-            },
-        });
+        expect(airSkill?._meta).toEqual({jetbrains: {air: {version: 1, skillPath: "/workspace/.agents/skills/build/SKILL.md"}}});
     });
 
     it('does not offer the Visualize skill, whose output ACP clients cannot render', async () => {
@@ -2274,10 +2225,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             name, description: name, shortDescription: name, path: "/workspace", scope: "user" as const, enabled: true, pluginId: null,
         });
         const listSkills = vi.spyOn(mockFixture.getCodexAcpClient(), "listSkills");
-        const sessionState = createTestSessionState({
-            sessionId: "session-id",
-            cwd: "/workspace",
-        });
+        const sessionState = createTestSessionState({sessionId: "session-id", cwd: "/workspace"});
         const published = () => mockFixture.getAcpConnectionEvents([]).filter((event) => event.method === "sessionUpdate" && event.args[0].update.sessionUpdate === "available_commands_update").length;
         const publish = () => {
             // @ts-expect-error - exercising private helper
@@ -2310,10 +2258,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             codexAcpAgent.sessions.set(sessionState.sessionId, sessionState);
             const skillsChanged = () => {
                 // @ts-expect-error - exercising private helper
-                return codexAcpAgent.handleSkillsChanged(sessionState, {
-                    method: "skills/changed",
-                    params: {},
-                });
+                return codexAcpAgent.handleSkillsChanged(sessionState, {method: "skills/changed", params: {}});
             };
 
             // A writer that never pauses for 300 ms: a trailing debounce alone would never fire.
@@ -4054,7 +3999,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const newSessionResponse = await codexAcpAgent.newSession({cwd: "", mcpServers: []});
 
         fixture.clearAcpConnectionDump();
-        const prompt: acp.ContentBlock[] = [{type: "text", text: "/logout "}];
+        const prompt: acp.ContentBlock[] = [{ type: "text", text: "/logout " }];
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
             prompt,
@@ -4075,12 +4020,12 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount")
             .mockResolvedValueOnce({
                 workspaceRouting: null,
-                account: {type: "apiKey"},
+                account: { type: "apiKey" },
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({
                 workspaceRouting: null,
-                account: {type: "apiKey"},
+                account: { type: "apiKey" },
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({
@@ -4090,7 +4035,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             })
             .mockResolvedValueOnce({
                 workspaceRouting: null,
-                account: {type: "apiKey"},
+                account: { type: "apiKey" },
                 requiresOpenaiAuth: false,
             });
         vi.spyOn(codexAcpClient, "newSession")
@@ -4157,7 +4102,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         vi.spyOn(codexAcpClient, "getModelProvider").mockReturnValue(null);
         const getAccountSpy = vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
             workspaceRouting: null,
-            account: {type: "apiKey"},
+            account: { type: "apiKey" },
             requiresOpenaiAuth: false,
         });
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({
@@ -4260,7 +4205,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const newSessionResponse = await codexAcpAgent.newSession({cwd: "", mcpServers: []});
 
         fixture.clearAcpConnectionDump();
-        const prompt: acp.ContentBlock[] = [{type: "text", text: "/skills "}];
+        const prompt: acp.ContentBlock[] = [{ type: "text", text: "/skills " }];
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
             prompt,
@@ -4311,7 +4256,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         const newSessionResponse = await codexAcpAgent.newSession({cwd: "", mcpServers: []});
 
         fixture.clearAcpConnectionDump();
-        const prompt: acp.ContentBlock[] = [{type: "text", text: "/mcp "}];
+        const prompt: acp.ContentBlock[] = [{ type: "text", text: "/mcp " }];
         await codexAcpAgent.prompt({
             sessionId: newSessionResponse.sessionId,
             prompt,
@@ -4504,21 +4449,16 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         };
     }
 
-    it("should disable reasoning.summary if key authorization is used", async () => {
-        const {mockFixture, turnStartSpy} = setupPromptFixture({
-            account: {type: "apiKey"},
-        });
+    it ('should disable reasoning.summary if key authorization is used', async () => {
+        const { mockFixture, turnStartSpy } = setupPromptFixture({ account: { type: "apiKey" } });
 
-        await mockFixture.getCodexAcpAgent().prompt({
-            sessionId: "id",
-            prompt: [{type: "text", text: "test"}],
-        });
+        await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
 
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "none" }));
     });
 
     it("should enable reasoning.summary by default", async () => {
-        const {mockFixture, turnStartSpy} = setupPromptFixture({
+        const { mockFixture, turnStartSpy } = setupPromptFixture({
             account: {
                 type: "chatgpt",
                 workspaceName: null,
@@ -4527,35 +4467,29 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             },
         });
 
-        await mockFixture.getCodexAcpAgent().prompt({
-            sessionId: "id",
-            prompt: [{type: "text", text: "test"}],
-        });
+        await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
 
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "auto" }));
     });
 
     it("should disable reasoning.summary when model lacks reasoning", async () => {
-        const {mockFixture, turnStartSpy} = setupPromptFixture({
+        const { mockFixture, turnStartSpy } = setupPromptFixture({
             account: {
                 type: "chatgpt",
                 workspaceName: null,
                 email: "test@example.com",
                 planType: "pro",
             },
-            supportedReasoningEfforts: [{reasoningEffort: "none", description: "No reasoning"}],
+            supportedReasoningEfforts: [{ reasoningEffort: "none", description: "No reasoning" }],
         });
 
-        await mockFixture.getCodexAcpAgent().prompt({
-            sessionId: "id",
-            prompt: [{type: "text", text: "test"}],
-        });
+        await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
 
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "none" }));
     });
 
     it("should enable reasoning.summary when model supports reasoning", async () => {
-        const {mockFixture, turnStartSpy} = setupPromptFixture({
+        const { mockFixture, turnStartSpy } = setupPromptFixture({
             account: {
                 type: "chatgpt",
                 workspaceName: null,
@@ -4568,10 +4502,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             ],
         });
 
-        await mockFixture.getCodexAcpAgent().prompt({
-            sessionId: "id",
-            prompt: [{type: "text", text: "test"}],
-        });
+        await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
 
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "auto" }));
     });
@@ -4703,10 +4634,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         const { mockFixture } = setupPromptFixture({ rateLimits });
 
-        await mockFixture.getCodexAcpAgent().prompt({
-            sessionId: "session-id",
-            prompt: [{type: "text", text: "/status"}],
-        });
+        await mockFixture.getCodexAcpAgent().prompt({ sessionId: "session-id", prompt: [{ type: "text", text: "/status" }] });
         await expect(mockFixture.getAcpConnectionDump([])).toMatchFileSnapshot("data/command-status-with-rate-limits.json");
     });
 

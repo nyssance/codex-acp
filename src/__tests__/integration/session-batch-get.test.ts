@@ -24,32 +24,11 @@ describeIntegration("integration: session batch metadata", () => {
             fs.writeFileSync(
                 file,
                 `${[
-                    {
-                        timestamp,
-                        type: "session_meta",
-                        payload: {
-                            id,
-                            timestamp,
-                            cwd: home,
-                            originator: "codex_cli_rs",
-                            cli_version: "0.164.0",
-                            source: "cli",
-                            model_provider: "openai",
-                        },
-                    },
-                    {
-                        timestamp,
-                        type: "event_msg",
-                        payload: {
-                            type: "user_message",
-                            message: title,
-                            images: [],
-                            local_images: [],
-                            text_elements: [],
-                        },
-                    },
-                ]
-                    .map((line) => JSON.stringify(line))
+                    {timestamp, type: "session_meta", payload: {
+                        id, timestamp, cwd: home, originator: "codex_cli_rs", cli_version: "0.164.0", source: "cli", model_provider: "openai",
+                    }},
+                    {timestamp, type: "event_msg", payload: {type: "user_message", message: title, images: [], local_images: [], text_elements: []}},
+                ].map((line) => JSON.stringify(line))
                     .join("\n")}\n`,
             );
             fs.utimesSync(file, new Date(timestamp), new Date(timestamp));
@@ -71,17 +50,8 @@ describeIntegration("integration: session batch metadata", () => {
             await fixture.getCodexAcpClient().initialize({});
             index.configure({_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionIndex"]}}}});
             // Populate the backend index as its normal discovery does; batchGet itself never lists.
-            await fixture.getCodexAppServerClient().threadList({
-                limit: 100,
-                sourceKinds: [],
-                modelProviders: [],
-            });
-            await fixture.getCodexAppServerClient().threadList({
-                limit: 100,
-                archived: true,
-                sourceKinds: [],
-                modelProviders: [],
-            });
+            await fixture.getCodexAppServerClient().threadList({limit: 100, sourceKinds: [], modelProviders: []});
+            await fixture.getCodexAppServerClient().threadList({limit: 100, archived: true, sourceKinds: [], modelProviders: []});
             const recent = await index.list({});
             expect(recent.sessions).toHaveLength(50);
             expect(recent.sessions.map(row => row.sessionId)).not.toContain(old);

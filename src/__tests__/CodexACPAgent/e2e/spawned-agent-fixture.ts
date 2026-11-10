@@ -197,8 +197,7 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
         private readonly mcpServers: acp.McpServerStdio[],
     ) {
         const output = readableToWeb(agentProcess.stdout);
-        this.connection = acp
-            .client()
+        this.connection = acp.client()
             .onRequest(acp.methods.client.session.requestPermission, (ctx) => client.requestPermission(ctx.params))
             .onNotification(acp.methods.client.session.update, (ctx) => client.sessionUpdate(ctx.params))
             .connect(acp.ndJsonStream(Writable.toWeb(agentProcess.stdin), output)).agent;

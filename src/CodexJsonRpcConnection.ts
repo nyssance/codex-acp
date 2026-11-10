@@ -136,15 +136,11 @@ function startRawCodexConnection(codexPath: string | undefined, env: NodeJS.Proc
         // cross-spawn runs `.cmd` shims through cmd.exe with correct escaping for the TOML hook override.
         codex =
             process.platform === "win32"
-                ? (crossSpawn(codexPath, startupArgs, {
-                      env: spawnEnv,
-                  }) as ChildProcessWithoutNullStreams)
+                ? (crossSpawn(codexPath, startupArgs, {env: spawnEnv}) as ChildProcessWithoutNullStreams)
                 : spawn(codexPath, startupArgs, {env: spawnEnv});
     } else {
         const bundledCodexPath = require.resolve("@openai/codex/bin/codex.js");
-        codex = spawn(process.execPath, [bundledCodexPath, ...startupArgs], {
-            env: spawnEnv,
-        });
+        codex = spawn(process.execPath, [bundledCodexPath, ...startupArgs], {env: spawnEnv});
     }
 
     attachLogs(codex);

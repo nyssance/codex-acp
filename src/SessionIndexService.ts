@@ -365,7 +365,8 @@ export class SessionIndexService {
      * cwd is a UNC path, such as `\\wsl.localhost\…`, is not checked and not marked.
      */
     private async rows(entries: ThreadEntry[], skipUncCwds = false): Promise<acp.SessionInfo[]> {
-        const inAgentWorktree = (cwd: string): boolean => !(skipUncCwds && isUncPath(cwd)) && this.codexWorktrees.isCodexWorktreeCwd(cwd);
+        const inAgentWorktree = (cwd: string): boolean =>
+            !(skipUncCwds && isUncPath(cwd)) && this.codexWorktrees.isCodexWorktreeCwd(cwd);
         return await Promise.all(
             entries.map(async (entry) => {
                 if (entry.read) this.forkOrigins.readElsewhere(entry.thread);

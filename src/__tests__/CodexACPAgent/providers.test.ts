@@ -189,16 +189,14 @@ describe("Configurable LLM providers (providers/*)", () => {
 
         expect(restart).not.toHaveBeenCalled();
         expect(threadStartSpy).toHaveBeenCalledOnce();
-        expect(threadStartSpy).toHaveBeenCalledWith(
-            expect.objectContaining({
-                modelProvider: null,
-                config: expect.not.objectContaining({
-                    model_providers: expect.objectContaining({
-                        [CUSTOM_GATEWAY_PROVIDER_ID]: expect.anything(),
-                    }),
+        expect(threadStartSpy).toHaveBeenCalledWith(expect.objectContaining({
+            modelProvider: null,
+            config: expect.not.objectContaining({
+                model_providers: expect.objectContaining({
+                    [CUSTOM_GATEWAY_PROVIDER_ID]: expect.anything(),
                 }),
             }),
-        );
+        }));
     });
 
     it("restarts app-server and resumes all loaded sessions through the full provider lifecycle", async () => {

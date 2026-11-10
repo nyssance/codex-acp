@@ -241,10 +241,7 @@ describe("/mcp command", () => {
         vi.spyOn(mockFixture.getCodexAppServerClient(), "mcpServerReload").mockResolvedValue({});
 
         mockFixture.clearAcpConnectionDump();
-        const prompt = mockFixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "/mcp reconnect"}],
-        });
+        const prompt = mockFixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/mcp reconnect"}]});
         await vi.advanceTimersByTimeAsync(MCP_RECONNECT_STARTUP_TIMEOUT_MS);
         await prompt;
 
@@ -434,10 +431,7 @@ describe("/mcp command", () => {
         });
 
         mockFixture.clearAcpConnectionDump();
-        const prompt = mockFixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "/mcp reconnect"}],
-        });
+        const prompt = mockFixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/mcp reconnect"}]});
         await vi.advanceTimersByTimeAsync(MCP_RECONNECT_STARTUP_TIMEOUT_MS - 1);
         expect(messageText(mockFixture)).toBe("");
         mockFixture.sendServerNotification(startupStatus("fs", "ready"));
@@ -468,13 +462,7 @@ describe("/mcp command", () => {
         const cancel = new AbortController();
 
         mockFixture.clearAcpConnectionDump();
-        const prompt = mockFixture.getCodexAcpAgent().prompt(
-            {
-                sessionId,
-                prompt: [{type: "text", text: "/mcp reconnect"}],
-            },
-            cancel.signal,
-        );
+        const prompt = mockFixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/mcp reconnect"}]}, cancel.signal);
         await vi.waitFor(() => expect(reload).toHaveBeenCalled());
         await vi.waitFor(() => expect(pendingStartupWaits(mockFixture)).toBe(1));
         cancel.abort();
@@ -492,10 +480,7 @@ describe("/mcp command", () => {
         const reload = vi.spyOn(mockFixture.getCodexAppServerClient(), "mcpServerReload").mockResolvedValue({});
 
         mockFixture.clearAcpConnectionDump();
-        const prompt = mockFixture.getCodexAcpAgent().prompt({
-            sessionId,
-            prompt: [{type: "text", text: "/mcp reconnect"}],
-        });
+        const prompt = mockFixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/mcp reconnect"}]});
         await vi.waitFor(() => expect(reload).toHaveBeenCalled());
         await vi.waitFor(() => expect(pendingStartupWaits(mockFixture)).toBe(1));
         mockFixture.getCodexAppServerClient().connection.dispose();
@@ -523,13 +508,7 @@ describe("/mcp command", () => {
         const cancel = new AbortController();
 
         mockFixture.clearAcpConnectionDump();
-        const prompt = mockFixture.getCodexAcpAgent().prompt(
-            {
-                sessionId,
-                prompt: [{type: "text", text: "/mcp reconnect"}],
-            },
-            cancel.signal,
-        );
+        const prompt = mockFixture.getCodexAcpAgent().prompt({sessionId, prompt: [{type: "text", text: "/mcp reconnect"}]}, cancel.signal);
         await vi.waitFor(() => expect(elicitationEvents(mockFixture, "createElicitation")).toHaveLength(1));
         expect(pendingOauthWaits(mockFixture)).toBe(1);
         cancel.abort();

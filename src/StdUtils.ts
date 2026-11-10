@@ -17,8 +17,7 @@ export function createJSONRPCWriter(writable: Writable): MessageWriter {
                     delete (msg as any).jsonrpc;
                 }
                 writable.write(`${JSON.stringify(msg)}\n`);
-            } catch {
-                /* ignore */
+            } catch {/* ignore */
             }
         },
 

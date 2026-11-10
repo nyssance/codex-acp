@@ -134,10 +134,8 @@ describe('CodexACPAgent - initialize over ACP v2', () => {
         vi.spyOn(h.codexClient(), "initialize").mockRejectedValueOnce(acp.RequestError.internalError("Unavailable"));
         await expect(initialize(v2ClientCapabilities)).rejects.toMatchObject({code: -32603});
         // Failed initialization must not enable the AIR or elicitation handlers from the rejected request.
-        expect(
-            // @ts-expect-error - inspect the committed capability view after a failed repeat
-            clientSupportsFormElicitation(h.agent().clientCapabilities),
-        ).toBe(false);
+        // @ts-expect-error - inspect the committed capability view after a failed repeat
+        expect(clientSupportsFormElicitation(h.agent().clientCapabilities)).toBe(false);
         await expect(initialize(v2ClientCapabilities)).resolves.toHaveProperty("protocolVersion", 2);
     });
 

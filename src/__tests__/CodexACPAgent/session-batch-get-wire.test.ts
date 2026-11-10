@@ -10,8 +10,7 @@ import {createMockConnections} from "./test-utils";
 
 const cleanup: (() => void)[] = [];
 afterEach(() =>
-    cleanup
-        .splice(0)
+    cleanup.splice(0)
         .toReversed()
         .forEach((dispose) => dispose()),
 );
@@ -25,10 +24,7 @@ async function connect(version: 1 | 2, capabilities: string[]) {
     });
     const appServer = new CodexAppServerClient(mocks.mockCodexConnection);
     const client = new CodexAcpClient(appServer);
-    vi.spyOn(client, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(client, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(client, "getAccount").mockResolvedValue({
         account: null,

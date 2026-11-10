@@ -105,16 +105,7 @@ describe("app-server recovery", () => {
 
     it("keeps a session list subscription across a crash and reads each change of the new app-server once", async () => {
         const fixture = createRecoveryFixture();
-        await initialize(fixture, true, {
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        capabilities: ["sessionFailure", "sessionIndex"],
-                    },
-                },
-            },
-        });
+        await initialize(fixture, true, {_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionFailure", "sessionIndex"]}}}});
         fixture.answers.set("thread/read", (params) => ({
             readState: null,
             thread: {
@@ -139,10 +130,7 @@ describe("app-server recovery", () => {
         const before = listeners();
         fixture.agent.sessionIndex.observe(running);
         expect(listeners()).toBe(before);
-        fixture.current().rpc.notify({
-            method: "thread/name/updated",
-            params: {threadId: "thread-a"},
-        });
+        fixture.current().rpc.notify({method: "thread/name/updated", params: {threadId: "thread-a"}});
 
         await vi.waitFor(() => expect(changes()).toEqual([{
             subscriptionId,
@@ -206,22 +194,10 @@ describe("app-server recovery", () => {
 
     it("starts the app-server again for a rename or an archive of the session index", async () => {
         const fixture = createRecoveryFixture();
-        await initialize(fixture, true, {
-            _meta: {
-                jetbrains: {
-                    air: {
-                        version: 1,
-                        capabilities: ["sessionFailure", "sessionIndex"],
-                    },
-                },
-            },
-        });
+        await initialize(fixture, true, {_meta: {jetbrains: {air: {version: 1, capabilities: ["sessionFailure", "sessionIndex"]}}}});
         fixture.answers.set("thread/read", (params) => ({
             readState: null,
-            thread: {
-                ...resumed((params as {threadId: string}).threadId).thread,
-                path: "/codex-home/sessions/t.jsonl",
-            },
+            thread: {...resumed((params as {threadId: string}).threadId).thread, path: "/codex-home/sessions/t.jsonl"},
         }));
 
         await fixture.kill();
@@ -424,12 +400,7 @@ describe("app-server recovery", () => {
                 return undefined === params
                     ? {}
                     : {
-                          thread: {
-                              id: (params as {threadId: string}).threadId,
-                              turns: [],
-                              historyMode: "paginated",
-                              status: {type: "idle"},
-                          },
+                          thread: {id: (params as {threadId: string}).threadId, turns: [], historyMode: "paginated", status: {type: "idle"}},
                           ...testThreadPermissions(),
                           model: "gpt-test",
                           modelProvider: "openai",
@@ -545,12 +516,7 @@ describe("app-server recovery", () => {
         await fixture.agent.closeSession({sessionId});
         await expect(prompt).resolves.toMatchObject({stopReason: "cancelled"});
         fixture.current().rpc.resolve("thread/resume", {
-            thread: {
-                id: sessionId,
-                turns: [],
-                historyMode: "paginated",
-                status: {type: "idle"},
-            },
+            thread: {id: sessionId, turns: [], historyMode: "paginated", status: {type: "idle"}},
             ...testThreadPermissions(),
             model: "gpt-test",
             modelProvider: "openai",
@@ -1052,22 +1018,9 @@ describe("app-server recovery", () => {
         const second = {...command("inProgress"), id: "cmd-2"};
         fixture.current().rpc.notify({
             method: "item/started",
-            params: {
-                threadId: sessionId,
-                turnId: "turn-1",
-                startedAtMs: 0,
-                item: command("inProgress"),
-            },
+            params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: command("inProgress")},
         });
-        fixture.current().rpc.notify({
-            method: "item/started",
-            params: {
-                threadId: sessionId,
-                turnId: "turn-1",
-                startedAtMs: 0,
-                item: second,
-            },
-        });
+        fixture.current().rpc.notify({method: "item/started", params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: second}});
         await vi.waitFor(() => expect(blocked).toBe(true));
 
         await fixture.kill();
@@ -1137,12 +1090,7 @@ describe("app-server recovery", () => {
         const {prompt} = await startTurn(fixture, sessionId);
         fixture.current().rpc.notify({
             method: "item/started",
-            params: {
-                threadId: sessionId,
-                turnId: "turn-1",
-                startedAtMs: 0,
-                item: command("inProgress"),
-            },
+            params: {threadId: sessionId, turnId: "turn-1", startedAtMs: 0, item: command("inProgress")},
         });
         await vi.waitFor(() => expect(fixture.updates().some((u) => u.update["sessionUpdate"] === "tool_call")).toBe(true));
         let releaseFailedUpdate: () => void = () => {};

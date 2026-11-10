@@ -77,10 +77,7 @@ async function login(options: LoginOptions): Promise<boolean> {
             version: options.clientVersion ?? packageJson.version,
         };
 
-        logger.log("Initializing with client", {
-            name: clientInfo.name,
-            version: clientInfo.version,
-        });
+        logger.log("Initializing with client", {name: clientInfo.name, version: clientInfo.version});
         await appServerClient.initialize({ clientInfo, capabilities: null });
 
         const accountStatus = await appServerClient.accountRead({refreshToken: false});

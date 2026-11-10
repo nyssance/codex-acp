@@ -100,43 +100,14 @@ function reportsOfEachKind(): Record<string, ToolFacts[]> {
             commands.completed(command as never),
         ],
         read: [reads.started({...read, status: "inProgress"} as never), reads.completed(read as never)],
-        mcp: [
-            McpToolReporter.started({
-                ...mcp,
-                status: "inProgress",
-                result: null,
-            } as never),
-            McpToolReporter.progress("mcp", "line 1\n"),
-            McpToolReporter.completed(mcp as never),
-        ],
-        dynamicTool: [
-            DynamicToolReporter.completed({
-                type: "dynamicToolCall",
-                id: "dyn",
-                tool: "list_apps",
-                namespace: null,
-                status: "completed",
-                arguments: {},
-                contentItems: [{type: "inputText", text: "Done"}],
-                success: true,
-                durationMs: 1,
-            } as never),
-        ],
-        webSearch: [
-            WebSearchReporter.history({
-                type: "webSearch",
-                id: "web",
-                query: "acp",
-                action: null,
-            } as never),
-        ],
-        imageView: [
-            ImageViewReporter.viewed({
-                type: "imageView",
-                id: "img",
-                path: "/w/a.png",
-            } as never),
-        ],
+        mcp: [McpToolReporter.started({...mcp, status: "inProgress", result: null} as never),
+            McpToolReporter.progress("mcp", "line 1\n"), McpToolReporter.completed(mcp as never)],
+        dynamicTool: [DynamicToolReporter.completed({
+            type: "dynamicToolCall", id: "dyn", tool: "list_apps", namespace: null, status: "completed",
+            arguments: {}, contentItems: [{type: "inputText", text: "Done"}], success: true, durationMs: 1,
+        } as never)],
+        webSearch: [WebSearchReporter.history({type: "webSearch", id: "web", query: "acp", action: null} as never)],
+        imageView: [ImageViewReporter.viewed({type: "imageView", id: "img", path: "/w/a.png"} as never)],
         imageGeneration: [
             ImageGenerationReporter.whole({
                 type: "imageGeneration",
@@ -165,13 +136,7 @@ function reportsOfEachKind(): Record<string, ToolFacts[]> {
                 "start",
             ),
         ],
-        fuzzySearch: [
-            new FuzzySearchReporter().updated({
-                sessionId: "f",
-                query: "App",
-                files: [],
-            } as never),
-        ],
+        fuzzySearch: [new FuzzySearchReporter().updated({sessionId: "f", query: "App", files: []} as never)],
         guardian: [new GuardianReporter().completed(guardianEvent as never)],
         compaction: [CompactionReporter.history({type: "contextCompaction", id: "compact"} as never)],
         elicitation: [ElicitationReporter.answered("ask", "accept")],

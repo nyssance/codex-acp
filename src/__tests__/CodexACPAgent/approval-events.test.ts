@@ -261,11 +261,7 @@ describe("Approval Events", () => {
                 outcome: {outcome: "selected", optionId: ApprovalOptionId.AcceptWithExecpolicyAmendment},
             });
             const amendment = [String.raw`C:\Program Files\PowerShell\7\pwsh.exe`, "-Command", "@'\nsecret\n'@"];
-            const decision = {
-                acceptWithExecpolicyAmendment: {
-                    execpolicy_amendment: amendment,
-                },
-            } as const;
+            const decision = {acceptWithExecpolicyAmendment: {execpolicy_amendment: amendment}} as const;
             const response = await fixture.sendServerRequest<{
                 decision: unknown;
             }>(

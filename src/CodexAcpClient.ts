@@ -32,24 +32,19 @@ import type {
     ReasoningEffort,
     ServerNotification
 } from "./app-server";
-import type { JsonValue } from "./app-server/serde_json/JsonValue";
-import { ModelId } from "./ModelId";
-import { AgentMode } from "./AgentMode";
+import type {JsonValue} from "./app-server/serde_json/JsonValue";
+import {ModelId} from "./ModelId";
+import {AgentMode} from "./AgentMode";
 import path from "node:path";
-import { isDeepStrictEqual } from "node:util";
-import { logger } from "./Logger";
+import {isDeepStrictEqual} from "node:util";
+import {logger} from "./Logger";
 import {
     isModelProviderRouteError,
     isAccountReadAuthFailureError,
     isAccountReadUnavailableError,
 } from "./CodexThreadErrors";
-import { listedSessionTitle, normalizeSessionTitle } from "./SessionTitle";
-import {
-    type AcpMcpServer,
-    type WithAcpMcpServers,
-    normalizeMcpServers,
-    toCodexMcpServerConfig,
-} from "./McpServerConfig";
+import {listedSessionTitle, normalizeSessionTitle} from "./SessionTitle";
+import {type AcpMcpServer, type WithAcpMcpServers, normalizeMcpServers, toCodexMcpServerConfig} from "./McpServerConfig";
 import type {
     AccountUpdatedNotification,
     ApprovalsReviewer,
@@ -195,15 +190,11 @@ export class CodexAcpClient {
      */
     private gatewayConfigSource: GatewayConfigSource | null;
     private authenticationTail = Promise.resolve();
-    private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null =
-        null;
+    private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null = null;
     private readonly readOnlySessions = new Set<string>();
     private readonly catalogSessions = new Set<string>();
     private readonly inputModes = new Map<string, InputMode>();
-    private readonly sessionNotificationQueues = new Map<
-        string,
-        Promise<void>
-    >();
+    private readonly sessionNotificationQueues = new Map<string, Promise<void>>();
     private readonly subagents: CodexSubagentSubscriptions;
     private skillExtraRoots: string[] = [];
     private configPath: string | null = null;
@@ -666,8 +657,7 @@ export class CodexAcpClient {
     isClientConfiguredProvider(providerId: string | null): boolean {
         return (
             this.providerCatalog.hasGateway(providerId) ||
-            (providerId === CUSTOM_GATEWAY_PROVIDER_ID &&
-                this.gatewayConfigSource === "acpProviders")
+            (providerId === CUSTOM_GATEWAY_PROVIDER_ID && this.gatewayConfigSource === "acpProviders")
         );
     }
 
@@ -729,7 +719,7 @@ export class CodexAcpClient {
             if (isThreadActiveWriterError(err)) {
                 if (!allowReadOnly)
                     throw threadActiveWriterRequestError(params.threadId, err);
-                const { thread } = await this.codexClient.threadRead({
+                const {thread} = await this.codexClient.threadRead({
                     threadId: params.threadId,
                     includeTurns: false,
                 });
@@ -806,12 +796,7 @@ export class CodexAcpClient {
         await this.refreshSkills(request.cwd, additionalDirectories);
 
         const route = await this.sessionRoute(request);
-        const {
-            config,
-            skippedMcpServers,
-            defaultPermissionProfileId,
-            ...permissionProfileMetadata
-        } = await this.createSessionConfig(
+        const {config, skippedMcpServers, defaultPermissionProfileId, ...permissionProfileMetadata} = await this.createSessionConfig(
             request.cwd,
             additionalDirectories,
             request.mcpServers ?? [],
@@ -829,12 +814,7 @@ export class CodexAcpClient {
                 modelProvider: route.modelProvider,
                 ...(route.model ? { model: route.model } : {}),
                 threadId: request.sessionId,
-                ...(instructions?.text !== undefined
-                    ? {
-                          developerInstructions:
-                              instructions.developerInstructions,
-                      }
-                    : {}),
+                ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
             },
             request,
             previousInstructions,
@@ -864,9 +844,7 @@ export class CodexAcpClient {
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             threadStatus: response.thread.status,
-            sessionTitle: normalizeSessionTitle(
-                listedSessionTitle(response.thread),
-            ),
+            sessionTitle: normalizeSessionTitle(listedSessionTitle(response.thread)),
             modelProvider:
                 route.gatewayId ??
                 (await this.getResumeModelProvider()) ??
@@ -906,23 +884,15 @@ export class CodexAcpClient {
         previousInstructions?: SessionInstructions,
     ): Promise<SessionMetadata> {
         const inputMode = this.sessionInputMode(request);
-        const instructions = await this.resolveSessionInstructions(
-            request,
-            previousInstructions,
-        );
-        const additionalDirectories = readAdditionalDirectories(
-            request.cwd,
-            request.additionalDirectories,
-            request._meta,
-        );
+        const instructions = await this.resolveSessionInstructions(request, previousInstructions);
+        const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         const route = await this.sessionRoute(request);
         const forked = await runForkSession(
             request,
             additionalDirectories,
             {
                 codexClient: this.codexClient,
-                refreshSkills: (cwd, directories) =>
-                    this.refreshSkills(cwd, directories),
+                refreshSkills: (cwd, directories) => this.refreshSkills(cwd, directories),
                 createSessionConfig: (cwd, directories, mcpServers) =>
                     this.createSessionConfig(
                         cwd,
@@ -993,12 +963,7 @@ export class CodexAcpClient {
         await this.refreshSkills(request.cwd, additionalDirectories);
 
         const route = await this.sessionRoute(request);
-        const {
-            config,
-            skippedMcpServers,
-            defaultPermissionProfileId,
-            ...permissionProfileMetadata
-        } = await this.createSessionConfig(
+        const {config, skippedMcpServers, defaultPermissionProfileId, ...permissionProfileMetadata} = await this.createSessionConfig(
             request.cwd,
             additionalDirectories,
             request.mcpServers ?? [],
@@ -1016,12 +981,7 @@ export class CodexAcpClient {
                 modelProvider: route.modelProvider,
                 ...(route.model ? { model: route.model } : {}),
                 threadId: request.sessionId,
-                ...(instructions?.text !== undefined
-                    ? {
-                          developerInstructions:
-                              instructions.developerInstructions,
-                      }
-                    : {}),
+                ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
             },
             request,
             previousInstructions,
@@ -1033,14 +993,11 @@ export class CodexAcpClient {
         let thread: Thread = {...response.thread, turns: []};
         let history: AsyncIterable<ThreadItemEntry[]> = noItems();
         if (response.readOnly) {
-            const legacy = (
-                await this.codexClient.threadReadWithHistory(response.thread.id)
-            ).thread;
-            thread = { ...legacy, turns: [] };
+            const legacy = (await this.codexClient.threadReadWithHistory(response.thread.id)).thread;
+            thread = {...legacy, turns: []};
             history = oneItemPage(legacy.turns.flatMap(replayEntriesOfTurn));
         } else if (
-            response.materialized &&
-            response.thread.historyMode === "paginated"
+            response.materialized && response.thread.historyMode === "paginated"
         ) {
             if (response.itemsBackwardsCursor !== null) {
                 history = this.codexClient.threadItemEntryPages(
@@ -1050,20 +1007,18 @@ export class CodexAcpClient {
             }
         } else if (response.materialized) {
             // A legacy store reads the whole history in one request.
-            const legacy = (
-                await this.codexClient.threadReadWithHistory(response.thread.id)
-            ).thread;
-            thread = { ...legacy, turns: [] };
+            const legacy = (await this.codexClient.threadReadWithHistory(response.thread.id)).thread;
+            thread = {...legacy, turns: []};
             history = oneItemPage(
                 legacy.turns.flatMap<ThreadItemEntry>((turn) =>
                     allowReadOnly
                         ? replayEntriesOfTurn(turn)
                         : turn.items.map((item) => ({
-                              turnId: turn.id,
-                              item,
-                              startedAtMs: null,
-                              completedAtMs: null,
-                          })),
+                            turnId: turn.id,
+                            item,
+                            startedAtMs: null,
+                            completedAtMs: null,
+                        })),
                 ),
             );
         }
@@ -1102,9 +1057,7 @@ export class CodexAcpClient {
                 response.thread,
             ),
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
-            collaborationMode:
-                response.collaborationMode ??
-                this.getCollaborationMode(response.thread.id),
+            collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             modelProvider:
                 route.gatewayId ??
                 (await this.getResumeModelProvider()) ??
@@ -1129,14 +1082,9 @@ export class CodexAcpClient {
     async readSessionReplay(
         sessionId: string,
     ): Promise<Pick<SessionMetadataWithThread, "thread" | "history">> {
-        const { thread } = await this.codexClient.threadRead({
-            threadId: sessionId,
-        });
+        const {thread} = await this.codexClient.threadRead({threadId: sessionId});
         if (thread.historyMode === "legacy") {
-            const loaded = await this.codexClient.threadRead({
-                threadId: sessionId,
-                includeTurns: true,
-            });
+            const loaded = await this.codexClient.threadRead({threadId: sessionId, includeTurns: true});
             return {
                 thread: { ...loaded.thread, turns: [] },
                 history: oneItemPage(
@@ -1158,9 +1106,7 @@ export class CodexAcpClient {
         index: number,
         includeReplayMetadata = false,
     ): Promise<AsyncIterable<ThreadItemEntry[]> | null> {
-        const metadata = await this.codexClient.threadRead({
-            threadId: sessionId,
-        });
+        const metadata = await this.codexClient.threadRead({threadId: sessionId});
         if (metadata.thread.historyMode === "legacy") {
             const legacy = await this.codexClient.threadRead({threadId: sessionId, includeTurns: true});
             const turn = legacy.thread.turns[index];
@@ -1169,11 +1115,11 @@ export class CodexAcpClient {
                       includeReplayMetadata
                           ? replayEntriesOfTurn(turn)
                           : turn.items.map((item) => ({
-                                turnId: turn.id,
-                                item,
-                                startedAtMs: null,
-                                completedAtMs: null,
-                            })),
+                              turnId: turn.id,
+                              item,
+                              startedAtMs: null,
+                              completedAtMs: null,
+                          })),
                   )
                 : null;
         }
@@ -1189,7 +1135,7 @@ export class CodexAcpClient {
             if (turn) {
                 const entries = this.codexClient.threadItemEntryPages(
                     sessionId,
-                    { turnId: turn.id },
+                    {turnId: turn.id},
                 );
                 return includeReplayMetadata
                     ? withReplayTurnMetadata(entries, oneItemPage([turn]))
@@ -1227,26 +1173,13 @@ export class CodexAcpClient {
     ): Promise<SessionMetadata> {
         const tools = clientToolsOf(request._meta);
         const inputMode = this.sessionInputMode(request);
-        const instructions = await this.resolveSessionInstructions(
-            request,
-            undefined,
-            true,
-        );
-        const additionalDirectories = readAdditionalDirectories(
-            request.cwd,
-            request.additionalDirectories,
-            request._meta,
-        );
+        const instructions = await this.resolveSessionInstructions(request, undefined, true);
+        const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         const developerInstructions = instructions?.developerInstructions;
         await this.refreshSkills(request.cwd, additionalDirectories);
 
         const route = await this.sessionRoute(request);
-        const {
-            config,
-            skippedMcpServers,
-            defaultPermissionProfileId: _defaultPermissionProfileId,
-            ...permissionProfileMetadata
-        } = await this.createSessionConfig(
+        const {config, skippedMcpServers, defaultPermissionProfileId: _defaultPermissionProfileId, ...permissionProfileMetadata} = await this.createSessionConfig(
             request.cwd,
             additionalDirectories,
             request.mcpServers ?? [],
@@ -1346,11 +1279,8 @@ export class CodexAcpClient {
     ): Promise<ResumedThread> {
         if (!changesSystemPrompt(request, previous))
             return this.resumeThread(params, allowReadOnly);
-        const { thread } = await this.codexClient.threadRead({
-            threadId: request.sessionId,
-        });
-        if (thread.status.type === "notLoaded")
-            return this.resumeThread(params);
+        const {thread} = await this.codexClient.threadRead({threadId: request.sessionId});
+        if (thread.status.type === "notLoaded") return this.resumeThread(params);
         if (thread.status.type !== "idle" || thread.path === null) {
             throw acp.RequestError.invalidParams(
                 undefined,
@@ -1616,12 +1546,9 @@ export class CodexAcpClient {
                 "features.imagegenext": false,
             } : {}),
             projects: Object.fromEntries(
-                sessionRoots.map((root) => [
-                    root,
-                    {
-                        trust_level: "trusted",
-                    },
-                ]),
+                sessionRoots.map((root) => [root, {
+                    trust_level: "trusted",
+                }]),
             ),
         };
         const logicalProvider =
@@ -1645,14 +1572,9 @@ export class CodexAcpClient {
             transportConfig,
             additionalDirectories,
         );
-        const permissionProfiles =
-            await this.fetchPermissionProfiles(projectPath);
-        const effectiveConfig = await this.codexClient.configRead({
-            includeLayers: true,
-            cwd: projectPath,
-        });
-        const defaultPermissionProfileId =
-            effectiveConfig?.config?.["default_permissions"];
+        const permissionProfiles = await this.fetchPermissionProfiles(projectPath);
+        const effectiveConfig = await this.codexClient.configRead({includeLayers: true, cwd: projectPath});
+        const defaultPermissionProfileId = effectiveConfig?.config?.["default_permissions"];
         // Thread responses retain per-turn overrides; profile modes use the configured approval defaults.
         const permissionProfileMetadata = {
             permissionProfiles,
@@ -1907,26 +1829,15 @@ export class CodexAcpClient {
                 approvalsReviewer: agentMode.approvalsReviewer,
                 ...(permissionProfileId
                     ? {
-                          permissions: permissionProfileId,
-                          runtimeWorkspaceRoots: [
-                              cwd,
-                              ...additionalDirectories,
-                          ],
-                      }
-                    : {
-                          sandboxPolicy:
-                              addAdditionalDirectoriesToSandboxPolicy(
-                                  agentMode.sandboxPolicy!,
-                                  additionalDirectories,
-                              ),
-                      }),
+                        permissions: permissionProfileId,
+                        runtimeWorkspaceRoots: [cwd, ...additionalDirectories],
+                    }
+                    : {sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(agentMode.sandboxPolicy!, additionalDirectories)}),
                 summary: disableSummary ? "none" : "auto",
                 effort,
                 model: this.nativeModel(modelId.model, request.sessionId),
                 serviceTier,
-                ...(clientUserMessageId !== undefined
-                    ? { clientUserMessageId }
-                    : {}),
+                ...(clientUserMessageId !== undefined ? {clientUserMessageId} : {}),
             },
             onTurnStarted,
         );
@@ -1978,7 +1889,7 @@ export class CodexAcpClient {
             let model: string | null | undefined;
             try {
                 model = (
-                    await this.codexClient.threadRead({ threadId: sessionId })
+                    await this.codexClient.threadRead({threadId: sessionId})
                 ).thread.model;
             } catch (readError) {
                 throw new AggregateError(
@@ -2037,9 +1948,7 @@ export class CodexAcpClient {
         const persisted =
             request.sessionId && (catalog || this.providerCatalog.active)
                 ? (
-                      await this.codexClient.threadRead({
-                          threadId: request.sessionId,
-                      })
+                      await this.codexClient.threadRead({threadId: request.sessionId})
                   ).thread
                 : null;
         // Catalog history retains its wire identity after unused gateways are removed.
@@ -2284,56 +2193,33 @@ export type SessionConfig = {
 }
 
 export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
-    return prompt
-        .map((block): UserInput | null => {
+    return prompt.map((block): UserInput | null => {
             switch (block.type) {
                 case "text":
-                    return {
-                        type: "text",
-                        text: block.text,
-                        text_elements: [],
-                    };
+                    return {type: "text", text: block.text, text_elements: []};
                 case "image": {
-                    const url = isSupportedImageUrl(block.uri)
-                        ? block.uri
-                        : imageDataUrl(block);
-                    return { type: "image", url };
+                    const url = isSupportedImageUrl(block.uri) ? block.uri : imageDataUrl(block);
+                    return {type: "image", url};
                 }
                 case "resource_link":
                 if (/^app:\/\/[^/?#\s]+$/.test(block.uri)) {
                     return { type: "mention", name: block.name, path: block.uri };
                 }
-                    return {
-                        type: "text",
-                        text: formatUriAsLink(block.name, block.uri),
-                        text_elements: [],
-                    };
+                    return {type: "text", text: formatUriAsLink(block.name, block.uri), text_elements: []};
                 case "resource": {
                     const resource = block.resource as EmbeddedResourceResource;
                     if ("text" in resource) {
                         const link = formatUriAsLink(null, resource.uri);
                         const context = `<context ref="${resource.uri}">\n${resource.text}\n</context>`;
-                        return {
-                            type: "text",
-                            text: `${link}\n${context}`,
-                            text_elements: [],
-                        };
+                        return {type: "text", text: `${link}\n${context}`, text_elements: []};
                     }
                     if (isImageMimeType(resource.mimeType)) {
-                        return {
-                            type: "image",
-                            url: `data:${resource.mimeType};base64,${resource.blob}`,
-                        };
+                        return {type: "image", url: `data:${resource.mimeType};base64,${resource.blob}`};
                     }
                     const link = formatUriAsLink(null, resource.uri);
-                    const mimeType =
-                        resource.mimeType ?? "application/octet-stream";
+                    const mimeType = resource.mimeType ?? "application/octet-stream";
                     const context = `<context ref="${resource.uri}" mimeType="${mimeType}" encoding="base64">\n${resource.blob}\n</context>`;
-                    return {
-                        type: "text",
-                        text: `${link}\n${context}`,
-                        text_elements: [],
-                    };
+                    return {type: "text", text: `${link}\n${context}`, text_elements: []};
                 }
                 case "audio":
                     return null;

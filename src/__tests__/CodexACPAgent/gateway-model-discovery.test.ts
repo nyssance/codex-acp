@@ -41,10 +41,7 @@ function createFixture(
 ): CodexMockTestFixture {
     const fixture = createCodexMockTestFixture(restartCodexClient);
     const appServer = fixture.getCodexAppServerClient();
-    vi.spyOn(appServer, "listModels").mockResolvedValue({
-        data: models,
-        nextCursor: null,
-    });
+    vi.spyOn(appServer, "listModels").mockResolvedValue({data: models, nextCursor: null});
     vi.spyOn(fixture.getCodexAcpClient(), "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(fixture.getCodexAcpClient(), "getAccount").mockResolvedValue({
         workspaceRouting: null,
@@ -139,10 +136,7 @@ describe("Gateway model discovery (providers/set)", () => {
         expect(fixture.getCodexAcpAgent().getSessionState(response.sessionId).currentModelId).toBe("gpt-5.4[medium]");
 
         const turnStart = mockPromptTurn(fixture, response.sessionId);
-        await fixture.getCodexAcpAgent().prompt({
-            sessionId: response.sessionId,
-            prompt: [{type: "text", text: "hi"}],
-        });
+        await fixture.getCodexAcpAgent().prompt({sessionId: response.sessionId, prompt: [{type: "text", text: "hi"}]});
         expect(turnStart).toHaveBeenCalledWith(expect.objectContaining({model: "gpt-5.4", effort: "medium"}));
     });
 

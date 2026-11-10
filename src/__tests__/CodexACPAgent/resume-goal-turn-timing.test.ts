@@ -91,11 +91,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
             readState: null,
             thread: createThread(),
         }));
-        await client.request("session/resume", {
-            sessionId: secondSessionId,
-            cwd,
-            replayFrom: {type: "start"},
-        });
+        await client.request("session/resume", {sessionId: secondSessionId, cwd, replayFrom: {type: "start"}});
         await settle();
         client.emit(turnCompletedFor(secondSessionId, secondTurnId));
         await settle();

@@ -33,11 +33,8 @@ describeIntegration("integration: ACP v2 foreground state", () => {
         let stderr = "";
         processHandle.stderr.on("data", chunk => { stderr += chunk.toString(); });
         const updates: acpV2.UpdateSessionNotification[] = [];
-        const connection = acpV2
-            .client()
-            .onNotification(acpV2.methods.client.session.update, (ctx) => {
-                updates.push(ctx.params);
-            })
+        const connection = acpV2.client()
+            .onNotification(acpV2.methods.client.session.update, (ctx) => { updates.push(ctx.params); })
             .connect(acpV2.ndJsonStream(Writable.toWeb(processHandle.stdin), readableToWeb(processHandle.stdout)));
         try {
             await connection.agent.request(acpV2.methods.agent.initialize, {
@@ -63,16 +60,12 @@ describeIntegration("integration: ACP v2 foreground state", () => {
                 prompt: [{type: "text", text: "Trigger an authentication failure"}],
             });
             expect(accepted.messageId).toEqual(expect.any(String));
-            await vi.waitFor(
-                () => {
-                    expect(
-                        updates.some(({sessionId, update}) => sessionId === failedSession.sessionId && update.sessionUpdate === "state_update" && update.state === "idle"),
-                        stderr,
-                    ).toBe(true);
-                },
-                {timeout: 10_000},
-            );
-            const failedIdle = updates.findLast(({sessionId, update}) => sessionId === failedSession.sessionId && update.sessionUpdate === "state_update" && update.state === "idle")?.update;
+            await vi.waitFor(() => {
+                expect(updates.some(({sessionId, update}) => sessionId === failedSession.sessionId
+                    && update.sessionUpdate === "state_update" && update.state === "idle"), stderr).toBe(true);
+            }, {timeout: 10_000});
+            const failedIdle = updates.findLast(({sessionId, update}) => sessionId === failedSession.sessionId
+                && update.sessionUpdate === "state_update" && update.state === "idle")?.update;
             expect(failedIdle).toMatchObject({
                 state: "idle", stopReason: "error", error: {code: -32000, message: "Authentication required"},
             });
@@ -100,7 +93,8 @@ describeIntegration("integration: ACP v2 foreground state", () => {
                 await vi.waitFor(
                     () => {
                         expect(
-                            updates.slice(offset).some(({sessionId, update}) => sessionId === failedSession.sessionId && update.sessionUpdate === "state_update" && update.state === "idle" && update.stopReason === "end_turn"),
+                            updates.slice(offset).some(({sessionId, update}) => sessionId === failedSession.sessionId
+                                && update.sessionUpdate === "state_update" && update.state === "idle" && update.stopReason === "end_turn"),
                             stderr,
                         ).toBe(true);
                     },
@@ -109,7 +103,8 @@ describeIntegration("integration: ACP v2 foreground state", () => {
                 expect(
                     updates
                         .slice(offset)
-                        .flatMap(({update}) => (acpV2.SessionUpdate.isAgentMessageChunk(update) && acpV2.ContentBlock.isText(update.content) ? [update.content.text] : []))
+                        .flatMap(({update}) => (acpV2.SessionUpdate.isAgentMessageChunk(update)
+                            && acpV2.ContentBlock.isText(update.content) ? [update.content.text] : []))
                         .join(""),
                 ).toBe("provider-recovered");
             }

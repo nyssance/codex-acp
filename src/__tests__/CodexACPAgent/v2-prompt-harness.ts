@@ -2,19 +2,19 @@ import {mkdtempSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {testThreadPermissions} from "../native-thread-permissions";
-import {expect, vi} from "vitest";
-import * as acp from "@agentclientprotocol/sdk/unstable";
-import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {createAcpAgentRouter} from "../../AcpAgentRouter";
-import {CodexAcpServer} from "../../CodexAcpServer";
-import {CodexAcpClient} from "../../CodexAcpClient";
-import {CodexAppServerClient} from "../../CodexAppServerClient";
-import type {ServerNotification} from "../../app-server";
-import type {Thread, ThreadItem, Turn, TurnStatus} from "../../app-server/v2";
-import type {McpStartupResult} from "../../mcp/McpStartupTracker";
-import {createTestModel} from "../acp-test-utils";
-import {createMockConnections} from "./test-utils";
-import {checkV2SessionUpdate} from "./v2-session-update-guard";
+import {expect, vi} from 'vitest';
+import * as acp from '@agentclientprotocol/sdk/unstable';
+import * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import {createAcpAgentRouter} from '../../AcpAgentRouter';
+import {CodexAcpServer} from '../../CodexAcpServer';
+import {CodexAcpClient} from '../../CodexAcpClient';
+import {CodexAppServerClient} from '../../CodexAppServerClient';
+import type {ServerNotification} from '../../app-server';
+import type {Thread, ThreadItem, Turn, TurnStatus} from '../../app-server/v2';
+import type {McpStartupResult} from '../../mcp/McpStartupTracker';
+import {createTestModel} from '../acp-test-utils';
+import {createMockConnections} from './test-utils';
+import {checkV2SessionUpdate} from './v2-session-update-guard';
 
 export const sessionId = "thread-1";
 export const turnId = "turn-1";
@@ -200,11 +200,7 @@ export async function connectSession(
         if (method === "thread/start" && params?.ephemeral) {
             return {
                 readState: null,
-                thread: {
-                    ...createThread(),
-                    id: titleThreadId,
-                    ephemeral: true,
-                },
+                thread: {...createThread(), id: titleThreadId, ephemeral: true},
             };
         }
         if (method === "turn/start" && params?.threadId === titleThreadId) {
@@ -222,10 +218,7 @@ export async function connectSession(
     });
     const appServer = new CodexAppServerClient(mocks.mockCodexConnection as any);
     const codexAcpClient = new CodexAcpClient(appServer);
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
@@ -458,10 +451,7 @@ export function createReplacementCodexAcpClient(): {
     });
     const appServer = new CodexAppServerClient(mocks.mockCodexConnection as any);
     const codexAcpClient = new CodexAcpClient(appServer);
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,

@@ -184,8 +184,7 @@ function createRouter(
         return result;
     };
 
-    let v1Agent = acp
-        .agent({name: packageJson.name})
+    let v1Agent = acp.agent({name: packageJson.name})
         .onConnect((connection) => attachAgent(createAgent(connection.client), connection.signal))
         .onRequest(acp.methods.agent.initialize, (ctx) => initialize(ctx.requestId, () => getAgent().initialize(ctx.params)))
         .onRequest(acp.methods.agent.session.new, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).newSession(ctx.params)))
@@ -220,8 +219,7 @@ function createRouter(
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
         .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
 
-    let v2Agent = acpV2
-        .agent({name: packageJson.name})
+    let v2Agent = acpV2.agent({name: packageJson.name})
         .onConnect((connection) => attachAgent(createAgent(new AcpV2Connection(connection.client)), connection.signal))
         .onRequest(acpV2.methods.agent.initialize, (ctx) => initialize(ctx.requestId, () => getAgent().initializeV2(ctx.params)))
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.

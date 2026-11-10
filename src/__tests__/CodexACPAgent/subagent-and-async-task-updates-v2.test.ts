@@ -83,18 +83,11 @@ describe('subagent and async task updates on ACP v2', () => {
     });
 
     it("renders a follow-up turn of a finished subagent as a new `_subagent_update` generation", async () => {
-        const { session, updates } = v2Session("root");
-        const router = new CodexSubagentEventRouter(
-            "root",
-            true,
-            session,
-            () => {},
-            () => ({ currentModel: null, availableModels: [] }),
-        );
+        const {session, updates} = v2Session("root");
+        const router = new CodexSubagentEventRouter("root", true, session, () => {}, () => ({currentModel: null, availableModels: []}));
         const childTurn = (id: string, status: "completed" | "inProgress") =>
             router.handle({
-                method:
-                    status === "completed" ? "turn/completed" : "turn/started",
+                method: status === "completed" ? "turn/completed" : "turn/started",
                 params: {
                     threadId: "child-1",
                     turn: {

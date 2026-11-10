@@ -83,10 +83,7 @@ async function startPrompt(): Promise<{
     const codexAcpClient = fixture.getCodexAcpClient();
     const appServer = fixture.getCodexAppServerClient();
 
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,

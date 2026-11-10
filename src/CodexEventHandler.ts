@@ -1,7 +1,14 @@
 import type {SessionUpdate as V2SessionUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {turnErrorUpdate} from "./alwith/agent/turnErrors";
-import type {ServerNotification} from "./app-server";
-import type {SessionFailure, SessionFailureAction, SessionFailureCategory, SessionState} from "./CodexAcpServer";
+import type {
+    ServerNotification
+} from "./app-server";
+import type {
+    SessionFailure,
+    SessionFailureAction,
+    SessionFailureCategory,
+    SessionState,
+} from "./CodexAcpServer";
 import {type Error as AcpError, type PlanEntry, RequestError} from "@agentclientprotocol/sdk/unstable";
 import {ACPSessionConnection, type AcpClientConnection, type UpdateSessionEvent} from "./ACPSessionConnection";
 import {normalizeSessionTitle} from "./SessionTitle";
@@ -44,7 +51,11 @@ import {McpToolReporter} from "./tool-calls/reporters/McpToolReporter";
 import {WebSearchReporter} from "./tool-calls/reporters/WebSearchReporter";
 import {CodexPlanStream, structuredPlanUpdate} from "./CodexPlanStream";
 import {type CodexFailureKind, codexFailureKind, isAuthenticationRequired, SESSION_FAILURE_POLICY} from "./CodexFailures";
-import {createMessagePhaseMeta, createAgentTextMessageChunk, createAgentTextThoughtChunk} from "./ContentChunks";
+import {
+    createMessagePhaseMeta,
+    createAgentTextMessageChunk,
+    createAgentTextThoughtChunk,
+} from "./ContentChunks";
 import {goalSessionInfoUpdate, sameThreadGoalSnapshot, toThreadGoalSnapshot} from "./ThreadGoalSnapshot";
 import {logger} from "./Logger";
 import {recordOrNull} from "./permissions/json";
@@ -947,10 +958,7 @@ export class CodexEventHandler {
                                 },
                             },
                         },
-                        this.subagents.notificationSessionId({
-                            method: "item/started",
-                            params: event,
-                        }),
+                        this.subagents.notificationSessionId({method: "item/started", params: event}),
                     );
                 }
                 return null;
@@ -1010,10 +1018,7 @@ export class CodexEventHandler {
                     if (finalChunk)
                         await this.session.update(
                             finalChunk,
-                            this.subagents.notificationSessionId({
-                                method: "item/completed",
-                                params: event,
-                            }),
+                            this.subagents.notificationSessionId({method: "item/completed", params: event}),
                         );
                     const message = {
                         sessionUpdate: "agent_message" as const,
@@ -1039,10 +1044,7 @@ export class CodexEventHandler {
                     if (timing) timing.message = message;
                     await this.session.updateV2(
                         message,
-                        this.subagents.notificationSessionId({
-                            method: "item/completed",
-                            params: event,
-                        }),
+                        this.subagents.notificationSessionId({method: "item/completed", params: event}),
                     );
                 }
                 return this.session.protocolVersion === 2 ? null : finalChunk;

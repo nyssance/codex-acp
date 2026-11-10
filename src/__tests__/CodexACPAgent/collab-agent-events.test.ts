@@ -596,27 +596,20 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             },
         ]);
 
-        mockFixture.setPermissionResponse({
-            outcome: { outcome: "selected", optionId: "allow_once" },
+        mockFixture.setPermissionResponse({outcome: {outcome: "selected", optionId: "allow_once"}});
+        await mockFixture.sendServerRequest("item/commandExecution/requestApproval", {
+            threadId: "thread-paris",
+            turnId: "turn-child",
+            itemId: "child-command",
+            reason: "Check the weather service",
+            startedAtMs: 0,
+            environmentId: null,
+            proposedExecpolicyAmendment: null,
         });
-        await mockFixture.sendServerRequest(
-            "item/commandExecution/requestApproval",
-            {
-                threadId: "thread-paris",
-                turnId: "turn-child",
-                itemId: "child-command",
-                reason: "Check the weather service",
-                startedAtMs: 0,
-                environmentId: null,
-                proposedExecpolicyAmendment: null,
-            },
-        );
-        const permissionRequest = mockFixture
-            .getAcpConnectionEvents([])
+        const permissionRequest = mockFixture.getAcpConnectionEvents([])
             .find(
                 (event) =>
-                    event.method === "requestPermission" &&
-                    event.args[0].toolCall.toolCallId === "child-command",
+                    event.method === "requestPermission" && event.args[0].toolCall.toolCallId === "child-command",
             );
         expect(permissionRequest).toBeUndefined();
     });
@@ -631,28 +624,22 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             status: "running" | "completed",
         ): ServerNotification =>
             ({
-                method:
-                    status === "running" ? "item/started" : "item/completed",
+                method: status === "running" ? "item/started" : "item/completed",
                 params: {
                     threadId,
                     turnId: `turn-${threadId}`,
-                    ...(status === "running"
-                        ? { startedAtMs: 0 }
-                        : { completedAtMs: 0 }),
+                    ...(status === "running" ? {startedAtMs: 0} : {completedAtMs: 0}),
                     item: {
                         type: "collabAgentToolCall",
                         id,
                         tool: "spawnAgent",
-                        status:
-                            status === "running" ? "inProgress" : "completed",
+                        status: status === "running" ? "inProgress" : "completed",
                         senderThreadId,
                         receiverThreadIds: [receiverThreadId],
                         prompt: `Task for ${receiverThreadId}`,
                         model: null,
                         reasoningEffort: null,
-                        agentsStates: {
-                            [receiverThreadId]: { status, message: null },
-                        },
+                        agentsStates: {[receiverThreadId]: {status, message: null}},
                     },
                 },
             }) as ServerNotification;
@@ -661,13 +648,7 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             sessionId,
             sessionState,
             [
-                collabItem(
-                    sessionId,
-                    sessionId,
-                    "child-1",
-                    "spawn-1",
-                    "running",
-                ),
+                collabItem(sessionId, sessionId, "child-1", "spawn-1", "running"),
                 {
                     method: "item/started",
                     params: {
@@ -685,13 +666,7 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                         },
                     },
                 },
-                collabItem(
-                    "child-1",
-                    "child-1",
-                    "grandchild-1",
-                    "spawn-2",
-                    "running",
-                ),
+                collabItem("child-1", "child-1", "grandchild-1", "spawn-2", "running"),
                 {
                     method: "item/started",
                     params: {
@@ -718,20 +693,8 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                         delta: "Nested result",
                     },
                 },
-                collabItem(
-                    "child-1",
-                    "child-1",
-                    "grandchild-1",
-                    "spawn-2",
-                    "completed",
-                ),
-                collabItem(
-                    sessionId,
-                    sessionId,
-                    "child-1",
-                    "spawn-1",
-                    "completed",
-                ),
+                collabItem("child-1", "child-1", "grandchild-1", "spawn-2", "completed"),
+                collabItem(sessionId, sessionId, "child-1", "spawn-1", "completed"),
             ],
         );
 
@@ -757,31 +720,18 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                 params: {
                     threadId: sessionId,
                     turnId: "turn-1",
-                    ...(method === "item/started"
-                        ? { startedAtMs: 0 }
-                        : { completedAtMs: 0 }),
+                    ...(method === "item/started" ? {startedAtMs: 0} : {completedAtMs: 0}),
                     item: {
                         type: "collabAgentToolCall",
                         id: "spawn",
                         tool: "spawnAgent",
-                        status:
-                            method === "item/started"
-                                ? "inProgress"
-                                : "completed",
+                        status: method === "item/started" ? "inProgress" : "completed",
                         senderThreadId: sessionId,
                         receiverThreadIds: ["", "child-1", "child-1"],
                         prompt: "Task",
                         model: null,
                         reasoningEffort: null,
-                        agentsStates: {
-                            "child-1": {
-                                status:
-                                    method === "item/started"
-                                        ? "running"
-                                        : "completed",
-                                message: null,
-                            },
-                        },
+                        agentsStates: {"child-1": {status: method === "item/started" ? "running" : "completed", message: null}},
                     },
                 },
             }) as ServerNotification;
@@ -845,26 +795,18 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                 params: {
                     threadId: sessionId,
                     turnId: "turn-1",
-                    ...(method === "item/started"
-                        ? { startedAtMs: 0 }
-                        : { completedAtMs: 0 }),
+                    ...(method === "item/started" ? {startedAtMs: 0} : {completedAtMs: 0}),
                     item: {
                         type: "collabAgentToolCall",
                         id,
                         tool,
-                        status:
-                            method === "item/started"
-                                ? "inProgress"
-                                : "completed",
+                        status: method === "item/started" ? "inProgress" : "completed",
                         senderThreadId: sessionId,
                         receiverThreadIds: ["child-1"],
-                        prompt:
-                            tool === "spawnAgent"
-                                ? "Child task"
-                                : "Additional direction",
+                        prompt: tool === "spawnAgent" ? "Child task" : "Additional direction",
                         model: null,
                         reasoningEffort: null,
-                        agentsStates: { "child-1": { status, message: null } },
+                        agentsStates: {"child-1": {status, message: null}},
                     },
                 },
             }) as ServerNotification;
@@ -898,16 +840,11 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             ],
         );
 
-        const updates = mockFixture
-            .getAcpConnectionEvents([])
+        const updates = mockFixture.getAcpConnectionEvents([])
             .filter((event) => event.method === "sessionUpdate")
             .map((event) => event.args[0].update);
         expect(
-            updates.map((update) => [
-                update.sessionUpdate,
-                update.toolCallId,
-                update.title,
-            ]),
+            updates.map((update) => [update.sessionUpdate, update.toolCallId, update.title]),
         ).toEqual([
             ["subagent_spawned", undefined, undefined],
             ["tool_call", "send-input", "sendInput"],
@@ -1544,8 +1481,7 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             const childTurn = (
                 status: "completed" | "inProgress",
             ): ServerNotification => ({
-                method:
-                    status === "completed" ? "turn/completed" : "turn/started",
+                method: status === "completed" ? "turn/completed" : "turn/started",
                 params: {
                     threadId: "resumable-child",
                     turn: {
@@ -1597,18 +1533,10 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                                 status: "completed",
                                 senderThreadId: sessionId,
                                 receiverThreadIds: ["resumable-child"],
-                                prompt:
-                                    tool === "resumeAgent"
-                                        ? null
-                                        : "Check again.",
+                                prompt: tool === "resumeAgent" ? null : "Check again.",
                                 model: null,
                                 reasoningEffort: null,
-                                agentsStates: {
-                                    "resumable-child": {
-                                        status: "running",
-                                        message: null,
-                                    },
-                                },
+                                agentsStates: {"resumable-child": {status: "running", message: null}},
                             },
                         },
                     },
@@ -1623,27 +1551,20 @@ describe("CodexEventHandler - collab agent tool call events", () => {
                     },
                 ],
             );
-            const updates = mockFixture
-                .getAcpConnectionEvents([])
+            const updates = mockFixture.getAcpConnectionEvents([])
                 .filter((event) => event.method === "sessionUpdate")
                 .map((event) => event.args[0]);
-            expect(updates).toContainEqual(
-                expect.objectContaining({
-                    sessionId,
-                    update: expect.objectContaining({
-                        sessionUpdate: "subagent_spawned",
-                        subagentSessionId: "resumable-child:generation:2",
-                    }),
+            expect(updates).toContainEqual(expect.objectContaining({
+                sessionId,
+                update: expect.objectContaining({
+                    sessionUpdate: "subagent_spawned",
+                    subagentSessionId: "resumable-child:generation:2",
                 }),
-            );
-            expect(updates).toContainEqual(
-                expect.objectContaining({
-                    sessionId: "resumable-child:generation:2",
-                    update: expect.objectContaining({
-                        messageId: "resumed-message",
-                    }),
-                }),
-            );
+            }));
+            expect(updates).toContainEqual(expect.objectContaining({
+                sessionId: "resumable-child:generation:2",
+                update: expect.objectContaining({messageId: "resumed-message"}),
+            }));
         },
     );
 
@@ -1974,18 +1895,9 @@ describe("CodexEventHandler - collab agent tool call events", () => {
             }),
         ).toBe(true);
         await rootItem({
-            type: "collabAgentToolCall",
-            id: "dropped-resume",
-            tool: "resumeAgent",
-            status: "completed",
-            senderThreadId: sessionId,
-            receiverThreadIds: ["dropped-child"],
-            prompt: null,
-            model: null,
-            reasoningEffort: null,
-            agentsStates: {
-                "dropped-child": { status: "running", message: null },
-            },
+            type: "collabAgentToolCall", id: "dropped-resume", tool: "resumeAgent", status: "completed",
+            senderThreadId: sessionId, receiverThreadIds: ["dropped-child"], prompt: null,
+            model: null, reasoningEffort: null, agentsStates: {"dropped-child": {status: "running", message: null}},
         });
 
         expect(await router.waitForMaterializedSession("dropped-child")).toBe("dropped-child:generation:2");

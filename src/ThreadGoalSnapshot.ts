@@ -42,7 +42,10 @@ export function sameThreadGoalSnapshot(
 ): boolean {
     if (left === undefined) return false;
     if (left === null || right === null) return left === right;
-    return left.objective === right.objective && left.status === right.status && left.tokenBudget === right.tokenBudget && left.createdAt === right.createdAt && left.updatedAt === right.updatedAt && left.tokensUsed === right.tokensUsed && left.timeUsedSeconds === right.timeUsedSeconds;
+    return left.objective === right.objective
+        && left.status === right.status
+        && left.tokenBudget === right.tokenBudget
+        && left.createdAt === right.createdAt && left.updatedAt === right.updatedAt && left.tokensUsed === right.tokensUsed && left.timeUsedSeconds === right.timeUsedSeconds;
 }
 
 /** v2 exposes goals without requiring the client to impersonate AIR. */

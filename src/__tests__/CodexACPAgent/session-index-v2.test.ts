@@ -14,11 +14,11 @@ import {
     SESSION_LIST_UNSUBSCRIBE_METHOD,
     SESSION_RENAME_METHOD,
     SESSION_UNARCHIVE_METHOD,
-} from "../../SessionIndex";
-import {MAX_SESSION_TITLE_LENGTH} from "../../SessionTitle";
-import {createTestModel} from "../acp-test-utils";
+} from '../../SessionIndex';
+import {MAX_SESSION_TITLE_LENGTH} from '../../SessionTitle';
+import {createTestModel} from '../acp-test-utils';
 import {createMockConnections, mockInitializeResponse} from "./test-utils";
-import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from "./v2-session-update-guard";
+import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 const sessionId = "thread-1";
 const cwd = "/workspace";
@@ -83,13 +83,11 @@ function codexResponse(method: string, overrides: CodexOverrides): unknown {
         case "thread/read":
             return {
                 readState: null,
-                thread:
-                    overrides.threadRead ??
-                    createThread({
-                        status: {type: "active", activeFlags: []},
-                        name: "Renamed",
-                        path: "/codex-home/sessions/rollout.jsonl",
-                    }),
+                thread: overrides.threadRead ?? createThread({
+                    status: {type: "active", activeFlags: []},
+                    name: "Renamed",
+                    path: "/codex-home/sessions/rollout.jsonl",
+                }),
             };
         case "thread/list":
             return {data: overrides.threads ?? [createThread()], nextCursor: null, backwardsCursor: null};
@@ -125,21 +123,14 @@ async function connectV2Client(
         return codexResponse(method, overrides);
     });
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
     });
-    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({
-        ready: [],
-        failed: [],
-        cancelled: [],
-    });
+    vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
     const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
@@ -213,7 +204,7 @@ describe('AIR sessionIndex over ACP v2', () => {
         await expect(dump({list, title, codexRequests})).toMatchFileSnapshot("data/session-index-v2-alwith.json");
     });
 
-    it("lists, renames, archives and unarchives sessions", async () => {
+    it('lists, renames, archives and unarchives sessions', async () => {
         const {connection, initialize, codexRequests, updates} = await connectV2Client(["sessionIndex"]);
         closeClient = () => connection.close();
         const session = await connection.agent.request(acpV2.methods.agent.session.new, {cwd});

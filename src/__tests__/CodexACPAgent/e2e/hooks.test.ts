@@ -17,9 +17,7 @@ const testRuntime =
         ? `"${process.execPath}"`
         : `'${process.execPath.replaceAll("'", "'\"'\"'")}'`;
 
-const hasLiveApiKey = Boolean(
-    process.env["CODEX_API_KEY"] || process.env["OPENAI_API_KEY"],
-);
+const hasLiveApiKey = Boolean(process.env["CODEX_API_KEY"] || process.env["OPENAI_API_KEY"]);
 
 describe.skipIf(process.env["RUN_E2E_TESTS"] !== "true")("ACP hook review", () => {
     it("fails initialize with the Codex error when hook config is invalid", async () => {
@@ -58,74 +56,35 @@ describe.skipIf(process.env["RUN_E2E_TESTS"] !== "true")("ACP hook review", () =
             connection.connection.sendNotification("initialized", {});
             expect(await userHook()).toMatchObject({command: "echo user", trustStatus: "untrusted"});
 
-                const hooks = (await listCodexHooks(client, home)).hooks;
-                expect(
-                    await trustCodexHooks(
-                        client,
-                        home,
-                        hooks.map(({key, currentHash}) => ({
-                            key,
-                            currentHash,
-                        })),
-                    ),
-                ).toBe(true);
-                expect(await userHook()).toMatchObject({
-                    command: "echo user",
-                    trustStatus: "untrusted",
-                });
-            } finally {
-                connection.connection.dispose();
-                connection.process.kill();
-                await rm(home, {recursive: true, force: true});
-            }
-        }, 30_000);
+            const hooks = (await listCodexHooks(client, home)).hooks;
+            expect(await trustCodexHooks(client, home, hooks.map(({key, currentHash}) => ({key, currentHash})))).toBe(true);
+            expect(await userHook()).toMatchObject({command: "echo user", trustStatus: "untrusted"});
+        } finally {
+            connection.connection.dispose();
+            connection.process.kill();
+            await rm(home, {recursive: true, force: true});
+        }
+    }, 30_000);
 
         it.skipIf(!hasLiveApiKey)(
             "does not run an untrusted hook, runs it after consent, and restores startup hooks after restart",
             async () => {
                 const fixture = await createSpawnedAgentFixture(
                     async (connection) => {
-                        const initialized = await connection.request(
-                            acp.methods.agent.initialize,
-                            {
-                                protocolVersion: acp.PROTOCOL_VERSION,
-                                clientCapabilities: {
-                                    _meta: {
-                                        jetbrains: {
-                                            air: {
-                                                version: 1,
-                                                capabilities: [],
-                                            },
-                                        },
-                                    },
-                                },
-                                clientInfo: {name: "hook-test", version: "1"},
-                            },
-                        );
-                        const jetbrains = initialized._meta?.["jetbrains"] as
-                            {air?: {capabilities?: string[]}} | undefined;
-                        expect(jetbrains?.air?.capabilities).toContain(
-                            "codexHooks",
-                        );
-                        await connection.request(
-                            acp.methods.agent.authenticate,
-                            {
-                                methodId: "api-key",
-                                _meta: {
-                                    "api-key": {apiKey: requireLiveApiKey()},
-                                },
-                            },
-                        );
+                        const initialized = await connection.request(acp.methods.agent.initialize, {
+                            protocolVersion: acp.PROTOCOL_VERSION,
+                            clientCapabilities: {_meta: {jetbrains: {air: {version: 1, capabilities: []}}}},
+                            clientInfo: {name: "hook-test", version: "1"},
+                        });
+                        const jetbrains = initialized._meta?.["jetbrains"] as {air?: {capabilities?: string[]}} | undefined;
+                        expect(jetbrains?.air?.capabilities).toContain("codexHooks");
+                        await connection.request(acp.methods.agent.authenticate, {
+                            methodId: "api-key",
+                            _meta: {"api-key": {apiKey: requireLiveApiKey()}},
+                        });
                     },
                     {
-                        CODEX_PATH: join(
-                            process.cwd(),
-                            "node_modules",
-                            ".bin",
-                            process.platform === "win32"
-                                ? "codex.cmd"
-                                : "codex",
-                        ),
+                        CODEX_PATH: join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "codex.cmd" : "codex"),
                         CODEX_CONFIG: JSON.stringify({
                             hooks: {
                                 SessionStart: [
@@ -149,10 +108,7 @@ describe.skipIf(process.env["RUN_E2E_TESTS"] !== "true")("ACP hook review", () =
                     }>(CODEX_HOOKS_LIST_METHOD, {cwd: fixture.workspaceDir});
                     const hooks = firstList["hooks"] as HookMetadata[];
                     expect(hooks).toHaveLength(1);
-                    expect(hooks[0]).toMatchObject({
-                        source: "sessionFlags",
-                        trustStatus: "untrusted",
-                    });
+                    expect(hooks[0]).toMatchObject({source: "sessionFlags", trustStatus: "untrusted"});
 
             // Codex runs SessionStart hooks with the first turn of a thread, not on thread/start.
             const untrusted = await fixture.createSession();

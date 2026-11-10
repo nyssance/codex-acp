@@ -86,11 +86,7 @@ function startAcpServer() {
 
     function createAgent(connection: AcpClientConnection | AcpV2Connection): CodexAcpServer {
         const appServerClient = new CodexAppServerClient(codexProcessState.connection.connection);
-        const codexClient = new CodexAcpClient(
-            appServerClient,
-            hookConfig.sessionConfig,
-            modelProvider,
-        );
+        const codexClient = new CodexAcpClient(appServerClient, hookConfig.sessionConfig, modelProvider);
         process.stdin.once("close", () => codexClient.closeTransports());
         return new CodexAcpServer(
             connection,

@@ -104,9 +104,7 @@ process.stdout.write(out, () => process.exit(1));
     it.skipIf(process.platform === "win32")(
         "waits for a backlog that takes longer to handle than the close grace time",
         async () => {
-            const dir = fs.mkdtempSync(
-                path.join(os.tmpdir(), "codex-backlog-"),
-            );
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-backlog-"));
             const script = path.join(dir, "codex");
             fs.writeFileSync(
                 script,

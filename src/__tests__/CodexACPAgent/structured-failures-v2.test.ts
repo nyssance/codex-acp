@@ -77,11 +77,7 @@ describe("standard ACP v2 terminal failures", () => {
         await settle();
 
         const idle = lastIdle(client);
-        expect(idle).toMatchObject({
-            state: "idle",
-            stopReason: "error",
-            error: {code: -32603, message: "Try again later."},
-        });
+        expect(idle).toMatchObject({state: "idle", stopReason: "error", error: {code: -32603, message: "Try again later."}});
         expect(JSON.stringify(idle)).not.toContain("private diagnostics");
         if (air) expect(idle._meta).toHaveProperty("jetbrains.air.sessionFailure.severity", "error");
         else expect(idle._meta).not.toHaveProperty("jetbrains");
@@ -203,10 +199,7 @@ describe("standard ACP v2 terminal failures", () => {
         await client.promptRunFinished(1);
         await settle();
 
-        expect(lastIdle(client)).toMatchObject({
-            stopReason: "error",
-            error: {code: -32603, message: "Implementation failed"},
-        });
+        expect(lastIdle(client)).toMatchObject({stopReason: "error", error: {code: -32603, message: "Implementation failed"}});
         await expect(dump(lastIdle(client), client.turnStartParams[0]?.["clientUserMessageId"] as string)).toMatchFileSnapshot("data/structured-failure-v2-implementation-idle.json");
     });
 

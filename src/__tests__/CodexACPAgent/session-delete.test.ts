@@ -122,10 +122,7 @@ async function createSession(): Promise<{
     const codexAcpClient = fixture.getCodexAcpClient();
     const model = createTestModel();
 
-    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({
-        required: false,
-        account: null,
-    });
+    vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
         workspaceRouting: null,
         account: null,

@@ -160,8 +160,7 @@ const TYPE_PATH = /\S*\w::\w+::\S*/g;
  */
 export function cleanErrorMessage(text: string): string {
     const oneLine = text.slice(0, MAX_INPUT_LENGTH).replaceAll(/\s+/g, " ").trim();
-    const message = oneLine
-        .split(": ")
+    const message = oneLine.split(": ")
         .map((segment) => segment.replace(TYPE_PATH, "").replaceAll(/\s+/g, " ").trim())
         .filter((segment) => segment.length > 0 && !WRAPPER_SEGMENT.test(segment))
         .join(": ");
