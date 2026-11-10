@@ -102,6 +102,7 @@ import {
 import {findSupportedEffort} from "./ModelConfigOption";
 import {type ProviderStartupConfig, configOverride, NO_PROVIDER_STARTUP_CONFIG} from "./CodexConfigOverride";
 import {disableUnsupportedSkills, withoutUnsupportedSkills} from "./UnsupportedSkills";
+import {settledWithin} from "./StdUtils";
 export type {SessionMetadata, SessionMetadataWithThread} from "./SessionMetadata";
 /** A null turn marks unavailable outcome metadata, not a failed turn. */
 export type RecordedSubagentEntry = {item: ThreadItem; completed: boolean; turnId?: string} | {turn: Turn | null};
@@ -1201,15 +1202,21 @@ export class CodexAcpClient {
         let unloaded = false;
         let detached = false;
         let resumed = false;
+        const unloading = Promise.withResolvers<void>();
         const release = this.codexClient.onClientTransportEvent(event => {
             if (event.eventType === "notification" && event.method === "thread/status/changed"
                 && event.params.threadId === request.sessionId && event.params.status.type === "notLoaded") {
                 unloaded = true;
+                unloading.resolve();
             }
         });
         try {
-            await this.codexClient.threadUnsubscribe({threadId: request.sessionId});
+            const detachment = await this.codexClient.threadUnsubscribe({threadId: request.sessionId});
             detached = true;
+            // Codex refuses to resume a thread that is still closing, so wait until it reports the unload.
+            if (detachment.status === "unsubscribed" && !unloaded && (await settledWithin(unloading.promise, 10_000)) === "pending") {
+                throw RequestError.invalidRequest(undefined, "Timed out waiting for the session to unload; systemPrompt could not be changed. Retry when idle");
+            }
             const response = await this.resumeThread(params);
             resumed = true;
             if (!unloaded) {

@@ -3,6 +3,7 @@
 - Merge upstream: ACP SDK 2.5.0; checklist plans from `update_plan` are `items` `plan_update`s with `planId` `codex-structured-plan`; fast mode sends the `fast` service tier (Codex reports it back as `priority`, which still reads as fast).
 - Follow upstream where the fork duplicated it. Session titles in the list and in history are normalized as upstream normalizes them (whitespace collapsed, 256 characters) instead of the first line cut at 120. A custom permission profile resolves to the mode upstream picks from the allowed list. Fork lineage pages through upstream's history paging, with its timeout. `_codex/skills_list` omits the skills the adapter disables.
 - Removed: `capabilities._meta.codex.rename`. The exported client reads rename support from the standard `capabilities.session.title`; `hasRename` and `codexExtensionCapabilities(agent).rename` keep their meaning.
+- Changing `systemPrompt` on `session/resume` works again. Since 0.7.60 the app-server unloads a detached thread at once and refuses a resume while it closes; the adapter now waits for the unload before it resumes.
 - Source formatting follows upstream throughout. No behavior change.
 
 ## 0.7.61 (2026-11-09)
