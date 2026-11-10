@@ -1,13 +1,13 @@
-import { readFileSync } from "node:fs";
+import {readFileSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type { InputModality } from "../../app-server/InputModality";
-import type { Model, ReasoningEffortOption } from "../../app-server/v2";
-import type { JsonObject } from "../../CodexAcpClient";
-import { isRecord } from "../../permissions/json";
+import type {InputModality} from "../../app-server/InputModality";
+import type {Model, ReasoningEffortOption} from "../../app-server/v2";
+import type {JsonObject} from "../../CodexAcpClient";
+import {isRecord} from "../../permissions/json";
 
 /** The one provider slot Codex exposes: where its OpenAI-protocol traffic goes. */
 export const OPENAI_PROVIDER_ID = "openai";
@@ -78,10 +78,7 @@ export class ProviderRouting {
     ) {}
 
     copy(): ProviderRouting {
-        const copy = new ProviderRouting(
-            this.baseConfig,
-            this.configuredProvider,
-        );
+        const copy = new ProviderRouting(this.baseConfig, this.configuredProvider);
         copy.gateways = new Map(this.gateways);
         return copy;
     }
@@ -97,11 +94,7 @@ export class ProviderRouting {
 
     private requireGateway(id: string): Gateway {
         const gateway = this.gateways.get(id);
-        if (gateway === undefined)
-            throw acp.RequestError.invalidParams(
-                { gatewayId: id },
-                `Gateway "${id}" is not registered`,
-            );
+        if (gateway === undefined) throw acp.RequestError.invalidParams({gatewayId: id}, `Gateway "${id}" is not registered`);
         return gateway;
     }
 
@@ -117,7 +110,7 @@ export class ProviderRouting {
             id: gateway.id,
             name: gateway.name,
             baseUrl: gateway.baseUrl,
-            models: gateway.models.map((model) => model.id),
+            models: gateway.models.map(model => model.id),
         });
         return {
             providers: [
@@ -135,9 +128,7 @@ export class ProviderRouting {
                                   codex: {
                                       mode: "catalog",
                                       gateway: summary(first),
-                                      gateways: [...this.gateways.values()].map(
-                                          summary,
-                                      ),
+                                      gateways: [...this.gateways.values()].map(summary),
                                   },
                               },
                           }
@@ -150,38 +141,31 @@ export class ProviderRouting {
     set(request: acp.SetProviderRequest): void {
         if (request.providerId !== OPENAI_PROVIDER_ID) {
             throw acp.RequestError.invalidParams(
-                { providerId: request.providerId },
+                {providerId: request.providerId},
                 `Unknown providerId "${request.providerId}"; only "${OPENAI_PROVIDER_ID}" is configurable`,
             );
         }
         if (request.apiType !== "openai") {
             throw acp.RequestError.invalidParams(
-                { apiType: request.apiType },
+                {apiType: request.apiType},
                 `Codex only speaks the OpenAI protocol; got apiType "${request.apiType}"`,
             );
         }
-        const baseUrl =
-            typeof request.baseUrl === "string" ? request.baseUrl.trim() : "";
+        const baseUrl = typeof request.baseUrl === "string" ? request.baseUrl.trim() : "";
         if (!/^https?:\/\//.test(baseUrl)) {
-            throw acp.RequestError.invalidParams(
-                { baseUrl: request.baseUrl },
-                "baseUrl must be an http(s) URL",
-            );
+            throw acp.RequestError.invalidParams({baseUrl: request.baseUrl}, "baseUrl must be an http(s) URL");
         }
         const hints = readHints(request._meta);
-        if (
-            hints.id === OPENAI_PROVIDER_ID ||
-            hints.id === this.configuredProvider
-        ) {
+        if (hints.id === OPENAI_PROVIDER_ID || hints.id === this.configuredProvider) {
             throw acp.RequestError.invalidParams(
-                { id: hints.id },
+                {id: hints.id},
                 `_meta.codex.id "${hints.id}" is Codex's own provider; pick another gateway id`,
             );
         }
         this.gateways.set(hints.id, {
             id: hints.id,
             baseUrl,
-            headers: { ...(request.headers ?? {}) },
+            headers: {...(request.headers ?? {})},
             name: hints.name,
             models: hints.models,
             model: hints.model,
@@ -198,12 +182,7 @@ export class ProviderRouting {
     /** The gateway serving `modelId`, when one does. */
     gatewayFor(modelId: string): Gateway | null {
         for (const gateway of this.gateways.values()) {
-            if (
-                gateway.models.some(
-                    (model) => gatewayModelId(gateway.id, model.id) === modelId,
-                )
-            )
-                return gateway;
+            if (gateway.models.some(model => gatewayModelId(gateway.id, model.id) === modelId)) return gateway;
         }
         return null;
     }
@@ -220,29 +199,20 @@ export class ProviderRouting {
     /** The select groups the gateways' models sit in, when they share a catalog with Codex's. */
     gatewayGroups(): GatewayGroup[] {
         return [...this.gateways.values()]
-            .filter((gateway) => gateway.models.length > 0)
-            .map((gateway) => ({
+            .filter(gateway => gateway.models.length > 0)
+            .map(gateway => ({
                 id: gateway.id,
                 name: gateway.name,
-                modelIds: gateway.models.map((model) =>
-                    gatewayModelId(gateway.id, model.id),
-                ),
+                modelIds: gateway.models.map(model => gatewayModelId(gateway.id, model.id)),
             }));
     }
 
     /** Convert a persisted Codex model/provider pair into the public catalog selection. */
-    selectionId(
-        modelId: string | null,
-        provider: string | null,
-    ): string | null {
+    selectionId(modelId: string | null, provider: string | null): string | null {
         if (modelId === null) return modelId;
-        if (modelId.startsWith("native:"))
-            return decodeURIComponent(modelId.slice("native:".length));
-        if (modelId.startsWith("gateway:") || !this.hasGateways)
-            return modelId;
-        return this.hasGateway(provider)
-            ? gatewayModelId(provider!, modelId)
-            : modelId;
+        if (modelId.startsWith("native:")) return decodeURIComponent(modelId.slice("native:".length));
+        if (modelId.startsWith("gateway:") || !this.hasGateways) return modelId;
+        return this.hasGateway(provider) ? gatewayModelId(provider!, modelId) : modelId;
     }
 
     nativeModel(selection: string, catalog = this.hasGateways): string {
@@ -258,21 +228,16 @@ export class ProviderRouting {
         const match = /^gateway:([^:]+):[^:]+$/.exec(selection);
         const provider = match ? decodeURIComponent(match[1]!) : null;
         if (provider === null || !this.hasGateway(provider))
-            throw acp.RequestError.invalidParams(
-                undefined,
-                "The selected provider connection or model is unavailable",
-            );
+            throw acp.RequestError.invalidParams(undefined, "The selected provider connection or model is unavailable");
         return provider;
     }
 
-    modelAliases(): Array<{ id: string; upstream: string; catalog?: string }> {
-        return [...this.gateways.values()].flatMap((gateway) =>
-            gateway.models.map((model) => ({
+    modelAliases(): Array<{id: string; upstream: string; catalog?: string}> {
+        return [...this.gateways.values()].flatMap(gateway =>
+            gateway.models.map(model => ({
                 id: gatewayModelId(gateway.id, model.id),
                 upstream: model.id,
-                ...(typeof gateway.config["model_catalog_json"] === "string"
-                    ? { catalog: gateway.config["model_catalog_json"] }
-                    : {}),
+                ...(typeof gateway.config["model_catalog_json"] === "string" ? {catalog: gateway.config["model_catalog_json"]} : {}),
             })),
         );
     }
@@ -281,14 +246,8 @@ export class ProviderRouting {
     upstreamModel(selectionId: string | null): string | null {
         if (!selectionId?.startsWith("gateway:")) return selectionId;
         const gateway = this.gatewayFor(selectionId);
-        const model = gateway?.models.find(
-            (model) => gatewayModelId(gateway.id, model.id) === selectionId,
-        );
-        if (!model)
-            throw acp.RequestError.invalidParams(
-                { model: selectionId },
-                "The selected provider connection or model is unavailable",
-            );
+        const model = gateway?.models.find(model => gatewayModelId(gateway.id, model.id) === selectionId);
+        if (!model) throw acp.RequestError.invalidParams({model: selectionId}, "The selected provider connection or model is unavailable");
         return model.id;
     }
 
@@ -298,7 +257,7 @@ export class ProviderRouting {
      */
     disable(request: acp.DisableProviderRequest): void {
         if (request.providerId !== OPENAI_PROVIDER_ID) return;
-        const id = readGatewayId((request as { _meta?: unknown })._meta);
+        const id = readGatewayId((request as {_meta?: unknown})._meta);
         if (id === null) this.gateways.clear();
         else this.gateways.delete(id);
     }
@@ -323,8 +282,7 @@ export class ProviderRouting {
      */
     overrideKeys(): string[] {
         const keys = new Set<string>();
-        for (const gateway of this.gateways.values())
-            for (const key of Object.keys(gateway.config)) keys.add(key);
+        for (const gateway of this.gateways.values()) for (const key of Object.keys(gateway.config)) keys.add(key);
         return [...keys];
     }
 
@@ -333,12 +291,8 @@ export class ProviderRouting {
      * `projects`) from `previous` routing to this one: every previous gateway's override
      * keys fall back to the base config, then the target gateway is applied.
      */
-    rebind(
-        config: JsonObject,
-        previous: ProviderRouting,
-        gatewayId: string | null,
-    ): JsonObject {
-        const next: JsonObject = { ...config };
+    rebind(config: JsonObject, previous: ProviderRouting, gatewayId: string | null): JsonObject {
+        const next: JsonObject = {...config};
         for (const key of previous.overrideKeys()) {
             if (key in this.baseConfig) next[key] = this.baseConfig[key]!;
             else delete next[key];
@@ -346,16 +300,13 @@ export class ProviderRouting {
         // Only the target gateway's entry may remain: a thread moved between gateways must not
         // keep the previous one's `model_providers` entry (and its bearer token) in its config.
         delete next["model_providers"];
-        if (isRecord(this.baseConfig["model_providers"]))
-            next["model_providers"] = this.baseConfig["model_providers"];
+        if (isRecord(this.baseConfig["model_providers"])) next["model_providers"] = this.baseConfig["model_providers"];
         if (gatewayId === null) return next;
         return this.applyGateway(next, this.requireGateway(gatewayId));
     }
 
     private applyGateway(config: JsonObject, gateway: Gateway): JsonObject {
-        const existing = isRecord(config["model_providers"])
-            ? config["model_providers"]
-            : {};
+        const existing = isRecord(config["model_providers"]) ? config["model_providers"] : {};
         const entry: JsonObject = {
             name: gateway.name,
             base_url: gateway.baseUrl,
@@ -367,12 +318,11 @@ export class ProviderRouting {
             },
         };
         // How DeepSeek's official Codex integration passes the key; Codex adds the Authorization header itself.
-        if (gateway.bearerToken !== null)
-            entry["experimental_bearer_token"] = gateway.bearerToken;
+        if (gateway.bearerToken !== null) entry["experimental_bearer_token"] = gateway.bearerToken;
         return {
             ...config,
             ...gateway.config,
-            model_providers: { ...existing, [gateway.id]: entry },
+            model_providers: {...existing, [gateway.id]: entry},
         };
     }
 
@@ -387,7 +337,7 @@ export class ProviderRouting {
                 own.push({
                     ...gatewayModel(
                         model,
-                        codexCatalog.find((entry) => entry.model === model.id),
+                        codexCatalog.find(entry => entry.model === model.id),
                         gateway.catalogEntries.get(model.id),
                     ),
                     id: gatewayModelId(gateway.id, model.id),
@@ -401,8 +351,7 @@ export class ProviderRouting {
         if (this.configuredProvider && isRecord(providers)) {
             const entry = providers[this.configuredProvider];
             const baseUrl = isRecord(entry) ? entry["base_url"] : undefined;
-            if (typeof baseUrl === "string" && baseUrl.length > 0)
-                return baseUrl;
+            if (typeof baseUrl === "string" && baseUrl.length > 0) return baseUrl;
         }
         return DEFAULT_OPENAI_BASE_URL;
     }
@@ -428,11 +377,7 @@ function readHints(meta: unknown): {
     const alwith = isRecord(root["alwith"]) ? root["alwith"] : {};
     const codex = isRecord(root["codex"]) ? root["codex"] : {};
     const id = readGatewayId(meta);
-    if (id === null)
-        throw acp.RequestError.invalidParams(
-            undefined,
-            "providers/set needs _meta.codex.id: the gateway id",
-        );
+    if (id === null) throw acp.RequestError.invalidParams(undefined, "providers/set needs _meta.codex.id: the gateway id");
     const models: GatewayModel[] = [];
     if (Array.isArray(alwith["models"])) {
         for (const [index, entry] of alwith["models"].entries()) {
@@ -442,12 +387,10 @@ function readHints(meta: unknown): {
                 entry["id"].length === 0 ||
                 typeof entry["label"] !== "string" ||
                 entry["label"].length === 0 ||
-                (entry["description"] !== undefined &&
-                    entry["description"] !== null &&
-                    typeof entry["description"] !== "string")
+                (entry["description"] !== undefined && entry["description"] !== null && typeof entry["description"] !== "string")
             )
                 throw acp.RequestError.invalidParams(
-                    { index, entry },
+                    {index, entry},
                     "_meta.alwith.models entries need a non-empty id and label, and a string or null description",
                 );
             models.push({
@@ -457,34 +400,21 @@ function readHints(meta: unknown): {
             });
         }
     }
-    const model =
-        typeof alwith["model"] === "string" && alwith["model"].length > 0
-            ? alwith["model"]
-            : null;
+    const model = typeof alwith["model"] === "string" && alwith["model"].length > 0 ? alwith["model"] : null;
     const name = codex["name"];
     if (typeof name !== "string" || name.length === 0)
-        throw acp.RequestError.invalidParams(
-            { name },
-            "providers/set needs _meta.codex.name: the gateway's display name",
-        );
-    const bearerToken =
-        typeof codex["bearerToken"] === "string" &&
-        codex["bearerToken"].length > 0
-            ? codex["bearerToken"]
-            : null;
+        throw acp.RequestError.invalidParams({name}, "providers/set needs _meta.codex.name: the gateway's display name");
+    const bearerToken = typeof codex["bearerToken"] === "string" && codex["bearerToken"].length > 0 ? codex["bearerToken"] : null;
     const rawConfig = codex["config"];
     if (rawConfig !== undefined && !isRecord(rawConfig)) {
-        throw acp.RequestError.invalidParams(
-            { config: rawConfig },
-            "_meta.codex.config must be an object of top-level Codex config keys",
-        );
+        throw acp.RequestError.invalidParams({config: rawConfig}, "_meta.codex.config must be an object of top-level Codex config keys");
     }
     const config: JsonObject = {};
     if (isRecord(rawConfig)) {
         for (const [key, value] of Object.entries(rawConfig)) {
             if (key === "model_providers")
                 throw acp.RequestError.invalidParams(
-                    { config: rawConfig },
+                    {config: rawConfig},
                     "_meta.codex.config cannot set model_providers; that entry is derived from baseUrl and headers",
                 );
             config[key] = value as JsonObject[string];
@@ -497,10 +427,7 @@ function readHints(meta: unknown): {
         );
     }
     const catalogPath = config["model_catalog_json"];
-    const catalogEntries =
-        typeof catalogPath === "string"
-            ? readCatalogFile(catalogPath)
-            : new Map<string, CatalogEntry>();
+    const catalogEntries = typeof catalogPath === "string" ? readCatalogFile(catalogPath) : new Map<string, CatalogEntry>();
     return {
         id,
         models,
@@ -519,16 +446,10 @@ function readGatewayId(meta: unknown): string | null {
     const raw = codex["id"];
     if (raw === undefined) return null;
     if (typeof raw !== "string" || !GATEWAY_ID_PATTERN.test(raw)) {
-        throw acp.RequestError.invalidParams(
-            { id: raw },
-            "_meta.codex.id must match [a-z0-9-]+",
-        );
+        throw acp.RequestError.invalidParams({id: raw}, "_meta.codex.id must match [a-z0-9-]+");
     }
     if (raw === NATIVE_GROUP_ID) {
-        throw acp.RequestError.invalidParams(
-            { id: raw },
-            `_meta.codex.id "${NATIVE_GROUP_ID}" is the native model group`,
-        );
+        throw acp.RequestError.invalidParams({id: raw}, `_meta.codex.id "${NATIVE_GROUP_ID}" is the native model group`);
     }
     return raw;
 }
@@ -539,49 +460,32 @@ function readGatewayId(meta: unknown): string | null {
  * reflects it.
  */
 function readCatalogFile(catalogPath: string): Map<string, CatalogEntry> {
-    const resolved = catalogPath.startsWith("~/")
-        ? path.join(os.homedir(), catalogPath.slice(2))
-        : catalogPath;
+    const resolved = catalogPath.startsWith("~/") ? path.join(os.homedir(), catalogPath.slice(2)) : catalogPath;
     let parsed: unknown;
     try {
         parsed = JSON.parse(readFileSync(resolved, "utf8"));
     } catch (error) {
         throw acp.RequestError.invalidParams(
-            { model_catalog_json: catalogPath },
+            {model_catalog_json: catalogPath},
             `model_catalog_json could not be read as JSON: ${error instanceof Error ? error.message : String(error)}`,
         );
     }
-    const models =
-        isRecord(parsed) && Array.isArray(parsed["models"])
-            ? parsed["models"]
-            : null;
+    const models = isRecord(parsed) && Array.isArray(parsed["models"]) ? parsed["models"] : null;
     if (models === null)
         throw acp.RequestError.invalidParams(
-            { model_catalog_json: catalogPath },
+            {model_catalog_json: catalogPath},
             "model_catalog_json must be {models: [...]} as Codex expects",
         );
     const entries = new Map<string, CatalogEntry>();
     const invalid = (index: number, reason: string) =>
-        acp.RequestError.invalidParams(
-            { model_catalog_json: catalogPath, index },
-            `model_catalog_json entry ${index} ${reason}`,
-        );
+        acp.RequestError.invalidParams({model_catalog_json: catalogPath, index}, `model_catalog_json entry ${index} ${reason}`);
     for (const [index, entry] of models.entries()) {
-        if (!isRecord(entry) || typeof entry["slug"] !== "string")
-            throw invalid(index, "needs a string slug");
+        if (!isRecord(entry) || typeof entry["slug"] !== "string") throw invalid(index, "needs a string slug");
         const levels = entry["supported_reasoning_levels"];
-        if (!Array.isArray(levels))
-            throw invalid(index, "needs a supported_reasoning_levels array");
-        const efforts: ReasoningEffortOption[] = levels.map((level) => {
-            if (
-                !isRecord(level) ||
-                typeof level["effort"] !== "string" ||
-                typeof level["description"] !== "string"
-            )
-                throw invalid(
-                    index,
-                    "has a reasoning level without a string effort and description",
-                );
+        if (!Array.isArray(levels)) throw invalid(index, "needs a supported_reasoning_levels array");
+        const efforts: ReasoningEffortOption[] = levels.map(level => {
+            if (!isRecord(level) || typeof level["effort"] !== "string" || typeof level["description"] !== "string")
+                throw invalid(index, "has a reasoning level without a string effort and description");
             return {
                 reasoningEffort: level["effort"],
                 description: level["description"],
@@ -590,32 +494,15 @@ function readCatalogFile(catalogPath: string): Map<string, CatalogEntry> {
         const rawModalities = entry["input_modalities"];
         let modalities: InputModality[] | null = null;
         if (rawModalities !== undefined) {
-            if (
-                !Array.isArray(rawModalities) ||
-                !rawModalities.every(
-                    (value) => value === "text" || value === "image",
-                )
-            )
-                throw invalid(
-                    index,
-                    'needs input_modalities of "text" and "image" only',
-                );
+            if (!Array.isArray(rawModalities) || !rawModalities.every(value => value === "text" || value === "image"))
+                throw invalid(index, 'needs input_modalities of "text" and "image" only');
             modalities = rawModalities;
         }
         entries.set(entry["slug"], {
-            displayName:
-                typeof entry["display_name"] === "string"
-                    ? entry["display_name"]
-                    : null,
-            description:
-                typeof entry["description"] === "string"
-                    ? entry["description"]
-                    : null,
+            displayName: typeof entry["display_name"] === "string" ? entry["display_name"] : null,
+            description: typeof entry["description"] === "string" ? entry["description"] : null,
             efforts,
-            defaultEffort:
-                typeof entry["default_reasoning_level"] === "string"
-                    ? entry["default_reasoning_level"]
-                    : null,
+            defaultEffort: typeof entry["default_reasoning_level"] === "string" ? entry["default_reasoning_level"] : null,
             inputModalities: modalities,
         });
     }
@@ -623,41 +510,28 @@ function readCatalogFile(catalogPath: string): Map<string, CatalogEntry> {
 }
 
 /** Synthesizes a Codex `Model` for a gateway model so the session catalog stays one shape. */
-function gatewayModel(
-    model: GatewayModel,
-    template: Model | undefined,
-    entry: CatalogEntry | undefined,
-): Model {
+function gatewayModel(model: GatewayModel, template: Model | undefined, entry: CatalogEntry | undefined): Model {
     if (entry === undefined && template === undefined)
         throw acp.RequestError.invalidParams(
-            { model: model.id },
+            {model: model.id},
             `Gateway model "${model.id}" is neither in the gateway's model_catalog_json nor a Codex model`,
         );
     // Mirrors Codex's ModelInfo -> ModelPreset conversion for catalog entries.
     const efforts = entry ? entry.efforts : template!.supportedReasoningEfforts;
-    const defaultEffort = entry
-        ? (entry.defaultEffort ?? "none")
-        : template!.defaultReasoningEffort;
+    const defaultEffort = entry ? (entry.defaultEffort ?? "none") : template!.defaultReasoningEffort;
     return {
         id: model.id,
         model: model.id,
         upgrade: null,
         upgradeInfo: null,
         availabilityNux: null,
-        displayName:
-            model.name !== model.id
-                ? model.name
-                : (entry?.displayName ?? model.name),
-        description:
-            model.description ??
-            (entry ? (entry.description ?? "") : template!.description),
+        displayName: model.name !== model.id ? model.name : (entry?.displayName ?? model.name),
+        description: model.description ?? (entry ? (entry.description ?? "") : template!.description),
         modelSpecialty: null,
         hidden: false,
         supportedReasoningEfforts: efforts,
         defaultReasoningEffort: defaultEffort,
-        inputModalities: entry
-            ? (entry.inputModalities ?? ["text", "image"])
-            : template!.inputModalities,
+        inputModalities: entry ? (entry.inputModalities ?? ["text", "image"]) : template!.inputModalities,
         supportsPersonality: false,
         multiAgentVersion: null,
         additionalSpeedTiers: [],

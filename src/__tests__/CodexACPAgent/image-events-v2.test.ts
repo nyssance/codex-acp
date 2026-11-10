@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type { ThreadItem } from "../../app-server/v2";
+import type {ThreadItem} from "../../app-server/v2";
 import {
     connectSession,
     createThread,
@@ -16,7 +16,7 @@ import {
     turnStarted,
     userMessageItem,
 } from "./v2-prompt-harness";
-import { expectConformingV2SessionUpdates } from "./v2-session-update-guard";
+import {expectConformingV2SessionUpdates} from "./v2-session-update-guard";
 
 const image = {
     type: "imageGeneration",
@@ -41,20 +41,15 @@ const imageContent = [
 ];
 
 function toolUpdates(client: PromptSession): acpV2.SessionUpdate[] {
-    return client.transcript.flatMap((entry) =>
-        "sessionUpdate" in entry &&
-        ["tool_call", "tool_call_update"].includes(
-            entry.sessionUpdate.sessionUpdate,
-        )
+    return client.transcript.flatMap(entry =>
+        "sessionUpdate" in entry && ["tool_call", "tool_call_update"].includes(entry.sessionUpdate.sessionUpdate)
             ? [entry.sessionUpdate]
             : [],
     );
 }
 
 async function startTurn(client: PromptSession): Promise<void> {
-    const response = client.sendPrompt([
-        { type: "text", text: "Draw a square" },
-    ]);
+    const response = client.sendPrompt([{type: "text", text: "Draw a square"}]);
     await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
     const clientId = client.turnStartParams[0]!["clientUserMessageId"];
     expect(typeof clientId).toBe("string");
@@ -111,15 +106,13 @@ describe("image generation over ACP v2", () => {
             toolCallId: image.id,
             status: "completed",
             content: imageContent,
-            rawOutput: { savedPath: image.savedPath },
+            rawOutput: {savedPath: image.savedPath},
         });
         // Omitted patch fields retain the identity established by the start upsert.
         expect(Object.assign({}, ...updates)).toMatchObject({
             name: "image_generation",
         });
-        await expect(dump(updates)).toMatchFileSnapshot(
-            "data/image-generation-v2-live.json",
-        );
+        await expect(dump(updates)).toMatchFileSnapshot("data/image-generation-v2-live.json");
     });
 
     it("creates a complete image upsert when the start event was not observed", async () => {
@@ -135,11 +128,9 @@ describe("image generation over ACP v2", () => {
             name: "image_generation",
             status: "completed",
             content: imageContent,
-            rawOutput: { savedPath: image.savedPath },
+            rawOutput: {savedPath: image.savedPath},
         });
-        await expect(dump(updates)).toMatchFileSnapshot(
-            "data/image-generation-v2-completed-only.json",
-        );
+        await expect(dump(updates)).toMatchFileSnapshot("data/image-generation-v2-completed-only.json");
     });
 
     it("replays image identity and content before the v2 resume response", async () => {
@@ -160,7 +151,7 @@ describe("image generation over ACP v2", () => {
         await client.request("session/resume", {
             sessionId,
             cwd,
-            replayFrom: { type: "start" },
+            replayFrom: {type: "start"},
         });
         const updates = toolUpdates(client);
         expect(updates).toHaveLength(2);
@@ -175,12 +166,10 @@ describe("image generation over ACP v2", () => {
             name: "image_generation",
             status: "completed",
             content: imageContent,
-            rawOutput: { savedPath: image.savedPath },
+            rawOutput: {savedPath: image.savedPath},
         });
         await settle();
         expect(toolUpdates(client)).toEqual(updates);
-        await expect(dump(updates)).toMatchFileSnapshot(
-            "data/image-generation-v2-replay.json",
-        );
+        await expect(dump(updates)).toMatchFileSnapshot("data/image-generation-v2-replay.json");
     });
 });

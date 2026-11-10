@@ -1,11 +1,11 @@
-import { Cause, Effect, Exit } from "effect";
+import {Cause, Effect, Exit} from "effect";
 
 export function attempt<A>(work: () => Promise<A>): Effect.Effect<A, unknown> {
-    return Effect.tryPromise({ try: work, catch: (error) => error });
+    return Effect.tryPromise({try: work, catch: error => error});
 }
 
 export function failure(cause: Cause.Cause<unknown>): unknown {
-    const errors = cause.reasons.flatMap((reason) => {
+    const errors = cause.reasons.flatMap(reason => {
         if (Cause.isFailReason(reason)) return [reason.error];
         if (Cause.isDieReason(reason)) return [reason.defect];
         return [];

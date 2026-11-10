@@ -7,10 +7,10 @@
 // - when the process exits / is stopped / is let go, requests still awaiting an answer fail immediately, so the caller's await never hangs;
 // - stop must wait for the exit event, otherwise the engine-switch resume would reattach to the old process.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { Effect, Exit, Scope } from "effect";
+import {Effect, Exit, Scope} from "effect";
 
-import { attempt, failure, run } from "../lifecycle/internal";
-import { type AgentRequest } from "./requests";
+import {attempt, failure, run} from "../lifecycle/internal";
+import {type AgentRequest} from "./requests";
 
 /** The only protocol version this library speaks. */
 export const PROTOCOL_VERSION = 2;
@@ -29,45 +29,20 @@ export interface AttachInfo {
 export interface AgentPort<Launch, Info extends AttachInfo = AttachInfo> {
     start(agentId: string, launch: Launch): Promise<void>;
     stop(agentId: string): Promise<void>;
-    agents(): Promise<Array<{ agentId: string }>>;
+    agents(): Promise<Array<{agentId: string}>>;
     attachSession(sessionId: string): Promise<Info | null>;
     releaseSession(sessionId: string): Promise<void>;
-    acpRequest<Result = unknown>(
-        agentId: string,
-        method: string,
-        params?: unknown,
-        options?: { id?: string | number },
-    ): Promise<Result>;
+    acpRequest<Result = unknown>(agentId: string, method: string, params?: unknown, options?: {id?: string | number}): Promise<Result>;
     acpNotify(agentId: string, method: string, params?: unknown): Promise<void>;
-    acpRespond(
-        agentId: string,
-        id: unknown,
-        result?: unknown,
-        error?: unknown,
-    ): Promise<void>;
-    onAcpNotification(
-        handler: (notification: {
-            agentId: string;
-            method: string;
-            params: unknown;
-        }) => void,
-    ): Promise<() => void>;
-    onAcpAgentRequest(
-        handler: (request: {
-            agentId: string;
-            id: unknown;
-            method: string;
-            params: unknown;
-        }) => void,
-    ): Promise<() => void>;
-    onExit(
-        handler: (payload: { agentId: string }) => void,
-    ): Promise<() => void>;
+    acpRespond(agentId: string, id: unknown, result?: unknown, error?: unknown): Promise<void>;
+    onAcpNotification(handler: (notification: {agentId: string; method: string; params: unknown}) => void): Promise<() => void>;
+    onAcpAgentRequest(handler: (request: {agentId: string; id: unknown; method: string; params: unknown}) => void): Promise<() => void>;
+    onExit(handler: (payload: {agentId: string}) => void): Promise<() => void>;
 }
 
 export type Handshake = {
     /** ACP v2 requires name and version; add human-facing fields such as title freely, per the protocol. */
-    info: { name: string; version: string; [key: string]: unknown };
+    info: {name: string; version: string; [key: string]: unknown};
     capabilities?: Record<string, unknown>;
 };
 
@@ -110,10 +85,8 @@ export async function initialize(
         info: handshake.info,
         capabilities: handshake.capabilities ?? {},
     });
-    const protocolVersion = (response as { protocolVersion?: unknown } | null)
-        ?.protocolVersion;
-    if (protocolVersion !== PROTOCOL_VERSION)
-        throw new ProtocolVersionError(agentId, protocolVersion);
+    const protocolVersion = (response as {protocolVersion?: unknown} | null)?.protocolVersion;
+    if (protocolVersion !== PROTOCOL_VERSION) throw new ProtocolVersionError(agentId, protocolVersion);
     return response as acp.InitializeResponse;
 }
 
@@ -132,16 +105,9 @@ export class Agent {
     private _alive = true;
     private readonly port: AgentPort<unknown>;
     /** Requests awaiting a reply, by the id we gave them, with the method (detach abandons all but a turn). */
-    private readonly inflight = new Map<
-        string,
-        { method: string; fail: (error: Error) => void }
-    >();
-    private readonly notificationHandlers = new Set<
-        (method: string, params: unknown) => void
-    >();
-    private readonly requestHandlers = new Set<
-        (request: AgentRequest) => void
-    >();
+    private readonly inflight = new Map<string, {method: string; fail: (error: Error) => void}>();
+    private readonly notificationHandlers = new Set<(method: string, params: unknown) => void>();
+    private readonly requestHandlers = new Set<(request: AgentRequest) => void>();
     private readonly idPrefix = `app-${Math.random().toString(36).slice(2, 8)}`;
     private nextId = 1;
     private readonly subscriptionScope = Scope.makeUnsafe();
@@ -151,18 +117,13 @@ export class Agent {
     private readonly failureListeners = new Set<(error: Error) => void>();
 
     /** @internal */
-    constructor(
-        port: AgentPort<unknown>,
-        agentId: string,
-        engine: string | null,
-        initialized: acp.InitializeResponse,
-    ) {
+    constructor(port: AgentPort<unknown>, agentId: string, engine: string | null, initialized: acp.InitializeResponse) {
         this.port = port;
         this.agentId = agentId;
         this.engine = engine;
         this.initialized = initialized;
         let resolve: () => void = () => {};
-        this.exited = new Promise<void>((r) => {
+        this.exited = new Promise<void>(r => {
             resolve = r;
         });
         this.resolveExited = resolve;
@@ -204,31 +165,22 @@ export class Agent {
         this.listening = run(
             Effect.gen(function* () {
                 const own = (acquire: () => Promise<() => void>) =>
-                    Effect.acquireRelease(attempt(acquire), (release) =>
-                        Effect.sync(release),
-                    );
+                    Effect.acquireRelease(attempt(acquire), release => Effect.sync(release));
                 // Subscribe to exit first so a process dying during later acquisition cannot be published alive.
                 yield* own(() =>
-                    self.port.onExit((exit) => {
-                        if (exit.agentId === self.agentId)
-                            self.gone("agent exited");
+                    self.port.onExit(exit => {
+                        if (exit.agentId === self.agentId) self.gone("agent exited");
                     }),
                 );
                 yield* own(() =>
-                    self.port.onAcpNotification((notification) => {
-                        if (
-                            !self._alive ||
-                            notification.agentId !== self.agentId
-                        )
-                            return;
-                        for (const handler of self.notificationHandlers)
-                            handler(notification.method, notification.params);
+                    self.port.onAcpNotification(notification => {
+                        if (!self._alive || notification.agentId !== self.agentId) return;
+                        for (const handler of self.notificationHandlers) handler(notification.method, notification.params);
                     }),
                 );
                 yield* own(() =>
-                    self.port.onAcpAgentRequest((request) => {
-                        if (!self._alive || request.agentId !== self.agentId)
-                            return;
+                    self.port.onAcpAgentRequest(request => {
+                        if (!self._alive || request.agentId !== self.agentId) return;
                         for (const handler of self.requestHandlers)
                             handler({
                                 id: request.id,
@@ -237,20 +189,10 @@ export class Agent {
                             });
                     }),
                 );
-                if (!self._alive)
-                    return yield* Effect.fail(
-                        new AgentGoneError(
-                            self.agentId,
-                            "agent retired during subscription",
-                        ),
-                    );
+                if (!self._alive) return yield* Effect.fail(new AgentGoneError(self.agentId, "agent retired during subscription"));
             }).pipe(
                 Effect.provideService(Scope.Scope, this.subscriptionScope),
-                Effect.onExit((exit) =>
-                    Exit.isFailure(exit)
-                        ? Scope.close(this.subscriptionScope, exit)
-                        : Effect.void,
-                ),
+                Effect.onExit(exit => (Exit.isFailure(exit) ? Scope.close(this.subscriptionScope, exit) : Effect.void)),
             ),
         );
         return this.listening;
@@ -258,9 +200,7 @@ export class Agent {
 
     private closeSubscriptions(): void {
         // Port subscriptions return synchronous disposers; teardown remains synchronous with the exit event.
-        const exit = Effect.runSyncExit(
-            Scope.close(this.subscriptionScope, Exit.void),
-        );
+        const exit = Effect.runSyncExit(Scope.close(this.subscriptionScope, Exit.void));
         if (Exit.isFailure(exit)) throw failure(exit.cause);
     }
 
@@ -275,10 +215,7 @@ export class Agent {
         options?: acp.SendRequestOptions,
     ): Promise<T> => {
         const signal = options?.cancellationSignal;
-        if (!this._alive)
-            return Promise.reject(
-                new AgentGoneError(this.agentId, "agent is gone"),
-            );
+        if (!this._alive) return Promise.reject(new AgentGoneError(this.agentId, "agent is gone"));
         const id = `${this.idPrefix}-${this.nextId++}`;
         return new Promise<T>((resolve, reject) => {
             let settled = false;
@@ -297,54 +234,34 @@ export class Agent {
                 if (settled || cancellationSent) return;
                 cancellationSent = true;
                 signal?.removeEventListener("abort", onAbort);
-                void this.notify("$/cancel_request", { requestId: id }).catch(
-                    (error: unknown) => {
-                        fail(
-                            error instanceof Error
-                                ? error
-                                : new Error(String(error)),
-                        );
-                    },
-                );
+                void this.notify("$/cancel_request", {requestId: id}).catch((error: unknown) => {
+                    fail(error instanceof Error ? error : new Error(String(error)));
+                });
             };
-            signal?.addEventListener("abort", onAbort, { once: true });
-            this.inflight.set(id, { method, fail });
-            this.port.acpRequest<T>(this.agentId, method, params, { id }).then(
-                (result) => {
+            signal?.addEventListener("abort", onAbort, {once: true});
+            this.inflight.set(id, {method, fail});
+            this.port.acpRequest<T>(this.agentId, method, params, {id}).then(
+                result => {
                     if (settled) return;
                     settle();
                     resolve(result);
                 },
-                (error: unknown) =>
-                    fail(
-                        error instanceof Error
-                            ? error
-                            : new Error(String(error)),
-                    ),
+                (error: unknown) => fail(error instanceof Error ? error : new Error(String(error))),
             );
             if (signal?.aborted) onAbort();
         });
     };
 
-    notify: acp.ClientContext["notify"] = (
-        method: string,
-        params?: unknown,
-    ): Promise<void> => {
+    notify: acp.ClientContext["notify"] = (method: string, params?: unknown): Promise<void> => {
         return this.port.acpNotify(this.agentId, method, params);
     };
 
     /** Answers a request sent by the agent, with the original id. */
-    respond(
-        id: unknown,
-        result?: unknown,
-        error?: { code: number; message: string },
-    ): Promise<void> {
+    respond(id: unknown, result?: unknown, error?: {code: number; message: string}): Promise<void> {
         return this.port.acpRespond(this.agentId, id, result, error);
     }
 
-    onNotification(
-        handler: (method: string, params: unknown) => void,
-    ): () => void {
+    onNotification(handler: (method: string, params: unknown) => void): () => void {
         this.notificationHandlers.add(handler);
         return () => this.notificationHandlers.delete(handler);
     }
@@ -364,8 +281,7 @@ export class Agent {
         const exited = this.exited;
         await this.port.stop(this.agentId);
         const agents = await this.port.agents();
-        if (agents.some((agent) => agent.agentId === this.agentId))
-            await exited;
+        if (agents.some(agent => agent.agentId === this.agentId)) await exited;
         // A failed stop or failed confirmation is not evidence that the process exited.
         this.gone("agent stopped");
     }
@@ -395,7 +311,7 @@ export class Agent {
 
     private failInflight(error: Error): void {
         for (const listener of this.failureListeners) listener(error);
-        for (const { fail } of [...this.inflight.values()]) fail(error);
+        for (const {fail} of [...this.inflight.values()]) fail(error);
         this.inflight.clear();
     }
 }
@@ -436,11 +352,7 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
      * The handshake happens here once; afterwards the Runtime answers repeated initialize from its cache. A process started here that cannot be
      * spoken to (handshake refused, wrong protocol version) is stopped again rather than left behind for someone else to find.
      */
-    async start(
-        agentId: string,
-        launch: Launch,
-        engine: string | null = null,
-    ): Promise<Agent> {
+    async start(agentId: string, launch: Launch, engine: string | null = null): Promise<Agent> {
         await this.port.start(agentId, launch);
         try {
             return await this.adopt(agentId, engine);
@@ -451,7 +363,7 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
                 throw new AggregateError(
                     [error, stopError],
                     `agent ${agentId}: the handshake failed and the process could not be stopped`,
-                    { cause: stopError },
+                    {cause: stopError},
                 );
             }
             throw error;
@@ -466,27 +378,20 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
         const info = await this.port.attachSession(sessionId);
         if (info === null) return null;
         const existing = this.held.get(info.agentId);
-        if (existing?.alive) return { agent: existing, info };
+        if (existing?.alive) return {agent: existing, info};
         try {
-            return { agent: await this.adopt(info.agentId, info.engine), info };
+            return {agent: await this.adopt(info.agentId, info.engine), info};
         } catch (error) {
             // Claimed but the handshake failed: release the claim so other windows are not locked out for good
             await this.port.releaseSession(sessionId).catch((released: unknown) => {
-                throw new AggregateError(
-                    [error, released],
-                    `Session ${sessionId} could be neither adopted nor released`,
-                );
+                throw new AggregateError([error, released], `Session ${sessionId} could be neither adopted nor released`);
             });
             throw error;
         }
     }
 
     /** Swap the engine: stop the old one, wait until it is really gone, then start the new one. */
-    async replace(
-        agentId: string,
-        launch: Launch,
-        engine: string | null = null,
-    ): Promise<Agent> {
+    async replace(agentId: string, launch: Launch, engine: string | null = null): Promise<Agent> {
         await this.held.get(agentId)?.stop();
         return this.start(agentId, launch, engine);
     }
@@ -503,27 +408,18 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
         const result = this.acquireAgent(agentId, engine);
         this.adopting.set(agentId, result);
         const release = () => {
-            if (this.adopting.get(agentId) === result)
-                this.adopting.delete(agentId);
+            if (this.adopting.get(agentId) === result) this.adopting.delete(agentId);
         };
         void result.then(release, release);
         return result;
     }
 
-    private async acquireAgent(
-        agentId: string,
-        engine: string | null,
-    ): Promise<Agent> {
+    private async acquireAgent(agentId: string, engine: string | null): Promise<Agent> {
         // ACP v2 handshakes once per connection; on takeover the Runtime answers with the cached handshake result, without disturbing the engine
-        const initialized = await initialize(
-            this.port,
-            agentId,
-            this.handshake,
-        );
+        const initialized = await initialize(this.port, agentId, this.handshake);
         const agent = new Agent(this.port, agentId, engine, initialized);
         await agent.listen();
-        if (!agent.alive)
-            throw new AgentGoneError(agentId, "agent exited during adoption");
+        if (!agent.alive) throw new AgentGoneError(agentId, "agent exited during adoption");
         this.held.set(agentId, agent);
         // Synchronous: in the same call stack as the exit event, clear the held table and notify the app; reaping and crash notices must not lag by a microtask
         agent.onGone(() => {
@@ -536,7 +432,6 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
     /** @internal Removes it from the held table after letting go. */
     release(agent: Agent): void {
         agent.detach();
-        if (this.held.get(agent.agentId) === agent)
-            this.held.delete(agent.agentId);
+        if (this.held.get(agent.agentId) === agent) this.held.delete(agent.agentId);
     }
 }

@@ -1,20 +1,10 @@
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type { ThreadItem, Turn } from "../../app-server/v2";
-import type { AppServerClient } from "../codex/AppServerClient";
-import {
-    type HistoryOmission,
-    type HistoryRenderer,
-    projectHistoryItem,
-} from "./historyProjection";
-import {
-    historyError,
-    type HistoryPage,
-    HistoryRead,
-    type SessionHistoryItemsParams,
-    type SessionHistoryParams,
-} from "./historyProtocol";
-import { turnErrorUpdate } from "./turnErrors";
+import type {ThreadItem, Turn} from "../../app-server/v2";
+import type {AppServerClient} from "../codex/AppServerClient";
+import {type HistoryOmission, type HistoryRenderer, projectHistoryItem} from "./historyProjection";
+import {historyError, type HistoryPage, HistoryRead, type SessionHistoryItemsParams, type SessionHistoryParams} from "./historyProtocol";
+import {turnErrorUpdate} from "./turnErrors";
 export {
     parseSessionHistoryParams,
     parseSessionHistoryItemsParams,
@@ -55,14 +45,9 @@ export async function readSessionHistory(
     signal: AbortSignal = new AbortController().signal,
 ): Promise<SessionHistoryResponse> {
     const view = params.itemsView ?? "summary";
-    const read = new HistoryRead(
-        codex,
-        params,
-        { endpoint: "turns", itemsView: view },
-        signal,
-    );
+    const read = new HistoryRead(codex, params, {endpoint: "turns", itemsView: view}, signal);
     const start = await read.start();
-    return read.fitting(params.limit ?? 50, async (limit) => {
+    return read.fitting(params.limit ?? 50, async limit => {
         const page = await read.call(() =>
             codex.threadTurnsList({
                 threadId: params.sessionId,
@@ -73,29 +58,16 @@ export async function readSessionHistory(
             }),
         );
         read.checkTurns(page.data);
-        if (view === "full" && page.data.some((turn) => turn.itemsView !== "full"))
-            throw historyError(
-                "history_incomplete",
-                "Codex did not return full history items; update Codex and retry",
-                false,
-                {},
-                -32603,
-            );
+        if (view === "full" && page.data.some(turn => turn.itemsView !== "full"))
+            throw historyError("history_incomplete", "Codex did not return full history items; update Codex and retry", false, {}, -32603);
         const turns = await read.call(() =>
             Promise.all(
-                page.data.map(async (turn) => {
+                page.data.map(async turn => {
                     const projections =
                         view === "full"
                             ? await Promise.all(
-                                  turn.items.map(async (item) =>
-                                      projectHistoryItem(
-                                          render,
-                                          item,
-                                          start.thread.cwd,
-                                          turn.id,
-                                          turn.startedAt,
-                                          signal,
-                                      ),
+                                  turn.items.map(async item =>
+                                      projectHistoryItem(render, item, start.thread.cwd, turn.id, turn.startedAt, signal),
                                   ),
                               )
                             : [];
@@ -106,17 +78,12 @@ export async function readSessionHistory(
                         startedAt: turn.startedAt,
                         completedAt: turn.completedAt,
                         durationMs: turn.durationMs,
-                        itemsView:
-                            view === "summary"
-                                ? ("summary" as const)
-                                : turn.itemsView,
+                        itemsView: view === "summary" ? ("summary" as const) : turn.itemsView,
                         updates: [
-                            ...projections.flatMap((p) => p.updates),
-                            ...(turn.status === "failed" && turn.error !== null
-                                ? [turnErrorUpdate(turn.id, turn.error)]
-                                : []),
+                            ...projections.flatMap(p => p.updates),
+                            ...(turn.status === "failed" && turn.error !== null ? [turnErrorUpdate(turn.id, turn.error)] : []),
                         ],
-                        omissions: projections.flatMap((p) => p.omissions),
+                        omissions: projections.flatMap(p => p.omissions),
                     };
                 }),
             ),
@@ -124,13 +91,10 @@ export async function readSessionHistory(
         const result = await read.finish(start, page.nextCursor, page.data.length);
         return {
             ...result,
-            running: page.data.some((turn) => turn.status === "inProgress")
-                ? true
-                : result.running,
+            running: page.data.some(turn => turn.status === "inProgress") ? true : result.running,
             turns,
         };
     });
-
 }
 
 export async function readSessionHistoryItems(
@@ -139,14 +103,9 @@ export async function readSessionHistoryItems(
     params: SessionHistoryItemsParams,
     signal: AbortSignal = new AbortController().signal,
 ): Promise<SessionHistoryItemsResponse> {
-    const read = new HistoryRead(
-        codex,
-        params,
-        { endpoint: "items", turnId: params.turnId ?? null },
-        signal,
-    );
+    const read = new HistoryRead(codex, params, {endpoint: "items", turnId: params.turnId ?? null}, signal);
     const start = await read.start();
-    return read.fitting(params.limit ?? 50, async (limit) => {
+    return read.fitting(params.limit ?? 50, async limit => {
         const page = await read.call(() =>
             codex.threadItemsList({
                 threadId: params.sessionId,
@@ -158,24 +117,16 @@ export async function readSessionHistoryItems(
         );
         const items = await read.call(() =>
             Promise.all(
-                page.data.map(async (entry) => ({
+                page.data.map(async entry => ({
                     turnId: entry.turnId,
                     itemId: entry.item.id,
                     startedAtMs: entry.startedAtMs,
                     completedAtMs: entry.completedAtMs,
-                    ...(await projectHistoryItem(
-                        render,
-                        entry.item,
-                        start.thread.cwd,
-                        entry.turnId,
-                        null,
-                        signal,
-                    )),
+                    ...(await projectHistoryItem(render, entry.item, start.thread.cwd, entry.turnId, null, signal)),
                 })),
             ),
         );
         const result = await read.finish(start, page.nextCursor, page.data.length);
-        return { ...result, items };
+        return {...result, items};
     });
-
 }

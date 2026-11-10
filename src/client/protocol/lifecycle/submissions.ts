@@ -1,12 +1,7 @@
-import type {
-    PromptResponse,
-    SessionUpdate,
-    StateUpdate,
-    UserMessage,
-} from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type {PromptResponse, SessionUpdate, StateUpdate, UserMessage} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-export type PromptCompletion = Extract<StateUpdate, { state: "idle" }>;
-type Insertion = { echoed: boolean; completion: PromptCompletion | null };
+export type PromptCompletion = Extract<StateUpdate, {state: "idle"}>;
+type Insertion = {echoed: boolean; completion: PromptCompletion | null};
 export interface SubmissionSnapshot {
     readonly id: number;
     readonly sessionId: string;
@@ -57,23 +52,15 @@ export class SubmissionLedger {
         this.maxObserved = options.maxObservedMessagesPerSession ?? 4096;
         this.maxRecent = options.maxRecent ?? 256;
         for (const limit of [this.maxPending, this.maxObserved, this.maxRecent])
-            if (!Number.isSafeInteger(limit) || limit < 1)
-                throw new RangeError(
-                    "Prompt tracking limits must be positive safe integers",
-                );
+            if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError("Prompt tracking limits must be positive safe integers");
     }
 
     snapshots(sessionId?: string): readonly SubmissionSnapshot[] {
-        const active = [...this.sessions.values()].flatMap((session) =>
-            [...session.pending].map((item) => item.snapshot),
-        );
+        const active = [...this.sessions.values()].flatMap(session => [...session.pending].map(item => item.snapshot));
         return [...this.recent.values(), ...active]
-            .filter(
-                (item) =>
-                    sessionId === undefined || item.sessionId === sessionId,
-            )
+            .filter(item => sessionId === undefined || item.sessionId === sessionId)
             .toSorted((a, b) => a.id - b.id)
-            .map((item) => Object.freeze({ ...item }));
+            .map(item => Object.freeze({...item}));
     }
 
     submit(
@@ -84,13 +71,11 @@ export class SubmissionLedger {
     ): Submission {
         let session = this.sessions.get(sessionId);
         if (session === undefined) {
-            session = { pending: new Set(), insertions: new Map() };
+            session = {pending: new Set(), insertions: new Map()};
             this.sessions.set(sessionId, session);
         }
         if (session.pending.size >= this.maxPending)
-            throw new Error(
-                `Session ${sessionId} pending prompt capacity exceeded (${this.maxPending})`,
-            );
+            throw new Error(`Session ${sessionId} pending prompt capacity exceeded (${this.maxPending})`);
         const current = session;
         const receipt = Promise.withResolvers<PromptResponse>();
         const completion = Promise.withResolvers<PromptCompletion>();
@@ -123,12 +108,9 @@ export class SubmissionLedger {
             sent = Promise.reject(error);
         }
         void Promise.resolve(sent)
-            .then((response) => {
+            .then(response => {
                 if (!current.pending.has(pending)) return;
-                if (
-                    typeof response.messageId !== "string" ||
-                    response.messageId.length === 0
-                )
+                if (typeof response.messageId !== "string" || response.messageId.length === 0)
                     throw new Error("session/prompt returned no messageId");
                 snapshot.receipt = "accepted";
                 snapshot.messageId = response.messageId;
@@ -138,24 +120,19 @@ export class SubmissionLedger {
                 let insertion = current.insertions.get(response.messageId);
                 if (insertion === undefined) {
                     if (!this.reserveInsertion(sessionId, current)) return;
-                    insertion = { echoed: false, completion: null };
+                    insertion = {echoed: false, completion: null};
                     current.insertions.set(response.messageId, insertion);
                 }
                 snapshot.echoed = insertion.echoed;
                 pending.acceptReceipt(response);
-                if (insertion.completion !== null)
-                    this.complete(current, pending, insertion.completion);
+                if (insertion.completion !== null) this.complete(current, pending, insertion.completion);
                 this.prune(sessionId, current);
             })
             .catch((error: unknown) => {
                 if (!current.pending.has(pending)) return;
                 if (snapshot.receipt === "pending")
-                    snapshot.receipt =
-                        !snapshot.dispatched || definitelyRejected(error)
-                            ? "rejected"
-                            : "unknown";
-                snapshot.completion =
-                    snapshot.receipt === "rejected" ? "not-started" : "unknown";
+                    snapshot.receipt = !snapshot.dispatched || definitelyRejected(error) ? "rejected" : "unknown";
+                snapshot.completion = snapshot.receipt === "rejected" ? "not-started" : "unknown";
                 pending.rejectReceipt(error);
                 pending.reject(error);
                 current.pending.delete(pending);
@@ -177,11 +154,7 @@ export class SubmissionLedger {
         return this.submit(sessionId, send, acknowledge).completion;
     }
 
-    private complete(
-        session: SessionPrompts,
-        pending: Pending,
-        completion: PromptCompletion,
-    ): void {
+    private complete(session: SessionPrompts, pending: Pending, completion: PromptCompletion): void {
         pending.snapshot.echoed = true;
         pending.snapshot.completion = "complete";
         session.pending.delete(pending);
@@ -190,25 +163,17 @@ export class SubmissionLedger {
     }
 
     private remember(snapshot: MutableSnapshot): void {
-        this.recent.set(snapshot.id, Object.freeze({ ...snapshot }));
-        while (this.recent.size > this.maxRecent)
-            this.recent.delete(this.recent.keys().next().value!);
+        this.recent.set(snapshot.id, Object.freeze({...snapshot}));
+        while (this.recent.size > this.maxRecent) this.recent.delete(this.recent.keys().next().value!);
     }
 
     accept(sessionId: string, update: SessionUpdate): void {
         // Historical replay is not evidence that a new submission entered a live turn.
-        if (
-            (update._meta as { replay?: { id?: unknown } } | undefined)?.replay
-                ?.id !== undefined
-        )
-            return;
+        if ((update._meta as {replay?: {id?: unknown}} | undefined)?.replay?.id !== undefined) return;
         const session = this.sessions.get(sessionId);
         if (session === undefined) return;
-        if (
-            update.sessionUpdate === "user_message" ||
-            update.sessionUpdate === "user_message_chunk"
-        ) {
-            const { messageId } = update as UserMessage;
+        if (update.sessionUpdate === "user_message" || update.sessionUpdate === "user_message_chunk") {
+            const {messageId} = update as UserMessage;
             const insertion = session.insertions.get(messageId);
             if (insertion) insertion.echoed = true;
             else if (this.reserveInsertion(sessionId, session))
@@ -216,16 +181,10 @@ export class SubmissionLedger {
                     echoed: true,
                     completion: null,
                 });
-            for (const pending of session.pending)
-                if (pending.messageId === messageId)
-                    pending.snapshot.echoed = true;
-        } else if (
-            update.sessionUpdate === "state_update" &&
-            update.state === "idle"
-        ) {
+            for (const pending of session.pending) if (pending.messageId === messageId) pending.snapshot.echoed = true;
+        } else if (update.sessionUpdate === "state_update" && update.state === "idle") {
             for (const insertion of session.insertions.values()) {
-                if (insertion.echoed)
-                    insertion.completion ??= update as PromptCompletion;
+                if (insertion.echoed) insertion.completion ??= update as PromptCompletion;
             }
             for (const pending of session.pending) {
                 if (pending.messageId === null) continue;
@@ -242,13 +201,8 @@ export class SubmissionLedger {
         if (!session) return;
         this.sessions.delete(sessionId);
         for (const pending of session.pending) {
-            if (pending.snapshot.receipt === "pending")
-                pending.snapshot.receipt = pending.snapshot.dispatched
-                    ? "unknown"
-                    : "rejected";
-            pending.snapshot.completion = pending.snapshot.dispatched
-                ? "unknown"
-                : "not-started";
+            if (pending.snapshot.receipt === "pending") pending.snapshot.receipt = pending.snapshot.dispatched ? "unknown" : "rejected";
+            pending.snapshot.completion = pending.snapshot.dispatched ? "unknown" : "not-started";
             pending.rejectReceipt(error);
             pending.reject(error);
             this.remember(pending.snapshot);
@@ -257,22 +211,13 @@ export class SubmissionLedger {
     }
 
     fail(error: Error): void {
-        for (const sessionId of this.sessions.keys())
-            this.failSession(sessionId, error);
+        for (const sessionId of this.sessions.keys()) this.failSession(sessionId, error);
     }
 
-    private reserveInsertion(
-        sessionId: string,
-        session: SessionPrompts,
-    ): boolean {
+    private reserveInsertion(sessionId: string, session: SessionPrompts): boolean {
         if (session.insertions.size < this.maxObserved) return true;
         // Tracking failure cannot prove whether the remote submission was accepted.
-        this.failSession(
-            sessionId,
-            new Error(
-                `Session ${sessionId} prompt evidence capacity exceeded; completion is unknown`,
-            ),
-        );
+        this.failSession(sessionId, new Error(`Session ${sessionId} prompt evidence capacity exceeded; completion is unknown`));
         return false;
     }
 
@@ -283,12 +228,8 @@ export class SubmissionLedger {
             return;
         }
         // Before responses arrive, retain IDs across idle so notification-first transports work.
-        if ([...session.pending].some((pending) => pending.messageId === null))
-            return;
-        const pendingIds = new Set(
-            [...session.pending].map((pending) => pending.messageId),
-        );
-        for (const id of session.insertions.keys())
-            if (!pendingIds.has(id)) session.insertions.delete(id);
+        if ([...session.pending].some(pending => pending.messageId === null)) return;
+        const pendingIds = new Set([...session.pending].map(pending => pending.messageId));
+        for (const id of session.insertions.keys()) if (!pendingIds.has(id)) session.insertions.delete(id);
     }
 }

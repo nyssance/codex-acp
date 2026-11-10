@@ -31,7 +31,14 @@ describeIntegration("integration: an exhausted balance reported as HTTP 402", ()
         mock.setErrorResponse({
             status: 402,
             // As DeepSeek answered on 2026-11-05; the same shape passed against the live API.
-            body: {error: {message: "Insufficient Balance (request_id: 944e5925)", type: "insufficient_balance_error", param: null, code: "invalid_request_error"}},
+            body: {
+                error: {
+                    message: "Insufficient Balance (request_id: 944e5925)",
+                    type: "insufficient_balance_error",
+                    param: null,
+                    code: "invalid_request_error",
+                },
+            },
         });
         const failure = await sendPrompt(agent, sessionId, "hello").then(
             () => null,

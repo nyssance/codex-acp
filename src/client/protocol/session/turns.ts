@@ -5,18 +5,10 @@
 // Every WorkBuddy needs this grouping and there is really only one way to do it, so it lives in the package instead of being rewritten each time.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type {
-    CompactionItem,
-    FoldPolicy,
-    Item,
-    MessageItem,
-    PlanItem,
-    Session,
-    ToolItem,
-} from "./session";
+import type {CompactionItem, FoldPolicy, Item, MessageItem, PlanItem, Session, ToolItem} from "./session";
 
 /** A tool, plus the sub-tools it dispatched. */
-export type ToolNode = ToolItem & { children: ToolNode[] };
+export type ToolNode = ToolItem & {children: ToolNode[]};
 
 /** One thing the agent produced within a turn. Tools have already found their parents; sub-tools sit in the parent tool's `children`. */
 export type TurnEntry = MessageItem | ToolNode | PlanItem | CompactionItem;
@@ -56,7 +48,7 @@ function isPrompt(item: Item): item is MessageItem {
 export function turns(session: Session, policy: FoldPolicy = {}): Turn[] {
     const nodes = new Map<string, ToolNode>();
     for (const item of session.items) {
-        if (isTool(item)) nodes.set(item.id, { ...item, children: [] });
+        if (isTool(item)) nodes.set(item.id, {...item, children: []});
     }
 
     const nested = new Set<string>();
@@ -70,19 +62,13 @@ export function turns(session: Session, policy: FoldPolicy = {}): Turn[] {
         nested.add(item.id);
     }
 
-    const entryOf = (item: Item): TurnEntry =>
-        isTool(item) ? nodes.get(item.id)! : item;
+    const entryOf = (item: Item): TurnEntry => (isTool(item) ? nodes.get(item.id)! : item);
 
     const result: Turn[] = [];
     let current: Turn | null = null;
-    const optimistic = (item: Item) =>
-        item.kind === "user" &&
-        (item.echo === "pending" || item.echo === "acknowledged");
+    const optimistic = (item: Item) => item.kind === "user" && (item.echo === "pending" || item.echo === "acknowledged");
     // Optimistic messages cannot reassign streamed output from an already inserted prompt.
-    const ordered = [
-        ...session.items.filter((item) => !optimistic(item)),
-        ...session.items.filter(optimistic),
-    ];
+    const ordered = [...session.items.filter(item => !optimistic(item)), ...session.items.filter(optimistic)];
     for (const item of ordered) {
         if (isPrompt(item)) {
             current = {

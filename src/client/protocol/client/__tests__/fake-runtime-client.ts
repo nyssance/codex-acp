@@ -17,39 +17,26 @@ import type {
     RuntimeSessionResult,
     SessionRunState,
 } from "@alwith/api";
-import { RuntimeRequestError } from "@alwith/api";
+import {RuntimeRequestError} from "@alwith/api";
 
 type Agent = {
     writer: WritableStreamDefaultWriter<Uint8Array>;
     connection: acp.AgentConnection;
 };
 
-export class FakeHubPort implements RuntimeClient<{ engine: string }> {
+export class FakeHubPort implements RuntimeClient<{engine: string}> {
     readonly started: string[] = [];
     readonly attached: string[] = [];
     readonly marked: string[] = [];
     readonly markedVersions: Array<number | null> = [];
     private readonly processes = new Map<string, Agent>();
-    private readonly lineHandlers = new Set<
-        (payload: RuntimeInboundPayload) => void
-    >();
-    private readonly exitHandlers = new Set<
-        (payload: RuntimeExitPayload) => void
-    >();
-    private readonly runStateHandlers = new Set<
-        (sessions: SessionRunState[]) => void
-    >();
-    private readonly acpNotificationHandlers = new Set<
-        (notification: RuntimeAcpNotification) => void
-    >();
-    private readonly acpAgentRequestHandlers = new Set<
-        (request: RuntimeAcpAgentRequest) => void
-    >();
+    private readonly lineHandlers = new Set<(payload: RuntimeInboundPayload) => void>();
+    private readonly exitHandlers = new Set<(payload: RuntimeExitPayload) => void>();
+    private readonly runStateHandlers = new Set<(sessions: SessionRunState[]) => void>();
+    private readonly acpNotificationHandlers = new Set<(notification: RuntimeAcpNotification) => void>();
+    private readonly acpAgentRequestHandlers = new Set<(request: RuntimeAcpAgentRequest) => void>();
     /** Requests this fake Runtime issued itself (`rt-<n>`), like the real one. */
-    private readonly pendingAcp = new Map<
-        string | number,
-        { resolve: (value: unknown) => void; reject: (error: Error) => void }
-    >();
+    private readonly pendingAcp = new Map<string | number, {resolve: (value: unknown) => void; reject: (error: Error) => void}>();
     private nextAcpId = 1;
     private states: SessionRunState[] = [];
     private pending: Record<string, RuntimeAttachInfo> = {};
@@ -64,14 +51,10 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
     }
 
     /** Simulates a Runtime that already runs a session for `agentId` and holds unanswered agent requests. */
-    seedRunningSession(
-        sessionId: string,
-        agentId: string,
-        pendingAgentRequests: RuntimePendingAgentRequest[],
-    ): void {
+    seedRunningSession(sessionId: string, agentId: string, pendingAgentRequests: RuntimePendingAgentRequest[]): void {
         this.initializeSnapshot = {
             protocolVersion: 2,
-            info: { name: "fake-agent", version: "1" },
+            info: {name: "fake-agent", version: "1"},
             capabilities: {},
             authMethods: [],
         };
@@ -100,21 +83,19 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         };
     }
 
-    start(agentId: string, _launch: { engine: string }): Promise<void> {
+    start(agentId: string, _launch: {engine: string}): Promise<void> {
         return Promise.try(() => {
             this.started.push(agentId);
             const decoder = new TextDecoder();
             const toAgent = new TransformStream<Uint8Array, Uint8Array>();
             let buffered = "";
             const fromAgent = new WritableStream<Uint8Array>({
-                write: (chunk) => {
-                    buffered += decoder.decode(chunk, { stream: true });
+                write: chunk => {
+                    buffered += decoder.decode(chunk, {stream: true});
                     const lines = buffered.split("\n");
                     buffered = lines.pop() ?? "";
                     const inbound: string[] = [];
-                    for (const line of lines.filter(
-                        (line) => line.length > 0,
-                    )) {
+                    for (const line of lines.filter(line => line.length > 0)) {
                         const value = JSON.parse(line) as {
                             id?: unknown;
                             result?: unknown;
@@ -122,40 +103,25 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
                             method?: string;
                             params?: unknown;
                         };
-                        if (
-                            value.method === undefined &&
-                            value.id === this.initializeRequestId &&
-                            value.result !== undefined
-                        ) {
+                        if (value.method === undefined && value.id === this.initializeRequestId && value.result !== undefined) {
                             this.initializeSnapshot = value.result;
                         }
                         // Like the real Runtime: answers to its own requests never reach `inbound`; notifications and
                         // agent requests are split out as events alongside the raw line.
                         const waiter =
-                            value.method === undefined &&
-                            (typeof value.id === "string" ||
-                                typeof value.id === "number")
+                            value.method === undefined && (typeof value.id === "string" || typeof value.id === "number")
                                 ? this.pendingAcp.get(value.id)
                                 : undefined;
                         if (waiter !== undefined) {
                             this.pendingAcp.delete(value.id as string | number);
-                            if (
-                                value.error !== undefined &&
-                                value.error !== null
-                            )
-                                waiter.reject(
-                                    new RuntimeRequestError(
-                                        "acpRequest",
-                                        value.error as RuntimeResponseError,
-                                    ),
-                                );
+                            if (value.error !== undefined && value.error !== null)
+                                waiter.reject(new RuntimeRequestError("acpRequest", value.error as RuntimeResponseError));
                             else waiter.resolve(value.result ?? null);
                             continue;
                         }
                         if (value.method !== undefined) {
                             if (value.id !== undefined && value.id !== null) {
-                                for (const handler of this
-                                    .acpAgentRequestHandlers)
+                                for (const handler of this.acpAgentRequestHandlers)
                                     handler({
                                         agentId,
                                         id: value.id,
@@ -163,8 +129,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
                                         params: value.params,
                                     });
                             } else {
-                                for (const handler of this
-                                    .acpNotificationHandlers)
+                                for (const handler of this.acpNotificationHandlers)
                                     handler({
                                         agentId,
                                         method: value.method,
@@ -174,14 +139,10 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
                         }
                         inbound.push(line);
                     }
-                    if (inbound.length > 0)
-                        for (const handler of this.lineHandlers)
-                            handler({ agentId, lines: inbound });
+                    if (inbound.length > 0) for (const handler of this.lineHandlers) handler({agentId, lines: inbound});
                 },
             });
-            const connection = this.agentFactory().connect(
-                acp.ndJsonStream(fromAgent, toAgent.readable),
-            );
+            const connection = this.agentFactory().connect(acp.ndJsonStream(fromAgent, toAgent.readable));
             this.processes.set(agentId, {
                 writer: toAgent.writable.getWriter(),
                 connection,
@@ -192,7 +153,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
     async send(agentId: string, line: string): Promise<void> {
         const agent = this.processes.get(agentId);
         if (!agent) throw new Error(`no agent process ${agentId}`);
-        const value = JSON.parse(line) as { id?: unknown; method?: unknown };
+        const value = JSON.parse(line) as {id?: unknown; method?: unknown};
         // Like the real Runtime: a repeated initialize is answered from the cache, never forwarded.
         if (value.method === "initialize") {
             if (this.initializeSnapshot !== null) {
@@ -201,8 +162,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
                     id: value.id,
                     result: this.initializeSnapshot,
                 });
-                for (const handler of this.lineHandlers)
-                    handler({ agentId, lines: [reply] });
+                for (const handler of this.lineHandlers) handler({agentId, lines: [reply]});
                 return;
             }
             this.initializeRequestId = value.id;
@@ -216,7 +176,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
             if (!agent) return;
             this.processes.delete(agentId);
             agent.connection.close();
-            for (const handler of this.exitHandlers) handler({ agentId });
+            for (const handler of this.exitHandlers) handler({agentId});
         });
     }
 
@@ -259,53 +219,28 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         agentId: string,
         method: string,
         params?: unknown,
-        options?: { id?: string | number },
+        options?: {id?: string | number},
     ): Promise<Result> {
-        if (method === "initialize" && this.initializeSnapshot !== null)
-            return this.initializeSnapshot as Result;
+        if (method === "initialize" && this.initializeSnapshot !== null) return this.initializeSnapshot as Result;
         const id = options?.id ?? `rt-${this.nextAcpId++}`;
-        const answer = new Promise<unknown>((resolve, reject) =>
-            this.pendingAcp.set(id, { resolve, reject }),
-        );
-        await this.send(
-            agentId,
-            JSON.stringify({ jsonrpc: "2.0", id, method, params }),
-        );
+        const answer = new Promise<unknown>((resolve, reject) => this.pendingAcp.set(id, {resolve, reject}));
+        await this.send(agentId, JSON.stringify({jsonrpc: "2.0", id, method, params}));
         return (await answer) as Result;
     }
 
-    async acpNotify(
-        agentId: string,
-        method: string,
-        params?: unknown,
-    ): Promise<void> {
-        await this.send(
-            agentId,
-            JSON.stringify({ jsonrpc: "2.0", method, params }),
-        );
+    async acpNotify(agentId: string, method: string, params?: unknown): Promise<void> {
+        await this.send(agentId, JSON.stringify({jsonrpc: "2.0", method, params}));
     }
 
-    async acpRespond(
-        agentId: string,
-        id: unknown,
-        result?: unknown,
-        error?: unknown,
-    ): Promise<void> {
-        const frame =
-            error === undefined
-                ? { jsonrpc: "2.0", id, result: result ?? null }
-                : { jsonrpc: "2.0", id, error };
+    async acpRespond(agentId: string, id: unknown, result?: unknown, error?: unknown): Promise<void> {
+        const frame = error === undefined ? {jsonrpc: "2.0", id, result: result ?? null} : {jsonrpc: "2.0", id, error};
         await this.send(agentId, JSON.stringify(frame));
     }
 
-    initialize(
-        agentId: string,
-        info?: { name: string; version: string },
-        capabilities?: Record<string, unknown>,
-    ): Promise<unknown> {
+    initialize(agentId: string, info?: {name: string; version: string}, capabilities?: Record<string, unknown>): Promise<unknown> {
         return this.acpRequest(agentId, "initialize", {
             protocolVersion: 2,
-            info: info ?? { name: "fake-runtime", version: "0" },
+            info: info ?? {name: "fake-runtime", version: "0"},
             capabilities: capabilities ?? {},
         });
     }
@@ -314,11 +249,8 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         await this.initialize(agentId);
     }
 
-    private withMeta(
-        params: Record<string, unknown>,
-        meta?: Record<string, unknown>,
-    ): Record<string, unknown> {
-        return meta === undefined ? params : { ...params, _meta: meta };
+    private withMeta(params: Record<string, unknown>, meta?: Record<string, unknown>): Record<string, unknown> {
+        return meta === undefined ? params : {...params, _meta: meta};
     }
 
     async sessionNew(
@@ -328,11 +260,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         meta?: Record<string, unknown>,
     ): Promise<RuntimeSessionResult> {
         await this.ensureInitialized(agentId);
-        return this.acpRequest(
-            agentId,
-            "session/new",
-            this.withMeta({ cwd, mcpServers }, meta),
-        );
+        return this.acpRequest(agentId, "session/new", this.withMeta({cwd, mcpServers}, meta));
     }
 
     async sessionLoad(
@@ -343,11 +271,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         meta?: Record<string, unknown>,
     ): Promise<RuntimeSessionResult> {
         await this.ensureInitialized(agentId);
-        return this.acpRequest(
-            agentId,
-            "session/load",
-            this.withMeta({ sessionId, cwd, mcpServers }, meta),
-        );
+        return this.acpRequest(agentId, "session/load", this.withMeta({sessionId, cwd, mcpServers}, meta));
     }
 
     async sessionResume(
@@ -361,12 +285,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         return this.acpRequest(
             agentId,
             "session/resume",
-            this.withMeta(
-                replayFrom === undefined
-                    ? { sessionId, cwd }
-                    : { sessionId, cwd, replayFrom },
-                meta,
-            ),
+            this.withMeta(replayFrom === undefined ? {sessionId, cwd} : {sessionId, cwd, replayFrom}, meta),
         );
     }
 
@@ -378,42 +297,25 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         meta?: Record<string, unknown>,
     ): Promise<RuntimeSessionResult> {
         await this.ensureInitialized(agentId);
-        return this.acpRequest(
-            agentId,
-            "session/fork",
-            this.withMeta({ sessionId, cwd, mcpServers }, meta),
-        );
+        return this.acpRequest(agentId, "session/fork", this.withMeta({sessionId, cwd, mcpServers}, meta));
     }
 
-    prompt(
-        agentId: string,
-        sessionId: string,
-        prompt: unknown[],
-        meta?: Record<string, unknown>,
-    ): Promise<RuntimePromptResult> {
-        return this.acpRequest(
-            agentId,
-            "session/prompt",
-            this.withMeta({ sessionId, prompt }, meta),
-        );
+    prompt(agentId: string, sessionId: string, prompt: unknown[], meta?: Record<string, unknown>): Promise<RuntimePromptResult> {
+        return this.acpRequest(agentId, "session/prompt", this.withMeta({sessionId, prompt}, meta));
     }
 
     cancel(agentId: string, sessionId: string): Promise<void> {
-        return this.acpNotify(agentId, "session/cancel", { sessionId });
+        return this.acpNotify(agentId, "session/cancel", {sessionId});
     }
 
-    onAcpNotification(
-        handler: (notification: RuntimeAcpNotification) => void,
-    ): Promise<() => void> {
+    onAcpNotification(handler: (notification: RuntimeAcpNotification) => void): Promise<() => void> {
         return Promise.try(() => {
             this.acpNotificationHandlers.add(handler);
             return () => this.acpNotificationHandlers.delete(handler);
         });
     }
 
-    onAcpAgentRequest(
-        handler: (request: RuntimeAcpAgentRequest) => void,
-    ): Promise<() => void> {
+    onAcpAgentRequest(handler: (request: RuntimeAcpAgentRequest) => void): Promise<() => void> {
         return Promise.try(() => {
             this.acpAgentRequestHandlers.add(handler);
             return () => this.acpAgentRequestHandlers.delete(handler);
@@ -421,7 +323,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
     }
     agents() {
         return Promise.try(() => {
-            return [...this.processes.keys()].map((agentId) => ({
+            return [...this.processes.keys()].map(agentId => ({
                 agentId,
                 pid: null,
                 provider: "",
@@ -434,17 +336,13 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
         });
     }
     async ping(): Promise<void> {}
-    onInbound(
-        handler: (payload: RuntimeInboundPayload) => void,
-    ): Promise<() => void> {
+    onInbound(handler: (payload: RuntimeInboundPayload) => void): Promise<() => void> {
         return Promise.try(() => {
             this.lineHandlers.add(handler);
             return () => this.lineHandlers.delete(handler);
         });
     }
-    onExit(
-        handler: (payload: RuntimeExitPayload) => void,
-    ): Promise<() => void> {
+    onExit(handler: (payload: RuntimeExitPayload) => void): Promise<() => void> {
         return Promise.try(() => {
             this.exitHandlers.add(handler);
             return () => this.exitHandlers.delete(handler);
@@ -453,9 +351,7 @@ export class FakeHubPort implements RuntimeClient<{ engine: string }> {
     onStderr(): Promise<() => void> {
         return Promise.resolve(() => {});
     }
-    onRunStates(
-        handler: (sessions: SessionRunState[]) => void,
-    ): Promise<() => void> {
+    onRunStates(handler: (sessions: SessionRunState[]) => void): Promise<() => void> {
         return Promise.try(() => {
             this.runStateHandlers.add(handler);
             return () => this.runStateHandlers.delete(handler);

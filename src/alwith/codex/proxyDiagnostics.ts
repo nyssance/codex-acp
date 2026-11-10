@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import {randomBytes} from "node:crypto";
 
 export const PROXY_DIAGNOSTIC_PREFIX = "[alwith-model-proxy] ";
 
@@ -28,14 +28,7 @@ const ERROR_CODES = new Set([
 export function transportErrors(error: unknown): string[] {
     const codes: string[] = [];
     const seen = new Set<unknown>();
-    for (
-        let depth = 0;
-        depth < 4 &&
-        error !== null &&
-        typeof error === "object" &&
-        !seen.has(error);
-        depth++
-    ) {
+    for (let depth = 0; depth < 4 && error !== null && typeof error === "object" && !seen.has(error); depth++) {
         seen.add(error);
         const value = error as {
             code?: unknown;
@@ -76,21 +69,13 @@ export class ProxyDiagnostics {
         receivedBytes: 0,
         firstByteMs: null as number | null,
         reusedSocket: null as boolean | null,
-        proxyEnv: [
-            "HTTPS_PROXY",
-            "https_proxy",
-            "HTTP_PROXY",
-            "http_proxy",
-            "ALL_PROXY",
-            "all_proxy",
-        ].filter((name) => Boolean(process.env[name])),
+        proxyEnv: ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"].filter(name =>
+            Boolean(process.env[name]),
+        ),
         noProxySet: Boolean(process.env["NO_PROXY"] || process.env["no_proxy"]),
     };
 
-    constructor(
-        transport: "http" | "websocket",
-        destination: "native" | "external",
-    ) {
+    constructor(transport: "http" | "websocket", destination: "native" | "external") {
         this.data.transport = transport;
         this.data.destination = destination;
         if (transport === "websocket") this.data.runtime = "node-websocket";
@@ -107,9 +92,7 @@ export class ProxyDiagnostics {
 
     target(target: URL): void {
         this.data.targetHost = target.hostname;
-        this.data.targetPort = Number(
-            target.port || (target.protocol === "https:" ? 443 : 80),
-        );
+        this.data.targetPort = Number(target.port || (target.protocol === "https:" ? 443 : 80));
         this.data.endpoint =
             [
                 "responses/compact",
@@ -121,17 +104,10 @@ export class ProxyDiagnostics {
                 "realtime/voices",
                 "live",
                 "realtime",
-            ].find((path) => target.pathname.endsWith(`/${path}`)) ?? "other";
+            ].find(path => target.pathname.endsWith(`/${path}`)) ?? "other";
     }
 
-    stage(
-        stage:
-            | "read_request"
-            | "prepare_request"
-            | "connect_native"
-            | "connect_upstream"
-            | "read_response",
-    ): void {
+    stage(stage: "read_request" | "prepare_request" | "connect_native" | "connect_upstream" | "read_response"): void {
         this.data.stage = stage;
     }
 
@@ -143,17 +119,10 @@ export class ProxyDiagnostics {
         this.data.receivedBytes += bytes;
     }
 
-    headers(
-        status: number,
-        requestId?: string | null,
-        reusedSocket?: boolean,
-    ): void {
+    headers(status: number, requestId?: string | null, reusedSocket?: boolean): void {
         if (this.ended) return;
         this.data.status = status;
-        this.data.upstreamRequestId =
-            requestId && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId)
-                ? requestId
-                : null;
+        this.data.upstreamRequestId = requestId && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId) ? requestId : null;
         this.data.reusedSocket = reusedSocket ?? null;
         this.data.stage = "read_response";
         this.emit("headers");
@@ -173,12 +142,7 @@ export class ProxyDiagnostics {
         if (this.ended) return;
         this.ended = true;
         const errors = phase === "failed" ? transportErrors(error) : [];
-        this.emit(
-            errors.length > 0 && errors.every((code) => code === "ABORT_ERR")
-                ? "cancelled"
-                : phase,
-            errors,
-        );
+        this.emit(errors.length > 0 && errors.every(code => code === "ABORT_ERR") ? "cancelled" : phase, errors);
     }
 
     private emit(phase: string, errors: string[] = []): void {

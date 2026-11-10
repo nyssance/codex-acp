@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import {describe, expect, it} from "vitest";
 
-import { compatibleResponsesRequest } from "../alwith/codex/responsesCompatibility";
+import {compatibleResponsesRequest} from "../alwith/codex/responsesCompatibility";
 
 describe("native Responses history compatibility", () => {
     it("omits foreign plaintext reasoning even when it has encrypted content, preserving tool pairs and native reasoning", () => {
@@ -8,22 +8,22 @@ describe("native Responses history compatibility", () => {
             {
                 type: "message",
                 role: "user",
-                content: [{ type: "input_text", text: "hello" }],
+                content: [{type: "input_text", text: "hello"}],
             },
             {
                 type: "reasoning",
                 summary: [],
-                content: [{ type: "reasoning_text", text: "foreign" }],
+                content: [{type: "reasoning_text", text: "foreign"}],
                 encrypted_content: "foreign-token",
             },
             {
                 type: "reasoning",
                 summary: [],
-                content: [{ type: "text", text: "plaintext" }],
+                content: [{type: "text", text: "plaintext"}],
             },
             {
                 type: "reasoning",
-                summary: [{ type: "summary_text", text: "native" }],
+                summary: [{type: "summary_text", text: "native"}],
                 encrypted_content: "native-token",
             },
             {
@@ -37,7 +37,7 @@ describe("native Responses history compatibility", () => {
                 name: "tool",
                 arguments: "{}",
             },
-            { type: "function_call_output", call_id: "call", output: "result" },
+            {type: "function_call_output", call_id: "call", output: "result"},
         ];
         const raw = JSON.stringify({
             type: "response.create",
@@ -52,7 +52,7 @@ describe("native Responses history compatibility", () => {
             previous_response_id: "previous",
             input: [items[0], items[3], items[4], items[5], items[6]],
         });
-        expect((JSON.parse(raw) as { input: unknown[] }).input).toHaveLength(7);
+        expect((JSON.parse(raw) as {input: unknown[]}).input).toHaveLength(7);
         expect(compatibleResponsesRequest(output)).toBe(output);
     });
     it("omits native historical tool declarations for external endpoints without dropping conversation or tool pairs", () => {
@@ -60,13 +60,13 @@ describe("native Responses history compatibility", () => {
             {
                 type: "message",
                 role: "user",
-                content: [{ type: "input_text", text: "remember token" }],
+                content: [{type: "input_text", text: "remember token"}],
             },
             {
                 type: "additional_tools",
-                tools: [{ type: "custom", name: "exec" }],
+                tools: [{type: "custom", name: "exec"}],
             },
-            { type: "reasoning", summary: [], encrypted_content: "opaque" },
+            {type: "reasoning", summary: [], encrypted_content: "opaque"},
             {
                 type: "function_call",
                 name: "read_file",
@@ -81,21 +81,15 @@ describe("native Responses history compatibility", () => {
         ];
         const request = {
             model: "external-model",
-            tools: [{ type: "function", name: "read_file" }],
+            tools: [{type: "function", name: "read_file"}],
             input,
         };
         const raw = JSON.stringify(request);
-        expect(JSON.parse(compatibleResponsesRequest(raw, "external"))).toEqual(
-            { ...request, input: [input[0], ...input.slice(2)] },
-        );
+        expect(JSON.parse(compatibleResponsesRequest(raw, "external"))).toEqual({...request, input: [input[0], ...input.slice(2)]});
         expect(compatibleResponsesRequest(raw)).toBe(raw);
     });
     it("preserves requests without incompatible input byte for byte", () => {
-        for (const raw of [
-            '{ "type": "response.cancel" }',
-            '{ "input": [] }',
-            '{"input":"hello"}',
-        ])
+        for (const raw of ['{ "type": "response.cancel" }', '{ "input": [] }', '{"input":"hello"}'])
             expect(compatibleResponsesRequest(raw)).toBe(raw);
     });
     it("rejects malformed JSON rather than forwarding an unexamined request", () => {
@@ -106,14 +100,10 @@ describe("native Responses history compatibility", () => {
 it("decodes the persisted gateway model selection only at the upstream Responses boundary", () => {
     const body = {
         model: "gateway:two:shared%2Fmodel",
-        input: [{ type: "message", role: "user", content: [] }],
+        input: [{type: "message", role: "user", content: []}],
         stream: true,
     };
-    expect(
-        JSON.parse(
-            compatibleResponsesRequest(JSON.stringify(body), "external"),
-        ),
-    ).toEqual({ ...body, model: "shared/model" });
+    expect(JSON.parse(compatibleResponsesRequest(JSON.stringify(body), "external"))).toEqual({...body, model: "shared/model"});
 });
 
 it("decodes native models in websocket continuations without an input array", () => {

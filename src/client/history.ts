@@ -1,4 +1,4 @@
-import { wireObject } from "./wire";
+import {wireObject} from "./wire";
 
 /** Read-only export over codex-acp-v2's versioned history extension, without session/resume. */
 export interface HistoryRequest {
@@ -10,12 +10,7 @@ export interface HistoryRequest {
     maxBytes: number;
 }
 
-type ArchiveContent =
-    | { type: "text"; text: string }
-    | ({ type: "image"; mimeType: string; data: string } & Record<
-          string,
-          unknown
-      >);
+type ArchiveContent = {type: "text"; text: string} | ({type: "image"; mimeType: string; data: string} & Record<string, unknown>);
 
 const MAX_ARCHIVE_BYTES = 25 * 1024 * 1024;
 
@@ -55,57 +50,40 @@ export async function exportConversation(
             !Array.isArray(page.items) ||
             typeof page.createdAt !== "number" ||
             !Number.isFinite(page.createdAt) ||
-            (page.nextCursor !== null &&
-                (typeof page.nextCursor !== "string" || !page.nextCursor)) ||
+            (page.nextCursor !== null && (typeof page.nextCursor !== "string" || !page.nextCursor)) ||
             page.complete !== (page.nextCursor === null)
         )
             throw new Error("Invalid or incomplete history export");
-        if (revision !== undefined && revision !== page.revision)
-            throw new Error("History changed during export; retry when idle");
+        if (revision !== undefined && revision !== page.revision) throw new Error("History changed during export; retry when idle");
         revision = page.revision;
-        if (page.nextCursor !== null && page.items.length === 0)
-            throw new Error("History pagination made no progress");
+        if (page.nextCursor !== null && page.items.length === 0) throw new Error("History pagination made no progress");
         for (const rawItem of page.items) {
             const item = object(rawItem);
-            if (
-                typeof item.itemId !== "string" ||
-                typeof item.turnId !== "string" ||
-                !Array.isArray(item.updates)
-            )
+            if (typeof item.itemId !== "string" || typeof item.turnId !== "string" || !Array.isArray(item.updates))
                 throw new Error("Invalid history item");
             const identity = JSON.stringify([item.turnId, item.itemId]);
-            if (items.has(identity))
-                throw new Error("History returned a duplicate item");
+            if (items.has(identity)) throw new Error("History returned a duplicate item");
             items.add(identity);
             const timestamp = item.startedAtMs ?? page.createdAt * 1000;
-            if (typeof timestamp !== "number" || !Number.isFinite(timestamp))
-                throw new Error("Invalid history timestamp");
+            if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) throw new Error("Invalid history timestamp");
             // History replays each message as a start followed by its chunks; an item's
             // messages are written in the order they started.
-            const messages = new Map<
-                string,
-                { type: "user" | "assistant"; blocks: Record<string, unknown>[] }
-            >();
+            const messages = new Map<string, {type: "user" | "assistant"; blocks: Record<string, unknown>[]}>();
             for (const rawUpdate of item.updates) {
                 const update = object(rawUpdate);
                 const type =
-                    update.sessionUpdate === "user_message" ||
-                    update.sessionUpdate === "user_message_chunk"
+                    update.sessionUpdate === "user_message" || update.sessionUpdate === "user_message_chunk"
                         ? "user"
-                        : update.sessionUpdate === "agent_message" ||
-                            update.sessionUpdate === "agent_message_chunk"
+                        : update.sessionUpdate === "agent_message" || update.sessionUpdate === "agent_message_chunk"
                           ? "assistant"
                           : null;
                 if (type === null) continue;
-                if (typeof update.messageId !== "string")
-                    throw new Error("Invalid history message");
+                if (typeof update.messageId !== "string") throw new Error("Invalid history message");
                 const blocks =
-                    update.sessionUpdate === "user_message_chunk" ||
-                    update.sessionUpdate === "agent_message_chunk"
-                    ? [update.content]
-                    : update.content;
-                if (!Array.isArray(blocks))
-                    throw new Error("Invalid history message");
+                    update.sessionUpdate === "user_message_chunk" || update.sessionUpdate === "agent_message_chunk"
+                        ? [update.content]
+                        : update.content;
+                if (!Array.isArray(blocks)) throw new Error("Invalid history message");
                 const message = messages.get(update.messageId);
                 if (message === undefined)
                     messages.set(update.messageId, {
@@ -117,8 +95,7 @@ export async function exportConversation(
             for (const [messageId, message] of messages) {
                 const content: ArchiveContent[] = [];
                 for (const block of message.blocks) {
-                    if (block.type === "text" && typeof block.text === "string")
-                        content.push({ type: "text", text: block.text });
+                    if (block.type === "text" && typeof block.text === "string") content.push({type: "text", text: block.text});
                     else if (
                         block.type === "image" &&
                         typeof block.mimeType === "string" &&
@@ -132,10 +109,7 @@ export async function exportConversation(
                             mimeType: block.mimeType,
                             data: block.data,
                         });
-                    else if (
-                        block.type === "resource_link" &&
-                        typeof block.uri === "string"
-                    )
+                    else if (block.type === "resource_link" && typeof block.uri === "string")
                         content.push({
                             type: "text",
                             text: `[${typeof block.name === "string" ? block.name : "Resource"}] ${block.uri}`,
@@ -152,18 +126,16 @@ export async function exportConversation(
                     uuid: messageId,
                     turnId: item.turnId,
                     timestamp: new Date(timestamp).toISOString(),
-                    message: { role: message.type, content },
+                    message: {role: message.type, content},
                 })}\n`;
                 bytes += encoder.encode(line).length;
-                if (bytes > MAX_ARCHIVE_BYTES)
-                    throw new Error("会话归档超过 25 MiB，请缩小会话后重试");
+                if (bytes > MAX_ARCHIVE_BYTES) throw new Error("会话归档超过 25 MiB，请缩小会话后重试");
                 lines.push(line);
             }
         }
         cursor = page.nextCursor ?? undefined;
         if (cursor !== undefined) {
-            if (cursors.has(cursor))
-                throw new Error("History returned a repeated cursor");
+            if (cursors.has(cursor)) throw new Error("History returned a repeated cursor");
             cursors.add(cursor);
         }
         if (cursor === undefined) break;

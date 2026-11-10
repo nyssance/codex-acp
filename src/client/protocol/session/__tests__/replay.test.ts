@@ -1,22 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import {describe, expect, test} from "bun:test";
 
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import {
-    replayCursorFor,
-    replayIdOf,
-    replayReceiptOf,
-    supportsSeqCursor,
-} from "../replay";
-import { applyUpdate, createSession } from "../session";
-import { SessionStore } from "../store";
+import {replayCursorFor, replayIdOf, replayReceiptOf, supportsSeqCursor} from "../replay";
+import {applyUpdate, createSession} from "../session";
+import {SessionStore} from "../store";
 
 const agent = (cursor?: string): acp.InitializeResponse => ({
     protocolVersion: 2,
-    info: { name: "alwith-cli", version: "2.9.75" },
-    capabilities: cursor
-        ? { _meta: { alwith: { replay: { version: 1, cursor } } } }
-        : {},
+    info: {name: "alwith-cli", version: "2.9.75"},
+    capabilities: cursor ? {_meta: {alwith: {replay: {version: 1, cursor}}}} : {},
 });
 
 describe("record position", () => {
@@ -26,20 +19,20 @@ describe("record position", () => {
         session = applyUpdate(session, {
             sessionUpdate: "user_message",
             messageId: "u",
-            content: [{ type: "text", text: "q" }],
-            _meta: { alwith: { seq: 4 } },
+            content: [{type: "text", text: "q"}],
+            _meta: {alwith: {seq: 4}},
         });
         session = applyUpdate(session, {
             sessionUpdate: "tool_call_update",
             toolCallId: "t",
             status: "completed",
-            _meta: { alwith: { seq: 2 } },
+            _meta: {alwith: {seq: 2}},
         });
         expect(session.appliedThrough).toBe(4);
         session = applyUpdate(session, {
             sessionUpdate: "agent_message_chunk",
             messageId: "m",
-            content: { type: "text", text: "a" },
+            content: {type: "text", text: "a"},
         });
         expect(session.appliedThrough).toBe(4);
     });
@@ -52,14 +45,14 @@ describe("record position", () => {
         session = applyUpdate(session, {
             sessionUpdate: "user_message",
             messageId: "u",
-            content: [{ type: "text", text: "q" }],
-            _meta: { alwith: { seq: 7 } },
+            content: [{type: "text", text: "q"}],
+            _meta: {alwith: {seq: 7}},
         });
         expect(replayCursorFor(agent("_alwith/seq"), session)).toEqual({
             type: "_alwith/seq",
             after: 7,
         });
-        expect(replayCursorFor(agent(), session)).toEqual({ type: "start" });
+        expect(replayCursorFor(agent(), session)).toEqual({type: "start"});
         expect(supportsSeqCursor(agent("_other"))).toBe(false);
     });
 
@@ -69,8 +62,8 @@ describe("record position", () => {
         store.accept("s", {
             sessionUpdate: "user_message",
             messageId: "u",
-            content: [{ type: "text", text: "q" }],
-            _meta: { alwith: { seq: 3 } },
+            content: [{type: "text", text: "q"}],
+            _meta: {alwith: {seq: 3}},
         });
         store.beginReplay("s", 3);
         expect(store.get("s").items).toHaveLength(1);
@@ -78,12 +71,12 @@ describe("record position", () => {
         store.accept("s", {
             sessionUpdate: "agent_message_chunk",
             messageId: "m",
-            content: { type: "text", text: "late" },
-            _meta: { alwith: { seq: 5 }, replay: { id: "r1" } },
+            content: {type: "text", text: "late"},
+            _meta: {alwith: {seq: 5}, replay: {id: "r1"}},
         });
-        store.endReplay("s", { replayId: "r1", after: 3, cut: 9 });
+        store.endReplay("s", {replayId: "r1", after: 3, cut: 9});
         const caughtUp = store.get("s");
-        expect(caughtUp.items.map((item) => item.id)).toEqual(["u", "m"]);
+        expect(caughtUp.items.map(item => item.id)).toEqual(["u", "m"]);
         expect(caughtUp.items[1]?.replayed).toBe(true);
         expect(caughtUp.appliedThrough).toBe(9);
         expect(caughtUp.restoring).toBe(false);
@@ -100,7 +93,7 @@ describe("record position", () => {
         expect(
             replayReceiptOf({
                 _meta: {
-                    alwith: { replay: { replayId: "r", after: -1, cut: 12 } },
+                    alwith: {replay: {replayId: "r", after: -1, cut: 12}},
                 },
             }),
         ).toEqual({
@@ -110,20 +103,20 @@ describe("record position", () => {
         });
         expect(() =>
             replayReceiptOf({
-                _meta: { alwith: { replay: { replayId: "r" } } },
+                _meta: {alwith: {replay: {replayId: "r"}}},
             }),
         ).toThrow("malformed replay receipt");
         expect(
             replayIdOf({
                 sessionUpdate: "plan_update",
-                plan: { type: "items", planId: "p", entries: [] },
-                _meta: { replay: { id: "r" } },
+                plan: {type: "items", planId: "p", entries: []},
+                _meta: {replay: {id: "r"}},
             }),
         ).toBe("r");
         expect(
             replayIdOf({
                 sessionUpdate: "plan_update",
-                plan: { type: "items", planId: "p", entries: [] },
+                plan: {type: "items", planId: "p", entries: []},
             }),
         ).toBeNull();
     });

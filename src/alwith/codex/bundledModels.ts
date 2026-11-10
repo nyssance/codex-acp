@@ -1,6 +1,6 @@
-import { createRequire } from "node:module";
+import {createRequire} from "node:module";
 import crossSpawn from "cross-spawn";
-import { isRecord } from "../../permissions/json";
+import {isRecord} from "../../permissions/json";
 
 let cached: Record<string, unknown>[] | undefined;
 
@@ -10,13 +10,7 @@ export function bundledModels(): Record<string, unknown>[] {
     const configured = process.env["CODEX_PATH"];
     const command = configured ?? process.execPath;
     const args = [
-        ...(configured
-            ? []
-            : [
-                  createRequire(import.meta.url).resolve(
-                      "@openai/codex/bin/codex.js",
-                  ),
-              ]),
+        ...(configured ? [] : [createRequire(import.meta.url).resolve("@openai/codex/bin/codex.js")]),
         "debug",
         "models",
         "--bundled",
@@ -30,11 +24,7 @@ export function bundledModels(): Record<string, unknown>[] {
             cause: result.error,
         });
     const value: unknown = JSON.parse(result.stdout);
-    if (
-        !isRecord(value) ||
-        !Array.isArray(value["models"]) ||
-        !value["models"].every(isRecord)
-    )
+    if (!isRecord(value) || !Array.isArray(value["models"]) || !value["models"].every(isRecord))
         throw new Error("Invalid bundled Codex model metadata");
     cached = value["models"];
     return cached;

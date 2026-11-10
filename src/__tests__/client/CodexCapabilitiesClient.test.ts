@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { CodexCapabilitiesClient } from "../../client/CodexCapabilitiesClient";
+import {describe, expect, it, vi} from "vitest";
+import {CodexCapabilitiesClient} from "../../client/CodexCapabilitiesClient";
 
 function connected() {
     let receive: (method: string, params: unknown) => void = () => {};
@@ -7,7 +7,7 @@ function connected() {
     const unsubscribe = vi.fn();
     const client = new CodexCapabilitiesClient({
         request,
-        onNotification: (listener) => {
+        onNotification: listener => {
             receive = listener;
             return unsubscribe;
         },
@@ -30,7 +30,7 @@ describe("shared Codex capabilities client", () => {
         peer.receive("_codex/realtime/update", {
             sessionId: "b",
             event: "closed",
-            data: { reason: null },
+            data: {reason: null},
         });
         expect(a).not.toHaveBeenCalled();
         expect(b).toHaveBeenCalledOnce();
@@ -54,9 +54,7 @@ describe("shared Codex capabilities client", () => {
             data: {},
         });
         expect(listener).toHaveBeenCalledOnce();
-        await expect(
-            peer.client.startRealtime("a", { outputModality: "audio" }),
-        ).rejects.toThrow("closed");
+        await expect(peer.client.startRealtime("a", {outputModality: "audio"})).rejects.toThrow("closed");
         expect(peer.request).not.toHaveBeenCalled();
     });
     it("keeps goal clearing distinct from an unrelated session-info patch", () => {
@@ -65,14 +63,14 @@ describe("shared Codex capabilities client", () => {
         peer.client.onGoal("a", listener);
         peer.receive("session/update", {
             sessionId: "a",
-            update: { sessionUpdate: "session_info_update", title: "Name" },
+            update: {sessionUpdate: "session_info_update", title: "Name"},
         });
         expect(listener).not.toHaveBeenCalled();
         peer.receive("session/update", {
             sessionId: "a",
             update: {
                 sessionUpdate: "session_info_update",
-                _meta: { codex: { goal: null } },
+                _meta: {codex: {goal: null}},
             },
         });
         expect(listener).toHaveBeenCalledExactlyOnceWith(null);
@@ -83,14 +81,14 @@ describe("shared Codex capabilities client", () => {
         const peer = connected();
         await peer.client.startRealtime("a", {
             outputModality: "audio",
-            transport: { type: "websocket" },
+            transport: {type: "websocket"},
         });
         expect(peer.request).toHaveBeenLastCalledWith("_codex/realtime/start", {
             sessionId: "a",
             outputModality: "audio",
-            transport: { type: "websocket" },
+            transport: {type: "websocket"},
         });
-        await peer.client.controlGoal({ sessionId: "a", action: "pause" });
+        await peer.client.controlGoal({sessionId: "a", action: "pause"});
         expect(peer.request).toHaveBeenLastCalledWith("_session/goal", {
             sessionId: "a",
             action: "pause",

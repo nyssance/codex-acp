@@ -1,8 +1,8 @@
-import { afterEach, expect, spyOn, test } from "bun:test";
+import {afterEach, expect, spyOn, test} from "bun:test";
 
-import { type ClientOptions, SessionClient } from "../session-client";
-import { createFakeAgent } from "./fake-agent";
-import { FakeHubPort } from "./fake-runtime-client";
+import {type ClientOptions, SessionClient} from "../session-client";
+import {createFakeAgent} from "./fake-agent";
+import {FakeHubPort} from "./fake-runtime-client";
 
 const clients: SessionClient[] = [];
 afterEach(() => {
@@ -13,42 +13,37 @@ async function until(predicate: () => boolean, ms = 3000): Promise<void> {
     const start = Date.now();
     while (!predicate()) {
         if (Date.now() - start > ms) throw new Error("Timed out");
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await new Promise(resolve => setTimeout(resolve, 5));
     }
 }
 
-async function make(
-    configure?: (fake: ReturnType<typeof createFakeAgent>) => void,
-    options: Partial<ClientOptions> = {},
-) {
+async function make(configure?: (fake: ReturnType<typeof createFakeAgent>) => void, options: Partial<ClientOptions> = {}) {
     const fake = createFakeAgent();
     configure?.(fake);
     const port = new FakeHubPort(() => fake.app);
     const client = new SessionClient(() => Promise.resolve(port), {
         agentId: "agent",
-        launch: { engine: "fake" },
+        launch: {engine: "fake"},
         ...options,
     });
     clients.push(client);
     await client.connect();
-    return { client, fake, port };
+    return {client, fake, port};
 }
 
 function replyText(client: SessionClient, id: string): string {
-    const reply = client
-        .session(id)
-        .items.find((item) => item.kind === "assistant");
+    const reply = client.session(id).items.find(item => item.kind === "assistant");
     const block = reply?.kind === "assistant" ? reply.content[0] : undefined;
-    const text = (block as { text?: unknown } | undefined)?.text;
+    const text = (block as {text?: unknown} | undefined)?.text;
     return typeof text === "string" ? text : "";
 }
 
 test("a fresh Runtime starts the agent and the client talks ACP through it", async () => {
-    const { client, port } = await make();
+    const {client, port} = await make();
     expect(port.started).toEqual(["agent"]);
     expect(client.state.agent?.info.name).toBe("fake-agent");
     const id = await client.newSession("/tmp/a");
-    await client.prompt(id, [{ type: "text", text: "hello" }]);
+    await client.prompt(id, [{type: "text", text: "hello"}]);
     await until(() => client.session(id).state === "idle");
     expect(replyText(client, id)).toBe(`reply:${id}`);
 });
@@ -56,7 +51,7 @@ test("a fresh Runtime starts the agent and the client talks ACP through it", asy
 test("a Runtime that already runs the agent is attached, not restarted, and pending permissions replay", async () => {
     const port = new FakeHubPort(() => createFakeAgent().app);
     // Boot once so the fake Runtime has a live agent, exactly as after a webview reload.
-    await port.start("agent", { engine: "fake" });
+    await port.start("agent", {engine: "fake"});
     const permission = {
         id: 41,
         method: "session/request_permission",
@@ -78,7 +73,7 @@ test("a Runtime that already runs the agent is attached, not restarted, and pend
     port.seedRunningSession("s-theirs", "desktop-chat1", []);
     const client = new SessionClient(() => Promise.resolve(port), {
         agentId: "agent",
-        launch: { engine: "fake" },
+        launch: {engine: "fake"},
     });
     clients.push(client);
     await client.connect();
@@ -94,10 +89,10 @@ test("a Runtime that already runs the agent is attached, not restarted, and pend
 
 test("a reload reuses a running agent that has no sessions", async () => {
     const port = new FakeHubPort(() => createFakeAgent().app);
-    await port.start("agent", { engine: "fake" });
+    await port.start("agent", {engine: "fake"});
     const client = new SessionClient(() => Promise.resolve(port), {
         agentId: "agent",
-        launch: { engine: "fake" },
+        launch: {engine: "fake"},
     });
     clients.push(client);
     await client.connect();
@@ -107,82 +102,59 @@ test("a reload reuses a running agent that has no sessions", async () => {
 });
 
 test("the user's message is on screen before the agent reports it; the receipt claims it, the echo adopts it", async () => {
-    const { client } = await make();
+    const {client} = await make();
     const id = await client.newSession("/tmp/a");
-    const sending = client.prompt(id, [
-        { type: "text", text: "shown at once" },
-    ]);
-    const local = client.session(id).items.find((item) => item.kind === "user");
+    const sending = client.prompt(id, [{type: "text", text: "shown at once"}]);
+    const local = client.session(id).items.find(item => item.kind === "user");
     expect(local?.kind === "user" ? local.echo : null).toBe("pending");
     expect(await sending).toBe("u");
-    const claimed = client
-        .session(id)
-        .items.find((item) => item.kind === "user");
+    const claimed = client.session(id).items.find(item => item.kind === "user");
     expect(claimed?.id).toBe("u");
     await until(() => client.session(id).state === "idle");
-    const users = client
-        .session(id)
-        .items.filter((item) => item.kind === "user");
+    const users = client.session(id).items.filter(item => item.kind === "user");
     expect(users).toHaveLength(1);
     expect(users[0]?.kind === "user" ? users[0].echo : null).toBe("adopted");
 });
 
 test("a refused prompt takes the local copy off screen again", async () => {
-    const { client } = await make((fake) => {
-        fake.rejectPrompt.current = (text) =>
-            text === "refuse" ? new Error("not now") : null;
+    const {client} = await make(fake => {
+        fake.rejectPrompt.current = text => (text === "refuse" ? new Error("not now") : null);
     });
     const id = await client.newSession("/tmp/a");
-    await expect(
-        client.prompt(id, [{ type: "text", text: "refuse" }]),
-    ).rejects.toThrow("not now");
+    await expect(client.prompt(id, [{type: "text", text: "refuse"}])).rejects.toThrow("not now");
     expect(client.session(id).items).toHaveLength(0);
-    await client.prompt(id, [{ type: "text", text: "fine" }]);
-    expect(
-        client.session(id).items.filter((item) => item.kind === "user"),
-    ).toHaveLength(1);
+    await client.prompt(id, [{type: "text", text: "fine"}]);
+    expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(1);
 });
 
 test("prompt acknowledgement is not completion; cancelling one session leaves the other running", async () => {
-    const { client } = await make();
-    const [a, b] = await Promise.all([
-        client.newSession("/tmp/a"),
-        client.newSession("/tmp/b"),
-    ]);
-    await Promise.all([
-        client.prompt(a, [{ type: "text", text: "one" }]),
-        client.prompt(b, [{ type: "text", text: "two" }]),
-    ]);
+    const {client} = await make();
+    const [a, b] = await Promise.all([client.newSession("/tmp/a"), client.newSession("/tmp/b")]);
+    await Promise.all([client.prompt(a, [{type: "text", text: "one"}]), client.prompt(b, [{type: "text", text: "two"}])]);
     expect(client.session(a).state).toBe("running");
     expect(client.session(b).state).toBe("running");
     await client.cancel(a);
-    await until(
-        () =>
-            client.session(a).state === "idle" &&
-            client.session(b).state === "idle",
-    );
-    expect(
-        client.session(a).items.some((item) => item.kind === "assistant"),
-    ).toBe(false);
+    await until(() => client.session(a).state === "idle" && client.session(b).state === "idle");
+    expect(client.session(a).items.some(item => item.kind === "assistant")).toBe(false);
     expect(replyText(client, b)).toBe(`reply:${b}`);
     expect(client.state.sessions[b]).toBe(client.session(b));
 });
 
 test("permission requests surface as actions and resolve back to the agent", async () => {
-    const { client } = await make();
+    const {client} = await make();
     const id = await client.newSession("/tmp/a");
-    await client.prompt(id, [{ type: "text", text: "permission" }]);
+    await client.prompt(id, [{type: "text", text: "permission"}]);
     await until(() => client.state.actions.length === 1);
     const action = client.state.actions[0]!;
     expect(action.kind).toBe("permission");
     expect(client.session(id).state).toBe("requires_action");
     expect(() =>
         client.respond(action.id, {
-            outcome: { outcome: "selected", optionId: "nope" },
+            outcome: {outcome: "selected", optionId: "nope"},
         }),
     ).toThrow();
     client.respond(action.id, {
-        outcome: { outcome: "selected", optionId: "allow_once" },
+        outcome: {outcome: "selected", optionId: "allow_once"},
     });
     await until(() => client.session(id).state === "idle");
     expect(client.state.actions).toHaveLength(0);
@@ -190,9 +162,9 @@ test("permission requests surface as actions and resolve back to the agent", asy
 });
 
 test("Stop answers the session's pending permission with cancelled before session/cancel", async () => {
-    const { client } = await make();
+    const {client} = await make();
     const id = await client.newSession("/tmp/a");
-    await client.prompt(id, [{ type: "text", text: "permission" }]);
+    await client.prompt(id, [{type: "text", text: "permission"}]);
     await until(() => client.state.actions.length === 1);
     await client.cancel(id);
     expect(client.state.actions).toEqual([]);
@@ -201,13 +173,10 @@ test("Stop answers the session's pending permission with cancelled before sessio
 });
 
 test("stopping a session retains what is on screen, cancels its permission and keeps the shared agent", async () => {
-    const { client, port } = await make();
+    const {client, port} = await make();
     const a = await client.newSession("/tmp/a");
     const b = await client.newSession("/tmp/b");
-    await Promise.all([
-        client.prompt(a, [{ type: "text", text: "permission" }]),
-        client.prompt(b, [{ type: "text", text: "permission" }]),
-    ]);
+    await Promise.all([client.prompt(a, [{type: "text", text: "permission"}]), client.prompt(b, [{type: "text", text: "permission"}])]);
     await until(() => client.state.actions.length === 2);
     const items = client.session(a).items;
     await client.stopSession(a);
@@ -217,11 +186,9 @@ test("stopping a session retains what is on screen, cancels its permission and k
         state: "idle",
     });
     expect(client.session(a).items).toEqual(expect.arrayContaining(items));
-    expect(client.state.actions.map((action) => action.sessionId)).toEqual([b]);
+    expect(client.state.actions.map(action => action.sessionId)).toEqual([b]);
     expect(client.session(b).state).toBe("requires_action");
-    expect((await port.agents()).map((agent) => agent.agentId)).toEqual([
-        "agent",
-    ]);
+    expect((await port.agents()).map(agent => agent.agentId)).toEqual(["agent"]);
     expect(client.state.connection).toBe("ready");
     await client.open(a, "/tmp/a");
     expect(client.session(a).attached).toBe(true);
@@ -230,151 +197,120 @@ test("stopping a session retains what is on screen, cancels its permission and k
 });
 
 test("terminal output is decoded across chunk boundaries", async () => {
-    const { client } = await make();
+    const {client} = await make();
     const id = await client.newSession("/tmp/a");
-    await client.prompt(id, [{ type: "text", text: "terminal" }]);
+    await client.prompt(id, [{type: "text", text: "terminal"}]);
     await until(() => client.session(id).state === "idle");
     expect(client.session(id).terminals.t1?.output).toBe("héllo");
-    const tool = client.session(id).items.find((item) => item.kind === "tool");
+    const tool = client.session(id).items.find(item => item.kind === "tool");
     expect(tool?.kind === "tool" ? tool.status : null).toBe("completed");
 });
 
 test("the session list comes from the agent across pages and open() replays the record", async () => {
-    const { client, fake } = await make((fake) => {
-        fake.listSessions.current = (request) =>
+    const {client, fake} = await make(fake => {
+        fake.listSessions.current = request =>
             request.cursor === undefined
                 ? {
-                      sessions: [
-                          { sessionId: "h1", cwd: "/tmp/one", title: "First" },
-                      ],
+                      sessions: [{sessionId: "h1", cwd: "/tmp/one", title: "First"}],
                       nextCursor: "page-2",
                   }
                 : {
-                      sessions: [
-                          { sessionId: "h2", cwd: "/tmp/two", title: "Second" },
-                      ],
+                      sessions: [{sessionId: "h2", cwd: "/tmp/two", title: "Second"}],
                   };
     });
     await client.listSessions();
-    expect(fake.listRequests).toEqual([{}, { cursor: "page-2" }]);
-    expect(client.state.sessionList.map((item) => item.sessionId)).toEqual([
-        "h1",
-        "h2",
-    ]);
+    expect(fake.listRequests).toEqual([{}, {cursor: "page-2"}]);
+    expect(client.state.sessionList.map(item => item.sessionId)).toEqual(["h1", "h2"]);
     expect(client.state.sessionListLoaded).toBe(true);
     await client.open("h1", "/tmp/one");
     const session = client.session("h1");
     expect(session.attached).toBe(true);
-    expect(session.items.map((item) => item.kind)).toEqual([
-        "user",
-        "assistant",
-    ]);
+    expect(session.items.map(item => item.kind)).toEqual(["user", "assistant"]);
     await client.delete("h1");
     expect(fake.deleted.has("h1")).toBe(true);
-    expect(client.state.sessionList.map((item) => item.sessionId)).toEqual([
-        "h2",
-    ]);
+    expect(client.state.sessionList.map(item => item.sessionId)).toEqual(["h2"]);
     expect(client.state.sessions.h1).toBeUndefined();
 });
 
 test("a refresh replaces the list but keeps rows that changed while it was in flight", async () => {
     const gate = Promise.withResolvers<void>();
-    const { client, fake } = await make();
+    const {client, fake} = await make();
     await client.listSessions();
-    expect(client.state.sessionList.map((item) => item.sessionId)).toEqual([
-        "h1",
-        "h2",
-    ]);
+    expect(client.state.sessionList.map(item => item.sessionId)).toEqual(["h1", "h2"]);
     fake.listSessions.current = async () => {
         await gate.promise;
         return {
-            sessions: [{ sessionId: "h1", cwd: "/tmp/one", title: "First" }],
+            sessions: [{sessionId: "h1", cwd: "/tmp/one", title: "First"}],
         };
     };
-    const refreshing = client.listSessions({ reset: true });
+    const refreshing = client.listSessions({reset: true});
     // Created while the agent's answer is in flight: the stale page must not drop it.
     const id = await client.newSession("/tmp/new");
     expect(client.state.sessionList[0]?.sessionId).toBe(id);
     gate.resolve();
     await refreshing;
-    expect(client.state.sessionList.map((item) => item.sessionId)).toEqual([
-        id,
-        "h1",
-    ]);
+    expect(client.state.sessionList.map(item => item.sessionId)).toEqual([id, "h1"]);
     // A later refresh is authoritative: a session the agent no longer lists leaves the list.
-    await client.listSessions({ reset: true });
-    expect(client.state.sessionList.map((item) => item.sessionId)).toEqual([
-        "h1",
-    ]);
+    await client.listSessions({reset: true});
+    expect(client.state.sessionList.map(item => item.sessionId)).toEqual(["h1"]);
 });
 
 test("a draft stays out of the list until its first prompt is dispatched", async () => {
-    const { client } = await make();
+    const {client} = await make();
     await client.listSessions();
-    const id = await client.newSession("/tmp/draft", { draft: true });
+    const id = await client.newSession("/tmp/draft", {draft: true});
     expect(client.isDraft(id)).toBe(true);
-    expect(client.state.sessionList.some((item) => item.sessionId === id)).toBe(
-        false,
-    );
-    await client.listSessions({ reset: true });
-    expect(client.state.sessionList.some((item) => item.sessionId === id)).toBe(
-        false,
-    );
-    await client.prompt(id, [{ type: "text", text: "first" }]);
+    expect(client.state.sessionList.some(item => item.sessionId === id)).toBe(false);
+    await client.listSessions({reset: true});
+    expect(client.state.sessionList.some(item => item.sessionId === id)).toBe(false);
+    await client.prompt(id, [{type: "text", text: "first"}]);
     expect(client.isDraft(id)).toBe(false);
     expect(client.state.sessionList[0]?.sessionId).toBe(id);
-    const abandoned = await client.newSession("/tmp/draft", { draft: true });
+    const abandoned = await client.newSession("/tmp/draft", {draft: true});
     await client.discardDraft(abandoned);
     expect(client.state.sessions[abandoned]).toBeUndefined();
 });
 
 test("a gap the client could not refill replays the whole session from the engine's record", async () => {
-    const { client, port } = await make();
+    const {client, port} = await make();
     await client.open("h1", "/tmp/one");
-    expect(client.session("h1").items.map((item) => item.kind)).toEqual([
-        "user",
-        "assistant",
-    ]);
+    expect(client.session("h1").items.map(item => item.kind)).toEqual(["user", "assistant"]);
     // The Runtime journal no longer had frames 3..5: what we hold is not continuous any more.
-    for (const handler of port.gapHandlers)
-        handler({ sessionId: "h1", from: 3, to: 5 });
+    for (const handler of port.gapHandlers) handler({sessionId: "h1", from: 3, to: 5});
     expect(client.session("h1").restoring).toBe(true);
     await until(() => !client.session("h1").restoring);
     // Replayed, not appended: the old projection was cleared first.
-    expect(client.session("h1").items.map((item) => item.kind)).toEqual([
-        "user",
-        "assistant",
-    ]);
+    expect(client.session("h1").items.map(item => item.kind)).toEqual(["user", "assistant"]);
     expect(client.session("h1").attached).toBe(true);
 });
 
 test("fork replays the source's history into the new session and lists it", async () => {
-    const { client, fake } = await make();
+    const {client, fake} = await make();
     const source = await client.newSession("/tmp/fork");
     fake.replayUpdates.push({
         sessionUpdate: "user_message",
         messageId: "f",
-        content: [{ type: "text", text: "from the source" }],
+        content: [{type: "text", text: "from the source"}],
     });
     const id = await client.fork(source, "/tmp/fork", {
-        meta: { codex: { lastTurnId: "t9" } },
+        meta: {codex: {lastTurnId: "t9"}},
     });
     expect(fake.forks[0]).toMatchObject({
         sessionId: source,
         cwd: "/tmp/fork",
-        _meta: { codex: { lastTurnId: "t9" } },
+        _meta: {codex: {lastTurnId: "t9"}},
     });
     expect(client.session(id)).toMatchObject({
         attached: true,
         restoring: false,
     });
-    expect(client.session(id).items.map((item) => item.kind)).toEqual(["user"]);
+    expect(client.session(id).items.map(item => item.kind)).toEqual(["user"]);
     expect(client.state.sessionList[0]?.sessionId).toBe(id);
 });
 
 test("host context rides on session set-up: MCP servers, system prompt and bind", async () => {
     const bound: string[] = [];
-    const { client, fake } = await make(undefined, {
+    const {client, fake} = await make(undefined, {
         sessionContext: async (cwd, operation) => ({
             mcpServers: [
                 {
@@ -387,106 +323,91 @@ test("host context rides on session set-up: MCP servers, system prompt and bind"
             ],
             appendSystemPrompt: `cwd=${cwd} op=${operation.kind}`,
             revision: "r1",
-            bind: async (sessionId) => {
+            bind: async sessionId => {
                 bound.push(sessionId);
             },
         }),
     });
     const id = await client.newSession("/tmp/ctx", {
         systemPrompt: "extra",
-        meta: { alwith: { model: "m1" } },
+        meta: {alwith: {model: "m1"}},
     });
     expect(bound).toEqual([id]);
     expect(fake.created[0]).toMatchObject({
         cwd: "/tmp/ctx",
-        mcpServers: [{ name: "host" }],
+        mcpServers: [{name: "host"}],
         systemPrompt: {
             mode: "append",
-            content: [{ type: "text", text: "cwd=/tmp/ctx op=new\n\nextra" }],
+            content: [{type: "text", text: "cwd=/tmp/ctx op=new\n\nextra"}],
         },
-        _meta: { alwith: { model: "m1" } },
+        _meta: {alwith: {model: "m1"}},
     });
     await client.stopSession(id);
     await client.open(id, "/tmp/ctx");
     expect(fake.resumed[0]).toMatchObject({
         sessionId: id,
-        systemPrompt: { mode: "append" },
+        systemPrompt: {mode: "append"},
     });
     expect(bound).toEqual([id, id]);
 });
 
-test.each([true, false])(
-    "tool preparation failures preserve the attachment and allow an explicit retry (draft: %s)",
-    async (draft) => {
-        const failure = new Error("Computer MCP initialization timed out");
-        let unavailable = false;
-        const { client, port } = await make(undefined, {
-            prepareSessionTools: async () => {
-                if (unavailable) throw failure;
-            },
+test.each([true, false])("tool preparation failures preserve the attachment and allow an explicit retry (draft: %s)", async draft => {
+    const failure = new Error("Computer MCP initialization timed out");
+    let unavailable = false;
+    const {client, port} = await make(undefined, {
+        prepareSessionTools: async () => {
+            if (unavailable) throw failure;
+        },
+    });
+    const id = await client.newSession("/tmp/tool-retry", {draft});
+    if (!draft) {
+        await client.prompt(id, [{type: "text", text: "existing history"}]);
+        await until(() => client.session(id).state === "idle");
+    }
+    const sibling = await client.newSession("/tmp/sibling");
+    const before = [...client.session(id).items];
+    const request = spyOn(port, "acpRequest");
+    unavailable = true;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(client.prompt(id, [{type: "text", text: "retry this message"}])).rejects.toBe(failure);
+        expect(client.session(id)).toMatchObject({
+            attached: true,
+            restoring: false,
         });
-        const id = await client.newSession("/tmp/tool-retry", { draft });
-        if (!draft) {
-            await client.prompt(id, [
-                { type: "text", text: "existing history" },
-            ]);
-            await until(() => client.session(id).state === "idle");
-        }
-        const sibling = await client.newSession("/tmp/sibling");
-        const before = [...client.session(id).items];
-        const request = spyOn(port, "acpRequest");
-        unavailable = true;
-        for (let attempt = 0; attempt < 2; attempt++) {
-            await expect(
-                client.prompt(id, [
-                    { type: "text", text: "retry this message" },
-                ]),
-            ).rejects.toBe(failure);
-            expect(client.session(id)).toMatchObject({
-                attached: true,
-                restoring: false,
-            });
-            expect(client.session(id).items).toEqual(before);
-            expect(client.session(sibling).attached).toBe(true);
-        }
-        expect(request.mock.calls).toHaveLength(0);
-        expect(Boolean(client.state.drafts[id])).toBe(draft);
-        unavailable = false;
-        await client.prompt(id, [{ type: "text", text: "retry this message" }]);
-        expect(request.mock.calls.map((call) => call[1])).toEqual([
-            "session/prompt",
-        ]);
-        expect(
-            client.session(id).items.filter((item) => item.kind === "user"),
-        ).toHaveLength(draft ? 1 : 2);
-        expect(client.session(id).attached).toBe(true);
-        request.mockRestore();
-    },
-);
+        expect(client.session(id).items).toEqual(before);
+        expect(client.session(sibling).attached).toBe(true);
+    }
+    expect(request.mock.calls).toHaveLength(0);
+    expect(Boolean(client.state.drafts[id])).toBe(draft);
+    unavailable = false;
+    await client.prompt(id, [{type: "text", text: "retry this message"}]);
+    expect(request.mock.calls.map(call => call[1])).toEqual(["session/prompt"]);
+    expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(draft ? 1 : 2);
+    expect(client.session(id).attached).toBe(true);
+    request.mockRestore();
+});
 
 test("close during tool preparation retires the prompt without waiting on a nested replay", async () => {
     const entered = Promise.withResolvers<void>();
     const preparation = Promise.withResolvers<void>();
-    const { client } = await make(undefined, {
+    const {client} = await make(undefined, {
         prepareSessionTools: () => {
             entered.resolve();
             return preparation.promise;
         },
     });
     const id = await client.newSession("/tmp/preparation-close");
-    const sending = client
-        .prompt(id, [{ type: "text", text: "must not send" }])
-        .catch((error: unknown) => error);
+    const sending = client.prompt(id, [{type: "text", text: "must not send"}]).catch((error: unknown) => error);
     await entered.promise;
     const closing = client.close(id);
     preparation.reject(new Error("tool refresh failed"));
-    expect(await sending).toMatchObject({ name: "AbortError" });
+    expect(await sending).toMatchObject({name: "AbortError"});
     await closing;
     expect(client.state.sessions[id]).toBeUndefined();
 });
 
 test("authentication errors propagate from session/new and the run states mirror the Runtime", async () => {
-    const { client } = await make();
+    const {client} = await make();
     await expect(client.newSession("/needs-auth")).rejects.toThrow();
     client.applyRunStates(
         [
@@ -513,80 +434,76 @@ test("authentication errors propagate from session/new and the run states mirror
 });
 
 test("disconnect marks every held session disconnected and releases the agent for the next holder", async () => {
-    const { client, port } = await make();
+    const {client, port} = await make();
     const id = await client.newSession("/tmp/a");
     client.disconnect();
     expect(client.state.connection).toBe("disconnected");
     expect(client.state.sessions[id]?.attached).toBe(false);
-    expect((await port.agents()).map((agent) => agent.agentId)).toEqual([
-        "agent",
-    ]);
+    expect((await port.agents()).map(agent => agent.agentId)).toEqual(["agent"]);
     await client.connect();
     expect(port.started).toEqual(["agent"]);
     expect(client.state.connection).toBe("ready");
 });
 
 test("standard child sessions stream independently, patch associations, and retire with their parent", async () => {
-    const { client, fake } = await make();
+    const {client, fake} = await make();
     const root = await client.newSession("/tmp/parent");
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
         title: "Research",
         description: "Read sources",
-        capabilities: { cancel: {} },
-        state: { state: "running" },
+        capabilities: {cancel: {}},
+        state: {state: "running"},
         _meta: {
             role: "research",
             remove: true,
-            codex: { threadId: "native-worker" },
+            codex: {threadId: "native-worker"},
         },
     });
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
         _meta: {
-            codex: { threadId: "native-worker", parentTurnId: "origin-turn" },
+            codex: {threadId: "native-worker", parentTurnId: "origin-turn"},
         },
     });
     await fake.pushUpdate("worker", {
         sessionUpdate: "subagent_update",
         sessionId: "nested",
         title: "Check",
-        state: { state: "running" },
+        state: {state: "running"},
     });
     await fake.pushUpdate("nested", {
         sessionUpdate: "agent_message",
         messageId: "answer",
-        content: [{ type: "text", text: "Nested answer" }],
+        content: [{type: "text", text: "Nested answer"}],
     });
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
         description: null,
-        _meta: { remove: null },
+        _meta: {remove: null},
     });
     await until(() => replyText(client, "nested") === "Nested answer");
     expect(client.session(root).items).toEqual([]);
     expect(client.session("worker").subagent).toEqual({
         parentId: root,
         description: null,
-        capabilities: { cancel: {} },
+        capabilities: {cancel: {}},
         _meta: {
             role: "research",
-            codex: { threadId: "native-worker", parentTurnId: "origin-turn" },
+            codex: {threadId: "native-worker", parentTurnId: "origin-turn"},
         },
     });
     expect(client.session("worker").title).toBe("Research");
     expect(client.session("nested").subagent?.parentId).toBe("worker");
-    expect(
-        client.state.sessionList.some((row) => row.sessionId === "worker"),
-    ).toBe(false);
+    expect(client.state.sessionList.some(row => row.sessionId === "worker")).toBe(false);
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
         state: null,
-        _meta: { codex: null },
+        _meta: {codex: null},
         capabilities: null,
         title: null,
     });
@@ -595,31 +512,19 @@ test("standard child sessions stream independently, patch associations, and reti
     expect(client.session("worker").subagent?._meta).toEqual({
         role: "research",
     });
-    await expect(client.cancel("worker")).rejects.toThrow(
-        "does not allow cancellation",
-    );
-    await expect(client.open("nested", "/tmp/parent")).rejects.toThrow(
-        "managed by its parent",
-    );
-    await expect(client.fork("nested", "/tmp/parent")).rejects.toThrow(
-        "managed by its parent",
-    );
-    expect(() =>
-        client.prompt("nested", [{ type: "text", text: "no" }]),
-    ).toThrow("managed by its parent");
-    expect(() => client.setConfig("nested", "model", "no")).toThrow(
-        "managed by its parent",
-    );
+    await expect(client.cancel("worker")).rejects.toThrow("does not allow cancellation");
+    await expect(client.open("nested", "/tmp/parent")).rejects.toThrow("managed by its parent");
+    await expect(client.fork("nested", "/tmp/parent")).rejects.toThrow("managed by its parent");
+    expect(() => client.prompt("nested", [{type: "text", text: "no"}])).toThrow("managed by its parent");
+    expect(() => client.setConfig("nested", "model", "no")).toThrow("managed by its parent");
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
-        _meta: { alwith: { seq: 99 } },
+        _meta: {alwith: {seq: 99}},
     });
     expect(client.session(root).appliedThrough).toBe(99);
     await client.close(root);
-    await expect(client.open("worker", "/tmp/parent")).rejects.toThrow(
-        "managed by its parent",
-    );
+    await expect(client.open("worker", "/tmp/parent")).rejects.toThrow("managed by its parent");
     await expect(client.cancel("worker")).rejects.toThrow("retired");
     expect(client.state.sessions.worker).toBeUndefined();
     expect(client.state.sessions.nested).toBeUndefined();
@@ -631,7 +536,7 @@ test("standard child sessions stream independently, patch associations, and reti
 });
 
 test("fork announcements and child messages arriving before the response retain wire order", async () => {
-    const { client, fake } = await make();
+    const {client, fake} = await make();
     const root = await client.newSession("/tmp/parent");
     fake.forkFrames.push(
         {
@@ -639,7 +544,7 @@ test("fork announcements and child messages arriving before the response retain 
             update: {
                 sessionUpdate: "subagent_update",
                 sessionId: "fork-child",
-                state: { state: "running" },
+                state: {state: "running"},
             },
         },
         {
@@ -647,7 +552,7 @@ test("fork announcements and child messages arriving before the response retain 
             update: {
                 sessionUpdate: "agent_message",
                 messageId: "answer",
-                content: [{ type: "text", text: "Done" }],
+                content: [{type: "text", text: "Done"}],
             },
         },
         {
@@ -655,7 +560,7 @@ test("fork announcements and child messages arriving before the response retain 
             update: {
                 sessionUpdate: "subagent_update",
                 sessionId: "fork-child",
-                state: { state: "idle", stopReason: "end_turn" },
+                state: {state: "idle", stopReason: "end_turn"},
             },
         },
         {
@@ -687,13 +592,13 @@ test("fork announcements and child messages arriving before the response retain 
 });
 
 test("parent cancellation resolves nested forms and advertised child cancellation targets the child", async () => {
-    const { client, fake } = await make();
+    const {client, fake} = await make();
     const root = await client.newSession("/tmp/parent");
     const cancelled = fake.cancelled;
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
-        capabilities: { cancel: {} },
+        capabilities: {cancel: {}},
     });
     await fake.pushUpdate("worker", {
         sessionUpdate: "subagent_update",
@@ -706,46 +611,41 @@ test("parent cancellation resolves nested forms and advertised child cancellatio
         message: "Choose",
         requestedSchema: {
             type: "object",
-            properties: { choice: { type: "string" } },
+            properties: {choice: {type: "string"}},
         },
     });
-    await until(() =>
-        client.state.actions.some((action) => action.sessionId === "nested"),
-    );
+    await until(() => client.state.actions.some(action => action.sessionId === "nested"));
     await client.cancel("worker");
-    expect(await answer).toMatchObject({ action: "cancel" });
+    expect(await answer).toMatchObject({action: "cancel"});
     await until(() => cancelled.includes("worker"));
     expect(cancelled).toEqual(["worker"]);
     const another = fake.requestForm({
         sessionId: "nested",
         mode: "form",
         message: "Choose again",
-        requestedSchema: { type: "object", properties: {} },
+        requestedSchema: {type: "object", properties: {}},
     });
     await until(() => client.state.actions.length > 0);
     await client.cancel(root);
-    expect(await another).toMatchObject({ action: "cancel" });
+    expect(await another).toMatchObject({action: "cancel"});
 });
 
 test("a failed parent resume drops announced descendants and rejects their late requests", async () => {
-    const { client, fake } = await make();
+    const {client, fake} = await make();
     fake.replayUpdates.push({
         sessionUpdate: "subagent_update",
         sessionId: "retired-child",
-        state: { state: "running" },
+        state: {state: "running"},
     });
-    fake.resumeResponse.current = () =>
-        Promise.reject(new Error("Replay failed"));
-    await expect(client.open("parent", "/tmp")).rejects.toThrow(
-        "Internal error",
-    );
+    fake.resumeResponse.current = () => Promise.reject(new Error("Replay failed"));
+    await expect(client.open("parent", "/tmp")).rejects.toThrow("Internal error");
     expect(client.state.sessions["retired-child"]).toBeUndefined();
     await expect(
         fake.requestForm({
             sessionId: "retired-child",
             mode: "form",
             message: "Too late",
-            requestedSchema: { type: "object", properties: {} },
+            requestedSchema: {type: "object", properties: {}},
         }),
     ).rejects.toThrow("retired");
     expect(client.state.actions).toEqual([]);
@@ -756,12 +656,12 @@ test("a failed parent resume drops announced descendants and rejects their late 
 });
 
 test("reconnecting preserves a valid child approval replayed by the Runtime", async () => {
-    const { client, fake, port } = await make();
+    const {client, fake, port} = await make();
     const root = await client.newSession("/tmp/parent");
     await fake.pushUpdate(root, {
         sessionUpdate: "subagent_update",
         sessionId: "worker",
-        state: { state: "requires_action" },
+        state: {state: "requires_action"},
     });
     await until(() => client.state.sessions.worker !== undefined);
     client.disconnect();
@@ -783,9 +683,7 @@ test("reconnecting preserves a valid child approval replayed by the Runtime", as
         },
     ]);
     await client.connect();
-    await until(() =>
-        client.state.actions.some((action) => action.sessionId === "worker"),
-    );
+    await until(() => client.state.actions.some(action => action.sessionId === "worker"));
     expect(client.state.actions).toHaveLength(1);
     expect(client.state.actions[0]).toMatchObject({
         kind: "permission",
@@ -795,7 +693,7 @@ test("reconnecting preserves a valid child approval replayed by the Runtime", as
     fake.replayUpdates.push({
         sessionUpdate: "subagent_update",
         sessionId: "worker",
-        state: { state: "requires_action" },
+        state: {state: "requires_action"},
     });
     await client.open(root, "/tmp/parent");
     expect(client.state.actions).toHaveLength(1);

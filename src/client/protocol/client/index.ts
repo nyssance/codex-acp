@@ -1,4 +1,4 @@
-export { mergeMeta, runStateSource, SessionClient } from "./session-client";
+export {mergeMeta, runStateSource, SessionClient} from "./session-client";
 export type {
     ClientOptions,
     ClientState,

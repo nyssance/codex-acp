@@ -15,19 +15,15 @@ describeIntegration("integration: rollout of a thread without turns", () => {
         const home = fs.mkdtempSync(path.join(os.tmpdir(), "codex-materialize-"));
         writeCodexHomeConfig(home);
         const codex = startCodexConnection(path.resolve("node_modules/.bin/codex"), {...process.env, CODEX_HOME: home});
-        const request = <T>(method: string, params: unknown) =>
-            codex.connection.sendRequest(method, params) as Promise<T>;
+        const request = <T>(method: string, params: unknown) => codex.connection.sendRequest(method, params) as Promise<T>;
         // Codex reports notLoaded before teardown ends; thread/closed is sent once a resume can load it.
         const unloaded = async (threadId: string) => {
-            const closed = new Promise<void>((resolve) => {
-                const listener = codex.connection.onNotification(
-                    "thread/closed",
-                    (params: {threadId: string}) => {
-                        if (params.threadId !== threadId) return;
-                        listener.dispose();
-                        resolve();
-                    },
-                );
+            const closed = new Promise<void>(resolve => {
+                const listener = codex.connection.onNotification("thread/closed", (params: {threadId: string}) => {
+                    if (params.threadId !== threadId) return;
+                    listener.dispose();
+                    resolve();
+                });
             });
             await request("thread/unsubscribe", {threadId});
             await closed;
@@ -36,7 +32,8 @@ describeIntegration("integration: rollout of a thread without turns", () => {
             await request("initialize", {clientInfo: {name: "test", version: "0"}});
             codex.connection.sendNotification("initialized");
 
-            const unwritten = (await request<{thread: {id: string}}>("thread/start", {cwd: home, config: {thread_unload_delay_secs: 0}})).thread.id;
+            const unwritten = (await request<{thread: {id: string}}>("thread/start", {cwd: home, config: {thread_unload_delay_secs: 0}}))
+                .thread.id;
             await unloaded(unwritten);
             await expect(request("thread/resume", {threadId: unwritten, model: "gpt-5.4"})).rejects.toThrow();
 

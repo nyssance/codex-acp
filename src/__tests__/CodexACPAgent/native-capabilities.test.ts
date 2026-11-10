@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import {describe, expect, it} from "vitest";
 import {
     connectSession,
     sessionId,
@@ -9,12 +9,8 @@ import {
     itemStarted,
     itemCompleted,
 } from "./v2-prompt-harness";
-import {
-    goalSessionInfoUpdate,
-    sameThreadGoalSnapshot,
-    toThreadGoalSnapshot,
-} from "../../ThreadGoalSnapshot";
-import { realtimeUpdate } from "../../CodexNativeExtensions";
+import {goalSessionInfoUpdate, sameThreadGoalSnapshot, toThreadGoalSnapshot} from "../../ThreadGoalSnapshot";
+import {realtimeUpdate} from "../../CodexNativeExtensions";
 
 describe("native capabilities through ACP", () => {
     it("registers hook reads and trust for both protocol versions", async () => {
@@ -22,13 +18,9 @@ describe("native capabilities through ACP", () => {
             const client = await connectSession(version);
             try {
                 client.setCodexResponse("hooks/list", async () => ({
-                    data: [
-                        { cwd: "/work", hooks: [], warnings: [], errors: [] },
-                    ],
+                    data: [{cwd: "/work", hooks: [], warnings: [], errors: []}],
                 }));
-                await expect(
-                    client.request("_codex/hooks/list", { cwd: "/work" }),
-                ).resolves.toEqual({
+                await expect(client.request("_codex/hooks/list", {cwd: "/work"})).resolves.toEqual({
                     cwd: "/work",
                     hooks: [],
                     warnings: [],
@@ -39,7 +31,7 @@ describe("native capabilities through ACP", () => {
                         cwd: "/work",
                         hooks: [],
                     }),
-                ).rejects.toMatchObject({ code: -32602 });
+                ).rejects.toMatchObject({code: -32602});
             } finally {
                 client.connection.close();
             }
@@ -51,13 +43,10 @@ describe("native capabilities through ACP", () => {
             const client = await connectSession(version);
             try {
                 let request: unknown;
-                client.setCodexResponse(
-                    "thread/shellCommand",
-                    async (params) => {
-                        request = params;
-                        return {};
-                    },
-                );
+                client.setCodexResponse("thread/shellCommand", async params => {
+                    request = params;
+                    return {};
+                });
                 await expect(
                     client.request("_codex/shell/execute", {
                         sessionId,
@@ -77,7 +66,7 @@ describe("native capabilities through ACP", () => {
                         threadId: "other",
                         command: "pwd",
                     }),
-                ).rejects.toMatchObject({ code: -32602 });
+                ).rejects.toMatchObject({code: -32602});
                 await expect(
                     client.request("_codex/shell/execute", {
                         sessionId: "unknown",
@@ -95,31 +84,28 @@ describe("native capabilities through ACP", () => {
             const client = await connectSession(version);
             try {
                 let request: unknown;
-                client.setCodexResponse(
-                    "thread/realtime/start",
-                    async (params) => {
-                        request = params;
-                        return {};
-                    },
-                );
+                client.setCodexResponse("thread/realtime/start", async params => {
+                    request = params;
+                    return {};
+                });
                 await expect(
                     client.request("_codex/realtime/start", {
                         sessionId,
                         outputModality: "audio",
-                        transport: { type: "websocket" },
+                        transport: {type: "websocket"},
                     }),
                 ).resolves.toEqual({});
                 expect(request).toEqual({
                     threadId: sessionId,
                     outputModality: "audio",
-                    transport: { type: "websocket" },
+                    transport: {type: "websocket"},
                 });
                 await expect(
                     client.request("_codex/realtime/start", {
                         sessionId,
                         threadId: "other",
                     }),
-                ).rejects.toMatchObject({ code: -32602 });
+                ).rejects.toMatchObject({code: -32602});
                 await expect(
                     client.request("_codex/realtime/start", {
                         sessionId: "unknown",
@@ -134,9 +120,9 @@ describe("native capabilities through ACP", () => {
     it("selects an allowed native profile across pages and does not overwrite it on the next prompt", async () => {
         const client = await connectSession(2, {
             codexResponses: {
-                "permissionProfile/list": async (params) =>
-                    (params as { cursor: string | null }).cursor === null
-                        ? { data: [], nextCursor: "next" }
+                "permissionProfile/list": async params =>
+                    (params as {cursor: string | null}).cursor === null
+                        ? {data: [], nextCursor: "next"}
                         : {
                               data: [
                                   {
@@ -151,13 +137,10 @@ describe("native capabilities through ACP", () => {
         });
         try {
             let settings: unknown;
-            client.setCodexResponse(
-                "thread/settings/update",
-                async (params) => {
-                    settings = params;
-                    return {};
-                },
-            );
+            client.setCodexResponse("thread/settings/update", async params => {
+                settings = params;
+                return {};
+            });
             const response = await client.request("session/set_config_option", {
                 sessionId,
                 configId: "mode",
@@ -169,30 +152,15 @@ describe("native capabilities through ACP", () => {
                 permissions: "work",
             });
             expect(settings).not.toHaveProperty("sandboxPolicy");
-            expect(response.configOptions[0].currentValue).toBe(
-                "permission-profile:work",
-            );
-            const accepted = client.sendPrompt([
-                { type: "text", text: "hello" },
-            ]);
+            expect(response.configOptions[0].currentValue).toBe("permission-profile:work");
+            const accepted = client.sendPrompt([{type: "text", text: "hello"}]);
             await settle();
             expect(client.turnStartParams[0]).toMatchObject({
                 permissions: "work",
             });
-            expect(client.turnStartParams[0]).not.toHaveProperty(
-                "sandboxPolicy",
-            );
+            expect(client.turnStartParams[0]).not.toHaveProperty("sandboxPolicy");
             client.emit(turnStarted());
-            client.emit(
-                itemCompleted(
-                    userMessageItem(
-                        client.turnStartParams[0]![
-                            "clientUserMessageId"
-                        ] as string,
-                        "hello",
-                    ),
-                ),
-            );
+            client.emit(itemCompleted(userMessageItem(client.turnStartParams[0]!["clientUserMessageId"] as string, "hello")));
             await settle();
             client.emit(turnCompleted());
             await accepted;
@@ -206,7 +174,7 @@ describe("native capabilities through ACP", () => {
         const client = await connectSession(2, {
             codexResponses: {
                 "permissionProfile/list": async () => ({
-                    data: [{ id: "locked", description: null, allowed: false }],
+                    data: [{id: "locked", description: null, allowed: false}],
                     nextCursor: null,
                 }),
             },
@@ -244,26 +212,24 @@ describe("native capabilities through ACP", () => {
         });
         expect(goalSessionInfoUpdate(goal, false, true)).toEqual({
             sessionUpdate: "session_info_update",
-            _meta: { codex: { goal } },
+            _meta: {codex: {goal}},
         });
         expect(goalSessionInfoUpdate(null, false, true)).toEqual({
             sessionUpdate: "session_info_update",
-            _meta: { codex: { goal: null } },
+            _meta: {codex: {goal: null}},
         });
-        expect(sameThreadGoalSnapshot(goal, { ...goal, tokensUsed: 6 })).toBe(
-            false,
-        );
+        expect(sameThreadGoalSnapshot(goal, {...goal, tokensUsed: 6})).toBe(false);
     });
 
     it("routes realtime events by explicit session and preserves audio metadata", () => {
         const event = {
             method: "thread/realtime/closed" as const,
-            params: { threadId: sessionId, reason: null },
+            params: {threadId: sessionId, reason: null},
         };
         expect(realtimeUpdate(event)).toEqual({
             sessionId,
             event: "closed",
-            data: { reason: null },
+            data: {reason: null},
         });
     });
 });

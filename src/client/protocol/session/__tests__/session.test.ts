@@ -1,27 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import {describe, expect, test} from "bun:test";
 
-import { isText, textOf } from "../blocks";
-import {
-    addPrompt,
-    applyUpdate,
-    createSession,
-    DISCONNECTED,
-    INTERRUPTED,
-    markDisconnected,
-    terminalOf,
-    type ToolItem,
-} from "../session";
-import { SessionStore } from "../store";
+import {isText, textOf} from "../blocks";
+import {addPrompt, applyUpdate, createSession, DISCONNECTED, INTERRUPTED, markDisconnected, terminalOf, type ToolItem} from "../session";
+import {SessionStore} from "../store";
 
 function text(session: ReturnType<typeof createSession>, index = 0): string {
     const item = session.items[index];
-    if (
-        !item ||
-        (item.kind !== "assistant" &&
-            item.kind !== "user" &&
-            item.kind !== "thought")
-    )
-        return "";
+    if (!item || (item.kind !== "assistant" && item.kind !== "user" && item.kind !== "thought")) return "";
     const block = item.content[0];
     return block !== undefined && isText(block) ? block.text : "";
 }
@@ -39,7 +24,7 @@ describe("ACP transcript", () => {
             store.accept(id, {
                 sessionUpdate: "agent_message_chunk",
                 messageId: "same",
-                content: { type: "text", text: value },
+                content: {type: "text", text: value},
             });
         }
         expect(text(store.get("a"))).toBe("A1");
@@ -56,17 +41,17 @@ describe("ACP transcript", () => {
         session = applyUpdate(session, {
             sessionUpdate: "agent_message_chunk",
             messageId: "m",
-            content: { type: "text", text: "par" },
+            content: {type: "text", text: "par"},
         });
         session = applyUpdate(session, {
             sessionUpdate: "agent_message",
             messageId: "m",
-            content: [{ type: "text", text: "partial" }],
+            content: [{type: "text", text: "partial"}],
         });
         session = applyUpdate(session, {
             sessionUpdate: "agent_message_chunk",
             messageId: "m",
-            content: { type: "text", text: "!" },
+            content: {type: "text", text: "!"},
         });
         expect(session.items).toHaveLength(1);
         expect(text(session)).toBe("partial!");
@@ -77,7 +62,7 @@ describe("ACP transcript", () => {
         const after = applyUpdate(before, {
             sessionUpdate: "agent_message_chunk",
             messageId: "m",
-            content: { type: "text", text: "x" },
+            content: {type: "text", text: "x"},
         });
         expect(before.items).toHaveLength(0);
         expect(after.items).toHaveLength(1);
@@ -93,7 +78,7 @@ describe("ACP transcript", () => {
             title: "ls -la",
             kind: "execute",
             status: "in_progress",
-            rawInput: { command: "ls" },
+            rawInput: {command: "ls"},
         });
         session = applyUpdate(session, {
             sessionUpdate: "tool_call_update",
@@ -105,7 +90,7 @@ describe("ACP transcript", () => {
         if (tool?.kind !== "tool") throw new Error("expected a tool item");
         expect(tool.title).toBe("ls -la");
         expect(tool.status).toBe("completed");
-        expect(tool.rawInput).toEqual({ command: "ls" });
+        expect(tool.rawInput).toEqual({command: "ls"});
         expect(tool.rawOutput).toBe("ok");
         session = applyUpdate(session, {
             sessionUpdate: "tool_call_update",
@@ -160,9 +145,7 @@ describe("ACP transcript", () => {
             plan: {
                 type: "items",
                 planId: "p",
-                entries: [
-                    { content: "step", priority: "medium", status: "pending" },
-                ],
+                entries: [{content: "step", priority: "medium", status: "pending"}],
             },
         });
         session = applyUpdate(session, {
@@ -193,7 +176,7 @@ describe("message frames without a messageId", () => {
         expect(() =>
             applyUpdate(createSession("s", "/tmp"), {
                 sessionUpdate: "agent_message_chunk",
-                content: { type: "text", text: "完成" },
+                content: {type: "text", text: "完成"},
             } as never),
         ).toThrow("agent_message_chunk without a messageId in session s");
     });
@@ -202,13 +185,12 @@ describe("message frames without a messageId", () => {
 describe("tool terminals", () => {
     test("found through the terminal reference in the output, never guessed from the tool id", () => {
         let session = createSession("s", "/tmp");
-        const feed = (update: Record<string, unknown>) =>
-            (session = applyUpdate(session, update as never));
+        const feed = (update: Record<string, unknown>) => (session = applyUpdate(session, update as never));
         feed({
             sessionUpdate: "tool_call_update",
             toolCallId: "call-1",
             name: "Bash",
-            content: [{ type: "terminal", terminalId: "term-9" }],
+            content: [{type: "terminal", terminalId: "term-9"}],
         });
         feed({
             sessionUpdate: "terminal_update",
@@ -220,12 +202,8 @@ describe("tool terminals", () => {
             terminalId: "call-1",
             command: "decoy",
         });
-        const tool = session.items.find((item) => item.kind === "tool");
-        expect(
-            tool?.kind === "tool"
-                ? terminalOf(tool, session.terminals)?.command
-                : null,
-        ).toBe("ls");
+        const tool = session.items.find(item => item.kind === "tool");
+        expect(tool?.kind === "tool" ? terminalOf(tool, session.terminals)?.command : null).toBe("ls");
     });
 
     test("null when there is no reference or the referenced terminal has not arrived", () => {
@@ -236,11 +214,7 @@ describe("tool terminals", () => {
             name: "Read",
         } as never);
         const tool = session.items[0];
-        expect(
-            tool?.kind === "tool"
-                ? terminalOf(tool, session.terminals)
-                : undefined,
-        ).toBeNull();
+        expect(tool?.kind === "tool" ? terminalOf(tool, session.terminals) : undefined).toBeNull();
     });
 });
 
@@ -249,7 +223,7 @@ describe("ACP alpha.8", () => {
         const error = {
             code: -32603,
             message: "Provider failed",
-            data: { retryable: true },
+            data: {retryable: true},
         };
         const failed = applyUpdate(createSession("s", "/tmp"), {
             sessionUpdate: "state_update",
@@ -290,53 +264,49 @@ describe("ACP alpha.8", () => {
         session = applyUpdate(session, {
             sessionUpdate: "user_message",
             messageId: "same",
-            content: [{ type: "text", text: "user" }],
+            content: [{type: "text", text: "user"}],
         });
         session = applyUpdate(session, {
             sessionUpdate: "agent_message_chunk",
             messageId: "same",
-            content: { type: "text", text: "answer" },
+            content: {type: "text", text: "answer"},
         });
         session = applyUpdate(session, {
             sessionUpdate: "agent_thought_chunk",
             messageId: "same",
-            content: { type: "text", text: "thought" },
+            content: {type: "text", text: "thought"},
         });
-        expect(session.items.map((item) => [item.kind, item.id])).toEqual([
+        expect(session.items.map(item => [item.kind, item.id])).toEqual([
             ["user", "same"],
             ["assistant", "same"],
             ["thought", "same"],
         ]);
-        expect([0, 1, 2].map((index) => text(session, index))).toEqual([
-            "user",
-            "answer",
-            "thought",
-        ]);
+        expect([0, 1, 2].map(index => text(session, index))).toEqual(["user", "answer", "thought"]);
     });
     test("summary-first compaction preserves position, chunks, patch omission and explicit clears", () => {
         let session = createSession("s", "/tmp");
         session = applyUpdate(session, {
             sessionUpdate: "compaction_summary_chunk",
             compactionId: "c",
-            content: { type: "text", text: "first" },
+            content: {type: "text", text: "first"},
         });
         const first = session;
         session = applyUpdate(session, {
             sessionUpdate: "agent_message_chunk",
             messageId: "m",
-            content: { type: "text", text: "after" },
+            content: {type: "text", text: "after"},
         });
         session = applyUpdate(session, {
             sessionUpdate: "compaction_summary_chunk",
             compactionId: "c",
-            content: { type: "text", text: "second" },
+            content: {type: "text", text: "second"},
         });
         session = applyUpdate(session, {
             sessionUpdate: "compaction_update",
             compactionId: "c",
             status: "failed",
             error: "failure",
-            _meta: { source: "agent" },
+            _meta: {source: "agent"},
         });
         session = applyUpdate(session, {
             sessionUpdate: "compaction_update",
@@ -347,27 +317,27 @@ describe("ACP alpha.8", () => {
             kind: "compaction",
             at: first.items[0].at,
             summary: [
-                { type: "text", text: "first" },
-                { type: "text", text: "second" },
+                {type: "text", text: "first"},
+                {type: "text", text: "second"},
             ],
             error: "failure",
-            _meta: { source: "agent" },
+            _meta: {source: "agent"},
         });
         expect(first.items[0]).toMatchObject({
             status: "in_progress",
-            summary: [{ type: "text", text: "first" }],
+            summary: [{type: "text", text: "first"}],
             error: null,
         });
         session = applyUpdate(session, {
             sessionUpdate: "compaction_update",
             compactionId: "c",
             status: "completed",
-            summary: [{ type: "text", text: "replacement" }],
+            summary: [{type: "text", text: "replacement"}],
             error: null,
             _meta: null,
         });
         expect(session.items[0]).toMatchObject({
-            summary: [{ type: "text", text: "replacement" }],
+            summary: [{type: "text", text: "replacement"}],
             error: null,
             _meta: null,
         });
@@ -377,7 +347,7 @@ describe("ACP alpha.8", () => {
             status: "completed",
             summary: null,
         });
-        expect(session.items[0]).toMatchObject({ summary: [] });
+        expect(session.items[0]).toMatchObject({summary: []});
     });
 });
 
@@ -414,35 +384,35 @@ describe("markTerminated", () => {
         frame({
             sessionUpdate: "user_message",
             messageId: "u1",
-            content: [{ type: "text", text: "q" }],
-            _meta: { alwith: { seq: 0 } },
+            content: [{type: "text", text: "q"}],
+            _meta: {alwith: {seq: 0}},
         });
-        frame({ sessionUpdate: "state_update", state: "running" });
+        frame({sessionUpdate: "state_update", state: "running"});
         frame({
             sessionUpdate: "tool_call_update",
             toolCallId: "t1",
             name: "Bash",
             status: "in_progress",
-            _meta: { alwith: { seq: 1 } },
+            _meta: {alwith: {seq: 1}},
         });
         frame({
             sessionUpdate: "tool_call_update",
             toolCallId: "t2",
             name: "Read",
             status: "completed",
-            _meta: { alwith: { seq: 2 } },
+            _meta: {alwith: {seq: 2}},
         });
         frame({
             sessionUpdate: "session_info_update",
             _meta: {
                 alwith: {
                     seq: 3,
-                    instanceTerminated: { instanceId: "i-1", finalSeq: 2 },
+                    instanceTerminated: {instanceId: "i-1", finalSeq: 2},
                 },
             },
         });
-        const tools = session.items.filter((item) => item.kind === "tool");
-        expect(tools.map((tool) => [tool.id, tool.status])).toEqual([
+        const tools = session.items.filter(item => item.kind === "tool");
+        expect(tools.map(tool => [tool.id, tool.status])).toEqual([
             ["t1", INTERRUPTED],
             ["t2", "completed"],
         ]);
@@ -452,7 +422,7 @@ describe("markTerminated", () => {
             error: null,
             meta: {
                 alwith: {
-                    instanceTerminated: { instanceId: "i-1", finalSeq: 2 },
+                    instanceTerminated: {instanceId: "i-1", finalSeq: 2},
                 },
             },
         });
@@ -462,28 +432,26 @@ describe("markTerminated", () => {
         frame({
             sessionUpdate: "user_message",
             messageId: "u2",
-            content: [{ type: "text", text: "again" }],
-            _meta: { alwith: { seq: 4 } },
+            content: [{type: "text", text: "again"}],
+            _meta: {alwith: {seq: 4}},
         });
         frame({
             sessionUpdate: "tool_call_update",
             toolCallId: "t3",
             name: "Bash",
             status: "in_progress",
-            _meta: { alwith: { seq: 5 } },
+            _meta: {alwith: {seq: 5}},
         });
         frame({
             sessionUpdate: "session_info_update",
             _meta: {
                 alwith: {
                     seq: 6,
-                    instanceTerminated: { instanceId: "i-0", finalSeq: 2 },
+                    instanceTerminated: {instanceId: "i-0", finalSeq: 2},
                 },
             },
         });
-        expect(
-            (session.items.find((item) => item.id === "t3") as ToolItem).status,
-        ).toBe("in_progress");
+        expect((session.items.find(item => item.id === "t3") as ToolItem).status).toBe("in_progress");
         expect("u2" in session.turnEndedAt).toBe(false);
     });
 });

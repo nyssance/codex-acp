@@ -10,7 +10,7 @@ export class SessionGenerations {
     capture(sessionId: string): SessionGeneration {
         let generation = this.current.get(sessionId);
         if (!generation) {
-            generation = Object.freeze({ sessionId });
+            generation = Object.freeze({sessionId});
             this.current.set(sessionId, generation);
         }
         return generation;

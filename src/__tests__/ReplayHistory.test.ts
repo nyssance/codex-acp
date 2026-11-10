@@ -1,6 +1,6 @@
-import { expect, it } from "vitest";
-import type { Turn, ThreadItemEntry } from "../app-server/v2";
-import { replayEntriesOfTurn, withReplayTurnMetadata } from "../ReplayHistory";
+import {expect, it} from "vitest";
+import type {Turn, ThreadItemEntry} from "../app-server/v2";
+import {replayEntriesOfTurn, withReplayTurnMetadata} from "../ReplayHistory";
 
 const turn = (id: string, overrides: Partial<Turn> = {}): Turn => ({
     id,
@@ -27,8 +27,8 @@ it("preserves timestamps and interrupted status, assigning sent time only to the
     const value = turn("interrupted", {
         status: "interrupted",
         items: [
-            { type: "userMessage", id: "first", clientId: null, content: [] },
-            { type: "userMessage", id: "steer", clientId: null, content: [] },
+            {type: "userMessage", id: "first", clientId: null, content: []},
+            {type: "userMessage", id: "steer", clientId: null, content: []},
         ],
     });
     const [first, steer] = replayEntriesOfTurn(value);
@@ -46,9 +46,7 @@ it("preserves timestamps and interrupted status, assigning sent time only to the
 
 it("renders a failed empty turn between adjacent turns without moving its error to the transcript end", async () => {
     const before = turn("before", {
-        items: [
-            { type: "userMessage", id: "first", clientId: null, content: [] },
-        ],
+        items: [{type: "userMessage", id: "first", clientId: null, content: []}],
     });
     const failed = turn("failed", {
         status: "failed",
@@ -60,26 +58,18 @@ it("renders a failed empty turn between adjacent turns without moving its error 
         },
     });
     const after = turn("after", {
-        items: [
-            { type: "userMessage", id: "last", clientId: null, content: [] },
-        ],
+        items: [{type: "userMessage", id: "last", clientId: null, content: []}],
     });
-    const entries: ThreadItemEntry[] = [before, after].flatMap((value) =>
-        value.items.map((item) => ({
+    const entries: ThreadItemEntry[] = [before, after].flatMap(value =>
+        value.items.map(item => ({
             turnId: value.id,
             item,
             startedAtMs: null,
             completedAtMs: null,
         })),
     );
-    const output = await collect(
-        withReplayTurnMetadata(pages(entries), pages([before, failed, after])),
-    );
-    expect(output.map((entry) => entry.item.id)).toEqual([
-        "first",
-        "codex-error:failed",
-        "last",
-    ]);
+    const output = await collect(withReplayTurnMetadata(pages(entries), pages([before, failed, after])));
+    expect(output.map(entry => entry.item.id)).toEqual(["first", "codex-error:failed", "last"]);
     expect(output[1]?.replayMeta).toMatchObject({
         turnId: "failed",
         historyReplay: true,
@@ -88,42 +78,38 @@ it("renders a failed empty turn between adjacent turns without moving its error 
             message: "Capacity exhausted",
         },
     });
-    expect(output).toEqual(
-        [before, failed, after].flatMap(replayEntriesOfTurn),
-    );
+    expect(output).toEqual([before, failed, after].flatMap(replayEntriesOfTurn));
 });
 
 it("rejects history whose entries have no corresponding turn instead of silently losing them", async () => {
     const entry: ThreadItemEntry = {
         turnId: "missing",
-        item: { type: "userMessage", id: "lost", clientId: null, content: [] },
+        item: {type: "userMessage", id: "lost", clientId: null, content: []},
         startedAtMs: null,
         completedAtMs: null,
     };
-    await expect(
-        collect(withReplayTurnMetadata(pages([entry]), pages([]))),
-    ).rejects.toThrow("no matching turn metadata: missing");
+    await expect(collect(withReplayTurnMetadata(pages([entry]), pages([])))).rejects.toThrow("no matching turn metadata: missing");
 });
 
 it("keeps an item that a turn records after the next turn started under its own turn", async () => {
     const entry = (turnId: string, id: string): ThreadItemEntry => ({
         turnId,
-        item: { type: "userMessage", id, clientId: null, content: [] },
+        item: {type: "userMessage", id, clientId: null, content: []},
         startedAtMs: null,
         completedAtMs: null,
     });
     const replay = await collect(
         withReplayTurnMetadata(
             pages([entry("first", "ask"), entry("second", "next"), entry("first", "late")]),
-            pages([turn("first"), turn("second", { startedAt: 20 })]),
+            pages([turn("first"), turn("second", {startedAt: 20})]),
         ),
     );
-    expect(replay.map((item) => [item.item.id, item.replayMeta?.["turnId"], item.replayMeta?.["messageSentAt"]])).toEqual([
+    expect(replay.map(item => [item.item.id, item.replayMeta?.["turnId"], item.replayMeta?.["messageSentAt"]])).toEqual([
         ["ask", "first", 10000],
         ["next", "second", 20000],
         ["late", "first", undefined],
     ]);
-    await expect(
-        collect(withReplayTurnMetadata(pages([entry("missing", "x")]), pages([turn("first")]))),
-    ).rejects.toThrow("History item has no matching turn metadata: missing");
+    await expect(collect(withReplayTurnMetadata(pages([entry("missing", "x")]), pages([turn("first")])))).rejects.toThrow(
+        "History item has no matching turn metadata: missing",
+    );
 });

@@ -1,6 +1,6 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { createSession, SessionStore, textOf } from "../../client/protocol";
-import type { ThreadItem } from "../../app-server/v2";
+import {afterEach, expect, it, vi} from "vitest";
+import {createSession, SessionStore, textOf} from "../../client/protocol";
+import type {ThreadItem} from "../../app-server/v2";
 import {
     connectSession,
     createTurn,
@@ -17,23 +17,19 @@ afterEach(() => client?.connection.close());
 
 it("reserves native message order, keeps phases and records bounded turn timing before idle", async () => {
     client = await connectSession();
-    const response = client.sendPrompt([{ type: "text", text: "Go" }]);
+    const response = client.sendPrompt([{type: "text", text: "Go"}]);
     await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
     client.emit({
         method: "turn/started",
         params: {
             threadId: sessionId,
-            turn: { ...createTurn("inProgress"), startedAt: 100 },
+            turn: {...createTurn("inProgress"), startedAt: 100},
         },
     });
     const userId = client.turnStartParams[0]!["clientUserMessageId"] as string;
     client.emit(itemCompleted(userMessageItem(userId)));
     await response;
-    const message = (
-        id: string,
-        text: string,
-        phase: "commentary" | "final_answer",
-    ): Extract<ThreadItem, { type: "agentMessage" }> => ({
+    const message = (id: string, text: string, phase: "commentary" | "final_answer"): Extract<ThreadItem, {type: "agentMessage"}> => ({
         type: "agentMessage",
         id,
         text,
@@ -54,12 +50,11 @@ it("reserves native message order, keeps phases and records bounded turn timing 
     });
     client.emit(itemCompleted(message("commentary", "Working", "commentary")));
     const final = message("answer", "Answer", "final_answer");
-    const started = itemStarted({ ...final, text: "" });
-    if (started.method !== "item/started")
-        throw new Error("Expected item start");
+    const started = itemStarted({...final, text: ""});
+    if (started.method !== "item/started") throw new Error("Expected item start");
     client.emit({
         ...started,
-        params: { ...started.params, startedAtMs: 103000 },
+        params: {...started.params, startedAtMs: 103000},
     });
     client.emit(itemCompleted(final));
     client.emit({
@@ -76,22 +71,11 @@ it("reserves native message order, keeps phases and records bounded turn timing 
     });
     await client.promptRunFinished();
     await settle();
-    const updates = client.transcript.flatMap((entry) =>
-        "sessionUpdate" in entry ? [entry.sessionUpdate] : [],
-    );
-    const commentary = updates.filter(
-        (update) => "messageId" in update && update.messageId === "commentary",
-    );
-    expect(commentary.map((update) => update.sessionUpdate)).toEqual([
-        "agent_message",
-        "agent_message_chunk",
-        "agent_message",
-    ]);
-    for (const update of commentary)
-        expect(update._meta).toMatchObject({ codex: { phase: "commentary" } });
-    const timed = updates.findLast(
-        (update) => "messageId" in update && update.messageId === "answer",
-    );
+    const updates = client.transcript.flatMap(entry => ("sessionUpdate" in entry ? [entry.sessionUpdate] : []));
+    const commentary = updates.filter(update => "messageId" in update && update.messageId === "commentary");
+    expect(commentary.map(update => update.sessionUpdate)).toEqual(["agent_message", "agent_message_chunk", "agent_message"]);
+    for (const update of commentary) expect(update._meta).toMatchObject({codex: {phase: "commentary"}});
+    const timed = updates.findLast(update => "messageId" in update && update.messageId === "answer");
     expect(timed).toMatchObject({
         _meta: {
             codex: {
@@ -113,13 +97,7 @@ it("reserves native message order, keeps phases and records bounded turn timing 
     store.set(createSession(sessionId, "/work"));
     for (const update of updates) store.accept(sessionId, update);
     const session = store.get(sessionId);
-    expect(session.items.map((item) => item.id)).toEqual([
-        userId,
-        "commentary",
-        "answer",
-    ]);
+    expect(session.items.map(item => item.id)).toEqual([userId, "commentary", "answer"]);
     const answer = session.items[2]!;
-    expect(answer.kind === "assistant" && textOf(answer.content)).toBe(
-        "Answer",
-    );
+    expect(answer.kind === "assistant" && textOf(answer.content)).toBe("Answer");
 });

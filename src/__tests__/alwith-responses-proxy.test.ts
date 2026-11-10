@@ -1,29 +1,26 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { once } from "node:events";
-import { createServer, type Server } from "node:http";
-import { gzipSync, zstdCompressSync } from "node:zlib";
+import {afterEach, describe, expect, it, vi} from "vitest";
+import {once} from "node:events";
+import {createServer, type Server} from "node:http";
+import {gzipSync, zstdCompressSync} from "node:zlib";
 
-import WebSocket, { type RawData, WebSocketServer } from "ws";
+import WebSocket, {type RawData, WebSocketServer} from "ws";
 
-import { PROXY_DIAGNOSTIC_PREFIX } from "../alwith/codex/proxyDiagnostics";
+import {PROXY_DIAGNOSTIC_PREFIX} from "../alwith/codex/proxyDiagnostics";
 
-import {
-    paymentRequiredNotice,
-    ResponsesProxy,
-} from "../alwith/codex/responsesProxy";
+import {paymentRequiredNotice, ResponsesProxy} from "../alwith/codex/responsesProxy";
 
 const foreign = {
     type: "reasoning",
-    content: [{ type: "reasoning_text", text: "foreign" }],
+    content: [{type: "reasoning_text", text: "foreign"}],
     summary: [],
     encrypted_content: "opaque",
 };
 const message = {
     type: "message",
     role: "user",
-    content: [{ type: "input_text", text: "hello" }],
+    content: [{type: "input_text", text: "hello"}],
 };
-const body = JSON.stringify({ input: [foreign, message] });
+const body = JSON.stringify({input: [foreign, message]});
 const cleanup: Array<() => void> = [];
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -38,8 +35,7 @@ async function listen(server: Server): Promise<string> {
         server.close();
     });
     const address = server.address();
-    if (!address || typeof address === "string")
-        throw new Error("No TCP address");
+    if (!address || typeof address === "string") throw new Error("No TCP address");
     return `http://127.0.0.1:${address.port}`;
 }
 function proxy(): ResponsesProxy {
@@ -54,64 +50,50 @@ async function receive(socket: WebSocket): Promise<string> {
 
 /** A ws frame as text: Buffer, Buffer list or ArrayBuffer. */
 function rawText(data: RawData): string {
-    return (
-        Buffer.isBuffer(data)
-            ? data
-            : Array.isArray(data)
-              ? Buffer.concat(data)
-              : Buffer.from(data)
-    ).toString("utf8");
+    return (Buffer.isBuffer(data) ? data : Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data)).toString("utf8");
 }
 
 describe("Responses compatibility transport", () => {
-    it.each(["/images/generations", "/alpha/search"])(
-        "forwards %s JSON unchanged with auth, query and upstream errors",
-        async (path) => {
-            let received: unknown;
-            const upstream = createServer(async (request, response) => {
-                const chunks: Buffer[] = [];
-                for await (const chunk of request)
-                    chunks.push(Buffer.from(chunk));
-                received = {
-                    path: request.url,
-                    method: request.method,
-                    auth: request.headers.authorization,
-                    account: request.headers["chatgpt-account-id"],
-                    body: Buffer.concat(chunks).toString(),
-                };
-                response
-                    .writeHead(429, { "retry-after": "7" })
-                    .end("tool limit");
-            });
-            const route = await proxy().route(
-                `${await listen(upstream)}/backend-api/codex`,
-            );
-            const payload = JSON.stringify({
-                model: "gpt-image-2",
-                prompt: "A lakeside walk",
-                input: [foreign, message],
-            });
-            const response = await fetch(`${route}${path}?test=1`, {
-                method: "POST",
-                headers: {
-                    "content-type": "application/json",
-                    authorization: "Bearer tool-test",
-                    "chatgpt-account-id": "account",
-                },
-                body: payload,
-            });
-            expect(response.status).toBe(429);
-            expect(response.headers.get("retry-after")).toBe("7");
-            expect(await response.text()).toBe("tool limit");
-            expect(received).toEqual({
-                path: `/backend-api/codex${path}?test=1`,
-                method: "POST",
-                auth: "Bearer tool-test",
-                account: "account",
-                body: payload,
-            });
-        },
-    );
+    it.each(["/images/generations", "/alpha/search"])("forwards %s JSON unchanged with auth, query and upstream errors", async path => {
+        let received: unknown;
+        const upstream = createServer(async (request, response) => {
+            const chunks: Buffer[] = [];
+            for await (const chunk of request) chunks.push(Buffer.from(chunk));
+            received = {
+                path: request.url,
+                method: request.method,
+                auth: request.headers.authorization,
+                account: request.headers["chatgpt-account-id"],
+                body: Buffer.concat(chunks).toString(),
+            };
+            response.writeHead(429, {"retry-after": "7"}).end("tool limit");
+        });
+        const route = await proxy().route(`${await listen(upstream)}/backend-api/codex`);
+        const payload = JSON.stringify({
+            model: "gpt-image-2",
+            prompt: "A lakeside walk",
+            input: [foreign, message],
+        });
+        const response = await fetch(`${route}${path}?test=1`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                authorization: "Bearer tool-test",
+                "chatgpt-account-id": "account",
+            },
+            body: payload,
+        });
+        expect(response.status).toBe(429);
+        expect(response.headers.get("retry-after")).toBe("7");
+        expect(await response.text()).toBe("tool limit");
+        expect(received).toEqual({
+            path: `/backend-api/codex${path}?test=1`,
+            method: "POST",
+            auth: "Bearer tool-test",
+            account: "account",
+            body: payload,
+        });
+    });
 
     it("preserves image edit multipart bytes and encoding", async () => {
         let received: Buffer | undefined;
@@ -123,15 +105,11 @@ describe("Responses compatibility transport", () => {
             received = Buffer.concat(chunks);
             contentType = request.headers["content-type"];
             encoding = request.headers["content-encoding"];
-            response
-                .writeHead(200, { "content-type": "application/json" })
-                .end('{"data":[{"b64_json":"image"}]}');
+            response.writeHead(200, {"content-type": "application/json"}).end('{"data":[{"b64_json":"image"}]}');
         });
         const route = await proxy().route(`${await listen(upstream)}/v1`);
         const multipart = Buffer.concat([
-            Buffer.from(
-                '--image\r\nContent-Disposition: form-data; name="image"; filename="test.png"\r\nContent-Type: image/png\r\n\r\n',
-            ),
+            Buffer.from('--image\r\nContent-Disposition: form-data; name="image"; filename="test.png"\r\nContent-Type: image/png\r\n\r\n'),
             Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]),
             Buffer.from("\r\n--image--\r\n"),
         ]);
@@ -146,7 +124,7 @@ describe("Responses compatibility transport", () => {
         });
         expect(response.status).toBe(200);
         expect(await response.json()).toEqual({
-            data: [{ b64_json: "image" }],
+            data: [{b64_json: "image"}],
         });
         expect(received).toEqual(bytes);
         expect(contentType).toBe("multipart/form-data; boundary=image");
@@ -188,7 +166,7 @@ describe("Responses compatibility transport", () => {
             ["/images/generations", "GET"],
             ["/alpha/search", "DELETE"],
         ] as const) {
-            const response = await fetch(`${route}${path}`, { method });
+            const response = await fetch(`${route}${path}`, {method});
             expect(response.status).toBe(404);
         }
         expect(calls).toBe(0);
@@ -199,11 +177,10 @@ describe("Responses compatibility transport", () => {
             (req, res) =>
                 void (async () => {
                     const chunks: Buffer[] = [];
-                    for await (const chunk of req as AsyncIterable<Buffer>)
-                        chunks.push(chunk);
-                    res.writeHead(200, { "content-type": "text/event-stream" });
+                    for await (const chunk of req as AsyncIterable<Buffer>) chunks.push(chunk);
+                    res.writeHead(200, {"content-type": "text/event-stream"});
                     res.write(
-                        `data: ${JSON.stringify({ path: req.url, auth: req.headers.authorization, account: req.headers["chatgpt-account-id"], encoding: req.headers["content-encoding"] ?? null, body: JSON.parse(Buffer.concat(chunks).toString()) as unknown })}\n\n`,
+                        `data: ${JSON.stringify({path: req.url, auth: req.headers.authorization, account: req.headers["chatgpt-account-id"], encoding: req.headers["content-encoding"] ?? null, body: JSON.parse(Buffer.concat(chunks).toString()) as unknown})}\n\n`,
                     );
                     res.end("data: [DONE]\n\n");
                 })(),
@@ -226,7 +203,7 @@ describe("Responses compatibility transport", () => {
             auth: "Bearer test",
             account: "account",
             encoding: null,
-            body: { input: [message] },
+            body: {input: [message]},
         });
         expect(text).toContain("data: [DONE]");
     });
@@ -236,9 +213,7 @@ describe("Responses compatibility transport", () => {
         const base = await listen(
             createServer((_req, res) => {
                 calls++;
-                res.writeHead(307, { location: "/must-not-follow" }).end(
-                    "redirect",
-                );
+                res.writeHead(307, {location: "/must-not-follow"}).end("redirect");
             }),
         );
         const route = await proxy().route(base);
@@ -252,36 +227,30 @@ describe("Responses compatibility transport", () => {
         expect(calls).toBe(1);
     });
 
-    it.runIf("Bun" in globalThis)(
-        "reports safe Bun transport codes without upstream credentials",
-        async () => {
-            const downstreamFetch = globalThis.fetch;
-            vi.stubGlobal("fetch", async () => {
-                throw Object.assign(
-                    new Error("https://secret:token@example.test"),
-                    { code: "ECONNREFUSED" },
-                );
-            });
-            const route = await proxy().route("https://example.test/v1");
-            const response = await downstreamFetch(`${route}/responses`, {
-                method: "POST",
-                body,
-            });
-            expect(response.status).toBe(502);
-            const text = await response.text();
-            expect(text).toContain("ECONNREFUSED");
-            expect(text).not.toMatch(/secret|token|example\.test/);
-        },
-    );
+    it.runIf("Bun" in globalThis)("reports safe Bun transport codes without upstream credentials", async () => {
+        const downstreamFetch = globalThis.fetch;
+        vi.stubGlobal("fetch", async () => {
+            throw Object.assign(new Error("https://secret:token@example.test"), {code: "ECONNREFUSED"});
+        });
+        const route = await proxy().route("https://example.test/v1");
+        const response = await downstreamFetch(`${route}/responses`, {
+            method: "POST",
+            body,
+        });
+        expect(response.status).toBe(502);
+        const text = await response.text();
+        expect(text).toContain("ECONNREFUSED");
+        expect(text).not.toMatch(/secret|token|example\.test/);
+    });
 
     it("filters every websocket request, preserves incremental IDs and closes the upstream on cancellation", async () => {
         const server = createServer();
-        const wss = new WebSocketServer({ server });
+        const wss = new WebSocketServer({server});
         cleanup.push(() => wss.close());
         let upstreamClosed: Promise<unknown> | undefined;
         wss.on("connection", (socket, req) => {
             upstreamClosed = once(socket, "close");
-            socket.on("message", (data) =>
+            socket.on("message", data =>
                 socket.send(
                     JSON.stringify({
                         body: JSON.parse(rawText(data)) as unknown,
@@ -292,18 +261,15 @@ describe("Responses compatibility transport", () => {
             );
         });
         const route = await proxy().route(await listen(server));
-        const client = new WebSocket(
-            `${route.replace("http:", "ws:")}/responses`,
-            {
-                headers: { authorization: "Bearer ws-test" },
-            },
-        );
+        const client = new WebSocket(`${route.replace("http:", "ws:")}/responses`, {
+            headers: {authorization: "Bearer ws-test"},
+        });
         cleanup.push(() => client.terminate());
         await once(client, "open");
         let received = receive(client);
         client.send(body);
         expect(JSON.parse(await received)).toEqual({
-            body: { input: [message] },
+            body: {input: [message]},
             auth: "Bearer ws-test",
             path: "/responses",
         });
@@ -315,7 +281,7 @@ describe("Responses compatibility transport", () => {
                 input: [foreign, message],
             }),
         );
-        expect((JSON.parse(await received) as { body: unknown }).body).toEqual({
+        expect((JSON.parse(await received) as {body: unknown}).body).toEqual({
             type: "response.create",
             previous_response_id: "previous",
             input: [message],
@@ -328,7 +294,7 @@ describe("Responses compatibility transport", () => {
         let calls = 0;
         const server = createServer((_req, res) => {
             calls++;
-            res.writeHead(429, { "retry-after": "7" }).end("rate limited");
+            res.writeHead(429, {"retry-after": "7"}).end("rate limited");
         });
         const route = await proxy().route(await listen(server));
         const response = await fetch(`${route}/responses`, {
@@ -338,62 +304,46 @@ describe("Responses compatibility transport", () => {
         expect(response.status).toBe(429);
         expect(response.headers.get("retry-after")).toBe("7");
         expect(await response.text()).toBe("rate limited");
-        const forbidden = await fetch(
-            `${new URL(route).origin}/unknown/responses`,
-            { method: "POST", body },
-        );
+        const forbidden = await fetch(`${new URL(route).origin}/unknown/responses`, {method: "POST", body});
         expect(forbidden.status).toBe(404);
         expect(calls).toBe(1);
     });
 
-    it.each([401, 429, 426])(
-        "preserves upstream websocket handshake status %s and retry headers",
-        async (status) => {
-            const server = createServer();
-            server.on("upgrade", (_request, socket) =>
-                socket.end(
-                    `HTTP/1.1 ${status} Rejected\r\nRetry-After: 7\r\nContent-Length: 8\r\nConnection: close\r\n\r\nrejected`,
-                ),
-            );
-            const route = await proxy().route(await listen(server));
-            const client = new WebSocket(
-                `${route.replace("http:", "ws:")}/responses`,
-            );
-            cleanup.push(() => client.terminate());
-            const result = await new Promise<{
-                status: number | undefined;
-                retry: string | undefined;
-                body: string;
-            }>((resolve, reject) => {
-                client.on("error", reject);
-                client.on("open", () =>
-                    reject(
-                        new Error(
-                            "Proxy accepted a rejected upstream handshake",
-                        ),
-                    ),
+    it.each([401, 429, 426])("preserves upstream websocket handshake status %s and retry headers", async status => {
+        const server = createServer();
+        server.on("upgrade", (_request, socket) =>
+            socket.end(`HTTP/1.1 ${status} Rejected\r\nRetry-After: 7\r\nContent-Length: 8\r\nConnection: close\r\n\r\nrejected`),
+        );
+        const route = await proxy().route(await listen(server));
+        const client = new WebSocket(`${route.replace("http:", "ws:")}/responses`);
+        cleanup.push(() => client.terminate());
+        const result = await new Promise<{
+            status: number | undefined;
+            retry: string | undefined;
+            body: string;
+        }>((resolve, reject) => {
+            client.on("error", reject);
+            client.on("open", () => reject(new Error("Proxy accepted a rejected upstream handshake")));
+            client.on("unexpected-response", (_request, response) => {
+                const chunks: Buffer[] = [];
+                response.on("data", (data: Buffer) => chunks.push(data));
+                response.on("end", () =>
+                    resolve({
+                        status: response.statusCode,
+                        retry: response.headers["retry-after"],
+                        body: Buffer.concat(chunks).toString(),
+                    }),
                 );
-                client.on("unexpected-response", (_request, response) => {
-                    const chunks: Buffer[] = [];
-                    response.on("data", (data: Buffer) => chunks.push(data));
-                    response.on("end", () =>
-                        resolve({
-                            status: response.statusCode,
-                            retry: response.headers["retry-after"],
-                            body: Buffer.concat(chunks).toString(),
-                        }),
-                    );
-                });
             });
-            expect(result).toEqual({ status, retry: "7", body: "rejected" });
-        },
-    );
+        });
+        expect(result).toEqual({status, retry: "7", body: "rejected"});
+    });
 
     it("aborts upstream HTTP streaming when the downstream is cancelled", async () => {
         let disconnected: Promise<unknown> | undefined;
         const server = createServer((_req, res) => {
             disconnected = once(res, "close");
-            res.writeHead(200, { "content-type": "text/event-stream" });
+            res.writeHead(200, {"content-type": "text/event-stream"});
             res.write("data: first\n\n");
         });
         const route = await proxy().route(await listen(server));
@@ -410,24 +360,18 @@ describe("Responses compatibility transport", () => {
 
     it("closes listeners and active websocket connections when disposed", async () => {
         const server = createServer();
-        const wss = new WebSocketServer({ server });
+        const wss = new WebSocketServer({server});
         cleanup.push(() => wss.close());
         const value = proxy();
         const route = await value.route(await listen(server));
-        const client = new WebSocket(
-            `${route.replace("http:", "ws:")}/responses`,
-        );
+        const client = new WebSocket(`${route.replace("http:", "ws:")}/responses`);
         cleanup.push(() => client.terminate());
         await once(client, "open");
         const closed = once(client, "close");
         value.close();
         await closed;
-        await expect(
-            fetch(`${route}/responses`, { method: "POST", body }),
-        ).rejects.toThrow();
-        await expect(value.route("https://api.openai.com/v1")).rejects.toThrow(
-            /closed/,
-        );
+        await expect(fetch(`${route}/responses`, {method: "POST", body})).rejects.toThrow();
+        await expect(value.route("https://api.openai.com/v1")).rejects.toThrow(/closed/);
     });
 });
 
@@ -436,9 +380,7 @@ it("preserves the native ChatGPT realtime call contract behind a local route", a
     const upstream = createServer(async (request, response) => {
         const chunks: Buffer[] = [];
         for await (const bytes of request) chunks.push(Buffer.from(bytes));
-        expect(request.url).toBe(
-            "/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
-        );
+        expect(request.url).toBe("/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas");
         expect(request.headers["content-type"]).toBe("application/json");
         received = JSON.parse(Buffer.concat(chunks).toString());
         response
@@ -448,19 +390,17 @@ it("preserves the native ChatGPT realtime call contract behind a local route", a
             })
             .end("answer");
     });
-    const route = await proxy().route(
-        `${await listen(upstream)}/backend-api/codex`,
-    );
+    const route = await proxy().route(`${await listen(upstream)}/backend-api/codex`);
     const form = new FormData();
     form.set("sdp", "v=0\r\no=offer\r\n");
-    form.set("session", JSON.stringify({ type: "realtime", model: "test" }));
-    const result = await fetch(`${route}/live`, { method: "POST", body: form });
+    form.set("session", JSON.stringify({type: "realtime", model: "test"}));
+    const result = await fetch(`${route}/live`, {method: "POST", body: form});
     expect(result.status).toBe(201);
     expect(await result.text()).toBe("answer");
     expect(result.headers.get("location")).toBe("/realtime/calls/rtc_test");
     expect(received).toEqual({
         sdp: "v=0\r\no=offer\r\n",
-        session: { type: "realtime", model: "test" },
+        session: {type: "realtime", model: "test"},
     });
 });
 
@@ -469,17 +409,14 @@ it("preserves API realtime multipart bytes without applying Responses transforma
     const upstream = createServer(async (request, response) => {
         for await (const bytes of request) received += bytes.toString();
         expect(request.url).toBe("/v1/live");
-        expect(request.headers["content-type"]).toBe(
-            "multipart/form-data; boundary=test",
-        );
+        expect(request.headers["content-type"]).toBe("multipart/form-data; boundary=test");
         response.writeHead(201).end("answer");
     });
     const route = await proxy().route(`${await listen(upstream)}/v1`);
-    const body =
-        '--test\r\nContent-Disposition: form-data; name="sdp"\r\n\r\noffer\r\n--test--\r\n';
+    const body = '--test\r\nContent-Disposition: form-data; name="sdp"\r\n\r\noffer\r\n--test--\r\n';
     const result = await fetch(`${route}/live`, {
         method: "POST",
-        headers: { "content-type": "multipart/form-data; boundary=test" },
+        headers: {"content-type": "multipart/form-data; boundary=test"},
         body,
     });
     expect(result.status).toBe(201);
@@ -489,17 +426,11 @@ it("preserves API realtime multipart bytes without applying Responses transforma
 
 it("forwards realtime websocket messages unchanged", async () => {
     const server = createServer();
-    const ws = new WebSocketServer({ server });
+    const ws = new WebSocketServer({server});
     cleanup.push(() => ws.close());
-    ws.on("connection", (socket) =>
-        socket.on("message", (message) =>
-            socket.send(message, { binary: false }),
-        ),
-    );
+    ws.on("connection", socket => socket.on("message", message => socket.send(message, {binary: false})));
     const route = await proxy().route(await listen(server));
-    const socket = new WebSocket(
-        `${route.replace("http:", "ws:")}/realtime?call_id=rtc_test`,
-    );
+    const socket = new WebSocket(`${route.replace("http:", "ws:")}/realtime?call_id=rtc_test`);
     cleanup.push(() => socket.terminate());
     await once(socket, "open");
     const reply = receive(socket);
@@ -509,61 +440,49 @@ it("forwards realtime websocket messages unchanged", async () => {
 
 it("preserves ChatGPT live websocket routing after backend path translation", async () => {
     const server = createServer();
-    const ws = new WebSocketServer({ server });
+    const ws = new WebSocketServer({server});
     cleanup.push(() => ws.close());
     let path: string | undefined;
     ws.on("connection", (socket, request) => {
         path = request.url;
-        socket.on("message", (message) =>
-            socket.send(message, { binary: false }),
-        );
+        socket.on("message", message => socket.send(message, {binary: false}));
     });
-    const route = await proxy().route(
-        `${await listen(server)}/backend-api/codex`,
-    );
+    const route = await proxy().route(`${await listen(server)}/backend-api/codex`);
     const socket = new WebSocket(`${route.replace("http:", "ws:")}/live`);
     cleanup.push(() => socket.terminate());
     await once(socket, "open");
     const reply = receive(socket);
     socket.send(body);
     expect(await reply).toBe(body);
-    expect(path).toBe(
-        "/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
-    );
+    expect(path).toBe("/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas");
 });
 
 it("exports correlated reset diagnostics without credentials, routing tokens or request content", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    const upstream = createServer((request) => request.socket.destroy());
+    const upstream = createServer(request => request.socket.destroy());
     const base = await listen(upstream);
     const route = await proxy().route(`${base}/private-provider-path`);
     const response = await fetch(`${route}/responses`, {
         method: "POST",
-        headers: { authorization: "Bearer private-api-key" },
+        headers: {authorization: "Bearer private-api-key"},
         body: JSON.stringify({
             input: [
                 {
                     type: "message",
                     role: "user",
-                    content: [{ type: "input_text", text: "private-prompt" }],
+                    content: [{type: "input_text", text: "private-prompt"}],
                 },
             ],
         }),
     });
     expect(response.status).toBe(502);
     await response.text();
-    const lines = log.mock.calls
-        .map((call) => String(call[0]))
-        .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX));
-    const allEvents = lines.map((line) =>
-        JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)),
-    );
-    const requestId = allEvents.findLast(
-        (event) => event.phase === "started",
-    ).requestId;
-    const events = allEvents.filter((event) => event.requestId === requestId);
-    expect(events.map((event) => event.phase)).toEqual(["started", "failed"]);
-    expect(new Set(events.map((event) => event.requestId)).size).toBe(1);
+    const lines = log.mock.calls.map(call => String(call[0])).filter(line => line.startsWith(PROXY_DIAGNOSTIC_PREFIX));
+    const allEvents = lines.map(line => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+    const requestId = allEvents.findLast(event => event.phase === "started").requestId;
+    const events = allEvents.filter(event => event.requestId === requestId);
+    expect(events.map(event => event.phase)).toEqual(["started", "failed"]);
+    expect(new Set(events.map(event => event.requestId)).size).toBe(1);
     expect(events[1]).toMatchObject({
         stage: "connect_upstream",
         targetHost: "127.0.0.1",
@@ -571,12 +490,7 @@ it("exports correlated reset diagnostics without credentials, routing tokens or 
         status: null,
     });
     expect(events[1].errors).toContain("ECONNRESET");
-    for (const secret of [
-        "private-api-key",
-        "private-prompt",
-        "private-provider-path",
-        new URL(route).pathname.slice(1),
-    ]) {
+    for (const secret of ["private-api-key", "private-prompt", "private-provider-path", new URL(route).pathname.slice(1)]) {
         expect(lines.join("\n")).not.toContain(secret);
     }
 });
@@ -598,14 +512,10 @@ it("records upstream status, request ID and streamed bytes with a single termina
     });
     const text = await response.text();
     const events = log.mock.calls
-        .map((call) => String(call[0]))
-        .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
-        .map((line) => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
-    expect(events.map((event) => event.phase)).toEqual([
-        "started",
-        "headers",
-        "completed",
-    ]);
+        .map(call => String(call[0]))
+        .filter(line => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
+        .map(line => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+    expect(events.map(event => event.phase)).toEqual(["started", "headers", "completed"]);
     expect(events.at(-1)).toMatchObject({
         status: 200,
         upstreamRequestId: "req_test123",
@@ -618,7 +528,7 @@ it("records upstream status, request ID and streamed bytes with a single termina
 it("reports a truncated upstream stream as failure without injecting error text into SSE", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const upstream = createServer((_request, response) => {
-        response.writeHead(200, { "content-type": "text/event-stream" });
+        response.writeHead(200, {"content-type": "text/event-stream"});
         response.write("data: partial\n\n");
         setTimeout(() => response.destroy(), 10);
     });
@@ -628,20 +538,14 @@ it("reports a truncated upstream stream as failure without injecting error text 
         body,
     });
     await expect(response.text()).rejects.toThrow();
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
     const allEvents = log.mock.calls
-        .map((call) => String(call[0]))
-        .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
-        .map((line) => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
-    const requestId = allEvents.findLast(
-        (event) => event.phase === "started",
-    ).requestId;
-    const events = allEvents.filter((event) => event.requestId === requestId);
-    expect(events.map((event) => event.phase)).toEqual([
-        "started",
-        "headers",
-        "failed",
-    ]);
+        .map(call => String(call[0]))
+        .filter(line => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
+        .map(line => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+    const requestId = allEvents.findLast(event => event.phase === "started").requestId;
+    const events = allEvents.filter(event => event.requestId === requestId);
+    expect(events.map(event => event.phase)).toEqual(["started", "headers", "failed"]);
     expect(events.at(-1)).toMatchObject({
         stage: "read_response",
         status: 200,
@@ -681,7 +585,7 @@ it("isolates gateway credentials from native HTTP authentication", async () => {
 
 it("isolates gateway credentials on websocket upgrades", async () => {
     const server = createServer();
-    const websocket = new WebSocketServer({ server });
+    const websocket = new WebSocketServer({server});
     cleanup.push(() => websocket.close());
     let headers: Record<string, unknown> = {};
     websocket.on("connection", (socket, request) => {
@@ -713,8 +617,7 @@ describe("an exhausted balance reported as HTTP 402", () => {
             code: "invalid_request_error",
         },
     });
-    const notice =
-        "127.0.0.1 returned HTTP 402 Payment Required: Insufficient Balance (request_id: 944e5925-4ad9-4547-b1c0-b0ea8c802950)";
+    const notice = "127.0.0.1 returned HTTP 402 Payment Required: Insufficient Balance (request_id: 944e5925-4ad9-4547-b1c0-b0ea8c802950)";
     function external(): ResponsesProxy {
         const value = new ResponsesProxy("external");
         cleanup.push(() => value.close());
@@ -722,19 +625,15 @@ describe("an exhausted balance reported as HTTP 402", () => {
     }
     function diagnostics(calls: unknown[][]) {
         return calls
-            .map((call) => String(call[0]))
-            .filter((line) => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
-            .map((line) =>
-                JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)),
-            );
+            .map(call => String(call[0]))
+            .filter(line => line.startsWith(PROXY_DIAGNOSTIC_PREFIX))
+            .map(line => JSON.parse(line.slice(PROXY_DIAGNOSTIC_PREFIX.length)));
     }
 
     it("reaches Codex as its usage-limit error naming the provider, and keeps the upstream status in the diagnostic", async () => {
         const log = vi.spyOn(console, "error").mockImplementation(() => {});
         const server = createServer((_request, response) =>
-            response
-                .writeHead(402, { "content-type": "application/json" })
-                .end(deepSeekBody),
+            response.writeHead(402, {"content-type": "application/json"}).end(deepSeekBody),
         );
         const route = await external().route(await listen(server));
         const response = await fetch(`${route}/responses`, {
@@ -744,7 +643,7 @@ describe("an exhausted balance reported as HTTP 402", () => {
         expect(response.status).toBe(429);
         expect(response.headers.get("x-codex-promo-message")).toBe(notice);
         expect(await response.json()).toEqual({
-            error: { type: "usage_limit_reached" },
+            error: {type: "usage_limit_reached"},
         });
         await vi.waitFor(() =>
             expect(diagnostics(log.mock.calls).at(-1)).toMatchObject({
@@ -765,9 +664,7 @@ describe("an exhausted balance reported as HTTP 402", () => {
             ),
         );
         const route = await external().route(await listen(server));
-        const client = new WebSocket(
-            `${route.replace("http:", "ws:")}/responses`,
-        );
+        const client = new WebSocket(`${route.replace("http:", "ws:")}/responses`);
         cleanup.push(() => client.terminate());
         const result = await new Promise<{
             status: number | undefined;
@@ -775,9 +672,7 @@ describe("an exhausted balance reported as HTTP 402", () => {
             body: string;
         }>((resolve, reject) => {
             client.on("error", reject);
-            client.on("open", () =>
-                reject(new Error("Proxy accepted a rejected handshake")),
-            );
+            client.on("open", () => reject(new Error("Proxy accepted a rejected handshake")));
             client.on("unexpected-response", (_request, response) => {
                 const chunks: Buffer[] = [];
                 response.on("data", (data: Buffer) => chunks.push(data));
@@ -793,14 +688,12 @@ describe("an exhausted balance reported as HTTP 402", () => {
         expect(result.status).toBe(429);
         expect(result.notice).toBe(notice);
         expect(JSON.parse(result.body)).toEqual({
-            error: { type: "usage_limit_reached" },
+            error: {type: "usage_limit_reached"},
         });
     });
 
     it("forwards a native 402 unchanged", async () => {
-        const server = createServer((_request, response) =>
-            response.writeHead(402).end("payment required"),
-        );
+        const server = createServer((_request, response) => response.writeHead(402).end("payment required"));
         const route = await proxy().route(await listen(server));
         const response = await fetch(`${route}/responses`, {
             method: "POST",
@@ -811,46 +704,20 @@ describe("an exhausted balance reported as HTTP 402", () => {
     });
 
     it("names the provider message from compressed, plain and non-ASCII bodies", () => {
-        expect(
-            paymentRequiredNotice(
-                "api.deepseek.com",
-                gzipSync(deepSeekBody),
-                "gzip",
-                "application/json",
-            ),
-        ).toBe(
+        expect(paymentRequiredNotice("api.deepseek.com", gzipSync(deepSeekBody), "gzip", "application/json")).toBe(
             "api.deepseek.com returned HTTP 402 Payment Required: Insufficient Balance (request_id: 944e5925-4ad9-4547-b1c0-b0ea8c802950)",
         );
-        expect(
-            paymentRequiredNotice(
-                "gateway.example",
-                Buffer.from("  balance\n exhausted "),
-                undefined,
-                "text/plain",
-            ),
-        ).toBe(
+        expect(paymentRequiredNotice("gateway.example", Buffer.from("  balance\n exhausted "), undefined, "text/plain")).toBe(
             "gateway.example returned HTTP 402 Payment Required: balance exhausted",
         );
-        expect(
-            paymentRequiredNotice(
-                "gateway.example",
-                Buffer.from(""),
-                undefined,
-                undefined,
-            ),
-        ).toBe("gateway.example returned HTTP 402 Payment Required");
-        expect(
-            paymentRequiredNotice(
-                "gateway.example",
-                Buffer.from('{"error":{"message":"余额不足"}}'),
-                undefined,
-                "application/json",
-            ),
-        ).toBe(
-            "gateway.example returned HTTP 402 Payment Required: \\u4f59\\u989d\\u4e0d\\u8db3",
+        expect(paymentRequiredNotice("gateway.example", Buffer.from(""), undefined, undefined)).toBe(
+            "gateway.example returned HTTP 402 Payment Required",
         );
-        expect(() =>
-            paymentRequiredNotice("gateway.example", Buffer.from("x"), "compress", undefined),
-        ).toThrow("Unsupported upstream content-encoding: compress");
+        expect(
+            paymentRequiredNotice("gateway.example", Buffer.from('{"error":{"message":"余额不足"}}'), undefined, "application/json"),
+        ).toBe("gateway.example returned HTTP 402 Payment Required: \\u4f59\\u989d\\u4e0d\\u8db3");
+        expect(() => paymentRequiredNotice("gateway.example", Buffer.from("x"), "compress", undefined)).toThrow(
+            "Unsupported upstream content-encoding: compress",
+        );
     });
 });

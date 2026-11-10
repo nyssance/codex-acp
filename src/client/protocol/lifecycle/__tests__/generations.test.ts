@@ -1,6 +1,6 @@
-import { expect, test } from "bun:test";
+import {expect, test} from "bun:test";
 
-import { SessionGenerations } from "../generations";
+import {SessionGenerations} from "../generations";
 
 test("reopening invalidates old work even when the session and agent IDs are reused", () => {
     const generations = new SessionGenerations();

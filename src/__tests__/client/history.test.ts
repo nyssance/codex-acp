@@ -1,6 +1,6 @@
-import { expect, test, vi } from "vitest";
+import {expect, test, vi} from "vitest";
 
-import { exportConversation } from "../../client/history";
+import {exportConversation} from "../../client/history";
 
 const page = {
     sessionId: "s",
@@ -21,16 +21,16 @@ const page = {
                 {
                     sessionUpdate: "user_message",
                     messageId: "u",
-                    content: [{ type: "text", text: "Question" }],
+                    content: [{type: "text", text: "Question"}],
                 },
                 {
                     sessionUpdate: "agent_message",
                     messageId: "a",
-                    content: [{ type: "text", text: "Answer" }],
+                    content: [{type: "text", text: "Answer"}],
                 },
                 {
                     sessionUpdate: "agent_thought",
-                    content: [{ type: "text", text: "Private reasoning" }],
+                    content: [{type: "text", text: "Private reasoning"}],
                 },
             ],
         },
@@ -40,18 +40,18 @@ const page = {
 test("exports paginated text conversations without resuming a session", async () => {
     const request = vi
         .fn()
-        .mockResolvedValueOnce({ ...page, complete: false, nextCursor: "next" })
-        .mockResolvedValueOnce({ ...page, items: [] });
+        .mockResolvedValueOnce({...page, complete: false, nextCursor: "next"})
+        .mockResolvedValueOnce({...page, items: []});
     const body = await exportConversation("s", request, () => {});
     const records = body
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as { type: string });
-    expect(records.map((record) => record.type)).toEqual(["user", "assistant"]);
+        .map(line => JSON.parse(line) as {type: string});
+    expect(records.map(record => record.type)).toEqual(["user", "assistant"]);
     expect(records[0]).toMatchObject({
         sessionId: "s",
         timestamp: "1970-01-01T00:01:40.000Z",
-        message: { content: [{ type: "text", text: "Question" }] },
+        message: {content: [{type: "text", text: "Question"}]},
     });
     expect(body).not.toContain("Private reasoning");
     expect(request.mock.calls[1]?.[0]).toMatchObject({
@@ -64,18 +64,18 @@ test("exports paginated text conversations without resuming a session", async ()
 
 test("rejects cross-session, partial, running and changed history instead of exporting it", async () => {
     for (const invalid of [
-        { ...page, sessionId: "other" },
-        { ...page, running: true },
-        { ...page, consistency: "live" },
-        { ...page, running: undefined },
-        { ...page, items: [], complete: false, nextCursor: "no-progress" },
-        { ...page, complete: false },
+        {...page, sessionId: "other"},
+        {...page, running: true},
+        {...page, consistency: "live"},
+        {...page, running: undefined},
+        {...page, items: [], complete: false, nextCursor: "no-progress"},
+        {...page, complete: false},
         {
             ...page,
             items: [
                 {
                     ...page.items[0],
-                    updates: [{ sessionUpdate: "user_message", messageId: "m1", content: null }],
+                    updates: [{sessionUpdate: "user_message", messageId: "m1", content: null}],
                 },
             ],
         },
@@ -90,8 +90,8 @@ test("rejects cross-session, partial, running and changed history instead of exp
     }
     const request = vi
         .fn()
-        .mockResolvedValueOnce({ ...page, complete: false, nextCursor: "next" })
-        .mockResolvedValueOnce({ ...page, revision: "changed" });
+        .mockResolvedValueOnce({...page, complete: false, nextCursor: "next"})
+        .mockResolvedValueOnce({...page, revision: "changed"});
     await expect(exportConversation("s", request, () => {})).rejects.toThrow();
 });
 
@@ -103,7 +103,7 @@ test("rejects repeated cursors and respects activation cancellation", async () =
             () =>
                 Promise.try(() => ({
                     ...page,
-                    items: [{ ...page.items[0], itemId: String(index++) }],
+                    items: [{...page.items[0], itemId: String(index++)}],
                     complete: false,
                     nextCursor: "loop",
                 })),
@@ -120,68 +120,56 @@ test("rejects repeated cursors and respects activation cancellation", async () =
 });
 
 test("retains attachment references", async () => {
-    const request = vi
-        .fn()
-        .mockResolvedValueOnce({
-            ...page,
-            items: [
-                {
-                    ...page.items[0],
-                    updates: [
-                        {
-                            sessionUpdate: "user_message",
-                            messageId: "m3",
-                            content: [
-                                {
-                                    type: "resource_link",
-                                    name: "Image",
-                                    uri: "file:///tmp/image.png",
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        });
-    expect(await exportConversation("s", request, () => {})).toContain(
-        "file:///tmp/image.png",
-    );
+    const request = vi.fn().mockResolvedValueOnce({
+        ...page,
+        items: [
+            {
+                ...page.items[0],
+                updates: [
+                    {
+                        sessionUpdate: "user_message",
+                        messageId: "m3",
+                        content: [
+                            {
+                                type: "resource_link",
+                                name: "Image",
+                                uri: "file:///tmp/image.png",
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+    expect(await exportConversation("s", request, () => {})).toContain("file:///tmp/image.png");
 });
 
 const png = {
     type: "image",
     mimeType: "image/png",
     data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTWQAAAAASUVORK5CYII=",
-    _meta: { codex: { detail: "original" } },
+    _meta: {codex: {detail: "original"}},
 };
 
-test.each(["user_message", "agent_message"])(
-    "exports ordered text and image blocks for %s",
-    async (sessionUpdate) => {
-        const content = [
-            { type: "text", text: "Before" },
-            png,
-            { type: "text", text: "After" },
-            png,
-        ];
-        const body = await exportConversation(
-            "s",
-            () =>
-                Promise.resolve({
-                    ...page,
-                    items: [
-                        {
-                            ...page.items[0],
-                            updates: [{ sessionUpdate, messageId: "m", content }],
-                        },
-                    ],
-                }),
-            () => {},
-        );
-        const record = JSON.parse(body) as { message: { content: unknown[] } };
-        expect(record.message.content).toEqual(content);
-    },
-);
+test.each(["user_message", "agent_message"])("exports ordered text and image blocks for %s", async sessionUpdate => {
+    const content = [{type: "text", text: "Before"}, png, {type: "text", text: "After"}, png];
+    const body = await exportConversation(
+        "s",
+        () =>
+            Promise.resolve({
+                ...page,
+                items: [
+                    {
+                        ...page.items[0],
+                        updates: [{sessionUpdate, messageId: "m", content}],
+                    },
+                ],
+            }),
+        () => {},
+    );
+    const record = JSON.parse(body) as {message: {content: unknown[]}};
+    expect(record.message.content).toEqual(content);
+});
 
 test("exports image-only messages and keeps unavailable image placeholders", async () => {
     const body = await exportConversation(
@@ -193,7 +181,7 @@ test("exports image-only messages and keeps unavailable image placeholders", asy
                     {
                         ...page.items[0],
                         updates: [
-                            { sessionUpdate: "user_message", messageId: "m2", content: [png] },
+                            {sessionUpdate: "user_message", messageId: "m2", content: [png]},
                             {
                                 sessionUpdate: "user_message",
                                 messageId: "m4",
@@ -203,7 +191,7 @@ test("exports image-only messages and keeps unavailable image placeholders", asy
                                         name: "Image unavailable",
                                         uri: "codex-image:unavailable",
                                         _meta: {
-                                            codex: { imageUnavailable: true },
+                                            codex: {imageUnavailable: true},
                                         },
                                     },
                                 ],
@@ -217,48 +205,40 @@ test("exports image-only messages and keeps unavailable image placeholders", asy
     const records = body
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as { message: { content: unknown[] } });
+        .map(line => JSON.parse(line) as {message: {content: unknown[]}});
     expect(records[0]?.message.content).toEqual([png]);
-    expect(records[1]?.message.content).toEqual([
-        { type: "text", text: "[Image unavailable] codex-image:unavailable" },
-    ]);
+    expect(records[1]?.message.content).toEqual([{type: "text", text: "[Image unavailable] codex-image:unavailable"}]);
 });
 
 test.each([
-    { ...png, data: null },
-    { ...png, data: "" },
-    { ...png, mimeType: "text/plain" },
-    { type: "audio", mimeType: "audio/wav", data: "AAAA" },
-])(
-    "rejects unsupported or malformed media instead of partially archiving it: %j",
-    async (block) => {
-        await expect(
-            exportConversation(
-                "s",
-                () =>
-                    Promise.resolve({
-                        ...page,
-                        items: [
-                            {
-                                ...page.items[0],
-                                updates: [
-                                    {
-                                        sessionUpdate: "user_message",
-                                        messageId: "m5",
-                                        content: [
-                                            { type: "text", text: "Keep me" },
-                                            block,
-                                        ],
-                                    },
-                                ],
-                            },
-                        ],
-                    }),
-                () => {},
-            ),
-        ).rejects.toThrow(/session s.*item u.*type/);
-    },
-);
+    {...png, data: null},
+    {...png, data: ""},
+    {...png, mimeType: "text/plain"},
+    {type: "audio", mimeType: "audio/wav", data: "AAAA"},
+])("rejects unsupported or malformed media instead of partially archiving it: %j", async block => {
+    await expect(
+        exportConversation(
+            "s",
+            () =>
+                Promise.resolve({
+                    ...page,
+                    items: [
+                        {
+                            ...page.items[0],
+                            updates: [
+                                {
+                                    sessionUpdate: "user_message",
+                                    messageId: "m5",
+                                    content: [{type: "text", text: "Keep me"}, block],
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            () => {},
+        ),
+    ).rejects.toThrow(/session s.*item u.*type/);
+});
 
 test("counts inline image bytes toward the complete archive size limit", async () => {
     await expect(
@@ -277,9 +257,7 @@ test("counts inline image bytes toward the complete archive size limit", async (
                                     content: [
                                         {
                                             ...png,
-                                            data: "AAAA".repeat(
-                                                (25 * 1024 * 1024) / 4,
-                                            ),
+                                            data: "AAAA".repeat((25 * 1024 * 1024) / 4),
                                         },
                                     ],
                                 },
@@ -302,16 +280,16 @@ test("joins a replayed message start and its chunks into one record", async () =
                     {
                         ...page.items[0],
                         updates: [
-                            { sessionUpdate: "agent_message", messageId: "a", content: [] },
+                            {sessionUpdate: "agent_message", messageId: "a", content: []},
                             {
                                 sessionUpdate: "agent_message_chunk",
                                 messageId: "a",
-                                content: { type: "text", text: "One" },
+                                content: {type: "text", text: "One"},
                             },
                             {
                                 sessionUpdate: "agent_message_chunk",
                                 messageId: "a",
-                                content: { type: "text", text: "Two" },
+                                content: {type: "text", text: "Two"},
                             },
                         ],
                     },
@@ -319,10 +297,13 @@ test("joins a replayed message start and its chunks into one record", async () =
             }),
         () => {},
     );
-    const records = body.trim().split("\n").map((line) => JSON.parse(line));
+    const records = body
+        .trim()
+        .split("\n")
+        .map(line => JSON.parse(line));
     expect(records).toHaveLength(1);
     expect(records[0].message.content).toEqual([
-        { type: "text", text: "One" },
-        { type: "text", text: "Two" },
+        {type: "text", text: "One"},
+        {type: "text", text: "Two"},
     ]);
 });

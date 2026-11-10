@@ -1,6 +1,6 @@
-import { RequestError } from "@agentclientprotocol/sdk/unstable";
-import type { ClientRequest, ServerNotification } from "./app-server";
-import type { CodexAppServerClient } from "./CodexAppServerClient";
+import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import type {ClientRequest, ServerNotification} from "./app-server";
+import type {CodexAppServerClient} from "./CodexAppServerClient";
 
 /** Non-standard capabilities remain ACP extensions on the existing agent connection. */
 export const CODEX_NATIVE_METHODS = {
@@ -19,14 +19,11 @@ export const CODEX_NATIVE_METHODS = {
 export type CodexNativeMethod = keyof typeof CODEX_NATIVE_METHODS;
 
 export const CODEX_REALTIME_UPDATE = "_codex/realtime/update";
-type RealtimeNotification = Extract<
-    ServerNotification,
-    { method: `thread/realtime/${string}` }
->;
+type RealtimeNotification = Extract<ServerNotification, {method: `thread/realtime/${string}`}>;
 export type CodexRealtimeUpdate = RealtimeNotification extends infer N
     ? N extends {
           method: `thread/realtime/${infer Event}`;
-          params: { threadId: string };
+          params: {threadId: string};
       }
         ? {
               sessionId: string;
@@ -36,12 +33,10 @@ export type CodexRealtimeUpdate = RealtimeNotification extends infer N
         : never
     : never;
 
-export function realtimeUpdate(
-    notification: ServerNotification,
-): CodexRealtimeUpdate | null {
+export function realtimeUpdate(notification: ServerNotification): CodexRealtimeUpdate | null {
     if (!notification.method.startsWith("thread/realtime/")) return null;
     const event = notification as RealtimeNotification;
-    const { threadId, ...data } = event.params;
+    const {threadId, ...data} = event.params;
     return {
         sessionId: threadId,
         event: event.method.slice("thread/realtime/".length),
@@ -56,21 +51,10 @@ export async function requestCodexNative(
     prepareSession: (id: string, writable: boolean) => Promise<void>,
 ): Promise<unknown> {
     const target = CODEX_NATIVE_METHODS[method];
-    if (
-        target === "thread/shellCommand" ||
-        (target.startsWith("thread/realtime/") &&
-            target !== "thread/realtime/listVoices")
-    ) {
-        const { sessionId, threadId, ...data } = params;
-        if (
-            typeof sessionId !== "string" ||
-            sessionId.trim().length === 0 ||
-            threadId !== undefined
-        ) {
-            throw RequestError.invalidParams(
-                undefined,
-                "Expected sessionId; threadId is owned by the ACP adapter",
-            );
+    if (target === "thread/shellCommand" || (target.startsWith("thread/realtime/") && target !== "thread/realtime/listVoices")) {
+        const {sessionId, threadId, ...data} = params;
+        if (typeof sessionId !== "string" || sessionId.trim().length === 0 || threadId !== undefined) {
+            throw RequestError.invalidParams(undefined, "Expected sessionId; threadId is owned by the ACP adapter");
         }
         // Stop must remain available for a thread that became read-only during a voice session.
         await prepareSession(sessionId, target !== "thread/realtime/stop");

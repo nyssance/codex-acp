@@ -1,11 +1,11 @@
-import { constants } from "node:fs";
-import { open } from "node:fs/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import {constants} from "node:fs";
+import {open} from "node:fs/promises";
+import {fileURLToPath, pathToFileURL} from "node:url";
 
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type { UserInput } from "../../app-server/v2";
-import { attachmentFileUri } from "../../DesktopAttachmentHistory";
+import type {UserInput} from "../../app-server/v2";
+import {attachmentFileUri} from "../../DesktopAttachmentHistory";
 
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 
@@ -27,13 +27,10 @@ export async function hydrateLocalImages(
     const result: acp.SessionUpdate[] = [];
     for (const update of updates) {
         signal.throwIfAborted();
-        if (
-            acp.SessionUpdate.isUserMessageChunk(update) &&
-            acp.ContentBlock.isResourceLink(update.content)
-        ) {
+        if (acp.SessionUpdate.isUserMessageChunk(update) && acp.ContentBlock.isResourceLink(update.content)) {
             const path = paths.get(update.content.uri);
             if (path !== undefined) {
-                result.push({ ...update, content: await readImage(path) });
+                result.push({...update, content: await readImage(path)});
                 continue;
             }
         }
@@ -45,32 +42,22 @@ export async function hydrateLocalImages(
 async function readImage(path: string): Promise<acp.ContentBlock> {
     try {
         // Nonblocking open avoids hanging replay on a stale path replaced by a FIFO.
-        const file = await open(
-            path.startsWith("file:") ? fileURLToPath(path) : path,
-            constants.O_RDONLY | constants.O_NONBLOCK,
-        );
+        const file = await open(path.startsWith("file:") ? fileURLToPath(path) : path, constants.O_RDONLY | constants.O_NONBLOCK);
         try {
             const stat = await file.stat();
             if (!stat.isFile()) return unavailable("not a regular file");
             if (stat.size === 0) return unavailable("empty file");
-            if (stat.size > MAX_IMAGE_BYTES)
-                return unavailable(`larger than ${MAX_IMAGE_BYTES} bytes`);
+            if (stat.size > MAX_IMAGE_BYTES) return unavailable(`larger than ${MAX_IMAGE_BYTES} bytes`);
             const data = Buffer.alloc(stat.size);
             let offset = 0;
             while (offset < data.length) {
-                const { bytesRead } = await file.read(
-                    data,
-                    offset,
-                    data.length - offset,
-                    offset,
-                );
-                if (bytesRead === 0)
-                    return unavailable("file shrank while it was read");
+                const {bytesRead} = await file.read(data, offset, data.length - offset, offset);
+                if (bytesRead === 0) return unavailable("file shrank while it was read");
                 offset += bytesRead;
             }
             const mimeType = imageMimeType(data);
             return mimeType
-                ? { type: "image", mimeType, data: data.toString("base64") }
+                ? {type: "image", mimeType, data: data.toString("base64")}
                 : unavailable("not a PNG, JPEG, GIF, WebP or BMP image");
         } finally {
             await file.close();
@@ -87,25 +74,15 @@ function unavailable(reason: string): acp.ContentBlock {
         type: "resource_link",
         name: "Image unavailable",
         uri: "codex-image:unavailable",
-        _meta: { codex: { imageUnavailable: true, reason } },
+        _meta: {codex: {imageUnavailable: true, reason}},
     };
 }
 
 function imageMimeType(data: Buffer): string | null {
-    if (
-        data
-            .subarray(0, 8)
-            .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    )
-        return "image/png";
-    if (data[0] === 255 && data[1] === 216 && data[2] === 255)
-        return "image/jpeg";
+    if (data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
+    if (data[0] === 255 && data[1] === 216 && data[2] === 255) return "image/jpeg";
     if (/^GIF8[79]a$/.test(data.toString("ascii", 0, 6))) return "image/gif";
-    if (
-        data.toString("ascii", 0, 4) === "RIFF" &&
-        data.toString("ascii", 8, 12) === "WEBP"
-    )
-        return "image/webp";
+    if (data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP") return "image/webp";
     if (data.toString("ascii", 0, 2) === "BM") return "image/bmp";
     return null;
 }

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test";
+import {describe, expect, it} from "bun:test";
 
-import { SessionOperations } from "../session-operations";
+import {SessionOperations} from "../session-operations";
 
 function gate<T>(): {
     promise: Promise<T>;
@@ -13,7 +13,7 @@ function gate<T>(): {
         resolve = res;
         reject = rej;
     });
-    return { promise, resolve, reject };
+    return {promise, resolve, reject};
 }
 
 describe("one ordered operation lane per session", () => {
@@ -71,7 +71,7 @@ describe("one ordered operation lane per session", () => {
             runs.push("close");
             return closing.promise;
         });
-        await expect(b).rejects.toMatchObject({ name: "AbortError" });
+        await expect(b).rejects.toMatchObject({name: "AbortError"});
         const reopened = operations.open("s", "A", () => {
             return Promise.try(() => {
                 runs.push("open after close");
@@ -106,7 +106,7 @@ it("cancels a running open, waits for its peer response, and does not block anot
     const operations = new SessionOperations();
     const peer = gate<string>();
     let signal!: AbortSignal;
-    const opening = operations.open("a", "same", (current) => {
+    const opening = operations.open("a", "same", current => {
         signal = current;
         return peer.promise;
     });
@@ -117,11 +117,7 @@ it("cancels a running open, waits for its peer response, and does not block anot
     });
     expect(signal.aborted).toBe(true);
     expect(closed).toBe(false);
-    expect(
-        await operations.open("b", "different", () =>
-            Promise.resolve("independent"),
-        ),
-    ).toBe("independent");
+    expect(await operations.open("b", "different", () => Promise.resolve("independent"))).toBe("independent");
     expect(closed).toBe(false);
     peer.resolve("accepted before cancellation");
     await opening;
@@ -162,15 +158,13 @@ it("retires idle lanes after success and failure", async () => {
         await operations.open(String(index), "A", async () => index);
     }
     expect(operations.activeSessionCount).toBe(0);
-    const error = { code: "peer_failed" };
-    await expect(
-        operations.open("failed", "A", () => Promise.reject(error)),
-    ).rejects.toBe(error);
+    const error = {code: "peer_failed"};
+    await expect(operations.open("failed", "A", () => Promise.reject(error))).rejects.toBe(error);
     expect(operations.activeSessionCount).toBe(0);
 });
 
 it("rejects overload without dropping accepted destructive operations", async () => {
-    const operations = new SessionOperations({ maxPendingPerSession: 1 });
+    const operations = new SessionOperations({maxPendingPerSession: 1});
     const peer = gate<void>();
     const opening = operations.open("s", "A", () => peer.promise);
     let deleted = false;
@@ -192,7 +186,7 @@ it("a failed delete preserves the next explicit close without pretending deletio
     const opening = operations.open("s", "A", () => peer.promise);
     const error = new Error("delete refused");
     const deleting = operations.delete("s", () => Promise.reject(error));
-    const rejected = deleting.catch((failure) => failure);
+    const rejected = deleting.catch(failure => failure);
     let closed = false;
     const closing = operations.close("s", async () => {
         closed = true;
@@ -209,7 +203,7 @@ it("an abort listener's reentrant reopen stays after the reserved close boundary
     const peer = gate<void>();
     const events: string[] = [];
     let reopened!: Promise<void>;
-    const opening = operations.open("s", "A", (signal) => {
+    const opening = operations.open("s", "A", signal => {
         signal.addEventListener("abort", () => {
             reopened = operations.open("s", "B", async () => {
                 events.push("reopened");

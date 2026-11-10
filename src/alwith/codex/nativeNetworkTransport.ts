@@ -11,8 +11,7 @@ export class NativeNetworkTransport {
         const raw = process.env["CODEX_ACP_NATIVE_NETWORK_ENDPOINT"];
         if (raw === undefined) return null;
         const value: unknown = JSON.parse(raw);
-        if (!value || typeof value !== "object")
-            throw new Error("Invalid native network endpoint");
+        if (!value || typeof value !== "object") throw new Error("Invalid native network endpoint");
         const v = value as Record<string, unknown>;
         if (
             v["version"] !== 1 ||
@@ -26,21 +25,13 @@ export class NativeNetworkTransport {
             throw new Error("Invalid native network endpoint");
         return new NativeNetworkTransport(value as Endpoint);
     }
-    route(
-        target: URL,
-        websocket = false,
-        requestId?: string,
-    ): { url: URL; headers: Record<string, string> } {
+    route(target: URL, websocket = false, requestId?: string): {url: URL; headers: Record<string, string>} {
         return {
-            url: new URL(
-                `http://127.0.0.1:${this.endpoint.port}/v1/${websocket ? "websocket" : "http"}`,
-            ),
+            url: new URL(`http://127.0.0.1:${this.endpoint.port}/v1/${websocket ? "websocket" : "http"}`),
             headers: {
                 "x-alwith-native-token": this.endpoint.token,
                 "x-alwith-native-target": target.href,
-                ...(requestId
-                    ? { "x-alwith-native-request-id": requestId }
-                    : {}),
+                ...(requestId ? {"x-alwith-native-request-id": requestId} : {}),
             },
         };
     }

@@ -1,20 +1,18 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { ResponsesRoutes } from "../alwith/codex/responsesRoutes";
-import { ResponsesProxy } from "../alwith/codex/responsesProxy";
+import {afterEach, expect, it, vi} from "vitest";
+import {ResponsesRoutes} from "../alwith/codex/responsesRoutes";
+import {ResponsesProxy} from "../alwith/codex/responsesProxy";
 
 afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
 });
 it("reuses workspace routes and replaces their readers after app-server recovery without eager authentication", async () => {
-    const route = vi
-        .spyOn(ResponsesProxy.prototype, "route")
-        .mockResolvedValue("http://127.0.0.1/route");
+    const route = vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue("http://127.0.0.1/route");
     vi.spyOn(ResponsesProxy.prototype, "close").mockImplementation(() => {});
     const routes = new ResponsesRoutes();
     const context = (base: string) => ({
         cwd: "/workspace",
-        readConfig: vi.fn(async () => ({ config: { openai_base_url: base } })),
+        readConfig: vi.fn(async () => ({config: {openai_base_url: base}})),
         readAccount: vi.fn(async () => ({
             account: null,
             requiresOpenaiAuth: false,
@@ -36,9 +34,7 @@ it("reuses workspace routes and replaces their readers after app-server recovery
 });
 
 it("routes external endpoints through compatibility without changing credentials or another provider", async () => {
-    const route = vi
-        .spyOn(ResponsesProxy.prototype, "route")
-        .mockResolvedValue("http://127.0.0.1/external");
+    const route = vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue("http://127.0.0.1/external");
     vi.spyOn(ResponsesProxy.prototype, "close").mockImplementation(() => {});
     const routes = new ResponsesRoutes();
     const config = {
@@ -48,7 +44,7 @@ it("routes external endpoints through compatibility without changing credentials
                 base_url: "https://api.example/v1",
                 experimental_bearer_token: "private-test-secret",
             },
-            other: { name: "Other", base_url: "https://other.example/v1" },
+            other: {name: "Other", base_url: "https://other.example/v1"},
         },
     };
     const context = {
@@ -73,9 +69,7 @@ it("routes external endpoints through compatibility without changing credentials
 });
 
 it("moves a gateway route onto the retained native provider without retaining source credentials", async () => {
-    vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue(
-        "http://127.0.0.1/target",
-    );
+    vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue("http://127.0.0.1/target");
     const routes = new ResponsesRoutes();
     try {
         const result = await routes.config(
@@ -89,7 +83,7 @@ it("moves a gateway route onto the retained native provider without retaining so
                 },
             },
             "deepseek",
-            { cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn() },
+            {cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn()},
             "litellm",
         );
         expect(result["model_providers"]).toEqual({
@@ -106,9 +100,7 @@ it("moves a gateway route onto the retained native provider without retaining so
 });
 
 it("routes a gateway through the reserved openai transport without overriding its definition", async () => {
-    const route = vi
-        .spyOn(ResponsesProxy.prototype, "route")
-        .mockResolvedValue("http://127.0.0.1/gateway");
+    const route = vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue("http://127.0.0.1/gateway");
     const routes = new ResponsesRoutes();
     try {
         const output = await routes.config(
@@ -122,7 +114,7 @@ it("routes a gateway through the reserved openai transport without overriding it
                 },
             },
             "deepseek",
-            { cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn() },
+            {cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn()},
             "openai",
         );
         expect(output).toEqual({
@@ -140,9 +132,7 @@ it("routes a gateway through the reserved openai transport without overriding it
 it("preserves provider environment authentication when a native custom provider uses an openai history", async () => {
     vi.stubEnv("PROVIDER_REVIEW_KEY", "provider-key");
     vi.stubEnv("PROVIDER_REVIEW_ORG", "provider-org");
-    const route = vi
-        .spyOn(ResponsesProxy.prototype, "route")
-        .mockResolvedValue("http://127.0.0.1/provider");
+    const route = vi.spyOn(ResponsesProxy.prototype, "route").mockResolvedValue("http://127.0.0.1/provider");
     const routes = new ResponsesRoutes();
     try {
         await routes.config(
@@ -152,12 +142,12 @@ it("preserves provider environment authentication when a native custom provider 
                         name: "Corp",
                         base_url: "https://corp.example/v1",
                         env_key: "PROVIDER_REVIEW_KEY",
-                        env_http_headers: { "x-org": "PROVIDER_REVIEW_ORG" },
+                        env_http_headers: {"x-org": "PROVIDER_REVIEW_ORG"},
                     },
                 },
             },
             "corp",
-            { cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn() },
+            {cwd: "/workspace", readConfig: vi.fn(), readAccount: vi.fn()},
             "openai",
         );
         expect(route).toHaveBeenCalledWith("https://corp.example/v1", {

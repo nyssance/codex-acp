@@ -1,4 +1,4 @@
-import type { Project } from "../app-server/v2/Project";
+import type {Project} from "../app-server/v2/Project";
 
 export type ProjectContext = {
     homeDirectory: string;
@@ -13,9 +13,7 @@ export function normalizedPath(value: string): string {
         .replace(/^\/\/\?\/UNC\//i, "//")
         .replace(/^\/\/\?\//, "");
     const normalized = path.replace(/\/+$/, "") || "/";
-    return /^[a-z]:\//i.test(normalized) || normalized.startsWith("//")
-        ? normalized.toLowerCase()
-        : normalized;
+    return /^[a-z]:\//i.test(normalized) || normalized.startsWith("//") ? normalized.toLowerCase() : normalized;
 }
 
 /** The last segment of a directory path; the path itself for a root such as `/`. */
@@ -26,38 +24,24 @@ export function directoryName(path: string): string {
 export function pathContains(root: string, path: string): boolean {
     const parent = normalizedPath(root);
     const child = normalizedPath(path);
-    return (
-        parent === child ||
-        child.startsWith(parent === "/" ? "/" : `${parent}/`)
-    );
+    return parent === child || child.startsWith(parent === "/" ? "/" : `${parent}/`);
 }
 
-export function matchingProject(
-    projects: readonly Project[],
-    cwd: string,
-): Project | undefined {
+export function matchingProject(projects: readonly Project[], cwd: string): Project | undefined {
     return projects
-        .flatMap((project) =>
-            project.roots.map((root) => ({ project, root: root.path })),
-        )
-        .filter(({ root }) => pathContains(root, cwd))
-        .toSorted(
-            (a, b) =>
-                normalizedPath(b.root).length - normalizedPath(a.root).length ||
-                a.project.id.localeCompare(b.project.id),
-        )[0]?.project;
+        .flatMap(project => project.roots.map(root => ({project, root: root.path})))
+        .filter(({root}) => pathContains(root, cwd))
+        .toSorted((a, b) => normalizedPath(b.root).length - normalizedPath(a.root).length || a.project.id.localeCompare(b.project.id))[0]
+        ?.project;
 }
 
 export const QUICK_CHATS_GROUP = "quick-chats";
-export type SessionGroup = { id: string; name: string; cwd: string | null };
+export type SessionGroup = {id: string; name: string; cwd: string | null};
 
 /** Display projection only. Inferred grouping never becomes a persisted project assignment. */
-export function sessionGroup(
-    context: ProjectContext,
-    row: { cwd: string; projectId?: string | null },
-): SessionGroup {
+export function sessionGroup(context: ProjectContext, row: {cwd: string; projectId?: string | null}): SessionGroup {
     const project = row.projectId
-        ? context.projects.find((project) => project.id === row.projectId)
+        ? context.projects.find(project => project.id === row.projectId)
         : matchingProject(context.projects, row.cwd);
     if (project)
         return {
@@ -77,7 +61,7 @@ export function sessionGroup(
         pathContains(context.codexChatDirectory, cwd) ||
         cwd === normalizedPath(context.chatDirectory)
     )
-        return { id: QUICK_CHATS_GROUP, name: "", cwd: null };
+        return {id: QUICK_CHATS_GROUP, name: "", cwd: null};
     return {
         id: row.cwd,
         name: directoryName(row.cwd),
@@ -93,9 +77,7 @@ export function groupSessions<
     },
 >(rows: readonly T[], context: ProjectContext): Array<[string, T[]]> {
     const groups = new Map<string, T[]>([[QUICK_CHATS_GROUP, []]]);
-    for (const row of [...rows].toSorted((a, b) =>
-        (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
-    )) {
+    for (const row of [...rows].toSorted((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))) {
         const id = sessionGroup(context, row).id;
         const group = groups.get(id);
         if (group) group.push(row);
@@ -105,17 +87,10 @@ export function groupSessions<
 }
 
 export function projectName(id: string, context?: ProjectContext): string {
-    if (id.startsWith("project:"))
-        return (
-            context?.projects.find((project) => `project:${project.id}` === id)
-                ?.name ?? id.slice(8)
-        );
+    if (id.startsWith("project:")) return context?.projects.find(project => `project:${project.id}` === id)?.name ?? id.slice(8);
     return directoryName(id);
 }
 
-export function isQuickChatDirectory(
-    cwd: string,
-    context: ProjectContext,
-): boolean {
-    return sessionGroup(context, { cwd }).id === QUICK_CHATS_GROUP;
+export function isQuickChatDirectory(cwd: string, context: ProjectContext): boolean {
+    return sessionGroup(context, {cwd}).id === QUICK_CHATS_GROUP;
 }

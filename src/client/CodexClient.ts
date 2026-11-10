@@ -1,23 +1,14 @@
-import type { McpToolCallParams, McpToolCallResult, AppsInstalledParams, AppsInstalledResponse } from "./codex-extensions";
-import {
-    sessionGroup,
-    type ProjectContext,
-    type SessionGroup,
-} from "../projects/projection";
-import type { NewSessionOptions } from "./protocol";
+import type {McpToolCallParams, McpToolCallResult, AppsInstalledParams, AppsInstalledResponse} from "./codex-extensions";
+import {sessionGroup, type ProjectContext, type SessionGroup} from "../projects/projection";
+import type {NewSessionOptions} from "./protocol";
 // The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
 // of ACP (`_codex/*`): the full session list and archive, history browsing and export, skills and
 // plugin marketplaces, rate limits, file search, retries, fork lineage and realtime.
 // Moved out of ALwith U's `agent/client.ts` (2026-10-27 chat-layer extraction): the adapter owns
 // its extension protocol, so it ships the client that speaks it.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {
-    type Agent,
-    isBooleanOption,
-    isSelectOption,
-    type Session,
-} from "./protocol";
-import { type StateSetter } from "@alwith/api/client";
+import {type Agent, isBooleanOption, isSelectOption, type Session} from "./protocol";
+import {type StateSetter} from "@alwith/api/client";
 import {
     type ClientOptions,
     type ClientState,
@@ -31,12 +22,8 @@ import {
     type SessionSummary,
 } from "./protocol";
 
-import { readActivityReply } from "./activity-preview";
-import {
-    CodexCapabilitiesClient,
-    type RealtimeEvent,
-    type RealtimeStart,
-} from "./CodexCapabilitiesClient";
+import {readActivityReply} from "./activity-preview";
+import {CodexCapabilitiesClient, type RealtimeEvent, type RealtimeStart} from "./CodexCapabilitiesClient";
 import type {
     AccountReadResponse,
     FuzzyFileSearchParams,
@@ -63,11 +50,8 @@ import type {
     SkillsListParams,
     SkillsListResponse,
 } from "./codex-extensions";
-import {
-    codexExtensionCapabilities,
-    codexTurnStartedAt,
-} from "./codex-extensions";
-import { exportConversation } from "./history";
+import {codexExtensionCapabilities, codexTurnStartedAt} from "./codex-extensions";
+import {exportConversation} from "./history";
 import {
     type HistoryNavigationState,
     historyTurnPreview,
@@ -76,17 +60,10 @@ import {
     readHistoryIndex,
     readHistoryTurn,
 } from "./history-navigation";
-import {
-    type HistoryPageState,
-    prependHistory,
-    readHistoryPage,
-} from "./history-page";
-import {
-    asError,
-    CLIENT_CAPABILITIES,
-} from "./protocol/client/session-client";
+import {type HistoryPageState, prependHistory, readHistoryPage} from "./history-page";
+import {asError, CLIENT_CAPABILITIES} from "./protocol/client/session-client";
 
-export type ForkOrigin = { sourceId: string; boundaryTurnId: string | null };
+export type ForkOrigin = {sourceId: string; boundaryTurnId: string | null};
 
 export type ForkOptions = SessionRequestOptions & {
     /** Fork after this native turn (requires the `forkAtTurn` capability); the whole record otherwise. */
@@ -107,69 +84,43 @@ export type CodexClientState = ClientState & {
 
 /** `session/resume` answered from the read path because another Codex client holds the writer. */
 function isReadOnlyResume(response: acp.ResumeSessionResponse): boolean {
-    const codex = (
-        response._meta as { codex?: { readOnly?: unknown } } | undefined
-    )?.codex;
+    const codex = (response._meta as {codex?: {readOnly?: unknown}} | undefined)?.codex;
     return codex?.readOnly === true;
 }
 
 function isActiveWriterError(error: unknown): boolean {
-    const data =
-        error && typeof error === "object" && "data" in error
-            ? error.data
-            : null;
-    return (
-        !!data &&
-        typeof data === "object" &&
-        "reason" in data &&
-        data.reason === "thread_active_writer"
-    );
+    const data = error && typeof error === "object" && "data" in error ? error.data : null;
+    return !!data && typeof data === "object" && "reason" in data && data.reason === "thread_active_writer";
 }
 
 /**
  * The ALwith client extensions declared to codex-acp-v2, beside the client's ACP capabilities:
  * `sessionIndex` asks for the upstream session index (archived sides, fork parents) with standard rows.
  */
-function withAlwithCapabilities(
-    capabilities: Record<string, unknown> = CLIENT_CAPABILITIES,
-): Record<string, unknown> {
+function withAlwithCapabilities(capabilities: Record<string, unknown> = CLIENT_CAPABILITIES): Record<string, unknown> {
     const meta =
-        typeof capabilities._meta === "object" && capabilities._meta !== null
-            ? (capabilities._meta as Record<string, unknown>)
-            : {};
+        typeof capabilities._meta === "object" && capabilities._meta !== null ? (capabilities._meta as Record<string, unknown>) : {};
     return {
         ...capabilities,
-        _meta: { ...meta, alwith: { capabilities: ["sessionIndex", "promptSuggestions"] } },
+        _meta: {...meta, alwith: {capabilities: ["sessionIndex", "promptSuggestions"]}},
     };
 }
 
-function sessionLineage(
-    meta: Record<string, unknown> | null | undefined,
-): Pick<SessionSummary, "nativeSessionId" | "forkedFromId"> {
+function sessionLineage(meta: Record<string, unknown> | null | undefined): Pick<SessionSummary, "nativeSessionId" | "forkedFromId"> {
     const codex = meta?.codex;
     if (typeof codex !== "object" || codex === null) return {};
-    const { nativeSessionId, forkedFromId } = codex as Record<string, unknown>;
+    const {nativeSessionId, forkedFromId} = codex as Record<string, unknown>;
     if (nativeSessionId === undefined && forkedFromId === undefined) return {};
-    if (
-        typeof nativeSessionId !== "string" ||
-        !nativeSessionId ||
-        (forkedFromId !== null && typeof forkedFromId !== "string")
-    )
+    if (typeof nativeSessionId !== "string" || !nativeSessionId || (forkedFromId !== null && typeof forkedFromId !== "string"))
         throw new Error("Invalid session lineage from the agent");
-    return { nativeSessionId, forkedFromId };
+    return {nativeSessionId, forkedFromId};
 }
 
-export class CodexClient<
-    State extends CodexClientState = CodexClientState,
-> extends SessionClient<State> {
+export class CodexClient<State extends CodexClientState = CodexClientState> extends SessionClient<State> {
     private nativeClient: CodexCapabilitiesClient | null = null;
     private readonly skillsListeners = new Set<() => void>();
-    private readonly rateLimitListeners = new Set<
-        (limits: RateLimitSnapshot) => void
-    >();
-    private readonly fileSearchListeners = new Set<
-        (update: FuzzyFileSearchSessionUpdated) => void
-    >();
+    private readonly rateLimitListeners = new Set<(limits: RateLimitSnapshot) => void>();
+    private readonly fileSearchListeners = new Set<(update: FuzzyFileSearchSessionUpdated) => void>();
     /** Forks allocate titles and lineage one at a time. */
     private forkQueue: Promise<unknown> = Promise.resolve();
     private archivedGeneration = 0;
@@ -178,27 +129,15 @@ export class CodexClient<
     private readonly retryRequests = new Map<string, Promise<void>>();
     private readonly navigationRequests = new Map<string, Promise<void>>();
     private readonly navigationEpochs = new Map<string, object>();
-    private readonly turnHistoryRequests = new Map<
-        string,
-        Map<string, Promise<void>>
-    >();
-    private readonly previewHistoryRequests = new Map<
-        string,
-        Map<string, Promise<void>>
-    >();
-    private readonly activityReplyRequests = new Map<
-        string,
-        Promise<string | null>
-    >();
+    private readonly turnHistoryRequests = new Map<string, Map<string, Promise<void>>>();
+    private readonly previewHistoryRequests = new Map<string, Map<string, Promise<void>>>();
+    private readonly activityReplyRequests = new Map<string, Promise<string | null>>();
     private readonly loadedHistoryTurns = new Map<string, Set<string>>();
 
     constructor(
         openPort: ConstructorParameters<typeof SessionClient>[0],
         options: ClientOptions,
-        extraState: Omit<State, keyof CodexClientState> = {} as Omit<
-            State,
-            keyof CodexClientState
-        >,
+        extraState: Omit<State, keyof CodexClientState> = {} as Omit<State, keyof CodexClientState>,
     ) {
         const codex: Omit<CodexClientState, keyof ClientState> = {
             projectContext: null,
@@ -215,11 +154,11 @@ export class CodexClient<
             // Codex's dialect for the fold: `tool_call_update.content` carries the whole output every time
             // (alwith-cli sends deltas), and nothing outlives a turn or is dispatched by another tool.
             {
-                fold: { toolContent: "replace" },
+                fold: {toolContent: "replace"},
                 ...options,
                 capabilities: withAlwithCapabilities(options.capabilities),
             },
-            { ...codex, ...extraState } as Omit<State, keyof ClientState>,
+            {...codex, ...extraState} as Omit<State, keyof ClientState>,
         );
     }
 
@@ -230,8 +169,7 @@ export class CodexClient<
 
     get codexCapabilities(): CodexCapabilitiesClient {
         this.live();
-        if (this.nativeClient === null)
-            throw new Error("Codex is not connected");
+        if (this.nativeClient === null) throw new Error("Codex is not connected");
         return this.nativeClient;
     }
 
@@ -243,13 +181,12 @@ export class CodexClient<
     // ── Connection hooks ──
 
     protected override live(): Agent {
-        if (!this.agent || this.state.connection !== "ready")
-            throw new Error("Codex is not connected");
+        if (!this.agent || this.state.connection !== "ready") throw new Error("Codex is not connected");
         return this.agent;
     }
 
     protected override onConnected(agent: Agent): void {
-        this.set({ projectContext: null, projectContextError: null });
+        this.set({projectContext: null, projectContextError: null});
         this.nativeClient = new CodexCapabilitiesClient(agent);
     }
 
@@ -266,16 +203,11 @@ export class CodexClient<
         this.activityReplyRequests.clear();
     }
 
-    protected override handleNotification(
-        method: string,
-        params: unknown,
-    ): boolean {
+    protected override handleNotification(method: string, params: unknown): boolean {
         switch (method) {
             case "_codex/projects_changed":
             case "_codex/thread_project_updated":
-                void this.listSessions({ reset: true }).catch((error) =>
-                    this.set({ projectContextError: asError(error).message }),
-                );
+                void this.listSessions({reset: true}).catch(error => this.set({projectContextError: asError(error).message}));
                 return true;
             // Codex rescanned its skills or plugins (`skills/changed`): catalogs are stale.
             case "_codex/skills_changed":
@@ -283,29 +215,22 @@ export class CodexClient<
                 return true;
             // Codex's rolling rate-limit updates (`account/rateLimits/updated`), payload verbatim.
             case "_codex/rate_limits_updated":
-                for (const listener of this.rateLimitListeners)
-                    listener((params as RateLimitsResponse).rateLimits);
+                for (const listener of this.rateLimitListeners) listener((params as RateLimitsResponse).rateLimits);
                 return true;
             // Incremental results of a `fuzzyFileSearch` session; the final page arrives here too.
             case "_codex/fuzzy_file_search_updated":
-                for (const listener of this.fileSearchListeners)
-                    listener(params as FuzzyFileSearchSessionUpdated);
+                for (const listener of this.fileSearchListeners) listener(params as FuzzyFileSearchSessionUpdated);
                 return true;
             default:
                 return false;
         }
     }
 
-    async refreshProjectContext(
-        createChatDirectory = false,
-    ): Promise<ProjectContext> {
+    async refreshProjectContext(createChatDirectory = false): Promise<ProjectContext> {
         const agent = this.live();
         const generation = ++this.projectGeneration;
         try {
-            const context = await agent.request<ProjectContext>(
-                "_codex/project_context",
-                { createChatDirectory },
-            );
+            const context = await agent.request<ProjectContext>("_codex/project_context", {createChatDirectory});
             if (
                 !context ||
                 !Array.isArray(context.projects) ||
@@ -313,13 +238,8 @@ export class CodexClient<
                 typeof context.chatDirectory !== "string" ||
                 typeof context.codexChatDirectory !== "string"
             )
-                throw new Error(
-                    "Codex project context is unavailable or invalid",
-                );
-            if (agent !== this.agent)
-                throw new Error(
-                    "Project context belongs to an obsolete connection",
-                );
+                throw new Error("Codex project context is unavailable or invalid");
+            if (agent !== this.agent) throw new Error("Project context belongs to an obsolete connection");
             if (generation === this.projectGeneration)
                 this.set({
                     projectContext: context,
@@ -327,31 +247,23 @@ export class CodexClient<
                 });
             return context;
         } catch (error) {
-            if (agent === this.agent && generation === this.projectGeneration)
-                this.set({ projectContextError: asError(error).message });
+            if (agent === this.agent && generation === this.projectGeneration) this.set({projectContextError: asError(error).message});
             throw error;
         }
     }
 
     sessionGroup(row: Pick<SessionSummary, "cwd" | "projectId">): SessionGroup {
         const context = this.state.projectContext;
-        if (!context)
-            throw new Error(
-                this.state.projectContextError ??
-                    "Codex projects have not loaded",
-            );
+        if (!context) throw new Error(this.state.projectContextError ?? "Codex projects have not loaded");
         return sessionGroup(context, row);
     }
 
-    override async newSession(
-        cwd?: string,
-        options: NewSessionOptions = {},
-    ): Promise<string> {
+    override async newSession(cwd?: string, options: NewSessionOptions = {}): Promise<string> {
         if (cwd !== undefined) return super.newSession(cwd, options);
         const context = await this.refreshProjectContext(true);
         return super.newSession(context.chatDirectory, {
             ...options,
-            meta: mergeMeta(options.meta, { codex: { projectId: null } }),
+            meta: mergeMeta(options.meta, {codex: {projectId: null}}),
         });
     }
 
@@ -366,16 +278,8 @@ export class CodexClient<
     protected override summaryOf(info: acp.SessionInfo): SessionSummary {
         const codex = info._meta?.codex;
         const archived = info.archived === true;
-        const projectId =
-            typeof codex === "object" && codex !== null
-                ? (codex as { projectId?: unknown }).projectId
-                : null;
-        if (
-            projectId !== undefined &&
-            projectId !== null &&
-            typeof projectId !== "string"
-        )
-            throw new Error("Invalid Codex project ID");
+        const projectId = typeof codex === "object" && codex !== null ? (codex as {projectId?: unknown}).projectId : null;
+        if (projectId !== undefined && projectId !== null && typeof projectId !== "string") throw new Error("Invalid Codex project ID");
         return {
             ...super.summaryOf(info),
             archived,
@@ -389,62 +293,36 @@ export class CodexClient<
         return sessionLineage(meta);
     }
 
-    protected override turnStartedAt(
-        meta: Record<string, unknown> | null | undefined,
-    ): number | null {
+    protected override turnStartedAt(meta: Record<string, unknown> | null | undefined): number | null {
         return codexTurnStartedAt(meta);
     }
 
     /** Archived sessions, one page per call; `reset` starts over. */
-    async listArchived(options: { reset?: boolean } = {}): Promise<void> {
+    async listArchived(options: {reset?: boolean} = {}): Promise<void> {
         const state = this.state;
         const cursor = options.reset ? null : state.archivedCursor;
         if (!options.reset && state.archivedLoaded && cursor === null) return;
         const generation = ++this.archivedGeneration;
-        if (options.reset || !state.projectContext)
-            await this.refreshProjectContext();
+        if (options.reset || !state.projectContext) await this.refreshProjectContext();
         if (generation !== this.archivedGeneration) return;
-        const before = new Map(
-            [...state.sessionList, ...state.archivedSessions].map(
-                (item) => [item.sessionId, item] as const,
-            ),
-        );
+        const before = new Map([...state.sessionList, ...state.archivedSessions].map(item => [item.sessionId, item] as const));
         const response = await this.live().request("session/list", {
-            ...(cursor ? { cursor } : {}),
+            ...(cursor ? {cursor} : {}),
             archived: "only",
         });
         if (generation !== this.archivedGeneration) return;
         const page = response.sessions
-            .map((info) => this.summaryOf(info))
-            .filter(
-                (item) => item.archived && !this.state.drafts[item.sessionId],
-            );
+            .map(info => this.summaryOf(info))
+            .filter(item => item.archived && !this.state.drafts[item.sessionId]);
         const nextCursor = response.nextCursor ?? null;
-        this.set((current) => {
-            const after = new Map(
-                [...current.sessionList, ...current.archivedSessions].map(
-                    (item) => [item.sessionId, item] as const,
-                ),
-            );
-            const changed = new Set(
-                [...before.keys(), ...after.keys()].filter(
-                    (id) => before.get(id) !== after.get(id),
-                ),
-            );
-            const fresh = page.filter((item) => !changed.has(item.sessionId));
+        this.set(current => {
+            const after = new Map([...current.sessionList, ...current.archivedSessions].map(item => [item.sessionId, item] as const));
+            const changed = new Set([...before.keys(), ...after.keys()].filter(id => before.get(id) !== after.get(id)));
+            const fresh = page.filter(item => !changed.has(item.sessionId));
             const previous = options.reset
-                ? current.archivedSessions.filter((item) =>
-                      changed.has(item.sessionId),
-                  )
+                ? current.archivedSessions.filter(item => changed.has(item.sessionId))
                 : current.archivedSessions;
-            const merged = [
-                ...new Map(
-                    [...previous, ...fresh].map((item) => [
-                        item.sessionId,
-                        item,
-                    ]),
-                ).values(),
-            ];
+            const merged = [...new Map([...previous, ...fresh].map(item => [item.sessionId, item])).values()];
             return {
                 archivedSessions: merged,
                 archivedCursor: nextCursor,
@@ -457,40 +335,28 @@ export class CodexClient<
      * Every session the agent knows under `cwd` (every alias of it), or everywhere, across pages;
      * attached forks the agent has not indexed yet are included. Never attaches or selects anything.
      */
-    async indexSessions(
-        cwd?: string,
-        archived = false,
-    ): Promise<SessionSummary[]> {
+    async indexSessions(cwd?: string, archived = false): Promise<SessionSummary[]> {
         const agent = this.live();
         const sessions = new Map<string, SessionSummary>();
         const project = cwd === undefined ? undefined : this.projectPath(cwd);
         // Codex filters historical cwd strings literally; query each system alias with its own cursor.
-        for (const queryCwd of cwd === undefined
-            ? [undefined]
-            : this.projectPaths(cwd)) {
+        for (const queryCwd of cwd === undefined ? [undefined] : this.projectPaths(cwd)) {
             const cursors = new Set<string>();
             let cursor: string | undefined;
             do {
                 const response = await agent.request("session/list", {
-                    ...(queryCwd === undefined ? {} : { cwd: queryCwd }),
-                    ...(archived ? { archived: "only" as const } : {}),
-                    ...(cursor === undefined ? {} : { cursor }),
+                    ...(queryCwd === undefined ? {} : {cwd: queryCwd}),
+                    ...(archived ? {archived: "only" as const} : {}),
+                    ...(cursor === undefined ? {} : {cursor}),
                 });
                 for (const info of response.sessions) {
                     const item = this.summaryOf(info);
                     if (this.state.drafts[item.sessionId]) continue;
-                    if (
-                        (project === undefined || item.cwd === project) &&
-                        item.archived === archived
-                    )
-                        sessions.set(item.sessionId, item);
+                    if ((project === undefined || item.cwd === project) && item.archived === archived) sessions.set(item.sessionId, item);
                 }
                 cursor = response.nextCursor ?? undefined;
                 if (cursor !== undefined) {
-                    if (cursors.has(cursor))
-                        throw new Error(
-                            "Session list returned a repeated cursor",
-                        );
+                    if (cursors.has(cursor)) throw new Error("Session list returned a repeated cursor");
                     cursors.add(cursor);
                 }
             } while (cursor !== undefined);
@@ -498,74 +364,42 @@ export class CodexClient<
         if (!archived) {
             // Codex can read a just-forked thread before it includes it in thread/list.
             // Keep the native fork response visible while that thread is attached; this is not a persisted index.
-            for (const item of this.liveForks(cwd))
-                if (!sessions.has(item.sessionId))
-                    sessions.set(item.sessionId, item);
+            for (const item of this.liveForks(cwd)) if (!sessions.has(item.sessionId)) sessions.set(item.sessionId, item);
         }
         return [...sessions.values()];
     }
 
     private liveForks(cwd?: string): SessionSummary[] {
-        return this.state.sessionList.filter(
-            (item) =>
-                this.keepUnlisted(item) &&
-                (cwd === undefined || item.cwd === this.projectPath(cwd)),
-        );
+        return this.state.sessionList.filter(item => this.keepUnlisted(item) && (cwd === undefined || item.cwd === this.projectPath(cwd)));
     }
 
     /** A listed or indexed session's row, without opening it. */
     async readSessionSummary(id: string): Promise<SessionSummary | null> {
-        const known = [
-            ...this.state.sessionList,
-            ...this.state.archivedSessions,
-        ].find((item) => item.sessionId === id);
+        const known = [...this.state.sessionList, ...this.state.archivedSessions].find(item => item.sessionId === id);
         if (known) return known;
-        const indexes = await Promise.all([
-            this.indexSessions(),
-            this.indexSessions(undefined, true),
-        ]);
-        return indexes.flat().find((item) => item.sessionId === id) ?? null;
+        const indexes = await Promise.all([this.indexSessions(), this.indexSessions(undefined, true)]);
+        return indexes.flat().find(item => item.sessionId === id) ?? null;
     }
 
     // ── Session set-up dialect ──
 
     /** Reopening or forking keeps the source's approval destination (`_meta.codex.mode`). */
-    protected override sessionMeta(
-        operation: SessionOperation,
-    ): Record<string, unknown> | undefined {
-        const sourceId =
-            operation.kind === "resume"
-                ? operation.sessionId
-                : operation.kind === "fork"
-                  ? operation.sourceSessionId
-                  : null;
+    protected override sessionMeta(operation: SessionOperation): Record<string, unknown> | undefined {
+        const sourceId = operation.kind === "resume" ? operation.sessionId : operation.kind === "fork" ? operation.sourceSessionId : null;
         if (sourceId === null) return undefined;
         const mode = this.sessions.sessions
             .get(sourceId)
-            ?.configOptions.find(
-                (option) =>
-                    option.category === "mode" && isSelectOption(option),
-            );
-        return mode && isSelectOption(mode)
-            ? { codex: { mode: mode.currentValue } }
-            : undefined;
+            ?.configOptions.find(option => option.category === "mode" && isSelectOption(option));
+        return mode && isSelectOption(mode) ? {codex: {mode: mode.currentValue}} : undefined;
     }
 
-    protected override promptMeta(
-        _id: string,
-        options: PromptOptions,
-    ): Record<string, unknown> | undefined {
-        return mergeMeta(
-            { codex: { messageSentAt: Date.now() } },
-            options.meta,
-        );
+    protected override promptMeta(_id: string, options: PromptOptions): Record<string, unknown> | undefined {
+        return mergeMeta({codex: {messageSentAt: Date.now()}}, options.meta);
     }
 
     /** New chats use standard speed even when Codex's global default is priority. */
     protected override async afterSessionCreated(id: string): Promise<void> {
-        const fast = this.session(id).configOptions.find(
-            (option) => option.configId === "fast-mode",
-        );
+        const fast = this.session(id).configOptions.find(option => option.configId === "fast-mode");
         if (!fast || !isBooleanOption(fast) || !fast.currentValue) return;
         try {
             await this.setConfig(id, fast.configId, false);
@@ -573,13 +407,9 @@ export class CodexClient<
             try {
                 await this.delete(id);
             } catch (cleanupError) {
-                throw new AggregateError(
-                    [error, cleanupError],
-                    "Failed to initialize and clean up the new session",
-                    {
-                        cause: cleanupError,
-                    },
-                );
+                throw new AggregateError([error, cleanupError], "Failed to initialize and clean up the new session", {
+                    cause: cleanupError,
+                });
             }
             throw error;
         }
@@ -588,15 +418,10 @@ export class CodexClient<
     /** Old project indexes and a retry after a successful remote delete may outlive the rollout. */
     protected override async deleteRemote(id: string): Promise<void> {
         try {
-            await this.live().request("session/delete", { sessionId: id });
+            await this.live().request("session/delete", {sessionId: id});
         } catch (error) {
             // Only Codex's explicit absence of this exact thread is idempotent success.
-            if (
-                !asError(error).message.endsWith(
-                    `no rollout found for thread id ${id}`,
-                )
-            )
-                throw error;
+            if (!asError(error).message.endsWith(`no rollout found for thread id ${id}`)) throw error;
         }
     }
 
@@ -608,14 +433,10 @@ export class CodexClient<
 
     /** With history browsing the resume carries no replay; the first page is read instead. */
     protected override replayPlan(agent: Agent, session: Session): ReplayPlan {
-        return this.historyCapability("browse")
-            ? { from: 0 }
-            : super.replayPlan(agent, session);
+        return this.historyCapability("browse") ? {from: 0} : super.replayPlan(agent, session);
     }
 
-    protected override resumeReadOnly(
-        response: acp.ResumeSessionResponse,
-    ): boolean {
+    protected override resumeReadOnly(response: acp.ResumeSessionResponse): boolean {
         return isReadOnlyResume(response);
     }
 
@@ -630,7 +451,7 @@ export class CodexClient<
 
     /** The newest history page, read for a replay scope. */
     private readFirstHistoryPage(id: string, cwd: string, scope: ReplayScope) {
-        return readHistoryPage(id, cwd, null, (params) =>
+        return readHistoryPage(id, cwd, null, params =>
             scope.agent.request("_codex/session_history", params, {
                 cancellationSignal: scope.signal,
             }),
@@ -638,19 +459,13 @@ export class CodexClient<
     }
 
     /** Prepends the newest history page under the replayed baseline and opens paging from its cursor. */
-    private applyFirstHistoryPage(
-        id: string,
-        page: Awaited<ReturnType<CodexClient["readFirstHistoryPage"]>>,
-        scope: ReplayScope,
-    ): void {
-        this.sessions.set(
-            prependHistory(this.sessions.get(id), page.session, scope.baseline),
-        );
+    private applyFirstHistoryPage(id: string, page: Awaited<ReturnType<CodexClient["readFirstHistoryPage"]>>, scope: ReplayScope): void {
+        this.sessions.set(prependHistory(this.sessions.get(id), page.session, scope.baseline));
         this.noteLoadedHistory(id, page.turnIds);
-        this.set((state) => ({
+        this.set(state => ({
             historyPages: {
                 ...state.historyPages,
-                [id]: { cursor: page.cursor, loading: false, error: null },
+                [id]: {cursor: page.cursor, loading: false, error: null},
             },
         }));
     }
@@ -658,45 +473,27 @@ export class CodexClient<
     protected override beforeReplay(id: string): void {
         this.forgetHistoryRequests(id);
         this.navigationEpochs.set(id, {});
-        this.set((state) => {
-            const { [id]: _navigation, ...historyNavigation } =
-                state.historyNavigation;
-            return { historyNavigation };
+        this.set(state => {
+            const {[id]: _navigation, ...historyNavigation} = state.historyNavigation;
+            return {historyNavigation};
         });
     }
 
-    protected override async afterResume(
-        id: string,
-        cwd: string,
-        scope: ReplayScope,
-    ): Promise<void> {
+    protected override async afterResume(id: string, cwd: string, scope: ReplayScope): Promise<void> {
         if (!this.historyCapability("browse")) return;
         const page = await this.readFirstHistoryPage(id, cwd, scope);
         scope.signal.throwIfAborted();
-        if (this.agent !== scope.agent)
-            throw new Error("Codex disconnected during history load");
+        if (this.agent !== scope.agent) throw new Error("Codex disconnected during history load");
         this.applyFirstHistoryPage(id, page, scope);
     }
 
-    protected override onReplayed(
-        id: string,
-        response: acp.ResumeSessionResponse,
-    ): void {
-        this.recordForkOrigin(
-            id,
-            response._meta as Record<string, unknown> | null | undefined,
-        );
+    protected override onReplayed(id: string, response: acp.ResumeSessionResponse): void {
+        this.recordForkOrigin(id, response._meta as Record<string, unknown> | null | undefined);
     }
 
     /** Browsing is independent of acquiring the writer: a locked thread is shown read-only from its history. */
-    protected override async recoverReplay(
-        id: string,
-        cwd: string,
-        error: unknown,
-        scope: ReplayScope,
-    ): Promise<boolean> {
-        if (!isActiveWriterError(error) || !this.historyCapability("browse"))
-            return false;
+    protected override async recoverReplay(id: string, cwd: string, error: unknown, scope: ReplayScope): Promise<boolean> {
+        if (!isActiveWriterError(error) || !this.historyCapability("browse")) return false;
         let historyError: string | null = null;
         try {
             const page = await this.readFirstHistoryPage(id, cwd, scope);
@@ -709,10 +506,10 @@ export class CodexClient<
             historyError = asError(reason).message;
         }
         if (historyError)
-            this.set((state) => ({
+            this.set(state => ({
                 historyPages: {
                     ...state.historyPages,
-                    [id]: { cursor: null, loading: false, error: historyError },
+                    [id]: {cursor: null, loading: false, error: historyError},
                 },
             }));
         this.publishSession({
@@ -729,12 +526,11 @@ export class CodexClient<
     protected override onSessionDropped(id: string): void {
         this.forgetHistoryRequests(id);
         this.navigationEpochs.delete(id);
-        this.set((state) => {
-            const { [id]: _origin, ...forkOrigins } = state.forkOrigins;
-            const { [id]: _history, ...historyPages } = state.historyPages;
-            const { [id]: _navigation, ...historyNavigation } =
-                state.historyNavigation;
-            return { forkOrigins, historyPages, historyNavigation };
+        this.set(state => {
+            const {[id]: _origin, ...forkOrigins} = state.forkOrigins;
+            const {[id]: _history, ...historyPages} = state.historyPages;
+            const {[id]: _navigation, ...historyNavigation} = state.historyNavigation;
+            return {forkOrigins, historyPages, historyNavigation};
         });
     }
 
@@ -750,12 +546,9 @@ export class CodexClient<
             });
     }
 
-    private setHistoryNavigation(
-        id: string,
-        navigation: HistoryNavigationState,
-    ): void {
-        this.set((state) => ({
-            historyNavigation: { ...state.historyNavigation, [id]: navigation },
+    private setHistoryNavigation(id: string, navigation: HistoryNavigationState): void {
+        this.set(state => ({
+            historyNavigation: {...state.historyNavigation, [id]: navigation},
         }));
     }
 
@@ -767,37 +560,25 @@ export class CodexClient<
         if (page?.cursor == null) return Promise.resolve();
         const agent = this.live();
         const session = this.sessions.get(id);
-        this.set((state) => ({
+        this.set(state => ({
             historyPages: {
                 ...state.historyPages,
-                [id]: { ...page, loading: true, error: null },
+                [id]: {...page, loading: true, error: null},
             },
         }));
-        const current = () =>
-            this.agent === agent &&
-            this.holds(id) &&
-            this.historyRequests.get(id) === request;
-        const request = readHistoryPage(
-            id,
-            session.cwd,
-            page.cursor,
-            (params) => agent.request("_codex/session_history", params),
-        )
-            .then((result) => {
+        const current = () => this.agent === agent && this.holds(id) && this.historyRequests.get(id) === request;
+        const request = readHistoryPage(id, session.cwd, page.cursor, params => agent.request("_codex/session_history", params))
+            .then(result => {
                 if (!current()) return;
                 const navigation = this.state.historyNavigation[id];
                 const merged = navigation?.complete
-                    ? mergeNavigationHistory(
-                          this.sessions.get(id),
-                          result.session,
-                          navigation.turns,
-                      )
+                    ? mergeNavigationHistory(this.sessions.get(id), result.session, navigation.turns)
                     : prependHistory(this.sessions.get(id), result.session);
                 this.sessions.set(merged);
                 this.noteLoadedHistory(id, result.turnIds);
                 this.updates.remove(id);
-                this.set((state) => ({
-                    sessions: { ...state.sessions, [id]: merged },
+                this.set(state => ({
+                    sessions: {...state.sessions, [id]: merged},
                     historyPages: {
                         ...state.historyPages,
                         [id]: {
@@ -810,7 +591,7 @@ export class CodexClient<
             })
             .catch((error: unknown) => {
                 if (current())
-                    this.set((state) => ({
+                    this.set(state => ({
                         historyPages: {
                             ...state.historyPages,
                             [id]: {
@@ -823,8 +604,7 @@ export class CodexClient<
                 throw error;
             })
             .finally(() => {
-                if (this.historyRequests.get(id) === request)
-                    this.historyRequests.delete(id);
+                if (this.historyRequests.get(id) === request) this.historyRequests.delete(id);
             });
         this.historyRequests.set(id, request);
         return request;
@@ -834,24 +614,17 @@ export class CodexClient<
     loadHistoryNavigation(id: string): Promise<void> {
         const pending = this.navigationRequests.get(id);
         if (pending) return pending;
-        if (
-            this.state.historyNavigation[id]?.complete ||
-            !this.state.historyPages[id]
-        )
-            return Promise.resolve();
+        if (this.state.historyNavigation[id]?.complete || !this.state.historyPages[id]) return Promise.resolve();
         const agent = this.live();
         const epoch = this.navigationEpochs.get(id);
-        const current = () =>
-            this.agent === agent &&
-            this.holds(id) &&
-            this.navigationEpochs.get(id) === epoch;
+        const current = () => this.agent === agent && this.holds(id) && this.navigationEpochs.get(id) === epoch;
         const check = () => {
             if (!current()) throw new Error("History navigation was cancelled");
         };
         const loaded =
             this.loadedHistoryTurns.get(id) ??
             new Set(
-                this.sessions.get(id).items.flatMap((item) => {
+                this.sessions.get(id).items.flatMap(item => {
                     const turnId = nativeTurnId(item);
                     return turnId === null ? [] : [turnId];
                 }),
@@ -866,12 +639,8 @@ export class CodexClient<
             previews: {},
             turnErrors: {},
         });
-        const request = readHistoryIndex(
-            id,
-            (method, params) => agent.request(method, params),
-            check,
-        )
-            .then((turns) => {
+        const request = readHistoryIndex(id, (method, params) => agent.request(method, params), check)
+            .then(turns => {
                 check();
                 const navigation = this.state.historyNavigation[id];
                 this.setHistoryNavigation(id, {
@@ -891,8 +660,7 @@ export class CodexClient<
                 throw error;
             })
             .finally(() => {
-                if (this.navigationRequests.get(id) === request)
-                    this.navigationRequests.delete(id);
+                if (this.navigationRequests.get(id) === request) this.navigationRequests.delete(id);
             });
         this.navigationRequests.set(id, request);
         return request;
@@ -907,39 +675,24 @@ export class CodexClient<
         return this.hydrateHistoryTurn(id, turnId, false);
     }
 
-    private hydrateHistoryTurn(
-        id: string,
-        turnId: string,
-        preview: boolean,
-    ): Promise<void> {
+    private hydrateHistoryTurn(id: string, turnId: string, preview: boolean): Promise<void> {
         if (preview) {
             const hydrating = this.turnHistoryRequests.get(id)?.get(turnId);
             if (hydrating) return hydrating;
         }
         const navigation = this.state.historyNavigation[id];
-        if (
-            navigation?.loadedTurnIds.includes(turnId) ||
-            (preview && navigation?.previews[turnId]?.state === "loaded")
-        )
+        if (navigation?.loadedTurnIds.includes(turnId) || (preview && navigation?.previews[turnId]?.state === "loaded"))
             return Promise.resolve();
-        const turn = navigation?.turns.find((turn) => turn.turnId === turnId);
-        if (!turn)
-            return Promise.reject(
-                new Error(`History navigation turn is missing: ${turnId}`),
-            );
-        const requests = preview
-            ? this.previewHistoryRequests
-            : this.turnHistoryRequests;
+        const turn = navigation?.turns.find(turn => turn.turnId === turnId);
+        if (!turn) return Promise.reject(new Error(`History navigation turn is missing: ${turnId}`));
+        const requests = preview ? this.previewHistoryRequests : this.turnHistoryRequests;
         const turns = requests.get(id) ?? new Map<string, Promise<void>>();
         requests.set(id, turns);
         const pending = turns.get(turnId);
         if (pending) return pending;
         const agent = this.live();
         const epoch = this.navigationEpochs.get(id);
-        const current = () =>
-            this.agent === agent &&
-            this.holds(id) &&
-            this.navigationEpochs.get(id) === epoch;
+        const current = () => this.agent === agent && this.holds(id) && this.navigationEpochs.get(id) === epoch;
         const check = () => {
             if (!current()) throw new Error("History navigation was cancelled");
         };
@@ -947,9 +700,9 @@ export class CodexClient<
             ...navigation,
             previews: {
                 ...navigation.previews,
-                [turnId]: { state: "loading", messages: [] },
+                [turnId]: {state: "loading", messages: []},
             },
-            turnErrors: { ...navigation.turnErrors, [turnId]: "" },
+            turnErrors: {...navigation.turnErrors, [turnId]: ""},
         });
         const request = readHistoryTurn(
             id,
@@ -959,14 +712,10 @@ export class CodexClient<
             check,
             preview,
         )
-            .then((session) => {
+            .then(session => {
                 check();
                 if (!preview) {
-                    const merged = mergeNavigationHistory(
-                        this.sessions.get(id),
-                        session,
-                        this.state.historyNavigation[id].turns,
-                    );
+                    const merged = mergeNavigationHistory(this.sessions.get(id), session, this.state.historyNavigation[id].turns);
                     this.sessions.set(merged);
                     this.updates.remove(id);
                     this.noteLoadedHistory(id, [turnId]);
@@ -986,13 +735,12 @@ export class CodexClient<
             .catch((error: unknown) => {
                 if (current()) {
                     const latest = this.state.historyNavigation[id];
-                    if (preview && latest.loadedTurnIds.includes(turnId))
-                        return;
+                    if (preview && latest.loadedTurnIds.includes(turnId)) return;
                     this.setHistoryNavigation(id, {
                         ...latest,
                         previews: {
                             ...latest.previews,
-                            [turnId]: { state: "unavailable", messages: [] },
+                            [turnId]: {state: "unavailable", messages: []},
                         },
                         turnErrors: preview
                             ? latest.turnErrors
@@ -1016,18 +764,15 @@ export class CodexClient<
         const pending = this.activityReplyRequests.get(sessionId);
         if (pending) return pending;
         const agent = this.live();
-        if (!this.historyCapability("browse"))
-            throw new Error("Activity preview requires history browsing");
+        if (!this.historyCapability("browse")) throw new Error("Activity preview requires history browsing");
         const request = readActivityReply(
             sessionId,
-            (params) => agent.request("_codex/session_history_items", params),
+            params => agent.request("_codex/session_history_items", params),
             () => {
-                if (this.agent !== agent || !this.state.runStates[sessionId])
-                    throw new Error("Activity preview was cancelled");
+                if (this.agent !== agent || !this.state.runStates[sessionId]) throw new Error("Activity preview was cancelled");
             },
         ).finally(() => {
-            if (this.activityReplyRequests.get(sessionId) === request)
-                this.activityReplyRequests.delete(sessionId);
+            if (this.activityReplyRequests.get(sessionId) === request) this.activityReplyRequests.delete(sessionId);
         });
         this.activityReplyRequests.set(sessionId, request);
         return request;
@@ -1036,9 +781,7 @@ export class CodexClient<
     private requireHistory(): void {
         this.live();
         if (!this.historyCapability("export"))
-            throw new Error(
-                "Session export requires codex-acp-v2 0.7.7 or a compatible history interface",
-            );
+            throw new Error("Session export requires codex-acp-v2 0.7.7 or a compatible history interface");
     }
 
     async listHistorySessions(check: () => void): Promise<SessionSummary[]> {
@@ -1048,11 +791,7 @@ export class CodexClient<
         check();
         const archived = await this.indexSessions(undefined, true);
         check();
-        return [
-            ...new Map(
-                [...current, ...archived].map((item) => [item.sessionId, item]),
-            ).values(),
-        ];
+        return [...new Map([...current, ...archived].map(item => [item.sessionId, item])).values()];
     }
 
     /** Bounded transcript browsing of a child session never acquires a writer or opens another conversation. */
@@ -1060,27 +799,19 @@ export class CodexClient<
         threadId: string,
         cwd: string,
         cursor: string | null = null,
-    ): Promise<{ session: Session; cursor: string | null }> {
-        if (!this.historyCapability("browse"))
-            throw new Error("Session history browsing is unavailable");
+    ): Promise<{session: Session; cursor: string | null}> {
+        if (!this.historyCapability("browse")) throw new Error("Session history browsing is unavailable");
         const agent = this.live();
-        const page = await readHistoryPage(threadId, cwd, cursor, (params) =>
-            agent.request("_codex/session_history", params),
-        );
-        if (this.agent !== agent)
-            throw new Error("Codex disconnected during history load");
-        return { session: page.session, cursor: page.cursor };
+        const page = await readHistoryPage(threadId, cwd, cursor, params => agent.request("_codex/session_history", params));
+        if (this.agent !== agent) throw new Error("Codex disconnected during history load");
+        return {session: page.session, cursor: page.cursor};
     }
 
-    async exportHistory(
-        sessionId: string,
-        check: () => void,
-        signal?: AbortSignal,
-    ): Promise<string> {
+    async exportHistory(sessionId: string, check: () => void, signal?: AbortSignal): Promise<string> {
         this.requireHistory();
         return exportConversation(
             sessionId,
-            (params) =>
+            params =>
                 this.live().request("_codex/session_history_items", params, {
                     cancellationSignal: signal,
                 }),
@@ -1090,74 +821,41 @@ export class CodexClient<
 
     // ── Fork lineage, archive, rename, retry ──
 
-    override fork(
-        id: string,
-        cwd: string,
-        options: ForkOptions = {},
-    ): Promise<string> {
-        const pending = this.forkQueue.then(() =>
-            this.forkInternal(id, cwd, options),
-        );
+    override fork(id: string, cwd: string, options: ForkOptions = {}): Promise<string> {
+        const pending = this.forkQueue.then(() => this.forkInternal(id, cwd, options));
         this.forkQueue = pending.catch(() => {});
         return pending;
     }
 
     /** One fork at a time; an application subclass wraps this to name the fork from what it already lists. */
-    protected async forkInternal(
-        id: string,
-        cwd: string,
-        options: ForkOptions,
-    ): Promise<string> {
-        const { lastTurnId, ...rest } = options;
-        if (
-            lastTurnId !== undefined &&
-            (!lastTurnId ||
-                !codexExtensionCapabilities(this.state.agent).forkAtTurn)
-        )
+    protected async forkInternal(id: string, cwd: string, options: ForkOptions): Promise<string> {
+        const {lastTurnId, ...rest} = options;
+        if (lastTurnId !== undefined && (!lastTurnId || !codexExtensionCapabilities(this.state.agent).forkAtTurn))
             throw new Error("The agent does not support forking at this turn");
         return super.fork(id, cwd, {
             ...rest,
-            meta: mergeMeta(
-                rest.meta,
-                lastTurnId === undefined
-                    ? undefined
-                    : { codex: { lastTurnId } },
-            ),
+            meta: mergeMeta(rest.meta, lastTurnId === undefined ? undefined : {codex: {lastTurnId}}),
         });
     }
 
-    protected override onForked(
-        id: string,
-        response: acp.ForkSessionResponse,
-    ): void {
-        this.recordForkOrigin(
-            id,
-            response._meta as Record<string, unknown> | null | undefined,
-        );
+    protected override onForked(id: string, response: acp.ForkSessionResponse): void {
+        this.recordForkOrigin(id, response._meta as Record<string, unknown> | null | undefined);
     }
 
-    private recordForkOrigin(
-        id: string,
-        meta: Record<string, unknown> | null | undefined,
-    ): void {
+    private recordForkOrigin(id: string, meta: Record<string, unknown> | null | undefined): void {
         const lineage = sessionLineage(meta);
         const sourceId = lineage.forkedFromId;
         if (!sourceId) return;
         const codex = meta?.codex as Record<string, unknown>;
         const boundary = codex.forkedAtTurnId;
-        if (
-            boundary !== undefined &&
-            boundary !== null &&
-            (typeof boundary !== "string" || !boundary)
-        )
+        if (boundary !== undefined && boundary !== null && (typeof boundary !== "string" || !boundary))
             throw new Error("Invalid fork boundary from the agent");
-        this.set((state) => ({
+        this.set(state => ({
             forkOrigins: {
                 ...state.forkOrigins,
                 [id]: {
                     sourceId,
-                    boundaryTurnId:
-                        typeof boundary === "string" ? boundary : null,
+                    boundaryTurnId: typeof boundary === "string" ? boundary : null,
                 },
             },
         }));
@@ -1172,21 +870,12 @@ export class CodexClient<
                 sessionId: id,
             });
             this.dropSession(id);
-            this.set((state) => {
-                const item = state.sessionList.find(
-                    (entry) => entry.sessionId === id,
-                );
+            this.set(state => {
+                const item = state.sessionList.find(entry => entry.sessionId === id);
                 return {
-                    sessionList: state.sessionList.filter(
-                        (entry) => entry.sessionId !== id,
-                    ),
+                    sessionList: state.sessionList.filter(entry => entry.sessionId !== id),
                     archivedSessions: item
-                        ? [
-                              { ...item, archived: true },
-                              ...state.archivedSessions.filter(
-                                  (entry) => entry.sessionId !== id,
-                              ),
-                          ]
+                        ? [{...item, archived: true}, ...state.archivedSessions.filter(entry => entry.sessionId !== id)]
                         : state.archivedSessions,
                 };
             });
@@ -1197,72 +886,49 @@ export class CodexClient<
         await this.live().request("session/unarchive", {
             sessionId: id,
         });
-        this.set((state) => {
-            const item = state.archivedSessions.find(
-                (entry) => entry.sessionId === id,
-            );
+        this.set(state => {
+            const item = state.archivedSessions.find(entry => entry.sessionId === id);
             return {
-                archivedSessions: state.archivedSessions.filter(
-                    (entry) => entry.sessionId !== id,
-                ),
-                sessionList: item
-                    ? [{ ...item, archived: false }, ...state.sessionList]
-                    : state.sessionList,
+                archivedSessions: state.archivedSessions.filter(entry => entry.sessionId !== id),
+                sessionList: item ? [{...item, archived: false}, ...state.sessionList] : state.sessionList,
             };
         });
     }
 
     override async delete(id: string): Promise<void> {
         await super.delete(id);
-        this.set((state) => ({
-            archivedSessions: state.archivedSessions.filter(
-                (item) => item.sessionId !== id,
-            ),
+        this.set(state => ({
+            archivedSessions: state.archivedSessions.filter(item => item.sessionId !== id),
         }));
     }
 
     /** `session/set_title`; the list is patched with the stored title at once, the `session_info_update` confirms it. */
     async renameSession(id: string, name: string): Promise<void> {
-        const { title } = await this.live().request("session/set_title", {
+        const {title} = await this.live().request("session/set_title", {
             sessionId: id,
             title: name,
         });
-        const rename = (item: SessionSummary) =>
-            item.sessionId === id ? { ...item, title } : item;
-        this.set((state) => ({
+        const rename = (item: SessionSummary) => (item.sessionId === id ? {...item, title} : item);
+        this.set(state => ({
             sessionList: state.sessionList.map(rename),
             archivedSessions: state.archivedSessions.map(rename),
         }));
         const session = this.sessions.sessions.get(id);
-        if (session) this.publishSession({ ...session, title });
+        if (session) this.publishSession({...session, title});
     }
 
-    retrySession(
-        id: string,
-        turnId: string,
-        trigger: "manual" | "automatic",
-    ): Promise<void> {
+    retrySession(id: string, turnId: string, trigger: "manual" | "automatic"): Promise<void> {
         const pending = this.retryRequests.get(id);
         if (pending !== undefined) return pending;
         const request = this.enqueueSession(
             id,
             async () => {
                 const session = this.sessions.get(id);
-                if (
-                    !session.attached ||
-                    session.readOnly ||
-                    session.restoring ||
-                    session.state !== "idle"
-                )
-                    throw new Error(
-                        "Open the idle conversation before retrying",
-                    );
+                if (!session.attached || session.readOnly || session.restoring || session.state !== "idle")
+                    throw new Error("Open the idle conversation before retrying");
                 if (!codexExtensionCapabilities(this.state.agent).sessionRetry)
-                    throw new Error(
-                        "The Codex adapter does not support retrying turns",
-                    );
-                if (this.options.prepareSessionTools)
-                    await this.options.prepareSessionTools(id);
+                    throw new Error("The Codex adapter does not support retrying turns");
+                if (this.options.prepareSessionTools) await this.options.prepareSessionTools(id);
                 await this.live().request("_codex/session_retry", {
                     sessionId: id,
                     turnId,
@@ -1271,8 +937,7 @@ export class CodexClient<
             },
             false,
         ).finally(() => {
-            if (this.retryRequests.get(id) === request)
-                this.retryRequests.delete(id);
+            if (this.retryRequests.get(id) === request) this.retryRequests.delete(id);
         });
         this.retryRequests.set(id, request);
         return request;
@@ -1281,17 +946,11 @@ export class CodexClient<
     // ── Account, rate limits, file search ──
 
     readAccount(): Promise<AccountReadResponse> {
-        return this.live().request<AccountReadResponse>(
-            "_codex/account_read",
-            {},
-        );
+        return this.live().request<AccountReadResponse>("_codex/account_read", {});
     }
 
     async readRateLimits(): Promise<RateLimitSnapshot> {
-        const response = await this.live().request<RateLimitsResponse>(
-            "_codex/rate_limits",
-            {},
-        );
+        const response = await this.live().request<RateLimitsResponse>("_codex/rate_limits", {});
         return response.rateLimits;
     }
 
@@ -1302,18 +961,11 @@ export class CodexClient<
     }
 
     /** Codex's own file search (`fuzzyFileSearch`), the one the official app's `@` uses. */
-    fuzzyFileSearch(
-        params: FuzzyFileSearchParams,
-    ): Promise<FuzzyFileSearchResponse> {
-        return this.live().request<FuzzyFileSearchResponse>(
-            "_codex/fuzzy_file_search",
-            params,
-        );
+    fuzzyFileSearch(params: FuzzyFileSearchParams): Promise<FuzzyFileSearchResponse> {
+        return this.live().request<FuzzyFileSearchResponse>("_codex/fuzzy_file_search", params);
     }
 
-    onFileSearchUpdate(
-        listener: (update: FuzzyFileSearchSessionUpdated) => void,
-    ): () => void {
+    onFileSearchUpdate(listener: (update: FuzzyFileSearchSessionUpdated) => void): () => void {
         this.fileSearchListeners.add(listener);
         return () => this.fileSearchListeners.delete(listener);
     }
@@ -1326,23 +978,15 @@ export class CodexClient<
         return () => this.skillsListeners.delete(listener);
     }
 
-    listSkills(
-        cwds?: string[],
-        forceReload = false,
-    ): Promise<SkillsListResponse> {
+    listSkills(cwds?: string[], forceReload = false): Promise<SkillsListResponse> {
         return this.live().request<SkillsListResponse>("_codex/skills_list", {
-            ...(cwds && cwds.length > 0 ? { cwds } : {}),
-            ...(forceReload ? { forceReload } : {}),
+            ...(cwds && cwds.length > 0 ? {cwds} : {}),
+            ...(forceReload ? {forceReload} : {}),
         } satisfies SkillsListParams);
     }
 
-    setSkillEnabled(
-        params: SkillsConfigWriteParams,
-    ): Promise<SkillsConfigWriteResponse> {
-        return this.live().request<SkillsConfigWriteResponse>(
-            "_codex/skills_config_write",
-            params,
-        );
+    setSkillEnabled(params: SkillsConfigWriteParams): Promise<SkillsConfigWriteResponse> {
+        return this.live().request<SkillsConfigWriteResponse>("_codex/skills_config_write", params);
     }
 
     callMcpTool(params: McpToolCallParams): Promise<McpToolCallResult> {
@@ -1354,37 +998,25 @@ export class CodexClient<
     }
 
     listPlugins(params: PluginListParams = {}): Promise<PluginListResponse> {
-        return this.live().request<PluginListResponse>(
-            "_codex/plugin_list",
-            params,
-        );
+        return this.live().request<PluginListResponse>("_codex/plugin_list", params);
     }
 
     installedPlugins(cwds?: string[]): Promise<PluginInstalledResponse> {
         return this.live().request<PluginInstalledResponse>(
             "_codex/plugin_installed",
-            (cwds && cwds.length > 0
-                ? { cwds }
-                : {}) satisfies PluginInstalledParams,
+            (cwds && cwds.length > 0 ? {cwds} : {}) satisfies PluginInstalledParams,
         );
     }
 
     installPlugin(params: PluginInstallParams): Promise<PluginInstallResponse> {
-        return this.live().request<PluginInstallResponse>(
-            "_codex/plugin_install",
-            params,
-        );
+        return this.live().request<PluginInstallResponse>("_codex/plugin_install", params);
     }
 
-    setPluginEnabled(
-        pluginId: string,
-        enabled: boolean,
-        remotePluginId?: string,
-    ): Promise<{ enabled: boolean }> {
+    setPluginEnabled(pluginId: string, enabled: boolean, remotePluginId?: string): Promise<{enabled: boolean}> {
         return this.live().request("_codex/plugin_set_enabled", {
             pluginId,
             enabled,
-            ...(remotePluginId ? { remotePluginId } : {}),
+            ...(remotePluginId ? {remotePluginId} : {}),
         });
     }
 
@@ -1395,19 +1027,11 @@ export class CodexClient<
     }
 
     readPlugin(params: PluginReadParams): Promise<PluginReadResponse> {
-        return this.live().request<PluginReadResponse>(
-            "_codex/plugin_read",
-            params,
-        );
+        return this.live().request<PluginReadResponse>("_codex/plugin_read", params);
     }
 
-    addMarketplace(
-        params: MarketplaceAddParams,
-    ): Promise<MarketplaceAddResponse> {
-        return this.live().request<MarketplaceAddResponse>(
-            "_codex/marketplace_add",
-            params,
-        );
+    addMarketplace(params: MarketplaceAddParams): Promise<MarketplaceAddResponse> {
+        return this.live().request<MarketplaceAddResponse>("_codex/marketplace_add", params);
     }
 
     async removeMarketplace(marketplaceName: string): Promise<void> {
@@ -1416,33 +1040,23 @@ export class CodexClient<
         } satisfies MarketplaceRemoveParams);
     }
 
-    upgradeMarketplaces(
-        marketplaceName?: string,
-    ): Promise<MarketplaceUpgradeResponse> {
+    upgradeMarketplaces(marketplaceName?: string): Promise<MarketplaceUpgradeResponse> {
         return this.live().request<MarketplaceUpgradeResponse>(
             "_codex/marketplace_upgrade",
-            (marketplaceName
-                ? { marketplaceName }
-                : {}) satisfies MarketplaceUpgradeParams,
+            (marketplaceName ? {marketplaceName} : {}) satisfies MarketplaceUpgradeParams,
         );
     }
 
     // ── Realtime ──
 
-    startRealtime(
-        sessionId: string,
-        params: RealtimeStart,
-    ): Promise<Record<string, never>> {
+    startRealtime(sessionId: string, params: RealtimeStart): Promise<Record<string, never>> {
         this.session(sessionId);
         return this.codexCapabilities.startRealtime(sessionId, params);
     }
     stopRealtime(sessionId: string): Promise<Record<string, never>> {
         return this.codexCapabilities.stopRealtime(sessionId);
     }
-    onRealtime(
-        sessionId: string,
-        receive: (event: RealtimeEvent) => void,
-    ): () => void {
+    onRealtime(sessionId: string, receive: (event: RealtimeEvent) => void): () => void {
         return this.codexCapabilities.onRealtime(sessionId, receive);
     }
 }

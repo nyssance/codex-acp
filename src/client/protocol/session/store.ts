@@ -4,7 +4,7 @@
 // and the same `TextDecoder` must keep decoding it. This is the one piece of state a pure reducer cannot hold.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type { ReplayReceipt } from "./replay";
+import type {ReplayReceipt} from "./replay";
 import {
     acknowledgePrompt,
     addPrompt,
@@ -15,10 +15,10 @@ import {
     markInterrupted,
     type Session,
 } from "./session";
-import { type Turn, turns } from "./turns";
+import {type Turn, turns} from "./turns";
 
 function decodeBase64(data: string): Uint8Array {
-    return Uint8Array.from(atob(data), (character) => character.charCodeAt(0));
+    return Uint8Array.from(atob(data), character => character.charCodeAt(0));
 }
 
 export class SessionStore {
@@ -43,16 +43,12 @@ export class SessionStore {
     }
 
     children(id: string): Session[] {
-        return [...this.sessions.values()].filter(
-            (session) => session.subagent?.parentId === id,
-        );
+        return [...this.sessions.values()].filter(session => session.subagent?.parentId === id);
     }
 
     delete(id: string): void {
         this.sessions.delete(id);
-        for (const key of this.decoders.keys())
-            if (key.startsWith(`[${JSON.stringify(id)},`))
-                this.decoders.delete(key);
+        for (const key of this.decoders.keys()) if (key.startsWith(`[${JSON.stringify(id)},`)) this.decoders.delete(key);
         this.childStates.delete(id);
     }
 
@@ -62,16 +58,14 @@ export class SessionStore {
         const parent = this.get(parentId);
         const existing = this.sessions.get(frame.sessionId);
         if (existing && existing.subagent?.parentId !== parentId)
-            throw new Error(
-                `Subagent ${frame.sessionId} already belongs to another session`,
-            );
+            throw new Error(`Subagent ${frame.sessionId} already belongs to another session`);
         // A new attachment rebuilds the transcript while preserving the parent's identity and pending requests.
         if (existing && !existing.attached) this.delete(existing.id);
         let child: Session = (existing?.attached ? existing : undefined) ?? {
             ...createSession(frame.sessionId, parent.cwd),
             state: "unknown" as const,
             title: existing?.title ?? null,
-            ...(existing?.subagent ? { subagent: existing.subagent } : {}),
+            ...(existing?.subagent ? {subagent: existing.subagent} : {}),
         };
         child = {
             ...child,
@@ -79,21 +73,15 @@ export class SessionStore {
             title: frame.title === undefined ? child.title : frame.title,
             subagent: {
                 parentId,
-                description:
-                    frame.description === undefined
-                        ? (child.subagent?.description ?? null)
-                        : frame.description,
-                capabilities:
-                    frame.capabilities === undefined
-                        ? (child.subagent?.capabilities ?? null)
-                        : frame.capabilities,
+                description: frame.description === undefined ? (child.subagent?.description ?? null) : frame.description,
+                capabilities: frame.capabilities === undefined ? (child.subagent?.capabilities ?? null) : frame.capabilities,
                 _meta: patchMeta(child.subagent?._meta ?? null, frame._meta),
             },
         };
         this.set(child);
         if (frame.state === null) {
             this.childStates.delete(child.id);
-            child = { ...child, state: "unknown" };
+            child = {...child, state: "unknown"};
             this.set(child);
         } else if (frame.state !== undefined) {
             child = this.accept(child.id, {
@@ -122,12 +110,10 @@ export class SessionStore {
                 error: null,
                 appliedThrough: -1,
             });
-            for (const key of this.decoders.keys())
-                if (key.startsWith(`[${JSON.stringify(id)},`))
-                    this.decoders.delete(key);
+            for (const key of this.decoders.keys()) if (key.startsWith(`[${JSON.stringify(id)},`)) this.decoders.delete(key);
             return;
         }
-        this.sessions.set(id, { ...session, restoring: true, error: null });
+        this.sessions.set(id, {...session, restoring: true, error: null});
     }
 
     /** The resume answered: the session is live again and has the record through the replay's `cut` (when the agent said). */
@@ -137,10 +123,7 @@ export class SessionStore {
             ...session,
             attached: true,
             restoring: false,
-            appliedThrough:
-                receipt === null
-                    ? session.appliedThrough
-                    : Math.max(session.appliedThrough, receipt.cut),
+            appliedThrough: receipt === null ? session.appliedThrough : Math.max(session.appliedThrough, receipt.cut),
         });
     }
 
@@ -148,16 +131,10 @@ export class SessionStore {
         const session = this.get(id);
         if (session.subagent && update.sessionUpdate === "state_update") {
             // The protocol mirrors the same state on both parent and child channels.
-            const { sessionUpdate: _kind, ...state } = update;
+            const {sessionUpdate: _kind, ...state} = update;
             const signature = JSON.stringify(state, (_key, value: unknown) =>
-                value !== null &&
-                typeof value === "object" &&
-                !Array.isArray(value)
-                    ? Object.fromEntries(
-                          Object.entries(value).toSorted(([a], [b]) =>
-                              a.localeCompare(b),
-                          ),
-                      )
+                value !== null && typeof value === "object" && !Array.isArray(value)
+                    ? Object.fromEntries(Object.entries(value).toSorted(([a], [b]) => a.localeCompare(b)))
                     : value,
             );
             if (this.childStates.get(id) === signature) return session;
@@ -168,10 +145,7 @@ export class SessionStore {
             const frame = update as acp.TerminalUpdate;
             if (frame.output) {
                 const decoder = new TextDecoder();
-                this.decoders.set(
-                    JSON.stringify([id, frame.terminalId]),
-                    decoder,
-                );
+                this.decoders.set(JSON.stringify([id, frame.terminalId]), decoder);
                 decoded = decoder.decode(decodeBase64(frame.output.data), {
                     stream: true,
                 });
@@ -189,7 +163,7 @@ export class SessionStore {
             });
         }
         const next = applyUpdate(session, update, {
-            ...(decoded === undefined ? {} : { text: decoded }),
+            ...(decoded === undefined ? {} : {text: decoded}),
             policy: this.policy,
         });
         this.sessions.set(id, next);
@@ -204,10 +178,7 @@ export class SessionStore {
     }
 
     acknowledgePrompt(id: string, localId: string, messageId: string): void {
-        this.sessions.set(
-            id,
-            acknowledgePrompt(this.get(id), localId, messageId),
-        );
+        this.sessions.set(id, acknowledgePrompt(this.get(id), localId, messageId));
     }
 
     /** Groups this session by turn, using the store's own criteria. */

@@ -6,7 +6,7 @@
 // subclass shipped with that adapter (`@nyssance/codex-acp-v2/client`). Product behaviour (draft
 // slots per window, model memory, project grouping) stays in the application, also as a subclass.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { SessionUpdate as SessionUpdateGuard } from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {SessionUpdate as SessionUpdateGuard} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import {
     type Agent,
@@ -18,8 +18,8 @@ import {
     configOptionRequest,
     type PendingRequest,
 } from "../agent";
-import { type SessionGeneration, SessionLifecycle } from "../lifecycle";
-import type { RuntimeClient, SessionRunState } from "@alwith/api";
+import {type SessionGeneration, SessionLifecycle} from "../lifecycle";
+import type {RuntimeClient, SessionRunState} from "@alwith/api";
 import {
     configRevisionOf,
     sessionSetupOf,
@@ -35,14 +35,13 @@ import {
     type Session,
     SessionStore,
 } from "../session";
-import { createStore, type StateSetter, type Store } from "@alwith/api/client";
-import { UpdateScheduler } from "@alwith/api/client";
+import {createStore, type StateSetter, type Store} from "@alwith/api/client";
+import {UpdateScheduler} from "@alwith/api/client";
 
-export type ConnectionState =
-    "disconnected" | "connecting" | "ready" | "failed";
+export type ConnectionState = "disconnected" | "connecting" | "ready" | "failed";
 
 /** What the Runtime starts the agent with: the engine, plus whatever the engine table takes (env, args…). */
-export type Launch = { engine: string; [key: string]: unknown };
+export type Launch = {engine: string; [key: string]: unknown};
 
 /** One row of the session list: what `session/list` says about a session, before it is opened. */
 export type SessionSummary = {
@@ -74,10 +73,7 @@ export type PendingAction =
       };
 
 /** Why a session is being set up: hosts resolve tools and metadata per operation. */
-export type SessionOperation =
-    | { kind: "new" }
-    | { kind: "resume"; sessionId: string }
-    | { kind: "fork"; sourceSessionId: string };
+export type SessionOperation = {kind: "new"} | {kind: "resume"; sessionId: string} | {kind: "fork"; sourceSessionId: string};
 
 /** Host integration data for one session set-up, never persisted in UI state. */
 export type SessionContext = {
@@ -110,7 +106,7 @@ export type PromptOptions = {
     meta?: Record<string, unknown>;
 };
 
-export type ListSessionsOptions = { reset?: boolean };
+export type ListSessionsOptions = {reset?: boolean};
 
 export type ClientState = {
     connection: ConnectionState;
@@ -135,17 +131,14 @@ export type ClientOptions = {
     agentId: string;
     launch: Launch;
     /** What `initialize` says this client is. */
-    info?: { name: string; version: string };
+    info?: {name: string; version: string};
     /** What `initialize` says this client can do; forms and URL elicitations by default. */
     capabilities?: Record<string, unknown>;
     /** The judgments the protocol cannot answer at fold time (an adapter subclass sets its dialect). */
     fold?: FoldPolicy;
     connectTimeoutMs?: number;
     /** Resolves ephemeral host integration data for the explicit workspace, never persisted in UI state. */
-    sessionContext?: (
-        cwd: string,
-        operation: SessionOperation,
-    ) => Promise<SessionContext>;
+    sessionContext?: (cwd: string, operation: SessionOperation) => Promise<SessionContext>;
     sessionContextRevision?: () => Promise<string>;
     prepareSessionTools?: (sessionId: string) => Promise<void>;
     revokeSessionAccess?: (sessionId: string) => Promise<void>;
@@ -153,19 +146,14 @@ export type ClientOptions = {
     projectPaths?: (cwd: string) => readonly [string, ...string[]];
 };
 
-const CLIENT_INFO = { name: "alwith", version: "0.1.0" };
-export const CLIENT_CAPABILITIES = { elicitation: { form: {}, url: {} } };
+const CLIENT_INFO = {name: "alwith", version: "0.1.0"};
+export const CLIENT_CAPABILITIES = {elicitation: {form: {}, url: {}}};
 const CONNECT_TIMEOUT_MS = 60_000;
 
-const runStateSources = new WeakMap<
-    Record<string, SessionRunState>,
-    "snapshot" | "event"
->();
+const runStateSources = new WeakMap<Record<string, SessionRunState>, "snapshot" | "event">();
 
 /** Whether a `runStates` object came from the initial snapshot or from a later event. */
-export function runStateSource(
-    states: Record<string, SessionRunState>,
-): "snapshot" | "event" {
+export function runStateSource(states: Record<string, SessionRunState>): "snapshot" | "event" {
     return runStateSources.get(states) ?? "snapshot";
 }
 
@@ -189,15 +177,11 @@ export function asError(error: unknown): Error {
     return error instanceof Error ? error : new Error(String(error));
 }
 
-function withTimeout<T>(
-    promise: Promise<T>,
-    ms: number,
-    message: string,
-): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error(message)), ms);
         promise.then(
-            (value) => {
+            value => {
                 clearTimeout(timer);
                 resolve(value);
             },
@@ -210,9 +194,7 @@ function withTimeout<T>(
 }
 
 /** Merges `_meta` objects one level deep per top-level key (`alwith`, `codex`…); later wins. */
-export function mergeMeta(
-    ...parts: Array<Record<string, unknown> | undefined>
-): Record<string, unknown> | undefined {
+export function mergeMeta(...parts: Array<Record<string, unknown> | undefined>): Record<string, unknown> | undefined {
     const merged: Record<string, unknown> = {};
     for (const part of parts) {
         if (!part) continue;
@@ -236,7 +218,7 @@ export function mergeMeta(
 }
 
 /** What one replay asks of the agent: where the local projection restarts and what the resume carries. */
-export type ReplayPlan = { from: "start" | number; replayFrom?: ReplayCursor };
+export type ReplayPlan = {from: "start" | number; replayFrom?: ReplayCursor};
 
 /** Everything a replay hook needs to tell a stale continuation from the current one. */
 export type ReplayScope = {
@@ -253,15 +235,14 @@ export class SessionClient<State extends ClientState = ClientState> {
     /** Agent requests awaiting user input (permissions, questionnaires), including answers, cancellation on Stop, and agent withdrawals. */
     // The ledger is released when the agent goes away, so a reply always has an agent to go to.
     protected readonly requests = new AgentRequests((id, result, error) => {
-        if (this.agent === null)
-            throw new Error(`Reply to agent request ${String(id)} without an agent`);
+        if (this.agent === null) throw new Error(`Reply to agent request ${String(id)} without an agent`);
         void this.agent.respond(id, result, error);
     });
     /** open / close / delete lane per session: adjacent equal opens share one replay; close and delete revoke queued opens. */
     protected readonly lifecycle = new SessionLifecycle();
-    protected readonly updates = new UpdateScheduler<Session>((snapshots) => {
-        this.patch((state) => ({
-            sessions: { ...state.sessions, ...snapshots },
+    protected readonly updates = new UpdateScheduler<Session>(snapshots => {
+        this.patch(state => ({
+            sessions: {...state.sessions, ...snapshots},
         }));
     });
     protected agent: Agent | null = null;
@@ -279,10 +260,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     constructor(
         openPort: () => Promise<RuntimeClient<Launch>>,
         options: ClientOptions,
-        extraState: Omit<State, keyof ClientState> = {} as Omit<
-            State,
-            keyof ClientState
-        >,
+        extraState: Omit<State, keyof ClientState> = {} as Omit<State, keyof ClientState>,
     ) {
         this.openPort = openPort;
         this.options = options;
@@ -301,10 +279,8 @@ export class SessionClient<State extends ClientState = ClientState> {
             actions: [],
             runStates: {},
         };
-        this.store = createStore<State>({ ...base, ...extraState } as State);
-        this.requests.onChange((pending) =>
-            this.patch({ actions: pending.map(toAction) }),
-        );
+        this.store = createStore<State>({...base, ...extraState} as State);
+        this.requests.onChange(pending => this.patch({actions: pending.map(toAction)}));
     }
 
     get state(): State {
@@ -351,7 +327,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     private async doConnect(): Promise<void> {
-        this.patch({ connection: "connecting", connectionError: null });
+        this.patch({connection: "connecting", connectionError: null});
         try {
             const agent = await withTimeout(
                 this.hold(),
@@ -371,7 +347,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                         break;
                     }
                     case "_alwith/replay_started": {
-                        const { sessionId, replayId } = params as {
+                        const {sessionId, replayId} = params as {
                             sessionId: string;
                             replayId: string;
                         };
@@ -379,7 +355,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                         break;
                     }
                     case "_alwith/replay_ended": {
-                        const { sessionId, replayId } = params as {
+                        const {sessionId, replayId} = params as {
                             sessionId: string;
                             replayId: string;
                         };
@@ -388,14 +364,12 @@ export class SessionClient<State extends ClientState = ClientState> {
                     }
                     default:
                         // `$/cancel_request` (the agent withdraws a permission / form) and `elicitation/complete`
-                        if (!this.handleNotification(method, params))
-                            this.requests.onNotification(method, params);
+                        if (!this.handleNotification(method, params)) this.requests.onNotification(method, params);
                 }
             });
-            agent.onAgentRequest((request) => {
+            agent.onAgentRequest(request => {
                 if (this.agent !== agent) return;
-                const id = (request.params as { sessionId?: unknown } | null)
-                    ?.sessionId;
+                const id = (request.params as {sessionId?: unknown} | null)?.sessionId;
                 if (typeof id === "string" && this.retiredChildren.has(id)) {
                     void agent.respond(request.id, undefined, {
                         code: -32800,
@@ -403,8 +377,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                     });
                     return;
                 }
-                if (!this.handleAgentRequest(agent, request))
-                    this.requests.receive(request);
+                if (!this.handleAgentRequest(agent, request)) this.requests.receive(request);
             });
             void agent.exited.then(() => this.onClosed(agent));
             this.onConnected(agent);
@@ -431,9 +404,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     private async hold(): Promise<Agent> {
         const port = await this.openPort();
         this.stopGap?.();
-        this.stopGap = port.onGap(
-            (gap) => void this.reloadAfterGap(gap.sessionId),
-        );
+        this.stopGap = port.onGap(gap => void this.reloadAfterGap(gap.sessionId));
         const agents = new Agents<Launch>(port, {
             info: this.options.info ?? CLIENT_INFO,
             capabilities: this.options.capabilities ?? CLIENT_CAPABILITIES,
@@ -443,50 +414,32 @@ export class SessionClient<State extends ClientState = ClientState> {
         // would claim someone else's session and, on release, leave it ownerless. Ownership is per
         // agent, so claiming one of our sessions claims the process and replays every pending request.
         for (const state of await port.runStates()) {
-            if (
-                (await port.agentForSession(state.sessionId)) !==
-                this.options.agentId
-            )
-                continue;
+            if ((await port.agentForSession(state.sessionId)) !== this.options.agentId) continue;
             const attached = await agents.attach(state.sessionId);
             if (!attached) continue;
-            this.requests.receiveAll(
-                attached.info.pendingAgentRequests.filter((request) =>
-                    this.acceptsPendingRequest(request),
-                ),
-            );
+            this.requests.receiveAll(attached.info.pendingAgentRequests.filter(request => this.acceptsPendingRequest(request)));
             return attached.agent;
         }
         // A freshly started agent has no Runtime session yet. After a webview reload there is
         // therefore no session to attach through, but the process still needs to be reused.
-        if (
-            (await port.agents()).some(
-                (agent) => agent.agentId === this.options.agentId,
-            )
-        ) {
+        if ((await port.agents()).some(agent => agent.agentId === this.options.agentId)) {
             try {
-                return await agents.adopt(
-                    this.options.agentId,
-                    this.options.launch.engine,
-                );
+                return await agents.adopt(this.options.agentId, this.options.launch.engine);
             } catch (refused) {
                 // The previous page's connection is gone (reload, browser reconnect) and its agent had no session
                 // to attach through: the Runtime keeps it as an orphan that may only be stopped. Stopping is refused
                 // while another live page holds it, which surfaces as the original error.
                 const agentId = this.options.agentId;
                 let exitedNow = () => {};
-                const exited = new Promise<void>((resolve) => {
+                const exited = new Promise<void>(resolve => {
                     exitedNow = resolve;
                 });
-                const unlisten = await port.onExit((payload) => {
+                const unlisten = await port.onExit(payload => {
                     if (payload.agentId === agentId) exitedNow();
                 });
                 try {
                     await port.stop(agentId).catch((stopError: unknown) => {
-                        throw new AggregateError(
-                            [refused, stopError],
-                            `Agent ${agentId} could be neither adopted nor stopped`,
-                        );
+                        throw new AggregateError([refused, stopError], `Agent ${agentId} could be neither adopted nor stopped`);
                     });
                     // The Runtime starts the same id again only after the old process has exited.
                     await exited;
@@ -495,11 +448,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 }
             }
         }
-        return agents.start(
-            this.options.agentId,
-            this.options.launch,
-            this.options.launch.engine,
-        );
+        return agents.start(this.options.agentId, this.options.launch, this.options.launch.engine);
     }
 
     private onClosed(agent: Agent): void {
@@ -538,20 +487,16 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     protected live(): Agent {
-        if (!this.agent || this.state.connection !== "ready")
-            throw new Error("The agent is not connected");
+        if (!this.agent || this.state.connection !== "ready") throw new Error("The agent is not connected");
         return this.agent;
     }
 
     /** Runtime run-state snapshot (broadcast on every change). */
-    applyRunStates(
-        sessions: SessionRunState[],
-        source: "snapshot" | "event" = "event",
-    ): void {
+    applyRunStates(sessions: SessionRunState[], source: "snapshot" | "event" = "event"): void {
         const runStates: Record<string, SessionRunState> = {};
         for (const session of sessions) runStates[session.sessionId] = session;
         runStateSources.set(runStates, source);
-        this.patch({ runStates });
+        this.patch({runStates});
     }
 
     // ── Updates ──
@@ -581,16 +526,11 @@ export class SessionClient<State extends ClientState = ClientState> {
         if (!session.restoring && SessionUpdateGuard.isUserMessage(update)) {
             // Use native turn time when available; replay must never look like new activity.
             const updatedAt = new Date(
-                this.turnStartedAt(
-                    update._meta as Record<string, unknown> | null | undefined,
-                ) ?? Date.now(),
+                this.turnStartedAt(update._meta as Record<string, unknown> | null | undefined) ?? Date.now(),
             ).toISOString();
-            this.patch((state) => ({
-                sessionList: state.sessionList.map((item) =>
-                    item.sessionId === sessionId &&
-                    (item.updatedAt === null || item.updatedAt < updatedAt)
-                        ? { ...item, updatedAt }
-                        : item,
+            this.patch(state => ({
+                sessionList: state.sessionList.map(item =>
+                    item.sessionId === sessionId && (item.updatedAt === null || item.updatedAt < updatedAt) ? {...item, updatedAt} : item,
                 ),
             }));
         }
@@ -599,10 +539,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         if (!session.restoring) {
             this.onSessionChanged(session);
             this.updates.enqueue(sessionId, session);
-            if (
-                SessionUpdateGuard.isStateUpdate(update) ||
-                SessionUpdateGuard.isConfigOptionUpdate(update)
-            ) {
+            if (SessionUpdateGuard.isStateUpdate(update) || SessionUpdateGuard.isConfigOptionUpdate(update)) {
                 // Live lifecycle and configuration changes are observable immediately,
                 // together with all earlier chunks. A completion must never overtake its text.
                 this.updates.flush();
@@ -610,19 +547,13 @@ export class SessionClient<State extends ClientState = ClientState> {
         }
         if (SessionUpdateGuard.isSessionInfoUpdate(update)) {
             const frame = update;
-            this.patch((state) => ({
-                sessionList: state.sessionList.map((item) =>
+            this.patch(state => ({
+                sessionList: state.sessionList.map(item =>
                     item.sessionId === sessionId
                         ? {
                               ...item,
-                              title:
-                                  frame.title === undefined
-                                      ? item.title
-                                      : frame.title,
-                              updatedAt:
-                                  frame.updatedAt === undefined
-                                      ? item.updatedAt
-                                      : frame.updatedAt,
+                              title: frame.title === undefined ? item.title : frame.title,
+                              updatedAt: frame.updatedAt === undefined ? item.updatedAt : frame.updatedAt,
                           }
                         : item,
                 ),
@@ -637,29 +568,17 @@ export class SessionClient<State extends ClientState = ClientState> {
         this.updates.flush();
     }
 
-    respond(
-        actionId: string,
-        answer: acp.RequestPermissionResponse | acp.CreateElicitationResponse,
-    ): void {
+    respond(actionId: string, answer: acp.RequestPermissionResponse | acp.CreateElicitationResponse): void {
         const request = this.requests.get(actionId);
-        if (!request)
-            throw new Error("This request has expired or was already answered");
+        if (!request) throw new Error("This request has expired or was already answered");
         if (request.kind === "permission") {
             const outcome = (answer as acp.RequestPermissionResponse).outcome;
             const valid =
                 outcome.outcome === "cancelled" ||
                 (outcome.outcome === "selected" &&
-                    request.params.options.some(
-                        (option) =>
-                            option.optionId ===
-                            (outcome as { optionId: string }).optionId,
-                    ));
+                    request.params.options.some(option => option.optionId === (outcome as {optionId: string}).optionId));
             if (!valid) throw new Error("Invalid permission choice");
-        } else if (
-            !["accept", "decline", "cancel"].includes(
-                (answer as acp.CreateElicitationResponse).action,
-            )
-        ) {
+        } else if (!["accept", "decline", "cancel"].includes((answer as acp.CreateElicitationResponse).action)) {
             throw new Error("Invalid form action");
         }
         this.requests.answer(actionId, answer);
@@ -669,24 +588,15 @@ export class SessionClient<State extends ClientState = ClientState> {
 
     /** Include an explicitly selected entry in the shared list (a history pick, a session another window opened). */
     includeSession(summary: SessionSummary): void {
-        if (
-            this.state.sessionList.some(
-                (item) => item.sessionId === summary.sessionId,
-            )
-        )
-            return;
-        this.patch((state) => ({
-            sessionList: [
-                ...state.sessionList,
-                { ...summary, cwd: this.projectPath(summary.cwd) },
-            ],
+        if (this.state.sessionList.some(item => item.sessionId === summary.sessionId)) return;
+        this.patch(state => ({
+            sessionList: [...state.sessionList, {...summary, cwd: this.projectPath(summary.cwd)}],
         }));
     }
 
     listSessions(options: ListSessionsOptions = {}): Promise<void> {
         if (this.listRequest) return this.listRequest;
-        if (!options.reset && this.state.sessionListLoaded)
-            return Promise.resolve();
+        if (!options.reset && this.state.sessionListLoaded) return Promise.resolve();
         const request = this.readSessionList().finally(() => {
             if (this.listRequest === request) this.listRequest = null;
         });
@@ -696,52 +606,28 @@ export class SessionClient<State extends ClientState = ClientState> {
 
     protected async readSessionList(): Promise<void> {
         const generation = ++this.listGeneration;
-        const before = new Map(
-            this.state.sessionList.map((item) => [item.sessionId, item]),
-        );
-        this.patch({ sessionListLoading: true, sessionListError: null });
+        const before = new Map(this.state.sessionList.map(item => [item.sessionId, item]));
+        this.patch({sessionListLoading: true, sessionListError: null});
         try {
             const page = (await this.fetchSessionList())
-                .map((info) => this.summaryOf(info))
-                .filter(
-                    (item) =>
-                        !item.archived && !this.state.drafts[item.sessionId],
-                );
+                .map(info => this.summaryOf(info))
+                .filter(item => !item.archived && !this.state.drafts[item.sessionId]);
             if (generation !== this.listGeneration) return;
-            this.patch((current) => {
+            this.patch(current => {
                 // Preserve mutations made after dispatch, including removal and reordering.
-                const after = new Map(
-                    current.sessionList.map((item) => [item.sessionId, item]),
-                );
-                const changed = new Set(
-                    [...before.keys(), ...after.keys()].filter(
-                        (id) => before.get(id) !== after.get(id),
-                    ),
-                );
-                const fresh = page.filter(
-                    (item) => !changed.has(item.sessionId),
-                );
-                const kept = current.sessionList.filter(
-                    (item) =>
-                        changed.has(item.sessionId) || this.keepUnlisted(item),
-                );
-                const merged = [
-                    ...new Map(
-                        [...kept, ...fresh].map((item) => [
-                            item.sessionId,
-                            item,
-                        ]),
-                    ).values(),
-                ];
-                return { sessionList: merged, sessionListLoaded: true };
+                const after = new Map(current.sessionList.map(item => [item.sessionId, item]));
+                const changed = new Set([...before.keys(), ...after.keys()].filter(id => before.get(id) !== after.get(id)));
+                const fresh = page.filter(item => !changed.has(item.sessionId));
+                const kept = current.sessionList.filter(item => changed.has(item.sessionId) || this.keepUnlisted(item));
+                const merged = [...new Map([...kept, ...fresh].map(item => [item.sessionId, item])).values()];
+                return {sessionList: merged, sessionListLoaded: true};
             });
         } catch (error) {
             if (generation !== this.listGeneration) return;
-            this.patch({ sessionListError: asError(error).message });
+            this.patch({sessionListError: asError(error).message});
             throw error;
         } finally {
-            if (generation === this.listGeneration)
-                this.patch({ sessionListLoading: false });
+            if (generation === this.listGeneration) this.patch({sessionListLoading: false});
         }
     }
 
@@ -752,16 +638,11 @@ export class SessionClient<State extends ClientState = ClientState> {
         const cursors = new Set<string>();
         let cursor: string | undefined;
         do {
-            const response = await agent.request(
-                "session/list",
-                cursor === undefined ? {} : { cursor },
-            );
-            for (const info of response.sessions)
-                sessions.set(info.sessionId, info);
+            const response = await agent.request("session/list", cursor === undefined ? {} : {cursor});
+            for (const info of response.sessions) sessions.set(info.sessionId, info);
             cursor = response.nextCursor ?? undefined;
             if (cursor !== undefined) {
-                if (cursors.has(cursor))
-                    throw new Error("Session list returned a repeated cursor");
+                if (cursors.has(cursor)) throw new Error("Session list returned a repeated cursor");
                 cursors.add(cursor);
             }
         } while (cursor !== undefined);
@@ -776,44 +657,29 @@ export class SessionClient<State extends ClientState = ClientState> {
             title: info.title ?? null,
             updatedAt: info.updatedAt ?? null,
             archived: false,
-            ...this.lineageOf(
-                info._meta as Record<string, unknown> | null | undefined,
-            ),
+            ...this.lineageOf(info._meta as Record<string, unknown> | null | undefined),
         };
     }
 
     /** Lineage the agent reports in `_meta`; adapters know where. */
-    protected lineageOf(
-        _meta: Record<string, unknown> | null | undefined,
-    ): Pick<SessionSummary, "nativeSessionId" | "forkedFromId"> {
+    protected lineageOf(_meta: Record<string, unknown> | null | undefined): Pick<SessionSummary, "nativeSessionId" | "forkedFromId"> {
         return {};
     }
 
     /** A listed row a refresh must keep even when the agent's list lacks it: an attached fork the agent has not indexed yet. */
     protected keepUnlisted(item: SessionSummary): boolean {
-        return (
-            !item.archived &&
-            item.forkedFromId != null &&
-            this.state.sessions[item.sessionId]?.attached === true
-        );
+        return !item.archived && item.forkedFromId != null && this.state.sessions[item.sessionId]?.attached === true;
     }
 
     protected listSession(summary: SessionSummary): void {
-        this.patch((state) => ({
-            sessionList: [
-                summary,
-                ...state.sessionList.filter(
-                    (item) => item.sessionId !== summary.sessionId,
-                ),
-            ],
+        this.patch(state => ({
+            sessionList: [summary, ...state.sessionList.filter(item => item.sessionId !== summary.sessionId)],
         }));
     }
 
     protected unlistSession(id: string): void {
-        this.patch((state) => ({
-            sessionList: state.sessionList.filter(
-                (item) => item.sessionId !== id,
-            ),
+        this.patch(state => ({
+            sessionList: state.sessionList.filter(item => item.sessionId !== id),
         }));
     }
 
@@ -830,42 +696,29 @@ export class SessionClient<State extends ClientState = ClientState> {
         systemPrompt?: acp.SystemPrompt;
         _meta?: Record<string, unknown>;
     }> {
-        const host = this.options.sessionContext
-            ? await this.options.sessionContext(cwd, operation)
-            : {};
+        const host = this.options.sessionContext ? await this.options.sessionContext(cwd, operation) : {};
         const mcpServers = options.mcpServers ?? host.mcpServers;
-        const appended = [host.appendSystemPrompt, options.systemPrompt]
-            .filter((text) => !!text)
-            .join("\n\n");
+        const appended = [host.appendSystemPrompt, options.systemPrompt].filter(text => !!text).join("\n\n");
         const meta = mergeMeta(this.sessionMeta(operation), options.meta);
         return {
-            ...(host.revision === undefined ? {} : { revision: host.revision }),
-            ...(host.bind === undefined ? {} : { bind: host.bind }),
-            ...(mcpServers ? { mcpServers } : {}),
-            ...(appended ? { systemPrompt: this.systemPrompt(appended) } : {}),
-            ...(meta ? { _meta: meta } : {}),
+            ...(host.revision === undefined ? {} : {revision: host.revision}),
+            ...(host.bind === undefined ? {} : {bind: host.bind}),
+            ...(mcpServers ? {mcpServers} : {}),
+            ...(appended ? {systemPrompt: this.systemPrompt(appended)} : {}),
+            ...(meta ? {_meta: meta} : {}),
         };
     }
 
     /** ACP v2 `systemPrompt` (append). The protocol only lets a client send it to an agent that advertises `session.systemPrompt`. */
     private systemPrompt(text: string): acp.SystemPrompt {
         if (!this.state.agent?.capabilities?.session?.systemPrompt) {
-            throw new Error(
-                "The agent does not advertise capabilities.session.systemPrompt",
-            );
+            throw new Error("The agent does not advertise capabilities.session.systemPrompt");
         }
-        return { mode: "append", content: [{ type: "text", text }] };
+        return {mode: "append", content: [{type: "text", text}]};
     }
 
-    async newSession(
-        cwd: string,
-        options: NewSessionOptions = {},
-    ): Promise<string> {
-        const { revision, bind, ...context } = await this.requestContext(
-            cwd,
-            { kind: "new" },
-            options,
-        );
+    async newSession(cwd: string, options: NewSessionOptions = {}): Promise<string> {
+        const {revision, bind, ...context} = await this.requestContext(cwd, {kind: "new"}, options);
         const response = await this.born(
             () =>
                 this.live().request("session/new", {
@@ -873,7 +726,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                     mcpServers: [],
                     ...context,
                 }),
-            (response) => {
+            response => {
                 const session: Session = {
                     ...createSession(response.sessionId, cwd),
                     attached: true,
@@ -881,19 +734,16 @@ export class SessionClient<State extends ClientState = ClientState> {
                 };
                 this.publishSession(session);
                 if (options.draft) {
-                    if (response._meta)
-                        this.draftMetadata.set(session.id, response._meta);
-                    this.patch((state) => ({
-                        drafts: { ...state.drafts, [session.id]: true },
+                    if (response._meta) this.draftMetadata.set(session.id, response._meta);
+                    this.patch(state => ({
+                        drafts: {...state.drafts, [session.id]: true},
                     }));
                 } else
                     this.listSession({
                         ...this.summaryOf({
                             sessionId: session.id,
                             cwd,
-                            ...(response._meta
-                                ? { _meta: response._meta }
-                                : {}),
+                            ...(response._meta ? {_meta: response._meta} : {}),
                         }),
                         updatedAt: new Date().toISOString(),
                     });
@@ -910,7 +760,7 @@ export class SessionClient<State extends ClientState = ClientState> {
      * (held in the shared creation buffer) are applied right after, in order. Frames held for ids that were never born are dropped once nothing is
      * being created.
      */
-    protected born<Response extends { sessionId: string }>(
+    protected born<Response extends {sessionId: string}>(
         request: () => Promise<Response>,
         settle: (response: Response) => void,
     ): Promise<Response> {
@@ -918,7 +768,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             request,
             settle,
             (id, update) => this.onUpdate(id, update),
-            (id) => this.sessions.sessions.has(id),
+            id => this.sessions.sessions.has(id),
         );
     }
 
@@ -927,9 +777,9 @@ export class SessionClient<State extends ClientState = ClientState> {
         if (!this.state.drafts[id]) return;
         const meta = this.draftMetadata.get(id);
         this.draftMetadata.delete(id);
-        this.patch((state) => {
-            const { [id]: _draft, ...drafts } = state.drafts;
-            return { drafts };
+        this.patch(state => {
+            const {[id]: _draft, ...drafts} = state.drafts;
+            return {drafts};
         });
         const session = this.session(id);
         this.listSession({
@@ -937,7 +787,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 sessionId: id,
                 cwd: session.cwd,
                 title: session.title,
-                ...(meta ? { _meta: meta } : {}),
+                ...(meta ? {_meta: meta} : {}),
             }),
             updatedAt: new Date().toISOString(),
         });
@@ -950,39 +800,20 @@ export class SessionClient<State extends ClientState = ClientState> {
         await this.delete(id);
     }
 
-    async open(
-        id: string,
-        cwd: string,
-        options: SessionRequestOptions = {},
-    ): Promise<void> {
+    async open(id: string, cwd: string, options: SessionRequestOptions = {}): Promise<void> {
         this.assertRootSession(id);
         const existing = this.sessions.sessions.get(id);
         // A replay in flight already carries this open. A read-only attach (another client holds the
         // writer) is resumed again: the writer may have let go since.
-        if (
-            existing?.attached &&
-            !existing.restoring &&
-            !existing.readOnly &&
-            !this.lifecycle.operations.busy(id)
-        )
-            return;
+        if (existing?.attached && !existing.restoring && !existing.readOnly && !this.lifecycle.operations.busy(id)) return;
         await this.replay(id, cwd, options);
     }
 
     /** Resume a session the Runtime runs without this client having opened it (a remote window's input). */
-    async openRemote(
-        id: string,
-        options: SessionRequestOptions = {},
-    ): Promise<void> {
+    async openRemote(id: string, options: SessionRequestOptions = {}): Promise<void> {
         this.assertRootSession(id);
         const session = this.state.sessions[id];
-        if (
-            session?.attached &&
-            !session.restoring &&
-            !session.readOnly &&
-            !this.lifecycle.operations.busy(id)
-        )
-            return;
+        if (session?.attached && !session.restoring && !session.readOnly && !this.lifecycle.operations.busy(id)) return;
         const runtime = this.state.runStates[id];
         if (!runtime) throw new Error(`Unknown Runtime session: ${id}`);
         await this.replay(id, runtime.cwd, options);
@@ -999,63 +830,44 @@ export class SessionClient<State extends ClientState = ClientState> {
         await this.replay(id, session.cwd);
     }
 
-    protected replay(
-        id: string,
-        cwd: string,
-        options: SessionRequestOptions = {},
-    ): Promise<void> {
-        return this.lifecycle.operations.open(id, cwd, (signal) =>
-            this.runReplay(id, cwd, signal, options),
-        );
+    protected replay(id: string, cwd: string, options: SessionRequestOptions = {}): Promise<void> {
+        return this.lifecycle.operations.open(id, cwd, signal => this.runReplay(id, cwd, signal, options));
     }
 
-    private async runReplay(
-        id: string,
-        cwd: string,
-        signal: AbortSignal,
-        options: SessionRequestOptions,
-    ): Promise<void> {
+    private async runReplay(id: string, cwd: string, signal: AbortSignal, options: SessionRequestOptions): Promise<void> {
         this.assertRootSession(id);
         this.detachChildren(id);
         const generation = this.lifecycle.beginReplay(id);
-        if (!this.sessions.sessions.has(id))
-            this.sessions.set(createSession(id, cwd));
+        if (!this.sessions.sessions.has(id)) this.sessions.set(createSession(id, cwd));
         const agent = this.live();
         this.beforeReplay(id);
         const plan = this.replayPlan(agent, this.sessions.get(id));
         this.sessions.beginReplay(id, plan.from);
         const baseline = this.sessions.get(id);
-        const scope: ReplayScope = { agent, signal, generation, baseline };
+        const scope: ReplayScope = {agent, signal, generation, baseline};
         this.publishSession(this.sessions.get(id));
         try {
-            const { revision, bind, ...context } = await this.requestContext(
-                cwd,
-                { kind: "resume", sessionId: id },
-                options,
-            );
+            const {revision, bind, ...context} = await this.requestContext(cwd, {kind: "resume", sessionId: id}, options);
             signal.throwIfAborted();
             const response = await agent.request(
                 "session/resume",
                 {
                     sessionId: id,
                     cwd,
-                    ...(plan.replayFrom ? { replayFrom: plan.replayFrom } : {}),
+                    ...(plan.replayFrom ? {replayFrom: plan.replayFrom} : {}),
                     ...context,
                 },
-                { cancellationSignal: signal },
+                {cancellationSignal: signal},
             );
             signal.throwIfAborted();
-            if (!this.current(scope))
-                throw new Error("Session retired during resume");
+            if (!this.current(scope)) throw new Error("Session retired during resume");
             await bind?.(id);
             signal.throwIfAborted();
-            if (!this.current(scope))
-                throw new Error("Session retired during binding");
+            if (!this.current(scope)) throw new Error("Session retired during binding");
             this.contextRevisions.set(id, revision);
             await this.afterResume(id, cwd, scope);
             signal.throwIfAborted();
-            if (!this.current(scope))
-                throw new Error("Session retired during history load");
+            if (!this.current(scope)) throw new Error("Session retired during history load");
             this.pruneChildren(id);
             this.sessions.endReplay(id, replayReceiptOf(response));
             this.publishSession({
@@ -1067,8 +879,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             });
             this.onReplayed(id, response);
         } catch (error) {
-            if (!this.current(scope) || !this.sessions.sessions.has(id))
-                throw error;
+            if (!this.current(scope) || !this.sessions.sessions.has(id)) throw error;
             this.dropChildren(id);
             if (await this.recoverReplay(id, cwd, error, scope)) return;
             this.publishSession({
@@ -1082,10 +893,7 @@ export class SessionClient<State extends ClientState = ClientState> {
 
     /** Whether a replay continuation still belongs to the live agent and the session's current attachment. */
     protected current(scope: ReplayScope): boolean {
-        return (
-            this.agent === scope.agent &&
-            this.lifecycle.isCurrent(scope.generation)
-        );
+        return this.agent === scope.agent && this.lifecycle.isCurrent(scope.generation);
     }
 
     // ── Prompt, cancel, configure ──
@@ -1095,35 +903,23 @@ export class SessionClient<State extends ClientState = ClientState> {
      * screen now under a local id; the receipt claims the local copy by that id alone, never by the
      * later `user_message` echo or its text. Echo and receipt may arrive in either order.
      */
-    prompt(
-        id: string,
-        prompt: acp.ContentBlock[],
-        options: PromptOptions = {},
-    ): Promise<string> {
+    prompt(id: string, prompt: acp.ContentBlock[], options: PromptOptions = {}): Promise<string> {
         this.assertRootSession(id);
         return this.lifecycle.prompt(
             id,
-            (checkpoint) => {
-                if (
-                    this.options.sessionContextRevision ||
-                    this.options.prepareSessionTools
-                )
+            checkpoint => {
+                if (this.options.sessionContextRevision || this.options.prepareSessionTools)
                     return this.preparePrompt(id, prompt, checkpoint);
                 return undefined;
             },
             () => this.dispatchPrompt(id, prompt, options).receipt,
-            (operation) => this.enqueueSession(id, operation, false),
+            operation => this.enqueueSession(id, operation, false),
         );
     }
 
-    private async preparePrompt(
-        id: string,
-        prompt: acp.ContentBlock[],
-        checkpoint: () => void,
-    ): Promise<void> {
+    private async preparePrompt(id: string, prompt: acp.ContentBlock[], checkpoint: () => void): Promise<void> {
         const session = this.sessions.get(id);
-        if (!session.attached)
-            throw new Error("Open the session before sending");
+        if (!session.attached) throw new Error("Open the session before sending");
         if (prompt.length === 0) throw new Error("Enter a message");
         const run = this.state.runStates[id]?.state;
         // Refresh tools on the next idle prompt; active turns must still accept replies and steering.
@@ -1131,14 +927,13 @@ export class SessionClient<State extends ClientState = ClientState> {
             run !== "running" &&
             run !== "requires_action" &&
             this.options.sessionContextRevision &&
-            this.contextRevisions.get(id) !==
-                (await this.options.sessionContextRevision())
+            this.contextRevisions.get(id) !== (await this.options.sessionContextRevision())
         ) {
             checkpoint();
-            await this.live().request("session/close", { sessionId: id });
+            await this.live().request("session/close", {sessionId: id});
             checkpoint();
             this.updates.remove(id);
-            this.publishSession({ ...this.sessions.get(id), attached: false });
+            this.publishSession({...this.sessions.get(id), attached: false});
             checkpoint();
             await this.replay(id, session.cwd);
         }
@@ -1159,13 +954,8 @@ export class SessionClient<State extends ClientState = ClientState> {
         checkpoint();
     }
 
-    private dispatchPrompt(
-        id: string,
-        prompt: acp.ContentBlock[],
-        options: PromptOptions,
-    ): { receipt: Promise<string> } {
-        if (!this.sessions.get(id).attached)
-            throw new Error("Open the session before sending");
+    private dispatchPrompt(id: string, prompt: acp.ContentBlock[], options: PromptOptions): {receipt: Promise<string>} {
+        if (!this.sessions.get(id).attached) throw new Error("Open the session before sending");
         if (prompt.length === 0) throw new Error("Enter a message");
         const agent = this.live();
         assertPromptSupported(agent.initialized, prompt);
@@ -1175,34 +965,22 @@ export class SessionClient<State extends ClientState = ClientState> {
         // Once a request leaves the client, transport failure cannot prove it was not accepted.
         // Retire draft cleanup eligibility before dispatch so a lost receipt can never erase a conversation.
         this.materializeDraft(id);
-        const bound = promptConfigMeta(
-            agent.initialized,
-            this.sessions.get(id),
-        );
-        const meta = mergeMeta(
-            this.promptMeta(id, options),
-            Object.keys(bound).length > 0 ? { alwith: bound } : undefined,
-        );
+        const bound = promptConfigMeta(agent.initialized, this.sessions.get(id));
+        const meta = mergeMeta(this.promptMeta(id, options), Object.keys(bound).length > 0 ? {alwith: bound} : undefined);
         const response = this.lifecycle.submissions.submit(
             id,
             () =>
                 agent.request("session/prompt", {
                     sessionId: id,
                     prompt,
-                    ...(meta ? { _meta: meta } : {}),
+                    ...(meta ? {_meta: meta} : {}),
                 }),
             undefined,
-            (error) => configStaleOf(error) !== null,
+            error => configStaleOf(error) !== null,
         ).receipt;
         // Return the receipt as data: admission ends at dispatch, not at receipt or turn completion.
         return {
-            receipt: this.acceptPromptReceipt(
-                id,
-                localId,
-                agent,
-                generation,
-                response,
-            ),
+            receipt: this.acceptPromptReceipt(id, localId, agent, generation, response),
         };
     }
 
@@ -1215,10 +993,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     ): Promise<string> {
         const assertCurrent = () => {
             if (this.agent !== agent || !this.lifecycle.isCurrent(generation))
-                throw new AgentGoneError(
-                    agent.agentId,
-                    "prompt receipt belongs to a retired session",
-                );
+                throw new AgentGoneError(agent.agentId, "prompt receipt belongs to a retired session");
         };
         let accepted: acp.PromptResponse;
         try {
@@ -1229,9 +1004,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             // local copy stays; the replay after reconnecting shows what the agent recorded.
             if (error instanceof AgentGoneError) throw error;
             const current = this.sessions.get(id);
-            const withoutLocal = current.items.filter(
-                (item) => item.id !== localId,
-            );
+            const withoutLocal = current.items.filter(item => item.id !== localId);
             // The config moved past what the user saw: take the agent's actual options, take the local copy
             // off screen (nothing was sent) and say so, so the user can resend against what is current.
             const stale = configStaleOf(error);
@@ -1246,7 +1019,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             }
             // The agent refused the request, so it never became a turn: take the unacknowledged local copy
             // off screen again; the caller keeps the text in its composer.
-            this.publishSession({ ...current, items: withoutLocal });
+            this.publishSession({...current, items: withoutLocal});
             throw error;
         }
         assertCurrent();
@@ -1256,14 +1029,12 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     async cancel(id: string): Promise<void> {
-        if (this.retiredChildren.has(id))
-            throw new Error(`Subagent ${id} attachment has been retired`);
+        if (this.retiredChildren.has(id)) throw new Error(`Subagent ${id} attachment has been retired`);
         const child = this.sessions.sessions.get(id);
         if (child?.subagent) {
-            if (!child.attached || !child.subagent.capabilities?.cancel)
-                throw new Error(`Subagent ${id} does not allow cancellation`);
+            if (!child.attached || !child.subagent.capabilities?.cancel) throw new Error(`Subagent ${id} does not allow cancellation`);
             this.cancelTreeRequests(id);
-            await this.live().notify("session/cancel", { sessionId: id });
+            await this.live().notify("session/cancel", {sessionId: id});
             return;
         }
         this.cancelTreeRequests(id);
@@ -1273,87 +1044,51 @@ export class SessionClient<State extends ClientState = ClientState> {
         // as zombie prompts on the next attach.
         this.requests.cancelSession(id);
         this.onCancel(id);
-        await this.stopWithAccessRevocation(id, () =>
-            this.live().notify("session/cancel", { sessionId: id }),
-        );
+        await this.stopWithAccessRevocation(id, () => this.live().notify("session/cancel", {sessionId: id}));
     }
 
-    private async stopWithAccessRevocation(
-        id: string,
-        stop: () => Promise<unknown>,
-    ): Promise<void> {
+    private async stopWithAccessRevocation(id: string, stop: () => Promise<unknown>): Promise<void> {
         // A native cleanup failure must not leave the turn running. Start revocation first, attempt
         // both operations, and report every failure.
-        const revoke = Promise.resolve().then(() =>
-            this.options.revokeSessionAccess?.(id),
-        );
-        const results = await Promise.allSettled([
-            revoke,
-            Promise.resolve().then(stop),
-        ]);
-        const errors = results.flatMap((result) =>
-            result.status === "rejected" ? [result.reason as unknown] : [],
-        );
+        const revoke = Promise.resolve().then(() => this.options.revokeSessionAccess?.(id));
+        const results = await Promise.allSettled([revoke, Promise.resolve().then(stop)]);
+        const errors = results.flatMap(result => (result.status === "rejected" ? [result.reason as unknown] : []));
         if (errors.length === 1) throw errors[0];
-        if (errors.length > 1)
-            throw new AggregateError(errors, "Session stop failed");
+        if (errors.length > 1) throw new AggregateError(errors, "Session stop failed");
     }
 
-    setConfig(
-        id: string,
-        configId: string,
-        value: string | boolean,
-    ): Promise<void> {
+    setConfig(id: string, configId: string, value: string | boolean): Promise<void> {
         this.assertRootSession(id);
         const write = async (): Promise<void> => {
             const agent = this.live();
             const generation = this.lifecycle.capture(id);
             const response = await agent.request(
                 "session/set_config_option",
-                configOptionRequest(
-                    id,
-                    this.sessions.get(id).configOptions,
-                    configId,
-                    value,
-                ),
+                configOptionRequest(id, this.sessions.get(id).configOptions, configId, value),
             );
             if (this.agent !== agent || !this.lifecycle.isCurrent(generation))
-                throw new AgentGoneError(
-                    agent.agentId,
-                    "configuration belongs to a retired session",
-                );
+                throw new AgentGoneError(agent.agentId, "configuration belongs to a retired session");
             this.publishSession({
                 ...this.sessions.get(id),
                 configOptions: response.configOptions,
-                configRevision:
-                    configRevisionOf(response) ??
-                    this.sessions.get(id).configRevision,
+                configRevision: configRevisionOf(response) ?? this.sessions.get(id).configRevision,
             });
             this.onConfigChanged(id, configId, response);
         };
-        this.patch((state) => ({
-            configPending: { ...state.configPending, [id]: true },
+        this.patch(state => ({
+            configPending: {...state.configPending, [id]: true},
         }));
         return this.enqueueSession(id, write, false);
     }
 
     /** One ordered lane per session; `configPending` clears once the lane drains. */
-    protected enqueueSession<T>(
-        id: string,
-        operation: () => Promise<T>,
-        continueAfterFailure = true,
-    ): Promise<T> {
-        const next = this.lifecycle.admission.enqueue(
-            id,
-            operation,
-            continueAfterFailure,
-        );
+    protected enqueueSession<T>(id: string, operation: () => Promise<T>, continueAfterFailure = true): Promise<T> {
+        const next = this.lifecycle.admission.enqueue(id, operation, continueAfterFailure);
         const release = (): void => {
             if (this.lifecycle.admission.pending(id) === undefined) {
-                this.patch((state) => {
-                    const { [id]: _pending, ...configPending } =
-                        state.configPending;
-                    return { configPending };
+                this.patch(state => {
+                    const {[id]: _pending, ...configPending} = state.configPending;
+                    return {configPending};
                 });
             }
         };
@@ -1370,9 +1105,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         await this.lifecycle.operations.close(id, () =>
             this.enqueueSession(id, async () => {
                 this.requests.cancelSession(id);
-                await this.stopWithAccessRevocation(id, () =>
-                    this.live().request("session/close", { sessionId: id }),
-                );
+                await this.stopWithAccessRevocation(id, () => this.live().request("session/close", {sessionId: id}));
                 this.dropSession(id);
             }),
         );
@@ -1386,9 +1119,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         await this.lifecycle.operations.close(id, () =>
             this.enqueueSession(id, async () => {
                 this.requests.cancelSession(id);
-                await this.stopWithAccessRevocation(id, () =>
-                    this.live().request("session/close", { sessionId: id }),
-                );
+                await this.stopWithAccessRevocation(id, () => this.live().request("session/close", {sessionId: id}));
                 this.dropChildren(id);
                 this.updates.remove(id);
                 this.lifecycle.retire(id);
@@ -1422,20 +1153,12 @@ export class SessionClient<State extends ClientState = ClientState> {
 
     /** `session/delete`; an adapter subclass may treat its own "already gone" answer as success. */
     protected async deleteRemote(id: string): Promise<void> {
-        await this.live().request("session/delete", { sessionId: id });
+        await this.live().request("session/delete", {sessionId: id});
     }
 
-    async fork(
-        id: string,
-        cwd: string,
-        options: SessionRequestOptions = {},
-    ): Promise<string> {
+    async fork(id: string, cwd: string, options: SessionRequestOptions = {}): Promise<string> {
         this.assertRootSession(id);
-        const { revision, bind, ...context } = await this.requestContext(
-            cwd,
-            { kind: "fork", sourceSessionId: id },
-            options,
-        );
+        const {revision, bind, ...context} = await this.requestContext(cwd, {kind: "fork", sourceSessionId: id}, options);
         const response = await this.born(
             () =>
                 this.live().request("session/fork", {
@@ -1444,7 +1167,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                     ...context,
                 }),
             // Fork history arrives before the new session id is known: it waits in the creation buffer and is applied as replay below.
-            (response) =>
+            response =>
                 this.sessions.set({
                     ...createSession(response.sessionId, cwd),
                     attached: true,
@@ -1455,7 +1178,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         const forked = this.sessions.get(response.sessionId);
         this.publishSession({
             ...forked,
-            items: forked.items.map((item) => ({ ...item, replayed: true })),
+            items: forked.items.map(item => ({...item, replayed: true})),
             cwd,
             attached: true,
             restoring: false,
@@ -1466,9 +1189,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                 sessionId: response.sessionId,
                 cwd,
                 title: forked.title,
-                ...(response._meta === undefined
-                    ? {}
-                    : { _meta: response._meta }),
+                ...(response._meta === undefined ? {} : {_meta: response._meta}),
             }),
             updatedAt: new Date().toISOString(),
         });
@@ -1477,19 +1198,13 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     private assertRootSession(id: string): void {
-        if (
-            this.retiredChildren.has(id) ||
-            this.sessions.sessions.get(id)?.subagent
-        )
-            throw new Error(
-                `Subagent ${id} is managed by its parent; only advertised cancellation is supported`,
-            );
+        if (this.retiredChildren.has(id) || this.sessions.sessions.get(id)?.subagent)
+            throw new Error(`Subagent ${id} is managed by its parent; only advertised cancellation is supported`);
     }
 
     private cancelTreeRequests(id: string): void {
         this.requests.cancelSession(id);
-        for (const child of this.sessions.children(id))
-            this.cancelTreeRequests(child.id);
+        for (const child of this.sessions.children(id)) this.cancelTreeRequests(child.id);
     }
 
     private detachChildren(id: string): void {
@@ -1511,8 +1226,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     private dropChildren(id: string): void {
-        for (const child of this.sessions.children(id))
-            this.dropSession(child.id);
+        for (const child of this.sessions.children(id)) this.dropSession(child.id);
     }
 
     protected dropSession(id: string): void {
@@ -1522,26 +1236,22 @@ export class SessionClient<State extends ClientState = ClientState> {
         this.draftMetadata.delete(id);
         this.updates.remove(id);
         this.requests.cancelSession(id);
-        if (this.sessions.sessions.get(id)?.subagent)
-            this.retiredChildren.add(id);
+        if (this.sessions.sessions.get(id)?.subagent) this.retiredChildren.add(id);
         this.sessions.delete(id);
         this.onSessionDropped(id);
-        this.patch((state) => {
-            const { [id]: _removed, ...sessions } = state.sessions;
-            const { [id]: _draft, ...drafts } = state.drafts;
-            return { sessions, drafts };
+        this.patch(state => {
+            const {[id]: _removed, ...sessions} = state.sessions;
+            const {[id]: _draft, ...drafts} = state.drafts;
+            return {sessions, drafts};
         });
     }
 
     // ── Login ──
 
-    async login(
-        methodId: string,
-        extra: Record<string, unknown> = {},
-    ): Promise<void> {
+    async login(methodId: string, extra: Record<string, unknown> = {}): Promise<void> {
         await this.live().request("auth/login", {
             methodId,
-            ...(Object.keys(extra).length ? { _meta: extra } : {}),
+            ...(Object.keys(extra).length ? {_meta: extra} : {}),
         });
     }
 
@@ -1562,10 +1272,7 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     /** An agent request the subclass answers itself (a client tool call); `false` puts it in the ledger. */
-    protected handleAgentRequest(
-        _agent: Agent,
-        _request: AgentRequest,
-    ): boolean {
+    protected handleAgentRequest(_agent: Agent, _request: AgentRequest): boolean {
         return false;
     }
 
@@ -1577,24 +1284,17 @@ export class SessionClient<State extends ClientState = ClientState> {
     }
 
     /** `_meta` every set-up request of this engine carries for the operation. */
-    protected sessionMeta(
-        _operation: SessionOperation,
-    ): Record<string, unknown> | undefined {
+    protected sessionMeta(_operation: SessionOperation): Record<string, unknown> | undefined {
         return undefined;
     }
 
     /** `_meta` a prompt carries; the caller's `options.meta` by default. */
-    protected promptMeta(
-        _id: string,
-        options: PromptOptions,
-    ): Record<string, unknown> | undefined {
+    protected promptMeta(_id: string, options: PromptOptions): Record<string, unknown> | undefined {
         return options.meta;
     }
 
     /** When the engine recorded the turn a user message opened, in Unix milliseconds; `null` to use arrival time. */
-    protected turnStartedAt(
-        _meta: Record<string, unknown> | null | undefined,
-    ): number | null {
+    protected turnStartedAt(_meta: Record<string, unknown> | null | undefined): number | null {
         return null;
     }
 
@@ -1614,32 +1314,16 @@ export class SessionClient<State extends ClientState = ClientState> {
 
     protected beforeReplay(_id: string): void {}
     /** Runs after the resume answered and the host bound the session, before the session is published live. */
-    protected async afterResume(
-        _id: string,
-        _cwd: string,
-        _scope: ReplayScope,
-    ): Promise<void> {}
-    protected onReplayed(
-        _id: string,
-        _response: acp.ResumeSessionResponse,
-    ): void {}
+    protected async afterResume(_id: string, _cwd: string, _scope: ReplayScope): Promise<void> {}
+    protected onReplayed(_id: string, _response: acp.ResumeSessionResponse): void {}
     /** Turns a failed resume into a settled state; `true` means the session was published and the failure consumed. */
-    protected async recoverReplay(
-        _id: string,
-        _cwd: string,
-        _error: unknown,
-        _scope: ReplayScope,
-    ): Promise<boolean> {
+    protected async recoverReplay(_id: string, _cwd: string, _error: unknown, _scope: ReplayScope): Promise<boolean> {
         return false;
     }
 
     protected async afterSessionCreated(_id: string): Promise<void> {}
     protected onSessionChanged(_session: Session): void {}
-    protected onConfigChanged(
-        _id: string,
-        _configId: string,
-        _response: acp.SetSessionConfigOptionResponse,
-    ): void {}
+    protected onConfigChanged(_id: string, _configId: string, _response: acp.SetSessionConfigOptionResponse): void {}
     protected onForked(_id: string, _response: acp.ForkSessionResponse): void {}
     protected onDraftMaterialized(_id: string): void {}
     protected onCancel(_id: string): void {}

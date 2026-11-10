@@ -1,11 +1,8 @@
-import { expect, test } from "bun:test";
+import {expect, test} from "bun:test";
 
-import type {
-    PromptResponse,
-    SessionUpdate,
-} from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type {PromptResponse, SessionUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import { SubmissionLedger } from "../submissions";
+import {SubmissionLedger} from "../submissions";
 
 const idle = {
     sessionUpdate: "state_update",
@@ -22,7 +19,7 @@ function echo(tracker: SubmissionLedger, id: string) {
 function request() {
     return Promise.withResolvers<PromptResponse>();
 }
-const receipt = (id: string) => ({ messageId: id }) as PromptResponse;
+const receipt = (id: string) => ({messageId: id}) as PromptResponse;
 
 test("a receipt does not finish a turn", async () => {
     const tracker = new SubmissionLedger();
@@ -35,7 +32,7 @@ test("a receipt does not finish a turn", async () => {
             () => sent.promise,
             () => acknowledged.resolve(),
         )
-        .then((result) => {
+        .then(result => {
             finished = true;
             return result;
         });
@@ -54,7 +51,7 @@ test("echo and idle can both precede the response", async () => {
     const turn = tracker.run(
         "s",
         () => sent.promise,
-        (response) => {
+        response => {
             acknowledged = response.messageId;
         },
     );
@@ -81,7 +78,7 @@ test("queued prompts do not finish at the previous idle boundary", async () => {
             () => second.promise,
             () => {},
         )
-        .then((value) => {
+        .then(value => {
             secondDone = true;
             return value;
         });
@@ -91,7 +88,7 @@ test("queued prompts do not finish at the previous idle boundary", async () => {
     await a;
     expect(secondDone).toBe(false);
     echo(tracker, "second");
-    const cancelled = { ...idle, stopReason: "cancelled" } as const;
+    const cancelled = {...idle, stopReason: "cancelled"} as const;
     tracker.accept("s", cancelled);
     second.resolve(receipt("second"));
     expect(await b).toEqual(cancelled);
@@ -129,7 +126,7 @@ test("notice and another session's idle cannot complete a prompt", async () => {
             () => Promise.resolve(receipt("m")),
             () => acknowledged.resolve(),
         )
-        .then((value) => {
+        .then(value => {
             completed = true;
             return value;
         });
@@ -210,7 +207,7 @@ test("a queued accepted message cannot finish at the preceding turn's idle", asy
             async () => receipt("queued"),
             () => acknowledged.resolve(),
         )
-        .then((value) => {
+        .then(value => {
             finished = true;
             return value;
         });
@@ -220,7 +217,7 @@ test("a queued accepted message cannot finish at the preceding turn's idle", asy
     await Promise.resolve();
     expect(finished).toBe(false);
     echo(tracker, "queued");
-    const cancelled = { ...idle, stopReason: "cancelled" } as const;
+    const cancelled = {...idle, stopReason: "cancelled"} as const;
     tracker.accept("s", cancelled);
     expect(await turn).toEqual(cancelled);
 });
@@ -236,7 +233,7 @@ test("retiring one session leaves its sibling and replacement usable", async () 
             staleAcknowledged = true;
         },
     );
-    const failed = old.catch((error) => error);
+    const failed = old.catch(error => error);
     const other = tracker.run(
         "other",
         async () => receipt("other-message"),
@@ -274,7 +271,7 @@ test("capacity rejects before dispatch and evidence overflow retires only that s
         () => sent.promise,
         () => {},
     );
-    const failed = pending.catch((error) => error);
+    const failed = pending.catch(error => error);
     let dispatched = false;
     const overflow = tracker.run(
         "s",

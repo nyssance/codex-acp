@@ -1,6 +1,6 @@
-import { expect, test } from "vitest";
+import {expect, test} from "vitest";
 
-import { readActivityReply } from "../../client/activity-preview";
+import {readActivityReply} from "../../client/activity-preview";
 
 const page = (items: unknown[], nextCursor: string | null = null) => ({
     sessionId: "s",
@@ -15,7 +15,7 @@ const message = (text: string) => ({
         {
             sessionUpdate: "agent_message",
             messageId: "a",
-            content: [{ type: "text", text }],
+            content: [{type: "text", text}],
         },
     ],
 });
@@ -24,7 +24,7 @@ test("walks newest-first items past tools and thoughts and stops at the latest r
     const requests: Record<string, unknown>[] = [];
     const result = await readActivityReply(
         "s",
-        (request) => {
+        request => {
             requests.push(request);
             return Promise.resolve(
                 request.cursor
@@ -36,9 +36,7 @@ test("walks newest-first items past tools and thoughts and stops at the latest r
                                       {
                                           sessionUpdate: "agent_thought",
                                           messageId: "private",
-                                          content: [
-                                              { type: "text", text: "Thought" },
-                                          ],
+                                          content: [{type: "text", text: "Thought"}],
                                       },
                                   ],
                               },
@@ -72,14 +70,14 @@ test("rejects another session and cyclic pagination", async () => {
     await expect(
         readActivityReply(
             "s",
-            () => Promise.resolve({ ...page([]), sessionId: "other" }),
+            () => Promise.resolve({...page([]), sessionId: "other"}),
             () => {},
         ),
     ).rejects.toThrow("pagination");
     await expect(
         readActivityReply(
             "s",
-            () => Promise.resolve(page([{ updates: [] }], "same")),
+            () => Promise.resolve(page([{updates: []}], "same")),
             () => {},
         ),
     ).rejects.toThrow("pagination");
@@ -123,10 +121,10 @@ test("preview extracts validated text, skips invalid text and rejects non-object
         );
     await expect(
         read([
-            { type: "image", data: "ignored", mimeType: "image/png" },
-            { type: "text", text: "Reply" },
+            {type: "image", data: "ignored", mimeType: "image/png"},
+            {type: "text", text: "Reply"},
         ]),
     ).resolves.toBe("Reply");
-    await expect(read([{ type: "text", text: 42 }])).resolves.toBeNull();
+    await expect(read([{type: "text", text: 42}])).resolves.toBeNull();
     await expect(read([null])).rejects.toThrow("Invalid activity preview");
 });

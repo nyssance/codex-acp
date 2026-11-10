@@ -1,4 +1,4 @@
-import type { MessageConnection } from "vscode-jsonrpc";
+import type {MessageConnection} from "vscode-jsonrpc";
 import type {
     ExternalAgentConfigImportParams,
     ExternalAgentConfigImportResponse,
@@ -19,10 +19,7 @@ export type {
 } from "../app-server/v2";
 
 export type ImportSource = "claude-code" | "cursor";
-export type ImportConnection = Pick<
-    MessageConnection,
-    "sendRequest" | "onUnhandledNotification" | "onClose" | "onDispose"
->;
+export type ImportConnection = Pick<MessageConnection, "sendRequest" | "onUnhandledNotification" | "onClose" | "onDispose">;
 
 /** Uses an initialized app-server connection; never creates a chat or owns the process. */
 export class CodexImportClient {
@@ -34,18 +31,13 @@ export class CodexImportClient {
             migrationSource: ImportSource;
         },
     ): Promise<ExternalAgentConfigImportResponse> {
-        return this.connection.sendRequest(
-            "externalAgentConfig/import",
-            params,
-        );
+        return this.connection.sendRequest("externalAgentConfig/import", params);
     }
 
     /** Wait for the matching completion, including notifications received before acceptance. */
     run(
         params: Parameters<CodexImportClient["import"]>[0],
-        onProgress: (
-            event: ExternalAgentConfigImportProgressNotification,
-        ) => void,
+        onProgress: (event: ExternalAgentConfigImportProgressNotification) => void,
     ): Promise<ExternalAgentConfigImportCompletedNotification> {
         return new Promise((resolve, reject) => {
             let importId: string | null = null;
@@ -54,7 +46,7 @@ export class CodexImportClient {
                 completed: boolean;
                 event: ExternalAgentConfigImportProgressNotification;
             }> = [];
-            const stops: Array<{ dispose(): void }> = [];
+            const stops: Array<{dispose(): void}> = [];
             const clean = () => {
                 finished = true;
                 for (const stop of stops) stop.dispose();
@@ -66,13 +58,10 @@ export class CodexImportClient {
                     reject(error);
                 }
             };
-            const receive = (
-                completed: boolean,
-                event: ExternalAgentConfigImportProgressNotification,
-            ) => {
+            const receive = (completed: boolean, event: ExternalAgentConfigImportProgressNotification) => {
                 if (finished) return;
                 if (importId === null) {
-                    early.push({ completed, event });
+                    early.push({completed, event});
                     return;
                 }
                 if (event.importId !== importId) return;
@@ -88,51 +77,30 @@ export class CodexImportClient {
                 }
             };
             stops.push(
-                this.onProgress((event) => receive(false, event)),
-                this.onCompleted((event) => receive(true, event)),
+                this.onProgress(event => receive(false, event)),
+                this.onCompleted(event => receive(true, event)),
             );
-            const disconnected = () =>
-                fail(
-                    new Error(
-                        "Codex disconnected during import; check import history after reconnecting",
-                    ),
-                );
-            stops.push(
-                this.connection.onClose(disconnected),
-                this.connection.onDispose(disconnected),
-            );
-            void this.import(params).then((accepted) => {
+            const disconnected = () => fail(new Error("Codex disconnected during import; check import history after reconnecting"));
+            stops.push(this.connection.onClose(disconnected), this.connection.onDispose(disconnected));
+            void this.import(params).then(accepted => {
                 if (finished) return;
                 importId = accepted.importId;
-                for (const item of early.splice(0))
-                    receive(item.completed, item.event);
+                for (const item of early.splice(0)) receive(item.completed, item.event);
             }, fail);
         });
     }
 
-    onProgress(
-        listener: (
-            event: ExternalAgentConfigImportProgressNotification,
-        ) => void,
-    ) {
-        return this.connection.onUnhandledNotification((event) => {
+    onProgress(listener: (event: ExternalAgentConfigImportProgressNotification) => void) {
+        return this.connection.onUnhandledNotification(event => {
             if (event.method === "externalAgentConfig/import/progress")
-                listener(
-                    event.params as ExternalAgentConfigImportProgressNotification,
-                );
+                listener(event.params as ExternalAgentConfigImportProgressNotification);
         });
     }
 
-    onCompleted(
-        listener: (
-            event: ExternalAgentConfigImportCompletedNotification,
-        ) => void,
-    ) {
-        return this.connection.onUnhandledNotification((event) => {
+    onCompleted(listener: (event: ExternalAgentConfigImportCompletedNotification) => void) {
+        return this.connection.onUnhandledNotification(event => {
             if (event.method === "externalAgentConfig/import/completed")
-                listener(
-                    event.params as ExternalAgentConfigImportCompletedNotification,
-                );
+                listener(event.params as ExternalAgentConfigImportCompletedNotification);
         });
     }
 }

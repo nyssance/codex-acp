@@ -1,10 +1,10 @@
-import { SessionUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {SessionUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { type Item, type Session, textOf } from "./protocol";
+import {type Item, type Session, textOf} from "./protocol";
 
-import { codexMessageError } from "./codex-extensions";
-import { prependHistory, projectHistoryTurns } from "./history-page";
-import { wireObject } from "./wire";
+import {codexMessageError} from "./codex-extensions";
+import {prependHistory, projectHistoryTurns} from "./history-page";
+import {wireObject} from "./wire";
 
 export type HistoryTurnSummary = {
     turnId: string;
@@ -16,7 +16,7 @@ export type HistoryTurnSummary = {
 };
 export type HistoryTurnPreview = {
     state: "loading" | "loaded" | "unavailable";
-    messages: Array<{ id: string; label: string; response: string }>;
+    messages: Array<{id: string; label: string; response: string}>;
 };
 export type HistoryNavigationState = {
     turns: HistoryTurnSummary[];
@@ -27,28 +27,17 @@ export type HistoryNavigationState = {
     previews: Record<string, HistoryTurnPreview>;
     turnErrors: Record<string, string>;
 };
-type Request = (
-    method: string,
-    params: Record<string, unknown>,
-) => Promise<unknown>;
+type Request = (method: string, params: Record<string, unknown>) => Promise<unknown>;
 
 const object = (value: unknown) => wireObject(value, "Invalid history navigation response");
 
-function pageOf(
-    raw: unknown,
-    sessionId: string,
-    cursor: string | null,
-    seen: Set<string>,
-) {
+function pageOf(raw: unknown, sessionId: string, cursor: string | null, seen: Set<string>) {
     const page = object(raw);
     if (
         page.sessionId !== sessionId ||
         page.consistency !== "live" ||
         page.revision !== null ||
-        (page.nextCursor !== null &&
-            (typeof page.nextCursor !== "string" ||
-                !page.nextCursor ||
-                seen.has(page.nextCursor))) ||
+        (page.nextCursor !== null && (typeof page.nextCursor !== "string" || !page.nextCursor || seen.has(page.nextCursor))) ||
         page.complete !== (page.nextCursor === null) ||
         (page.nextCursor === cursor && cursor !== null)
     )
@@ -58,11 +47,7 @@ function pageOf(
 }
 
 /** Load only native turn metadata; message bodies remain in Codex until requested. */
-export async function readHistoryIndex(
-    sessionId: string,
-    request: Request,
-    check: () => void,
-): Promise<HistoryTurnSummary[]> {
+export async function readHistoryIndex(sessionId: string, request: Request, check: () => void): Promise<HistoryTurnSummary[]> {
     const turns: HistoryTurnSummary[] = [];
     const seen = new Set<string>();
     const ids = new Set<string>();
@@ -77,17 +62,14 @@ export async function readHistoryIndex(
                 itemsView: "summary",
                 limit: 100,
                 maxBytes: 1024 * 1024,
-                ...(cursor === null ? {} : { cursor }),
+                ...(cursor === null ? {} : {cursor}),
             }),
             sessionId,
             cursor,
             seen,
         );
         check();
-        if (
-            !Array.isArray(page.turns) ||
-            (page.nextCursor !== null && page.turns.length === 0)
-        )
+        if (!Array.isArray(page.turns) || (page.nextCursor !== null && page.turns.length === 0))
             throw new Error("History index made no progress");
         for (const raw of page.turns) {
             const turn = object(raw);
@@ -100,34 +82,26 @@ export async function readHistoryIndex(
             )
                 throw new Error("Invalid history turn index");
             for (const key of ["startedAt", "completedAt", "durationMs"])
-                if (
-                    turn[key] != null &&
-                    (typeof turn[key] !== "number" ||
-                        !Number.isFinite(turn[key]))
-                )
+                if (turn[key] != null && (typeof turn[key] !== "number" || !Number.isFinite(turn[key])))
                     throw new Error("Invalid history turn time");
             ids.add(turn.turnId);
             turns.push({
                 turnId: turn.turnId,
-                status:
-                    typeof turn.status === "string" ? turn.status : undefined,
+                status: typeof turn.status === "string" ? turn.status : undefined,
                 startedAt: turn.startedAt as number | null,
                 completedAt: turn.completedAt as number | null,
                 durationMs: turn.durationMs as number | null,
-                errorUpdates: turn.updates.filter(
-                    (rawUpdate: unknown): rawUpdate is acp.SessionUpdate => {
-                        const update = object(rawUpdate) as acp.SessionUpdate;
-                        if (!SessionUpdate.isAgentMessage(update)) return false;
-                        if (!Array.isArray(update.content))
-                            throw new Error("Invalid history error content");
-                        return (
-                            codexMessageError({
-                                content: update.content,
-                                _meta: update._meta ?? null,
-                            }) !== null
-                        );
-                    },
-                ),
+                errorUpdates: turn.updates.filter((rawUpdate: unknown): rawUpdate is acp.SessionUpdate => {
+                    const update = object(rawUpdate) as acp.SessionUpdate;
+                    if (!SessionUpdate.isAgentMessage(update)) return false;
+                    if (!Array.isArray(update.content)) throw new Error("Invalid history error content");
+                    return (
+                        codexMessageError({
+                            content: update.content,
+                            _meta: update._meta ?? null,
+                        }) !== null
+                    );
+                }),
             });
         }
         cursor = page.nextCursor as string | null;
@@ -158,24 +132,16 @@ export async function readHistoryTurn(
             sortDirection: "asc",
             limit: 30,
             maxBytes: 16 * 1024 * 1024,
-            ...(cursor === null ? {} : { cursor }),
+            ...(cursor === null ? {} : {cursor}),
         });
         check();
         const page = pageOf(raw, sessionId, cursor, seen);
-        if (
-            !Array.isArray(page.items) ||
-            (page.nextCursor !== null && page.items.length === 0)
-        )
+        if (!Array.isArray(page.items) || (page.nextCursor !== null && page.items.length === 0))
             throw new Error("History turn made no progress");
         title = page.title;
         for (const rawItem of page.items) {
             const item = object(rawItem);
-            if (
-                item.turnId !== turn.turnId ||
-                typeof item.itemId !== "string" ||
-                ids.has(item.itemId) ||
-                !Array.isArray(item.updates)
-            )
+            if (item.turnId !== turn.turnId || typeof item.itemId !== "string" || ids.has(item.itemId) || !Array.isArray(item.updates))
                 throw new Error("Invalid history turn item");
             ids.add(item.itemId);
             updates.push(...(item.updates as unknown[]));
@@ -196,15 +162,10 @@ export async function readHistoryTurn(
                 new Set(),
             );
             check();
-            if (!Array.isArray(tail.items))
-                throw new Error("Invalid history preview tail");
+            if (!Array.isArray(tail.items)) throw new Error("Invalid history preview tail");
             for (const rawItem of (tail.items as unknown[]).toReversed()) {
                 const item = object(rawItem);
-                if (
-                    item.turnId !== turn.turnId ||
-                    typeof item.itemId !== "string" ||
-                    !Array.isArray(item.updates)
-                )
+                if (item.turnId !== turn.turnId || typeof item.itemId !== "string" || !Array.isArray(item.updates))
                     throw new Error("Invalid history preview item");
                 if (!ids.has(item.itemId)) {
                     ids.add(item.itemId);
@@ -215,15 +176,9 @@ export async function readHistoryTurn(
         cursor = preview ? null : (page.nextCursor as string | null);
     } while (cursor !== null);
     const projectedUpdates = preview
-        ? updates.filter((update) => {
-              const value = update as Parameters<
-                  typeof SessionUpdate.isUserMessage
-              >[0];
-              return (
-                  SessionUpdate.isUserMessage(value) ||
-                  SessionUpdate.isAgentMessage(value) ||
-                  SessionUpdate.isAgentMessageChunk(value)
-              );
+        ? updates.filter(update => {
+              const value = update as Parameters<typeof SessionUpdate.isUserMessage>[0];
+              return SessionUpdate.isUserMessage(value) || SessionUpdate.isAgentMessage(value) || SessionUpdate.isAgentMessageChunk(value);
           })
         : updates;
     return projectHistoryTurns(sessionId, cwd, title, [
@@ -237,25 +192,14 @@ export async function readHistoryTurn(
 
 export function nativeTurnId(item: Item): string | null {
     const codex = item._meta?.codex;
-    return codex &&
-        typeof codex === "object" &&
-        "turnId" in codex &&
-        typeof codex.turnId === "string"
-        ? codex.turnId
-        : null;
+    return codex && typeof codex === "object" && "turnId" in codex && typeof codex.turnId === "string" ? codex.turnId : null;
 }
 
 /** Sparse hydration and contiguous pagination share one chronological in-memory projection. */
-export function mergeNavigationHistory(
-    current: Session,
-    page: Session,
-    turns: HistoryTurnSummary[],
-): Session {
+export function mergeNavigationHistory(current: Session, page: Session, turns: HistoryTurnSummary[]): Session {
     const merged = prependHistory(current, page);
     const order = new Map(turns.map((turn, index) => [turn.turnId, index]));
-    const ranks = merged.items.map((item) =>
-        order.get(nativeTurnId(item) ?? ""),
-    );
+    const ranks = merged.items.map(item => order.get(nativeTurnId(item) ?? ""));
     // Locally inserted prompts can precede their first native turn metadata update.
     let next = turns.length;
     for (let index = ranks.length - 1; index >= 0; index--) {
@@ -267,7 +211,7 @@ export function mergeNavigationHistory(
         rank: ranks[index] as number,
     }));
     ranked.sort((a, b) => a.rank - b.rank);
-    return { ...merged, items: ranked.map((entry) => entry.item) };
+    return {...merged, items: ranked.map(entry => entry.item)};
 }
 
 export function historyTurnPreview(session: Session): HistoryTurnPreview {
@@ -281,26 +225,18 @@ export function historyTurnPreview(session: Session): HistoryTurnPreview {
             });
         else if (item.kind === "assistant") {
             const meta = item._meta?.codex;
-            if (
-                meta &&
-                typeof meta === "object" &&
-                "phase" in meta &&
-                meta.phase === "commentary"
-            )
-                continue;
+            if (meta && typeof meta === "object" && "phase" in meta && meta.phase === "commentary") continue;
             const message = messages.at(-1);
             if (message) message.response = textOf(item.content).trim();
         }
     }
     const clip = (text: string) => {
         const characters = [...text];
-        return characters.length <= 240
-            ? text
-            : `${characters.slice(0, 239).join("")}…`;
+        return characters.length <= 240 ? text : `${characters.slice(0, 239).join("")}…`;
     };
     return {
         state: "loaded",
-        messages: messages.map((message) => ({
+        messages: messages.map(message => ({
             ...message,
             label: clip(message.label),
             response: clip(message.response),

@@ -1,13 +1,13 @@
-import { describe, expect, it } from "bun:test";
+import {describe, expect, it} from "bun:test";
 
-import { SessionAdmission } from "../admission";
+import {SessionAdmission} from "../admission";
 
 function gate() {
     let resolve!: () => void;
-    const promise = new Promise<void>((done) => {
+    const promise = new Promise<void>(done => {
         resolve = done;
     });
-    return { promise, resolve };
+    return {promise, resolve};
 }
 
 describe("session admission", () => {
@@ -17,9 +17,7 @@ describe("session admission", () => {
         const dispatched = await admission.enqueue("s", async () => ({
             receipt: receipt.promise,
         }));
-        expect(await admission.enqueue("s", async () => "next dispatch")).toBe(
-            "next dispatch",
-        );
+        expect(await admission.enqueue("s", async () => "next dispatch")).toBe("next dispatch");
         expect(admission.activeSessionCount).toBe(0);
         receipt.resolve();
         await dispatched.receipt;
@@ -83,7 +81,7 @@ it("publishes ownership before synchronous work can enqueue another dispatch", a
 });
 
 it("rejects admission overload without dispatching the rejected work", async () => {
-    const admission = new SessionAdmission({ maxPendingPerSession: 1 });
+    const admission = new SessionAdmission({maxPendingPerSession: 1});
     const blocked = gate();
     const first = admission.enqueue("s", () => blocked.promise);
     let ran = false;

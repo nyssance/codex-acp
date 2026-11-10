@@ -1,7 +1,7 @@
-import type { EventEmitter } from "node:events";
-import type { PassThrough, Writable } from "node:stream";
-import { afterEach, expect, it, vi } from "vitest";
-import type { CodexConnection } from "../CodexJsonRpcConnection";
+import type {EventEmitter} from "node:events";
+import type {PassThrough, Writable} from "node:stream";
+import {afterEach, expect, it, vi} from "vitest";
+import type {CodexConnection} from "../CodexJsonRpcConnection";
 
 type FakeProcess = EventEmitter & {
     stdin: Writable;
@@ -12,10 +12,10 @@ type FakeProcess = EventEmitter & {
     finish(): void;
     kill(): boolean;
 };
-const { processes } = vi.hoisted(() => ({ processes: [] as FakeProcess[] }));
+const {processes} = vi.hoisted(() => ({processes: [] as FakeProcess[]}));
 vi.mock("node:child_process", async () => {
-    const { EventEmitter } = await import("node:events");
-    const { PassThrough, Writable } = await import("node:stream");
+    const {EventEmitter} = await import("node:events");
+    const {PassThrough, Writable} = await import("node:stream");
     return {
         spawn: () => {
             const process = new EventEmitter() as FakeProcess;
@@ -44,16 +44,12 @@ vi.mock("node:child_process", async () => {
                         if (request.id === undefined) continue;
                         const result =
                             request.method === "config/read"
-                                ? { config: { model_provider: "openai" } }
+                                ? {config: {model_provider: "openai"}}
                                 : request.method === "thread/start"
-                                  ? { thread: { id: "gateway-thread" } }
+                                  ? {thread: {id: "gateway-thread"}}
                                   : {};
                         setImmediate(() => {
-                            if (!process.stdout.writableEnded)
-                                process.stdout.write(
-                                    JSON.stringify({ id: request.id, result }) +
-                                        "\n",
-                                );
+                            if (!process.stdout.writableEnded) process.stdout.write(JSON.stringify({id: request.id, result}) + "\n");
                         });
                     }
                     callback();
@@ -73,8 +69,7 @@ vi.mock("cross-spawn", async () => ({
 }));
 const connections: CodexConnection[] = [];
 afterEach(() => {
-    for (const connection of connections.splice(0))
-        connection.connection.dispose();
+    for (const connection of connections.splice(0)) connection.connection.dispose();
     for (const process of processes.splice(0)) {
         process.finish();
         process.stdin.destroy();
@@ -86,7 +81,7 @@ async function gateway(): Promise<{
     connection: CodexConnection;
     completed: string[];
 }> {
-    const { startCodexConnection } = await import("../CodexJsonRpcConnection");
+    const {startCodexConnection} = await import("../CodexJsonRpcConnection");
     const connection = startCodexConnection("/fake", {}, ["app-server"], {
         disposeOnExit: false,
     });
@@ -96,22 +91,22 @@ async function gateway(): Promise<{
         modelProvider: "gateway",
     });
     const completed: string[] = [];
-    connection.connection.onUnhandledNotification((event) => {
+    connection.connection.onUnhandledNotification(event => {
         if (event.method === "turn/completed") completed.push("completed");
     });
-    return { connection, completed };
+    return {connection, completed};
 }
 const finalFrame =
     JSON.stringify({
         method: "turn/completed",
         params: {
             threadId: "gateway-thread",
-            turn: { id: "turn-1", status: "completed" },
+            turn: {id: "turn-1", status: "completed"},
         },
     }) + "\n";
 
 it("delivers the final gateway completion before invalidating the connection generation", async () => {
-    const { connection, completed } = await gateway();
+    const {connection, completed} = await gateway();
     processes[1]!.stdout.write(finalFrame);
     processes[1]!.finish();
     await connection.drained;
@@ -119,7 +114,7 @@ it("delivers the final gateway completion before invalidating the connection gen
 });
 
 it("drains gateway output when primary exits first", async () => {
-    const { connection, completed } = await gateway();
+    const {connection, completed} = await gateway();
     processes[1]!.stdout.write(finalFrame);
     processes[0]!.finish();
     await connection.drained;

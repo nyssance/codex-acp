@@ -1,4 +1,4 @@
-import { SessionAdmission } from "./admission";
+import {SessionAdmission} from "./admission";
 
 /** Serializes preparation and fences cancelled work before the first prompt byte. */
 export class PromptAdmission {
@@ -17,29 +17,19 @@ export class PromptAdmission {
     checkpoint(): () => void {
         const generation = this.generation;
         return () => {
-            if (this.closed || generation !== this.generation)
-                throw new DOMException(
-                    "Session operation retired",
-                    "AbortError",
-                );
+            if (this.closed || generation !== this.generation) throw new DOMException("Session operation retired", "AbortError");
         };
     }
 
     async run<T>(
         prepare: (assertCurrent: () => void) => void | Promise<void>,
         send: () => Promise<T>,
-        schedule: (
-            operation: () => Promise<{ response: Promise<T> }>,
-        ) => Promise<{ response: Promise<T> }> = (operation) => operation(),
+        schedule: (operation: () => Promise<{response: Promise<T>}>) => Promise<{response: Promise<T>}> = operation => operation(),
     ): Promise<T> {
         if (this.closed) throw new Error("Session client is closed");
         const generation = this.generation;
         const assertCurrent = () => {
-            if (this.closed || generation !== this.generation)
-                throw new DOMException(
-                    "Prompt cancelled before admission",
-                    "AbortError",
-                );
+            if (this.closed || generation !== this.generation) throw new DOMException("Prompt cancelled before admission", "AbortError");
         };
         const ready = this.preparation.enqueue("preparation", () =>
             schedule(async () => {
@@ -47,11 +37,11 @@ export class PromptAdmission {
                 const prepared = prepare(assertCurrent);
                 if (prepared !== undefined) await prepared;
                 assertCurrent();
-                return { response: send() };
+                return {response: send()};
             }),
         );
         // Only preparation is serialized; follow-up prompts can arrive during generation.
-        const { response } = await ready;
+        const {response} = await ready;
         return await response;
     }
 }

@@ -1,29 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import {describe, expect, test} from "bun:test";
 
-import {
-    applyUpdate,
-    createSession,
-    type FoldPolicy,
-    INTERRUPTED,
-    markInterrupted,
-    type ToolItem,
-} from "../session";
-import { SessionStore } from "../store";
+import {applyUpdate, createSession, type FoldPolicy, INTERRUPTED, markInterrupted, type ToolItem} from "../session";
+import {SessionStore} from "../store";
 
 function tool(session: ReturnType<typeof createSession>, id: string): ToolItem {
-    const item = session.items.find(
-        (entry) => entry.kind === "tool" && entry.id === id,
-    );
+    const item = session.items.find(entry => entry.kind === "tool" && entry.id === id);
     if (item?.kind !== "tool") throw new Error(`no tool ${id}`);
     return item;
 }
 
-function startTool(
-    session: ReturnType<typeof createSession>,
-    id: string,
-    extra: Record<string, unknown> = {},
-    policy?: FoldPolicy,
-) {
+function startTool(session: ReturnType<typeof createSession>, id: string, extra: Record<string, unknown> = {}, policy?: FoldPolicy) {
     return applyUpdate(
         session,
         {
@@ -32,7 +18,7 @@ function startTool(
             status: "in_progress",
             ...extra,
         } as never,
-        { policy },
+        {policy},
     );
 }
 
@@ -52,12 +38,9 @@ function idle(session: ReturnType<typeof createSession>, policy?: FoldPolicy) {
 
 /** alwith-cli's rule: background runs are marked in `_meta.alwith.runInBackground`; Monitor can only be recognised by tool name. */
 const alwith: FoldPolicy = {
-    outlivesTurn: (entry) => {
+    outlivesTurn: entry => {
         const meta = entry._meta?.alwith;
-        const background =
-            typeof meta === "object" &&
-            meta !== null &&
-            (meta as { runInBackground?: unknown }).runInBackground === true;
+        const background = typeof meta === "object" && meta !== null && (meta as {runInBackground?: unknown}).runInBackground === true;
         return background || entry.name === "Monitor";
     },
 };
@@ -74,20 +57,15 @@ describe("turn sealing", () => {
 
     test("tools that already reached a final state are not rewritten", () => {
         let session = createSession("s", "/tmp");
-        session = startTool(session, "t1", { status: "failed" });
+        session = startTool(session, "t1", {status: "failed"});
         session = idle(session);
         expect(tool(session, "t1").status).toBe("failed");
     });
 
     test("tools that outlive the turn are not sealed at the turn boundary; sealing them would hide the real result forever", () => {
         let session = createSession("s", "/tmp");
-        session = startTool(
-            session,
-            "bg",
-            { _meta: { alwith: { runInBackground: true } } },
-            alwith,
-        );
-        session = startTool(session, "watch", { name: "Monitor" }, alwith);
+        session = startTool(session, "bg", {_meta: {alwith: {runInBackground: true}}}, alwith);
+        session = startTool(session, "watch", {name: "Monitor"}, alwith);
         session = startTool(session, "plain", {}, alwith);
 
         session = idle(session, alwith);
@@ -100,7 +78,7 @@ describe("turn sealing", () => {
     test("without a rule all tools are treated alike; the package does not guess dialects", () => {
         let session = createSession("s", "/tmp");
         session = startTool(session, "bg", {
-            _meta: { alwith: { runInBackground: true } },
+            _meta: {alwith: {runInBackground: true}},
         });
         session = idle(session);
         expect(tool(session, "bg").status).toBe("interrupted");
@@ -110,13 +88,8 @@ describe("turn sealing", () => {
 describe("reaping at load", () => {
     test("without a live process, dangling turn-outliving tools become interrupted", () => {
         let session = createSession("s", "/tmp");
-        session = startTool(
-            session,
-            "bg",
-            { _meta: { alwith: { runInBackground: true } } },
-            alwith,
-        );
-        session = startTool(session, "done", { status: "completed" }, alwith);
+        session = startTool(session, "bg", {_meta: {alwith: {runInBackground: true}}}, alwith);
+        session = startTool(session, "done", {status: "completed"}, alwith);
 
         session = markInterrupted(session, alwith);
 
@@ -145,7 +118,7 @@ describe("SessionStore carries the rule", () => {
             sessionUpdate: "tool_call_update",
             toolCallId: "bg",
             status: "in_progress",
-            _meta: { alwith: { runInBackground: true } },
+            _meta: {alwith: {runInBackground: true}},
         } as never);
         store.accept("s", {
             sessionUpdate: "state_update",
@@ -161,14 +134,8 @@ describe("SessionStore carries the rule", () => {
 });
 
 describe("tool output as delta or full", () => {
-    const output = (text: string) => [
-        { type: "content", content: { type: "text", text } },
-    ];
-    const push = (
-        session: ReturnType<typeof createSession>,
-        text: string,
-        policy?: FoldPolicy,
-    ) =>
+    const output = (text: string) => [{type: "content", content: {type: "text", text}}];
+    const push = (session: ReturnType<typeof createSession>, text: string, policy?: FoldPolicy) =>
         applyUpdate(
             session,
             {
@@ -189,18 +156,15 @@ describe("tool output as delta or full", () => {
     });
 
     test("declared deltas append; alwith-cli sends only the new part per frame, so replacing would leave only the last line", () => {
-        const appending: FoldPolicy = { toolContent: "append" };
+        const appending: FoldPolicy = {toolContent: "append"};
         let session = createSession("s", "/tmp");
         session = push(session, "第一行", appending);
         session = push(session, "第二行", appending);
-        expect(tool(session, "t1").content).toEqual([
-            ...output("第一行"),
-            ...output("第二行"),
-        ] as never);
+        expect(tool(session, "t1").content).toEqual([...output("第一行"), ...output("第二行")] as never);
     });
 
     test("in delta mode an empty array means no new output, not a clear", () => {
-        const appending: FoldPolicy = { toolContent: "append" };
+        const appending: FoldPolicy = {toolContent: "append"};
         let session = createSession("s", "/tmp");
         session = push(session, "第一行", appending);
         session = applyUpdate(
@@ -218,7 +182,7 @@ describe("tool output as delta or full", () => {
     });
 
     test("in both modes explicit null clears and an omitted field is left alone", () => {
-        for (const policy of [{}, { toolContent: "append" as const }]) {
+        for (const policy of [{}, {toolContent: "append" as const}]) {
             let session = createSession("s", "/tmp");
             session = push(session, "第一行", policy);
             session = applyUpdate(
@@ -228,11 +192,9 @@ describe("tool output as delta or full", () => {
                     toolCallId: "t1",
                     status: "completed",
                 } as never,
-                { policy },
+                {policy},
             );
-            expect(tool(session, "t1").content).toEqual(
-                output("第一行") as never,
-            );
+            expect(tool(session, "t1").content).toEqual(output("第一行") as never);
             session = applyUpdate(
                 session,
                 {
@@ -252,59 +214,31 @@ describe("tool output as delta or full", () => {
 /** alwith-cli's parentage rule. */
 const alwithWithParents: FoldPolicy = {
     ...alwith,
-    parentOf: (entry) => {
+    parentOf: entry => {
         const meta = entry._meta?.claudeCode;
-        const parent =
-            typeof meta === "object" && meta !== null
-                ? (meta as { parentToolUseId?: unknown }).parentToolUseId
-                : null;
+        const parent = typeof meta === "object" && meta !== null ? (meta as {parentToolUseId?: unknown}).parentToolUseId : null;
         return typeof parent === "string" ? parent : null;
     },
 };
 
 describe("outliving the turn is inherited along the parent chain", () => {
-    const background = { _meta: { alwith: { runInBackground: true } } };
+    const background = {_meta: {alwith: {runInBackground: true}}};
     const childOf = (parent: string) => ({
-        _meta: { claudeCode: { parentToolUseId: parent } },
+        _meta: {claudeCode: {parentToolUseId: parent}},
     });
 
     test("steps launched by a background subagent live and die with it: not sealed at the turn boundary", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "agent",
-            { name: "Agent", ...background },
-            alwithWithParents,
-        );
-        session = startTool(
-            session,
-            "step",
-            { name: "Read", ...childOf("agent") },
-            alwithWithParents,
-        );
+        let session = startTool(createSession("s", "/tmp"), "agent", {name: "Agent", ...background}, alwithWithParents);
+        session = startTool(session, "step", {name: "Read", ...childOf("agent")}, alwithWithParents);
         session = idle(session, alwithWithParents);
         expect(tool(session, "agent").status).toBe("in_progress");
         expect(tool(session, "step").status).toBe("in_progress");
     });
 
     test("reaped together with it, grandchildren included", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "agent",
-            { name: "Agent", ...background },
-            alwithWithParents,
-        );
-        session = startTool(
-            session,
-            "step",
-            { name: "Agent", ...childOf("agent") },
-            alwithWithParents,
-        );
-        session = startTool(
-            session,
-            "leaf",
-            { name: "Read", ...childOf("step") },
-            alwithWithParents,
-        );
+        let session = startTool(createSession("s", "/tmp"), "agent", {name: "Agent", ...background}, alwithWithParents);
+        session = startTool(session, "step", {name: "Agent", ...childOf("agent")}, alwithWithParents);
+        session = startTool(session, "leaf", {name: "Read", ...childOf("step")}, alwithWithParents);
         session = markInterrupted(session, alwithWithParents);
         expect(tool(session, "agent").status).toBe(INTERRUPTED);
         expect(tool(session, "step").status).toBe(INTERRUPTED);
@@ -312,49 +246,24 @@ describe("outliving the turn is inherited along the parent chain", () => {
     });
 
     test("steps of a foreground subagent are sealed at the turn boundary as usual", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "agent",
-            { name: "Agent" },
-            alwithWithParents,
-        );
-        session = startTool(
-            session,
-            "step",
-            { name: "Read", ...childOf("agent") },
-            alwithWithParents,
-        );
+        let session = startTool(createSession("s", "/tmp"), "agent", {name: "Agent"}, alwithWithParents);
+        session = startTool(session, "step", {name: "Read", ...childOf("agent")}, alwithWithParents);
         session = idle(session, alwithWithParents);
         expect(tool(session, "step").status).toBe("interrupted");
     });
 
     test("a parentage cycle does not loop forever", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "a",
-            { name: "X", ...childOf("b") },
-            alwithWithParents,
-        );
-        session = startTool(
-            session,
-            "b",
-            { name: "Y", ...childOf("a") },
-            alwithWithParents,
-        );
+        let session = startTool(createSession("s", "/tmp"), "a", {name: "X", ...childOf("b")}, alwithWithParents);
+        session = startTool(session, "b", {name: "Y", ...childOf("a")}, alwithWithParents);
         expect(() => idle(session, alwithWithParents)).not.toThrow();
     });
 });
 
 describe("a turn-outliving tool takes its status only from frames that also declare outliving the turn", () => {
-    const flagged = { _meta: { alwith: { runInBackground: true } } };
+    const flagged = {_meta: {alwith: {runInBackground: true}}};
 
     test('the unmarked completed within the turn only means "sent to the background" and is not final', () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "bg",
-            { name: "Bash", ...flagged },
-            alwith,
-        );
+        let session = startTool(createSession("s", "/tmp"), "bg", {name: "Bash", ...flagged}, alwith);
         session = applyUpdate(
             session,
             {
@@ -362,19 +271,14 @@ describe("a turn-outliving tool takes its status only from frames that also decl
                 toolCallId: "bg",
                 status: "completed",
             } as never,
-            { policy: alwith },
+            {policy: alwith},
         );
         expect(tool(session, "bg").status).toBe("in_progress");
         expect(tool(session, "bg").endedAt).toBeNull();
     });
 
     test("the marked frame after the turn is the real final state, failed included", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "bg",
-            { name: "Bash", ...flagged },
-            alwith,
-        );
+        let session = startTool(createSession("s", "/tmp"), "bg", {name: "Bash", ...flagged}, alwith);
         session = idle(session, alwith);
         session = applyUpdate(
             session,
@@ -384,19 +288,14 @@ describe("a turn-outliving tool takes its status only from frames that also decl
                 status: "failed",
                 ...flagged,
             } as never,
-            { policy: alwith },
+            {policy: alwith},
         );
         expect(tool(session, "bg").status).toBe("failed");
         expect(tool(session, "bg").endedAt).not.toBeNull();
     });
 
     test("Monitor is recognised by name; every frame of it counts as declared, so its status updates as usual", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "m",
-            { name: "Monitor" },
-            alwith,
-        );
+        let session = startTool(createSession("s", "/tmp"), "m", {name: "Monitor"}, alwith);
         session = applyUpdate(
             session,
             {
@@ -412,12 +311,7 @@ describe("a turn-outliving tool takes its status only from frames that also decl
     });
 
     test("other fields (output, title) are unaffected by this rule and are taken as usual", () => {
-        let session = startTool(
-            createSession("s", "/tmp"),
-            "bg",
-            { name: "Bash", ...flagged },
-            alwith,
-        );
+        let session = startTool(createSession("s", "/tmp"), "bg", {name: "Bash", ...flagged}, alwith);
         session = applyUpdate(
             session,
             {
@@ -428,11 +322,11 @@ describe("a turn-outliving tool takes its status only from frames that also decl
                 content: [
                     {
                         type: "content",
-                        content: { type: "text", text: "pid 42" },
+                        content: {type: "text", text: "pid 42"},
                     },
                 ],
             } as never,
-            { policy: alwith },
+            {policy: alwith},
         );
         expect(tool(session, "bg").status).toBe("in_progress");
         expect(tool(session, "bg").title).toBe("launched");
@@ -474,7 +368,7 @@ describe("end time", () => {
     test("at turn end the time is recorded against the user message that started the turn and is readable in turns()", () => {
         const store = new SessionStore();
         store.set(createSession("s", "/tmp"));
-        const localId = store.addPrompt("s", [{ type: "text", text: "go" }]);
+        const localId = store.addPrompt("s", [{type: "text", text: "go"}]);
         store.acknowledgePrompt("s", localId, "user");
         store.accept("s", {
             sessionUpdate: "user_message",
@@ -484,7 +378,7 @@ describe("end time", () => {
         store.accept("s", {
             sessionUpdate: "agent_message_chunk",
             messageId: "a",
-            content: { type: "text", text: "ok" },
+            content: {type: "text", text: "ok"},
         } as never);
         expect(store.turns("s")[0]?.endedAt).toBeNull();
         store.accept("s", {
@@ -501,7 +395,7 @@ describe("end time", () => {
     test("a replay from the start clears the previous run's turn times together with usage", () => {
         const store = new SessionStore();
         store.set(createSession("s", "/tmp"));
-        const localId = store.addPrompt("s", [{ type: "text", text: "go" }]);
+        const localId = store.addPrompt("s", [{type: "text", text: "go"}]);
         store.acknowledgePrompt("s", localId, "user");
         store.accept("s", {
             sessionUpdate: "user_message",
@@ -523,7 +417,7 @@ describe("times strictly increase", () => {
     test("events in the same millisecond are still ordered: items before the end < end time < items after", () => {
         const store = new SessionStore();
         store.set(createSession("s", "/tmp"));
-        const localId = store.addPrompt("s", [{ type: "text", text: "go" }]);
+        const localId = store.addPrompt("s", [{type: "text", text: "go"}]);
         store.acknowledgePrompt("s", localId, "user");
         store.accept("s", {
             sessionUpdate: "user_message",
@@ -533,7 +427,7 @@ describe("times strictly increase", () => {
         store.accept("s", {
             sessionUpdate: "agent_message_chunk",
             messageId: "a",
-            content: { type: "text", text: "1" },
+            content: {type: "text", text: "1"},
         } as never);
         store.accept("s", {
             sessionUpdate: "state_update",
@@ -543,7 +437,7 @@ describe("times strictly increase", () => {
         store.accept("s", {
             sessionUpdate: "agent_message_chunk",
             messageId: "b",
-            content: { type: "text", text: "2" },
+            content: {type: "text", text: "2"},
         } as never);
         const [turn] = store.turns("s");
         const [before, after] = turn.entries;
@@ -559,12 +453,8 @@ describe("times strictly increase", () => {
             status: "completed",
         } as never);
         session = startTool(session, "b");
-        expect(tool(session, "a").endedAt!).toBeGreaterThan(
-            tool(session, "a").at,
-        );
-        expect(tool(session, "b").at).toBeGreaterThan(
-            tool(session, "a").endedAt!,
-        );
+        expect(tool(session, "a").endedAt!).toBeGreaterThan(tool(session, "a").at);
+        expect(tool(session, "b").at).toBeGreaterThan(tool(session, "a").endedAt!);
     });
 });
 
@@ -572,7 +462,7 @@ describe("the end time is recorded only once", () => {
     test("when the agent's own idle follows a user Stop, the turn still ends at the moment the user stopped", () => {
         const store = new SessionStore();
         store.set(createSession("s", "/tmp"));
-        const localId = store.addPrompt("s", [{ type: "text", text: "go" }]);
+        const localId = store.addPrompt("s", [{type: "text", text: "go"}]);
         store.acknowledgePrompt("s", localId, "user");
         store.accept("s", {
             sessionUpdate: "user_message",

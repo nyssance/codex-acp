@@ -1,12 +1,12 @@
-import type { JsonValue } from "../../app-server/serde_json/JsonValue";
-import type { GetAccountResponse } from "../../app-server/v2";
-import { ModelAliases, type ModelAlias } from "./modelAliases";
-import { ResponsesProxy } from "./responsesProxy";
+import type {JsonValue} from "../../app-server/serde_json/JsonValue";
+import type {GetAccountResponse} from "../../app-server/v2";
+import {ModelAliases, type ModelAlias} from "./modelAliases";
+import {ResponsesProxy} from "./responsesProxy";
 
 type Config = Record<string, JsonValue | undefined>;
 type Context = {
     cwd: string;
-    readConfig(): Promise<{ config: Record<string, unknown> }>;
+    readConfig(): Promise<{config: Record<string, unknown>}>;
     readAccount(): Promise<GetAccountResponse>;
 };
 
@@ -15,10 +15,7 @@ export class ResponsesRoutes {
     private readonly modelAliases = new ModelAliases();
     private readonly proxy = new ResponsesProxy();
     private readonly externalProxy = new ResponsesProxy("external");
-    private readonly contexts = new Map<
-        string,
-        { context: Context; resolve: () => Promise<string> }
-    >();
+    private readonly contexts = new Map<string, {context: Context; resolve: () => Promise<string>}>();
 
     async config(
         config: Config,
@@ -32,73 +29,37 @@ export class ResponsesRoutes {
             const base = effective.config["model_catalog_json"];
             config = {
                 ...config,
-                model_catalog_json: this.modelAliases.catalog(
-                    typeof base === "string" ? base : undefined,
-                    aliases,
-                ),
+                model_catalog_json: this.modelAliases.catalog(typeof base === "string" ? base : undefined, aliases),
             };
         }
         if (provider !== "openai") {
             const providers = config["model_providers"];
-            if (
-                !providers ||
-                typeof providers !== "object" ||
-                Array.isArray(providers)
-            )
-                return config;
+            if (!providers || typeof providers !== "object" || Array.isArray(providers)) return config;
             const selected = providers[provider];
-            if (
-                !selected ||
-                typeof selected !== "object" ||
-                Array.isArray(selected) ||
-                typeof selected["base_url"] !== "string"
-            )
+            if (!selected || typeof selected !== "object" || Array.isArray(selected) || typeof selected["base_url"] !== "string")
                 return config;
             if (transportProvider === "openai") {
                 const headers: Record<string, string> = {};
                 const configuredHeaders = selected["http_headers"];
-                if (
-                    configuredHeaders &&
-                    typeof configuredHeaders === "object" &&
-                    !Array.isArray(configuredHeaders)
-                )
-                    for (const [name, value] of Object.entries(
-                        configuredHeaders,
-                    ))
-                        if (typeof value === "string")
-                            headers[name.toLowerCase()] = value;
+                if (configuredHeaders && typeof configuredHeaders === "object" && !Array.isArray(configuredHeaders))
+                    for (const [name, value] of Object.entries(configuredHeaders))
+                        if (typeof value === "string") headers[name.toLowerCase()] = value;
                 const environmentHeaders = selected["env_http_headers"];
-                if (
-                    environmentHeaders &&
-                    typeof environmentHeaders === "object" &&
-                    !Array.isArray(environmentHeaders)
-                )
-                    for (const [name, variable] of Object.entries(
-                        environmentHeaders,
-                    )) {
-                        const value =
-                            typeof variable === "string"
-                                ? process.env[variable]
-                                : undefined;
-                        if (value !== undefined && value.trim().length > 0)
-                            headers[name.toLowerCase()] = value;
+                if (environmentHeaders && typeof environmentHeaders === "object" && !Array.isArray(environmentHeaders))
+                    for (const [name, variable] of Object.entries(environmentHeaders)) {
+                        const value = typeof variable === "string" ? process.env[variable] : undefined;
+                        if (value !== undefined && value.trim().length > 0) headers[name.toLowerCase()] = value;
                     }
                 const keyVariable = selected["env_key"];
                 let token = selected["experimental_bearer_token"];
                 if (typeof keyVariable === "string") {
                     token = process.env[keyVariable];
                     if (typeof token !== "string" || token.trim().length === 0)
-                        throw new Error(
-                            `Missing environment variable: ${keyVariable}`,
-                        );
+                        throw new Error(`Missing environment variable: ${keyVariable}`);
                 }
-                if (typeof token === "string")
-                    headers["authorization"] = `Bearer ${token}`;
-                const local = await this.externalProxy.route(
-                    selected["base_url"],
-                    headers,
-                );
-                const remaining = { ...providers };
+                if (typeof token === "string") headers["authorization"] = `Bearer ${token}`;
+                const local = await this.externalProxy.route(selected["base_url"], headers);
+                const remaining = {...providers};
                 delete remaining[provider];
                 return {
                     ...config,
@@ -107,7 +68,7 @@ export class ResponsesRoutes {
                 };
             }
             const local = await this.externalProxy.route(selected["base_url"]);
-            const remapped = { ...providers };
+            const remapped = {...providers};
             if (transportProvider !== provider) delete remapped[provider];
             return {
                 ...config,
@@ -116,9 +77,7 @@ export class ResponsesRoutes {
                     [transportProvider]: {
                         ...selected,
                         base_url: local,
-                        ...(transportProvider !== provider
-                            ? { requires_openai_auth: false }
-                            : {}),
+                        ...(transportProvider !== provider ? {requires_openai_auth: false} : {}),
                     },
                 },
             };
@@ -134,16 +93,10 @@ export class ResponsesRoutes {
                 context,
                 resolve: async (): Promise<string> => {
                     const effective = await created.context.readConfig();
-                    const configured =
-                        configuredBase ??
-                        effective.config["openai_base_url"] ??
-                        process.env["OPENAI_BASE_URL"];
-                    if (typeof configured === "string" && configured.length > 0)
-                        return configured;
+                    const configured = configuredBase ?? effective.config["openai_base_url"] ?? process.env["OPENAI_BASE_URL"];
+                    if (typeof configured === "string" && configured.length > 0) return configured;
                     const account = await created.context.readAccount();
-                    return account.account?.type === "chatgpt"
-                        ? "https://chatgpt.com/backend-api/codex"
-                        : "https://api.openai.com/v1";
+                    return account.account?.type === "chatgpt" ? "https://chatgpt.com/backend-api/codex" : "https://api.openai.com/v1";
                 },
             };
             this.contexts.set(key, created);
@@ -164,7 +117,7 @@ export class ResponsesRoutes {
                     },
                 },
             };
-        return { ...config, openai_base_url: local };
+        return {...config, openai_base_url: local};
     }
 
     close(): void {

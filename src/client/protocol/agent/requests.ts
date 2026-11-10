@@ -7,14 +7,10 @@
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 /** A request sent by the agent, same shape as the Runtime's `pendingAgentRequests`. */
-export type AgentRequest = { id: unknown; method: string; params: unknown };
+export type AgentRequest = {id: unknown; method: string; params: unknown};
 
 /** Sends the reply back to the agent: the `acpRespond` call, with the original `id`. */
-export type Reply = (
-    id: unknown,
-    result?: unknown,
-    error?: { code: number; message: string },
-) => void;
+export type Reply = (id: unknown, result?: unknown, error?: {code: number; message: string}) => void;
 
 export type PendingPermission = {
     kind: "permission";
@@ -66,7 +62,7 @@ export class AgentRequests {
     }
 
     forSession(sessionId: string): PendingRequest[] {
-        return this.list().filter((request) => request.sessionId === sessionId);
+        return this.list().filter(request => request.sessionId === sessionId);
     }
 
     get(key: string): PendingRequest | undefined {
@@ -75,22 +71,14 @@ export class AgentRequests {
 
     permissionFor(toolCallId: string): PendingPermission | undefined {
         for (const request of this.items.values()) {
-            if (
-                request.kind === "permission" &&
-                request.toolCallId === toolCallId
-            )
-                return request;
+            if (request.kind === "permission" && request.toolCallId === toolCallId) return request;
         }
         return undefined;
     }
 
     elicitation(elicitationId: string): PendingElicitation | undefined {
         for (const request of this.items.values()) {
-            if (
-                request.kind === "elicitation" &&
-                request.elicitationId === elicitationId
-            )
-                return request;
+            if (request.kind === "elicitation" && request.elicitationId === elicitationId) return request;
         }
         return undefined;
     }
@@ -122,17 +110,9 @@ export class AgentRequests {
         if (request.method === "session/request_permission") {
             const params = request.params as acp.RequestPermissionRequest;
             // sessionId is required by the protocol: without it we cannot cancel per session in bulk, so blow up instead of recording an ownerless one
-            if (typeof params?.sessionId !== "string")
-                throw new Error(
-                    `session/request_permission is missing sessionId: ${key}`,
-                );
-            const subject = params.subject as
-                | { type?: string; toolCall?: { toolCallId?: unknown } }
-                | undefined;
-            const toolCallId =
-                typeof subject?.toolCall?.toolCallId === "string"
-                    ? subject.toolCall.toolCallId
-                    : null;
+            if (typeof params?.sessionId !== "string") throw new Error(`session/request_permission is missing sessionId: ${key}`);
+            const subject = params.subject as {type?: string; toolCall?: {toolCallId?: unknown}} | undefined;
+            const toolCallId = typeof subject?.toolCall?.toolCallId === "string" ? subject.toolCall.toolCallId : null;
             const pending: PendingPermission = {
                 kind: "permission",
                 key,
@@ -156,14 +136,8 @@ export class AgentRequests {
                 kind: "elicitation",
                 key,
                 id: request.id,
-                sessionId:
-                    typeof params?.sessionId === "string"
-                        ? params.sessionId
-                        : null,
-                elicitationId:
-                    typeof params?.elicitationId === "string"
-                        ? params.elicitationId
-                        : null,
+                sessionId: typeof params?.sessionId === "string" ? params.sessionId : null,
+                elicitationId: typeof params?.elicitationId === "string" ? params.elicitationId : null,
                 params,
                 at: Date.now(),
             };
@@ -192,17 +166,10 @@ export class AgentRequests {
         return true;
     }
 
-    answerPermission(
-        toolCallId: string,
-        outcome: acp.RequestPermissionOutcome,
-        meta?: Record<string, unknown> | null,
-    ): boolean {
+    answerPermission(toolCallId: string, outcome: acp.RequestPermissionOutcome, meta?: Record<string, unknown> | null): boolean {
         const request = this.permissionFor(toolCallId);
         if (request === undefined) return false;
-        return this.answer(
-            request.key,
-            meta ? { outcome, _meta: meta } : { outcome },
-        );
+        return this.answer(request.key, meta ? {outcome, _meta: meta} : {outcome});
     }
 
     /**
@@ -215,10 +182,8 @@ export class AgentRequests {
      */
     onNotification(method: string, params: unknown): void {
         if (method === "$/cancel_request") {
-            const requestId = (params as { requestId?: unknown } | undefined)
-                ?.requestId;
-            if (requestId === undefined)
-                throw new Error("$/cancel_request is missing requestId");
+            const requestId = (params as {requestId?: unknown} | undefined)?.requestId;
+            if (requestId === undefined) throw new Error("$/cancel_request is missing requestId");
             const key = requestKey(requestId);
             const request = this.items.get(key);
             if (request === undefined) return;
@@ -232,13 +197,10 @@ export class AgentRequests {
             return;
         }
         if (method === "elicitation/complete") {
-            const elicitationId = (
-                params as { elicitationId?: unknown } | undefined
-            )?.elicitationId;
+            const elicitationId = (params as {elicitationId?: unknown} | undefined)?.elicitationId;
             if (typeof elicitationId !== "string") return;
             const request = this.elicitation(elicitationId);
-            if (request !== undefined)
-                this.answer(request.key, { action: "cancel" });
+            if (request !== undefined) this.answer(request.key, {action: "cancel"});
         }
     }
 
@@ -250,12 +212,7 @@ export class AgentRequests {
     cancelSession(sessionId: string): void {
         for (const request of this.forSession(sessionId)) {
             this.items.delete(request.key);
-            this.reply(
-                request.id,
-                request.kind === "permission"
-                    ? { outcome: { outcome: "cancelled" } }
-                    : { action: "cancel" },
-            );
+            this.reply(request.id, request.kind === "permission" ? {outcome: {outcome: "cancelled"}} : {action: "cancel"});
         }
         this.emit();
     }

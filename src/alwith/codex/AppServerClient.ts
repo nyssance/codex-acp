@@ -1,6 +1,6 @@
-import type { CodexAppServerClient } from "../../CodexAppServerClient";
-import type { GetAuthStatusParams } from "../../app-server/GetAuthStatusParams";
-import type { GetAuthStatusResponse } from "../../app-server/GetAuthStatusResponse";
+import type {CodexAppServerClient} from "../../CodexAppServerClient";
+import type {GetAuthStatusParams} from "../../app-server/GetAuthStatusParams";
+import type {GetAuthStatusResponse} from "../../app-server/GetAuthStatusResponse";
 import type {
     GetAccountParams,
     GetAccountResponse,
@@ -23,9 +23,7 @@ export class AppServerClient {
         if (!signal) {
             const controller = new AbortController();
             signal = controller.signal;
-            client.connectionLoss.onLost(() =>
-                controller.abort(new Error("Codex app-server disconnected")),
-            );
+            client.connectionLoss.onLost(() => controller.abort(new Error("Codex app-server disconnected")));
             this.signals.set(client, signal);
         }
         return signal;
@@ -37,14 +35,10 @@ export class AppServerClient {
     threadRead(params: ThreadReadParams): Promise<ThreadReadResponse> {
         return this.current().threadRead(params);
     }
-    threadTurnsList(
-        params: ThreadTurnsListParams,
-    ): Promise<ThreadTurnsListResponse> {
+    threadTurnsList(params: ThreadTurnsListParams): Promise<ThreadTurnsListResponse> {
         return this.current().threadTurnsList(params);
     }
-    threadItemsList(
-        params: ThreadItemsListParams,
-    ): Promise<ThreadItemsListResponse> {
+    threadItemsList(params: ThreadItemsListParams): Promise<ThreadItemsListResponse> {
         return this.current().threadItemsList(params);
     }
     accountRead(params: GetAccountParams): Promise<GetAccountResponse> {

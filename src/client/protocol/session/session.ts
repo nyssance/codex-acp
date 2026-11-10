@@ -2,10 +2,10 @@
 // Pure functions: no transport, no process, no knowledge of any UI framework. Each update returns a new Session object,
 // so the render layer can use reference equality to decide whether to redraw.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import { IdleStateUpdate } from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import {IdleStateUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import { isText } from "./blocks";
-import { configRevisionOf } from "./config";
+import {isText} from "./blocks";
+import {configRevisionOf} from "./config";
 
 export type SessionState = "unknown" | "idle" | "running" | "requires_action";
 
@@ -54,7 +54,7 @@ export type ToolItem = ItemBase & {
  */
 export const INTERRUPTED = "interrupted";
 
-export type PlanItem = ItemBase & { kind: "plan"; plan: acp.PlanUpdateContent };
+export type PlanItem = ItemBase & {kind: "plan"; plan: acp.PlanUpdateContent};
 export type CompactionItem = ItemBase & {
     kind: "compaction";
     status: acp.CompactionUpdate["status"];
@@ -142,11 +142,7 @@ export type SubagentSession = {
 };
 
 /** Whether a session belongs to this conversation, at any nesting depth. */
-export function inSessionTree(
-    sessions: Record<string, Session>,
-    rootId: string,
-    id: string | null,
-): boolean {
+export function inSessionTree(sessions: Record<string, Session>, rootId: string, id: string | null): boolean {
     while (id !== null) {
         if (id === rootId) return true;
         id = sessions[id]?.subagent?.parentId ?? null;
@@ -204,11 +200,7 @@ export type Session = {
     configRevision: number | null;
 };
 
-export function createSession(
-    id: string,
-    cwd: string,
-    title: string | null = null,
-): Session {
+export function createSession(id: string, cwd: string, title: string | null = null): Session {
     return {
         id,
         cwd,
@@ -237,30 +229,24 @@ export function createSession(
 
 /** The record seq a frame carries (`_meta.alwith.seq`), or null. */
 export function recordSeqOf(update: acp.SessionUpdate): number | null {
-    const alwith = (update as { _meta?: { alwith?: { seq?: unknown } } | null })
-        ._meta?.alwith;
+    const alwith = (update as {_meta?: {alwith?: {seq?: unknown}} | null})._meta?.alwith;
     return typeof alwith?.seq === "number" ? alwith.seq : null;
 }
 
 function meta(value: unknown): Record<string, unknown> | null {
-    return value !== null && typeof value === "object" && !Array.isArray(value)
-        ? (value as Record<string, unknown>)
-        : null;
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 /**
  * ACP v2's `_meta` patch (see `ItemBase._meta`): `undefined` leaves `previous` unchanged, `null` clears it, an object
  * patches by top-level key (`null` removes the key, any other value replaces it whole). An empty result is `null`.
  */
-export function patchMeta(
-    previous: Record<string, unknown> | null,
-    incoming: unknown,
-): Record<string, unknown> | null {
+export function patchMeta(previous: Record<string, unknown> | null, incoming: unknown): Record<string, unknown> | null {
     if (incoming === undefined) return previous;
     if (incoming === null) return null;
     const patch = meta(incoming);
     if (patch === null) return previous;
-    const patched: Record<string, unknown> = { ...previous };
+    const patched: Record<string, unknown> = {...previous};
     for (const [key, value] of Object.entries(patch)) {
         if (value === null) delete patched[key];
         else patched[key] = value;
@@ -269,10 +255,7 @@ export function patchMeta(
 }
 
 /** Chunk metadata is chunk-scoped: it can add to the entity's metadata but a chunk's `null` never clears it. */
-function patchChunkMeta(
-    previous: Record<string, unknown> | null,
-    incoming: unknown,
-): Record<string, unknown> | null {
+function patchChunkMeta(previous: Record<string, unknown> | null, incoming: unknown): Record<string, unknown> | null {
     return incoming === null ? previous : patchMeta(previous, incoming);
 }
 
@@ -286,14 +269,9 @@ function bumpClock(session: Session): Session {
     let clock = session.clock;
     for (const item of session.items) {
         if (item.at > clock) clock = item.at;
-        if (
-            item.kind === "tool" &&
-            item.endedAt !== null &&
-            item.endedAt > clock
-        )
-            clock = item.endedAt;
+        if (item.kind === "tool" && item.endedAt !== null && item.endedAt > clock) clock = item.endedAt;
     }
-    return clock === session.clock ? session : { ...session, clock };
+    return clock === session.clock ? session : {...session, clock};
 }
 
 function replaceItem(items: Item[], index: number, item: Item): Item[] {
@@ -309,9 +287,7 @@ function upsertItem<T extends Item>(
     create: (base: ItemBase) => T,
     patch: (item: T) => T,
 ): Session {
-    const index = session.items.findIndex(
-        (item) => item.kind === kind && item.id === id,
-    );
+    const index = session.items.findIndex(item => item.kind === kind && item.id === id);
     if (index === -1) {
         const at = nextStamp(session);
         const base: ItemBase = {
@@ -328,11 +304,7 @@ function upsertItem<T extends Item>(
     }
     return {
         ...session,
-        items: replaceItem(
-            session.items,
-            index,
-            patch(session.items[index] as T),
-        ),
+        items: replaceItem(session.items, index, patch(session.items[index] as T)),
     };
 }
 
@@ -341,17 +313,10 @@ function upsertItem<T extends Item>(
  * (alwith-cli emits one frame per persisted content block, one block per resource link), each on its own; merging them would glue two
  * `Resource link: …` lines into one and mangle the paths.
  */
-function appendBlock(
-    content: acp.ContentBlock[],
-    block: acp.ContentBlock,
-    streamed: boolean,
-): acp.ContentBlock[] {
+function appendBlock(content: acp.ContentBlock[], block: acp.ContentBlock, streamed: boolean): acp.ContentBlock[] {
     const last = content.at(-1);
     if (streamed && isText(block) && last !== undefined && isText(last)) {
-        return [
-            ...content.slice(0, -1),
-            { ...last, text: last.text + block.text },
-        ];
+        return [...content.slice(0, -1), {...last, text: last.text + block.text}];
     }
     return [...content, block];
 }
@@ -391,11 +356,7 @@ function isTerminal(status: string | null): boolean {
  * Does this tool outlive the current turn: yes if it declares so itself, or if a parent (walking up `parentOf`) does:
  * steps dispatched by a background subagent live and die with it.
  */
-function outlivesTurn(
-    tool: ToolItem,
-    session: Session,
-    policy: FoldPolicy | undefined,
-): boolean {
+function outlivesTurn(tool: ToolItem, session: Session, policy: FoldPolicy | undefined): boolean {
     const seen = new Set<string>();
     let current: ToolItem | undefined = tool;
     while (current !== undefined && !seen.has(current.id)) {
@@ -405,25 +366,20 @@ function outlivesTurn(
         current =
             parentId === null
                 ? undefined
-                : (session.items.find(
-                      (item) => item.kind === "tool" && item.id === parentId,
-                  ) as ToolItem | undefined);
+                : (session.items.find(item => item.kind === "tool" && item.id === parentId) as ToolItem | undefined);
     }
     return false;
 }
 
-function mapTools(
-    session: Session,
-    map: (tool: ToolItem) => ToolItem,
-): Session {
+function mapTools(session: Session, map: (tool: ToolItem) => ToolItem): Session {
     let changed = false;
-    const items = session.items.map((item) => {
+    const items = session.items.map(item => {
         if (item.kind !== "tool") return item;
         const next = map(item);
         if (next !== item) changed = true;
         return next;
     });
-    return changed ? { ...session, items } : session;
+    return changed ? {...session, items} : session;
 }
 
 /**
@@ -439,12 +395,10 @@ function mapTools(
  */
 function sealTurn(session: Session, policy: FoldPolicy | undefined): Session {
     const now = nextStamp(session);
-    const sealed = mapTools(session, (tool) =>
-        isRunning(tool) && !outlivesTurn(tool, session, policy)
-            ? { ...tool, status: INTERRUPTED, endedAt: now }
-            : tool,
+    const sealed = mapTools(session, tool =>
+        isRunning(tool) && !outlivesTurn(tool, session, policy) ? {...tool, status: INTERRUPTED, endedAt: now} : tool,
     );
-    return sealed === session ? session : { ...sealed, clock: now };
+    return sealed === session ? session : {...sealed, clock: now};
 }
 
 /**
@@ -455,28 +409,19 @@ function sealTurn(session: Session, policy: FoldPolicy | undefined): Session {
  *
  * Sessions attached to a live process must not be touched: they may still receive the real terminal frame.
  */
-export function markInterrupted(
-    session: Session,
-    policy: FoldPolicy = {},
-): Session {
+export function markInterrupted(session: Session, policy: FoldPolicy = {}): Session {
     const now = nextStamp(session);
-    const marked = mapTools(session, (tool) =>
-        isRunning(tool) && outlivesTurn(tool, session, policy)
-            ? { ...tool, status: INTERRUPTED, endedAt: now }
-            : tool,
+    const marked = mapTools(session, tool =>
+        isRunning(tool) && outlivesTurn(tool, session, policy) ? {...tool, status: INTERRUPTED, endedAt: now} : tool,
     );
-    return marked === session ? session : { ...marked, clock: now };
+    return marked === session ? session : {...marked, clock: now};
 }
 
 /**
  * The message the user just sent, shown on screen first. In the protocol user messages are reported by the agent, but waiting for that report would make the user think it was not sent;
  * we first record a local `echo: "pending"`, precisely claimed by the prompt receipt (see `MessageItem.echo`).
  */
-export function addPrompt(
-    session: Session,
-    content: acp.ContentBlock[],
-    id: string = crypto.randomUUID(),
-): Session {
+export function addPrompt(session: Session, content: acp.ContentBlock[], id: string = crypto.randomUUID()): Session {
     const at = nextStamp(session);
     const item: MessageItem = {
         id,
@@ -487,50 +432,31 @@ export function addPrompt(
         content,
         echo: "pending",
     };
-    return { ...session, clock: at, items: [...session.items, item] };
+    return {...session, clock: at, items: [...session.items, item]};
 }
 
 /** Match a local optimistic message using its own prompt response, never arrival order. */
-export function acknowledgePrompt(
-    session: Session,
-    localId: string,
-    messageId: string,
-): Session {
-    const local = session.items.find(
-        (item) => item.kind === "user" && item.id === localId,
-    );
+export function acknowledgePrompt(session: Session, localId: string, messageId: string): Session {
+    const local = session.items.find(item => item.kind === "user" && item.id === localId);
     if (local?.kind !== "user" || local.echo !== "pending") {
         throw new Error(`Unknown pending prompt ${localId}`);
     }
-    const remote = session.items.find(
-        (item) =>
-            item.kind === "user" && item.id === messageId && item !== local,
-    );
-    if (
-        remote !== undefined &&
-        (remote.kind !== "user" || remote.echo !== null)
-    ) {
-        throw new Error(
-            `Message ${messageId} already belongs to another prompt`,
-        );
+    const remote = session.items.find(item => item.kind === "user" && item.id === messageId && item !== local);
+    if (remote !== undefined && (remote.kind !== "user" || remote.echo !== null)) {
+        throw new Error(`Message ${messageId} already belongs to another prompt`);
     }
     const adopted: MessageItem = {
         ...local,
         id: messageId,
         echo: remote === undefined ? "acknowledged" : "adopted",
-        _meta: patchMeta(
-            local._meta,
-            remote === undefined ? undefined : remote._meta,
-        ),
+        _meta: patchMeta(local._meta, remote === undefined ? undefined : remote._meta),
     };
     const items =
         remote === undefined
-            ? session.items.map((item) => (item === local ? adopted : item))
-            : session.items
-                  .filter((item) => item !== local)
-                  .map((item) => (item === remote ? adopted : item));
-    const turnUsage = { ...session.turnUsage };
-    const turnEndedAt = { ...session.turnEndedAt };
+            ? session.items.map(item => (item === local ? adopted : item))
+            : session.items.filter(item => item !== local).map(item => (item === remote ? adopted : item));
+    const turnUsage = {...session.turnUsage};
+    const turnEndedAt = {...session.turnEndedAt};
     if (localId !== messageId) {
         if (localId in turnUsage) {
             turnUsage[messageId] = turnUsage[localId]!;
@@ -541,7 +467,7 @@ export function acknowledgePrompt(
             delete turnEndedAt[localId];
         }
     }
-    return { ...session, items, turnUsage, turnEndedAt };
+    return {...session, items, turnUsage, turnEndedAt};
 }
 
 /**
@@ -549,66 +475,44 @@ export function acknowledgePrompt(
  * Do not look up `terminals[tool.id]`: that only works because codex-acp-v2 happens to set terminalId to the toolCallId; on another engine
  * the output would silently vanish.
  */
-export function terminalOf(
-    tool: ToolItem,
-    terminals: Session["terminals"],
-): Terminal | null {
+export function terminalOf(tool: ToolItem, terminals: Session["terminals"]): Terminal | null {
     for (const entry of tool.content) {
         if (entry.type !== "terminal") continue;
-        const terminal =
-            terminals[(entry as { terminalId: string }).terminalId];
+        const terminal = terminals[(entry as {terminalId: string}).terminalId];
         if (terminal) return terminal;
     }
     return null;
 }
 
 /** Consumes one `session/update` frame. Terminal output has already been decoded by `SessionStore`. */
-export function applyUpdate(
-    session: Session,
-    update: acp.SessionUpdate,
-    options: ApplyOptions = {},
-): Session {
+export function applyUpdate(session: Session, update: acp.SessionUpdate, options: ApplyOptions = {}): Session {
     const folded = fold(session, update, options);
     const seq = recordSeqOf(update);
-    const advanced =
-        seq !== null && seq > folded.appliedThrough
-            ? { ...folded, appliedThrough: seq }
-            : folded;
+    const advanced = seq !== null && seq > folded.appliedThrough ? {...folded, appliedThrough: seq} : folded;
     const terminated = instanceTerminationOf(update);
-    return terminated === null
-        ? advanced
-        : markTerminated(advanced, terminated);
+    return terminated === null ? advanced : markTerminated(advanced, terminated);
 }
 
 /** A writer instance of the record ended (`session_info_update` with `_meta.alwith.instanceTerminated`). */
-export type InstanceTermination = { instanceId: string; finalSeq: number };
+export type InstanceTermination = {instanceId: string; finalSeq: number};
 
-function instanceTerminationOf(
-    update: acp.SessionUpdate,
-): InstanceTermination | null {
+function instanceTerminationOf(update: acp.SessionUpdate): InstanceTermination | null {
     if (update.sessionUpdate !== "session_info_update") return null;
     const alwith = (
         update as {
-            _meta?: { alwith?: { instanceTerminated?: unknown } } | null;
+            _meta?: {alwith?: {instanceTerminated?: unknown}} | null;
         }
     )._meta?.alwith;
-    const terminated = alwith?.instanceTerminated as
-        Partial<InstanceTermination> | undefined;
+    const terminated = alwith?.instanceTerminated as Partial<InstanceTermination> | undefined;
     if (terminated === undefined) return null;
-    if (
-        typeof terminated.instanceId !== "string" ||
-        typeof terminated.finalSeq !== "number"
-    )
-        throw new Error(
-            `malformed instanceTerminated: ${JSON.stringify(terminated)}`,
-        );
-    return { instanceId: terminated.instanceId, finalSeq: terminated.finalSeq };
+    if (typeof terminated.instanceId !== "string" || typeof terminated.finalSeq !== "number")
+        throw new Error(`malformed instanceTerminated: ${JSON.stringify(terminated)}`);
+    return {instanceId: terminated.instanceId, finalSeq: terminated.finalSeq};
 }
 
 /** The record seq an item was persisted at (`_meta.alwith.seq`), or null when its line never carried one. */
 function itemSeq(item: Item): number | null {
-    const seq = (item._meta as { alwith?: { seq?: unknown } } | null)?.alwith
-        ?.seq;
+    const seq = (item._meta as {alwith?: {seq?: unknown}} | null)?.alwith?.seq;
     return typeof seq === "number" ? seq : null;
 }
 
@@ -618,27 +522,15 @@ function itemSeq(item: Item): number | null {
  * `finalSeq` is untouched. This is the only judgment that may call a turn interrupted without the agent saying so, and it
  * rests on the record, not on a timer or on the client's view of the connection.
  */
-export function markTerminated(
-    session: Session,
-    termination: InstanceTermination,
-): Session {
+export function markTerminated(session: Session, termination: InstanceTermination): Session {
     const now = nextStamp(session);
     const before = (item: Item): boolean => {
         const seq = itemSeq(item);
         return seq === null ? item.replayed : seq <= termination.finalSeq;
     };
-    const reaped = mapTools(session, (tool) =>
-        isRunning(tool) && before(tool)
-            ? { ...tool, status: INTERRUPTED, endedAt: now }
-            : tool,
-    );
-    const lastUser = [...reaped.items]
-        .toReversed()
-        .find((item) => item.kind === "user");
-    const openTurn =
-        lastUser !== undefined &&
-        !(lastUser.id in reaped.turnEndedAt) &&
-        before(lastUser);
+    const reaped = mapTools(session, tool => (isRunning(tool) && before(tool) ? {...tool, status: INTERRUPTED, endedAt: now} : tool));
+    const lastUser = [...reaped.items].toReversed().find(item => item.kind === "user");
+    const openTurn = lastUser !== undefined && !(lastUser.id in reaped.turnEndedAt) && before(lastUser);
     const changed = reaped !== session || openTurn;
     if (!changed) return session;
     return {
@@ -648,57 +540,38 @@ export function markTerminated(
             ? {
                   state: "idle" as const,
                   lastStopReason: INTERRUPTED,
-                  turnEndedAt: { ...reaped.turnEndedAt, [lastUser.id]: now },
+                  turnEndedAt: {...reaped.turnEndedAt, [lastUser.id]: now},
                   error: {
                       stopReason: INTERRUPTED,
                       error: null,
-                      meta: { alwith: { instanceTerminated: termination } },
+                      meta: {alwith: {instanceTerminated: termination}},
                   },
               }
             : {}),
     };
 }
 
-function fold(
-    session: Session,
-    update: acp.SessionUpdate,
-    options: ApplyOptions,
-): Session {
+function fold(session: Session, update: acp.SessionUpdate, options: ApplyOptions): Session {
     const decodedTerminalText = options.text;
     const messageKind = MESSAGE_KINDS[update.sessionUpdate];
     if (messageKind) {
-        const frame = update as acp.UserMessage &
-            acp.ContentChunk & { sessionUpdate: string };
+        const frame = update as acp.UserMessage & acp.ContentChunk & {sessionUpdate: string};
         const isChunk = update.sessionUpdate.endsWith("_chunk");
         // ACP v2 requires every message frame to carry its messageId.
         if (typeof frame.messageId !== "string" || frame.messageId.length === 0)
-            throw new Error(
-                `${update.sessionUpdate} without a messageId in session ${session.id}`,
-            );
+            throw new Error(`${update.sessionUpdate} without a messageId in session ${session.id}`);
         const messageId = frame.messageId;
         if (messageKind === "user") {
-            const acknowledged = session.items.find(
-                (item) =>
-                    item.kind === "user" &&
-                    item.id === messageId &&
-                    item.echo === "acknowledged",
-            );
+            const acknowledged = session.items.find(item => item.kind === "user" && item.id === messageId && item.echo === "acknowledged");
             if (acknowledged?.kind === "user") {
                 return {
                     ...session,
                     items: [
-                        ...session.items.filter(
-                            (item) => item !== acknowledged,
-                        ),
+                        ...session.items.filter(item => item !== acknowledged),
                         {
                             ...acknowledged,
                             echo: "adopted",
-                            _meta: isChunk
-                                ? patchChunkMeta(
-                                      acknowledged._meta,
-                                      frame._meta,
-                                  )
-                                : patchMeta(acknowledged._meta, frame._meta),
+                            _meta: isChunk ? patchChunkMeta(acknowledged._meta, frame._meta) : patchMeta(acknowledged._meta, frame._meta),
                         },
                     ],
                 };
@@ -708,31 +581,23 @@ function fold(
             session,
             messageKind,
             messageId,
-            (base) => ({ ...base, kind: messageKind, content: [], echo: null }),
-            (item) =>
+            base => ({...base, kind: messageKind, content: [], echo: null}),
+            item =>
                 item.echo === "adopted"
                     ? {
                           ...item,
-                          _meta: isChunk
-                              ? patchChunkMeta(item._meta, frame._meta)
-                              : patchMeta(item._meta, frame._meta),
+                          _meta: isChunk ? patchChunkMeta(item._meta, frame._meta) : patchMeta(item._meta, frame._meta),
                       }
                     : {
                           ...item,
                           content: isChunk
-                              ? appendBlock(
-                                    item.content,
-                                    frame.content,
-                                    messageKind !== "user",
-                                )
+                              ? appendBlock(item.content, frame.content, messageKind !== "user")
                               : frame.content === undefined
                                 ? item.content
                                 : frame.content === null
                                   ? []
                                   : [...frame.content],
-                          _meta: isChunk
-                              ? patchChunkMeta(item._meta, frame._meta)
-                              : patchMeta(item._meta, frame._meta),
+                          _meta: isChunk ? patchChunkMeta(item._meta, frame._meta) : patchMeta(item._meta, frame._meta),
                       },
         );
     }
@@ -741,8 +606,7 @@ function fold(
             const frame = update as acp.StateUpdate & {
                 sessionUpdate: "state_update";
             };
-            if (frame.state === "unknown")
-                return { ...session, state: "unknown" };
+            if (frame.state === "unknown") return {...session, state: "unknown"};
             if (frame.state === "running")
                 return {
                     ...session,
@@ -750,20 +614,14 @@ function fold(
                     error: null,
                     lastStopReason: null,
                 };
-            if (frame.state === "requires_action")
-                return { ...session, state: "requires_action" };
+            if (frame.state === "requires_action") return {...session, state: "requires_action"};
             if (frame.state === "idle") {
                 const idle = frame as acp.IdleStateUpdate;
                 const stopReason = idle.stopReason ?? null;
                 const failed =
-                    stopReason === "error" ||
-                    stopReason === "refusal" ||
-                    stopReason === "max_tokens" ||
-                    stopReason === "max_turn_requests";
+                    stopReason === "error" || stopReason === "refusal" || stopReason === "max_tokens" || stopReason === "max_turn_requests";
                 const usage = idle.usage ?? null;
-                const turnUser = session.items.findLast(
-                    (item) => item.kind === "user" && item.echo !== "pending",
-                );
+                const turnUser = session.items.findLast(item => item.kind === "user" && item.echo !== "pending");
                 const sealed = sealTurn(session, options.policy);
                 const endedAt = nextStamp(sealed);
                 return {
@@ -771,14 +629,10 @@ function fold(
                     clock: endedAt,
                     state: "idle",
                     lastTurnUsage: usage,
-                    turnUsage:
-                        usage === null || turnUser === undefined
-                            ? session.turnUsage
-                            : { ...session.turnUsage, [turnUser.id]: usage },
+                    turnUsage: usage === null || turnUser === undefined ? session.turnUsage : {...session.turnUsage, [turnUser.id]: usage},
                     // Record the close time only the first time: if the agent's own idle arrives after the user's Stop, the turn ended at the moment the user stopped
                     turnEndedAt:
-                        turnUser === undefined ||
-                        turnUser.id in session.turnEndedAt
+                        turnUser === undefined || turnUser.id in session.turnEndedAt
                             ? session.turnEndedAt
                             : {
                                   ...session.turnEndedAt,
@@ -788,9 +642,7 @@ function fold(
                     error: failed
                         ? {
                               stopReason,
-                              error: IdleStateUpdate.isError(idle)
-                                  ? (idle.error ?? null)
-                                  : null,
+                              error: IdleStateUpdate.isError(idle) ? (idle.error ?? null) : null,
                               meta: meta(idle._meta),
                           }
                         : null,
@@ -804,7 +656,7 @@ function fold(
                 session,
                 "tool",
                 frame.toolCallId,
-                (base) => ({
+                base => ({
                     ...base,
                     kind: "tool",
                     name: null,
@@ -817,40 +669,20 @@ function fold(
                     rawOutput: undefined,
                     endedAt: null,
                 }),
-                (item) => {
+                item => {
                     // Omitted fields keep their value; an explicit null clears.
                     const patched: ToolItem = {
                         ...item,
                         name: frame.name === undefined ? item.name : frame.name,
-                        title:
-                            frame.title === undefined
-                                ? item.title
-                                : frame.title,
-                        toolKind:
-                            frame.kind === undefined
-                                ? item.toolKind
-                                : frame.kind,
-                        content: mergeToolContent(
-                            item.content,
-                            frame.content,
-                            options.policy,
-                        ),
-                        locations:
-                            frame.locations === undefined
-                                ? item.locations
-                                : (frame.locations ?? []),
-                        rawInput:
-                            frame.rawInput === undefined
-                                ? item.rawInput
-                                : frame.rawInput,
-                        rawOutput:
-                            frame.rawOutput === undefined
-                                ? item.rawOutput
-                                : frame.rawOutput,
+                        title: frame.title === undefined ? item.title : frame.title,
+                        toolKind: frame.kind === undefined ? item.toolKind : frame.kind,
+                        content: mergeToolContent(item.content, frame.content, options.policy),
+                        locations: frame.locations === undefined ? item.locations : (frame.locations ?? []),
+                        rawInput: frame.rawInput === undefined ? item.rawInput : frame.rawInput,
+                        rawOutput: frame.rawOutput === undefined ? item.rawOutput : frame.rawOutput,
                         _meta: patchMeta(item._meta, frame._meta),
                     };
-                    if (frame.status === undefined || frame.status === null)
-                        return patched;
+                    if (frame.status === undefined || frame.status === null) return patched;
                     // A tool that declared itself outliving the turn takes its status only from a frame that also declared it (see FoldPolicy.outlivesTurn).
                     // Only its own declaration counts: steps dispatched by a background subagent are sealed and reaped along with it, and their own status frames are accepted as usual.
                     if (
@@ -861,16 +693,12 @@ function fold(
                         })
                     )
                         return patched;
-                    const endedAt = isTerminal(frame.status)
-                        ? (patched.endedAt ?? nextStamp(session))
-                        : null;
-                    return { ...patched, status: frame.status, endedAt };
+                    const endedAt = isTerminal(frame.status) ? (patched.endedAt ?? nextStamp(session)) : null;
+                    return {...patched, status: frame.status, endedAt};
                 },
             );
             // The moment a tool enters a terminal state must also enter the clock, so later items cannot share its instant
-            return updated.items === session.items
-                ? updated
-                : bumpClock(updated);
+            return updated.items === session.items ? updated : bumpClock(updated);
         }
         case "tool_call_content_chunk": {
             const frame = update as acp.ToolCallContentChunk;
@@ -878,7 +706,7 @@ function fold(
                 session,
                 "tool",
                 frame.toolCallId,
-                (base) => ({
+                base => ({
                     ...base,
                     kind: "tool",
                     name: null,
@@ -891,7 +719,7 @@ function fold(
                     rawOutput: undefined,
                     endedAt: null,
                 }),
-                (item) => ({
+                item => ({
                     ...item,
                     content: [...item.content, frame.content],
                 }),
@@ -913,16 +741,10 @@ function fold(
                     ...session.terminals,
                     [frame.terminalId]: {
                         ...current,
-                        command:
-                            frame.command === undefined
-                                ? current.command
-                                : frame.command,
+                        command: frame.command === undefined ? current.command : frame.command,
                         cwd: frame.cwd === undefined ? current.cwd : frame.cwd,
                         output: decodedTerminalText ?? current.output,
-                        exitStatus:
-                            frame.exitStatus === undefined
-                                ? current.exitStatus
-                                : frame.exitStatus,
+                        exitStatus: frame.exitStatus === undefined ? current.exitStatus : frame.exitStatus,
                         _meta: patchMeta(current._meta, frame._meta),
                     },
                 },
@@ -956,8 +778,8 @@ function fold(
                 session,
                 "plan",
                 frame.plan.planId,
-                (base) => ({ ...base, kind: "plan", plan: frame.plan }),
-                (item) => ({
+                base => ({...base, kind: "plan", plan: frame.plan}),
+                item => ({
                     ...item,
                     plan: frame.plan,
                     _meta: patchMeta(item._meta, frame._meta),
@@ -968,10 +790,7 @@ function fold(
             const frame = update as acp.PlanRemoved;
             return {
                 ...session,
-                items: session.items.filter(
-                    (item) =>
-                        !(item.kind === "plan" && item.id === frame.planId),
-                ),
+                items: session.items.filter(item => !(item.kind === "plan" && item.id === frame.planId)),
             };
         }
         case "compaction_update": {
@@ -980,22 +799,17 @@ function fold(
                 session,
                 "compaction",
                 frame.compactionId,
-                (base) => ({
+                base => ({
                     ...base,
                     kind: "compaction",
                     status: frame.status,
                     summary: [],
                     error: null,
                 }),
-                (item) => ({
+                item => ({
                     ...item,
                     status: frame.status,
-                    summary:
-                        frame.summary === undefined
-                            ? item.summary
-                            : frame.summary === null
-                              ? []
-                              : [...frame.summary],
+                    summary: frame.summary === undefined ? item.summary : frame.summary === null ? [] : [...frame.summary],
                     error: frame.error === undefined ? item.error : frame.error,
                     _meta: patchMeta(item._meta, frame._meta),
                 }),
@@ -1007,14 +821,14 @@ function fold(
                 session,
                 "compaction",
                 frame.compactionId,
-                (base) => ({
+                base => ({
                     ...base,
                     kind: "compaction",
                     status: "in_progress",
                     summary: [],
                     error: null,
                 }),
-                (item) => ({
+                item => ({
                     ...item,
                     summary: [...item.summary, frame.content],
                     _meta: patchChunkMeta(item._meta, frame._meta),
@@ -1022,7 +836,7 @@ function fold(
             );
         }
         case "config_option_update": {
-            const revision = configRevisionOf(update as { _meta?: unknown });
+            const revision = configRevisionOf(update as {_meta?: unknown});
             return {
                 ...session,
                 configOptions: (update as acp.ConfigOptionUpdate).configOptions,
@@ -1034,10 +848,7 @@ function fold(
             return {
                 ...session,
                 title: frame.title === undefined ? session.title : frame.title,
-                updatedAt:
-                    frame.updatedAt === undefined
-                        ? session.updatedAt
-                        : frame.updatedAt,
+                updatedAt: frame.updatedAt === undefined ? session.updatedAt : frame.updatedAt,
                 _meta: patchMeta(session._meta, frame._meta),
             };
         }
@@ -1048,18 +859,14 @@ function fold(
                 ...session,
                 usage: {
                     ...usage,
-                    ...(usage.cost === undefined &&
-                    session.usage?.cost !== undefined
-                        ? { cost: session.usage.cost }
-                        : {}),
+                    ...(usage.cost === undefined && session.usage?.cost !== undefined ? {cost: session.usage.cost} : {}),
                 },
             };
         }
         case "available_commands_update":
             return {
                 ...session,
-                commands: (update as acp.AvailableCommandsUpdate)
-                    .availableCommands,
+                commands: (update as acp.AvailableCommandsUpdate).availableCommands,
             };
         default:
             return session;
@@ -1080,9 +887,6 @@ export function markDisconnected(session: Session): Session {
         restoring: false,
         readOnly: false,
         state: "unknown",
-        error:
-            session.state === "running"
-                ? { stopReason: DISCONNECTED, error: null, meta: null }
-                : session.error,
+        error: session.state === "running" ? {stopReason: DISCONNECTED, error: null, meta: null} : session.error,
     };
 }

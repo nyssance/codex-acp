@@ -2,17 +2,24 @@ import type {CodexErrorInfo} from "./app-server/v2";
 import {isWorkspaceRoutingUnavailableMessage} from "./CodexThreadErrors";
 
 /** What kind of thing failed, as the AIR session failure contract names it. */
-export type SessionFailureCategory =
-    | "connection" | "access" | "limit" | "request" | "service" | "unknown";
+export type SessionFailureCategory = "connection" | "access" | "limit" | "request" | "service" | "unknown";
 
 /** What the user can do about a failure. */
 export type SessionFailureAction = "retry" | "login" | "new_session";
 
 /** The adapter's classification of a failed turn, shared by AIR session failures and ACP v2 turn errors. */
 export type CodexFailureKind =
-    | "transport_lost" | "auth_required" | "rate_limited" | "quota_exhausted" | "overloaded"
-    | "context_exhausted" | "budget_exhausted" | "policy_denied" | "bad_request"
-    | "provider_error" | "internal_error";
+    | "transport_lost"
+    | "auth_required"
+    | "rate_limited"
+    | "quota_exhausted"
+    | "overloaded"
+    | "context_exhausted"
+    | "budget_exhausted"
+    | "policy_denied"
+    | "bad_request"
+    | "provider_error"
+    | "internal_error";
 
 export type SessionFailurePolicy = {
     category: SessionFailureCategory;
@@ -53,7 +60,8 @@ export const SESSION_FAILURE_POLICY: Record<CodexFailureKind, SessionFailurePoli
         actions: [],
     },
     bad_request: {
-        category: "request", actions: [],
+        category: "request",
+        actions: [],
     },
     provider_error: {
         category: "service",
@@ -110,15 +118,19 @@ export function isAuthenticationRequired(error: CodexErrorInfo | null): boolean 
     return error === "unauthorized" || httpStatusCode(error) === 401;
 }
 
-export function codexFailureKind(
-    {message, codexErrorInfo: error}: {message: string; codexErrorInfo: CodexErrorInfo | null},
-): CodexFailureKind {
+export function codexFailureKind({
+    message,
+    codexErrorInfo: error,
+}: {
+    message: string;
+    codexErrorInfo: CodexErrorInfo | null;
+}): CodexFailureKind {
     if (isAuthenticationRequired(error)) return "auth_required";
     if (isWorkspaceRoutingUnavailableMessage(message)) return "transport_lost";
     if (httpStatusCode(error) === 429) return "rate_limited";
     if (typeof error === "string") {
         return Object.hasOwn(STRING_CODEX_ERROR_CATEGORIES, error)
-            ? STRING_CODEX_ERROR_CATEGORIES[error] ?? "provider_error"
+            ? (STRING_CODEX_ERROR_CATEGORIES[error] ?? "provider_error")
             : "provider_error";
     }
     if (error !== null) {

@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import {afterEach, expect, it, vi} from "vitest";
 import {
     connectSession,
     codexResponse,
@@ -17,16 +17,12 @@ afterEach(() => {
 it("starts the native thread in the requested mode", async () => {
     const start = vi.fn(async () => codexResponse("thread/start"));
     const client = await connectSession(2, {
-        newSessionMeta: { codex: { mode: "read-only" } },
-        codexResponses: { "thread/start": start },
+        newSessionMeta: {codex: {mode: "read-only"}},
+        codexResponses: {"thread/start": start},
     });
     clients.push(client);
-    expect(start).toHaveBeenCalledWith(
-        expect.objectContaining({ sandbox: "read-only" }),
-    );
-    expect(client.agent.getSessionState(sessionId).agentMode.id).toBe(
-        "read-only",
-    );
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({sandbox: "read-only"}));
+    expect(client.agent.getSessionState(sessionId).agentMode.id).toBe("read-only");
 });
 it("retries only the latest eligible failed turn without duplicating user input", async () => {
     const client = await connectSession();
@@ -57,7 +53,7 @@ it("retries only the latest eligible failed turn without duplicating user input"
         }),
     ).rejects.toThrow("latest turn");
     expect(client.turnStartParams).toHaveLength(0);
-    client.setTurnStart(async () => ({ turn: createTurn("inProgress") }));
+    client.setTurnStart(async () => ({turn: createTurn("inProgress")}));
     const retry = client.request("_codex/session_retry", {
         sessionId,
         turnId: "failed-turn",

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {
     connectSession,
     sessionId,
@@ -10,9 +10,9 @@ import {
     turnCompleted,
     type PromptSession,
 } from "./v2-prompt-harness";
-type ConfigSnapshot = { configRevision: number; configOptions: Array<{ configId: string; currentValue: unknown }> };
+type ConfigSnapshot = {configRevision: number; configOptions: Array<{configId: string; currentValue: unknown}>};
 function configSnapshot(client: PromptSession): ConfigSnapshot {
-    const agent = client.agent as unknown as { configSnapshot(session: unknown): ConfigSnapshot };
+    const agent = client.agent as unknown as {configSnapshot(session: unknown): ConfigSnapshot};
     return agent.configSnapshot(client.agent.getSessionState(sessionId));
 }
 const clients: PromptSession[] = [];
@@ -39,20 +39,16 @@ describe("ALwith configuration revisions", () => {
         expect(changed._meta.alwith.configRevision).toBe(1);
         const snapshot = configSnapshot(client);
         expect(snapshot.configRevision).toBe(1);
-        expect(
-            snapshot.configOptions.find(
-                (option: { configId: string }) => option.configId === "mode",
-            )!.currentValue,
-        ).toBe("read-only");
+        expect(snapshot.configOptions.find((option: {configId: string}) => option.configId === "mode")!.currentValue).toBe("read-only");
         await expect(
             client.request("session/prompt", {
                 sessionId,
-                prompt: [{ type: "text", text: "go" }],
-                _meta: { alwith: { expectedConfigRevision: 0 } },
+                prompt: [{type: "text", text: "go"}],
+                _meta: {alwith: {expectedConfigRevision: 0}},
             }),
         ).rejects.toMatchObject({
             message: expect.stringContaining("config/stale"),
-            data: { alwith: { configStale: { expected: 0, actual: 1 } } },
+            data: {alwith: {configStale: {expected: 0, actual: 1}}},
         });
         expect(client.turnStartParams).toHaveLength(0);
         const unchanged = await client.request("session/set_config_option", {
@@ -68,8 +64,8 @@ describe("ALwith configuration revisions", () => {
         await expect(
             client.request("session/prompt", {
                 sessionId,
-                prompt: [{ type: "text", text: "bad" }],
-                _meta: { alwith: { expectedConfigRevision: 12 } },
+                prompt: [{type: "text", text: "bad"}],
+                _meta: {alwith: {expectedConfigRevision: 12}},
             }),
         ).rejects.toThrow("config/stale");
         client.setTurnStart(async () => ({
@@ -77,7 +73,7 @@ describe("ALwith configuration revisions", () => {
         }));
         const response = client.request("session/prompt", {
             sessionId,
-            prompt: [{ type: "text", text: "good" }],
+            prompt: [{type: "text", text: "good"}],
             _meta: {
                 alwith: {
                     expectedConfigRevision: 0,
@@ -86,9 +82,7 @@ describe("ALwith configuration revisions", () => {
             },
         });
         await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
-        expect(client.turnStartParams[0]!["clientUserMessageId"]).toBe(
-            "host-message",
-        );
+        expect(client.turnStartParams[0]!["clientUserMessageId"]).toBe("host-message");
         client.emit(turnStarted());
         client.emit(itemCompleted(userMessageItem("host-message")));
         await response;

@@ -1,6 +1,6 @@
-import { expect, test } from "vitest";
+import {expect, test} from "vitest";
 
-import { codexTurnError } from "../../client/codex-extensions";
+import {codexTurnError} from "../../client/codex-extensions";
 
 test("standard errors preserve the message and the adapter's failure classification", () => {
     expect(
@@ -17,7 +17,7 @@ test("standard errors preserve the message and the adapter's failure classificat
                     },
                 },
             },
-            meta: { codex: { error: { message: "Old message" } } },
+            meta: {codex: {error: {message: "Old message"}}},
         }),
     ).toEqual({
         message: "Provider unavailable",
@@ -32,7 +32,7 @@ test("standard errors work without vendor metadata", () => {
     expect(
         codexTurnError({
             stopReason: "error",
-            error: { code: -32603, message: "Disconnected" },
+            error: {code: -32603, message: "Disconnected"},
             meta: null,
         }),
     ).toEqual({
@@ -49,7 +49,7 @@ test("legacy errors and stop reasons without details remain visible", () => {
         codexTurnError({
             stopReason: "_error",
             error: null,
-            meta: { codex: { error: { message: "Legacy failure" } } },
+            meta: {codex: {error: {message: "Legacy failure"}}},
         }).message,
     ).toBe("Legacy failure");
     expect(

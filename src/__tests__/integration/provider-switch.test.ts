@@ -13,7 +13,9 @@ describeIntegration("integration: switching provider after a failed turn", () =>
             mock.setErrorResponse({status: 402, body: {error: {message: "Insufficient Balance", type: "insufficient_balance_error"}}});
             await expect(sendPrompt(agent, sessionId, "before provider change")).rejects.toThrow();
             await agent.connection.request("providers/set", {
-                providerId: "openai", apiType: "openai", baseUrl: mock.baseUrl,
+                providerId: "openai",
+                apiType: "openai",
+                baseUrl: mock.baseUrl,
                 _meta: {codex: {id: "one", mode: "catalog", name: "One"}, alwith: {models: [{id: "gpt-5.5", label: "Model A"}]}},
             });
             await agent.connection.request("session/set_config_option", {sessionId, configId: "model", value: "gateway:one:gpt-5.5"});

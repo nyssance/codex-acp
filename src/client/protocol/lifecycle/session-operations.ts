@@ -1,6 +1,6 @@
-import { Effect, Exit } from "effect";
+import {Effect, Exit} from "effect";
 
-import { attempt, failure } from "./internal";
+import {attempt, failure} from "./internal";
 
 type Kind = "open" | "close" | "delete";
 interface Operation {
@@ -22,9 +22,7 @@ export class LifecycleCapacityError extends Error {
         readonly sessionId: string,
         readonly capacity: number,
     ) {
-        super(
-            `Session ${sessionId} already has ${capacity} queued lifecycle operations`,
-        );
+        super(`Session ${sessionId} already has ${capacity} queued lifecycle operations`);
         this.name = "LifecycleCapacityError";
     }
 }
@@ -39,12 +37,10 @@ export class SessionOperations {
     private readonly lanes = new Map<string, Lane>();
     private readonly capacity: number;
 
-    constructor(options: { maxPendingPerSession?: number } = {}) {
+    constructor(options: {maxPendingPerSession?: number} = {}) {
         this.capacity = options.maxPendingPerSession ?? 256;
         if (!Number.isSafeInteger(this.capacity) || this.capacity < 1)
-            throw new RangeError(
-                "maxPendingPerSession must be a positive safe integer",
-            );
+            throw new RangeError("maxPendingPerSession must be a positive safe integer");
     }
 
     /** Includes retiring operations until their actual response and cleanup settle. */
@@ -52,19 +48,10 @@ export class SessionOperations {
         return this.lanes.size;
     }
 
-    open<T>(
-        sessionId: string,
-        fingerprint: string,
-        work: (signal: AbortSignal) => Promise<T>,
-    ): Promise<T> {
+    open<T>(sessionId: string, fingerprint: string, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
         const lane = this.lanes.get(sessionId);
         const last = lane?.queued.at(-1) ?? lane?.running;
-        if (
-            last?.kind === "open" &&
-            last.fingerprint === fingerprint &&
-            !last.controller.signal.aborted
-        )
-            return last.promise as Promise<T>;
+        if (last?.kind === "open" && last.fingerprint === fingerprint && !last.controller.signal.aborted) return last.promise as Promise<T>;
         return this.enqueue(sessionId, "open", fingerprint, work);
     }
 
@@ -83,32 +70,18 @@ export class SessionOperations {
         return this.lanes.get(sessionId)?.queued.length ?? 0;
     }
 
-    private revoke<T>(
-        sessionId: string,
-        kind: "close" | "delete",
-        work: () => Promise<T>,
-    ): Promise<T> {
+    private revoke<T>(sessionId: string, kind: "close" | "delete", work: () => Promise<T>): Promise<T> {
         const lane = this.lanes.get(sessionId);
         if (lane) {
-            const retained = lane.queued.filter(
-                (operation) => operation.kind !== "open",
-            );
+            const retained = lane.queued.filter(operation => operation.kind !== "open");
             // Refuse before changing anything when the destructive backlog itself is full.
-            if (retained.length >= this.capacity)
-                return Promise.reject(
-                    new LifecycleCapacityError(sessionId, this.capacity),
-                );
-            const revoked = lane.queued.filter(
-                (operation) => operation.kind === "open",
-            );
+            if (retained.length >= this.capacity) return Promise.reject(new LifecycleCapacityError(sessionId, this.capacity));
+            const revoked = lane.queued.filter(operation => operation.kind === "open");
             const running = lane.running?.kind === "open" ? lane.running : null;
             lane.queued = retained;
             // Reserve the boundary before abort listeners can synchronously request a reopen.
             const result = this.enqueue(sessionId, kind, null, work);
-            const reason = new DOMException(
-                `Session ${kind} revoked the open`,
-                "AbortError",
-            );
+            const reason = new DOMException(`Session ${kind} revoked the open`, "AbortError");
             running?.controller.abort(reason);
             for (const operation of revoked) {
                 operation.controller.abort(reason);
@@ -119,19 +92,11 @@ export class SessionOperations {
         return this.enqueue(sessionId, kind, null, work);
     }
 
-    private enqueue<T>(
-        sessionId: string,
-        kind: Kind,
-        fingerprint: string | null,
-        work: (signal: AbortSignal) => Promise<T>,
-    ): Promise<T> {
+    private enqueue<T>(sessionId: string, kind: Kind, fingerprint: string | null, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
         let lane = this.lanes.get(sessionId);
-        if (lane && lane.queued.length >= this.capacity)
-            return Promise.reject(
-                new LifecycleCapacityError(sessionId, this.capacity),
-            );
+        if (lane && lane.queued.length >= this.capacity) return Promise.reject(new LifecycleCapacityError(sessionId, this.capacity));
         if (!lane) {
-            lane = { running: null, queued: [] };
+            lane = {running: null, queued: []};
             this.lanes.set(sessionId, lane);
         }
         let resolve!: (value: unknown) => void;
@@ -161,11 +126,7 @@ export class SessionOperations {
                     const operation = lane.queued.shift()!;
                     lane.running = operation;
                     // Do not interrupt this await: a late accepted open must finish before close.
-                    const exit = yield* Effect.exit(
-                        attempt(() =>
-                            operation.run(operation.controller.signal),
-                        ),
-                    );
+                    const exit = yield* Effect.exit(attempt(() => operation.run(operation.controller.signal)));
                     lane.running = null;
                     if (Exit.isSuccess(exit)) operation.resolve(exit.value);
                     else operation.reject(failure(exit.cause));
