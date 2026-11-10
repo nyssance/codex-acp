@@ -1,0 +1,8 @@
+{
+    "name": "codex-acp-opencodex",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "@bitkyc08/opencodex": "2.100.0"
+    }
+}

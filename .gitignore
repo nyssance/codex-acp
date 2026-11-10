@@ -9,3 +9,4 @@ tmp/
 
 # Built from the pinned opencodex package by opencodex.build.mjs
 src/alwith/codex/generated/opencodex.js
+opencodex/node_modules/
