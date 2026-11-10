@@ -10,6 +10,7 @@ import {
 export interface MessagesUpstream {
     baseUrl: string;
     apiKey: string;
+    authMode?: "key" | "oauth";
     signal: AbortSignal;
     /** The proxy's transport: it owns the native network route and the diagnostics. */
     send(url: URL, init: {method: string; headers: Record<string, string>; body: string}): Promise<Response>;
@@ -37,14 +38,22 @@ function toolNames(parsed: OcxParsedRequest) {
  * The only Responses-to-Messages translation in this adapter: another translator replaces this function.
  */
 export async function anthropicResponses(body: string, upstream: MessagesUpstream): Promise<Response> {
+    const authMode = upstream.authMode ?? "key";
+    if (authMode !== "key" && authMode !== "oauth") throw new Error("Unknown Anthropic authentication mode");
+    if (authMode === "oauth") {
+        const target = new URL(upstream.baseUrl);
+        if (target.origin !== "https://api.anthropic.com" || target.username || target.password || target.search || target.hash || !["", "/", "/v1", "/v1/"].includes(target.pathname)) {
+            throw new Error("Claude OAuth credentials may only be sent to https://api.anthropic.com");
+        }
+    }
     const parsed = parseRequest(JSON.parse(body));
     if (!parsed.stream) throw new Error("Anthropic Messages routing needs a streaming Responses request");
     const budget = createTranslatorBudget();
-    const adapter = createAnthropicAdapter({name: "anthropic", adapter: "anthropic", baseUrl: upstream.baseUrl, apiKey: upstream.apiKey, authMode: "key"});
+    const adapter = createAnthropicAdapter({name: "anthropic", adapter: "anthropic", baseUrl: upstream.baseUrl, apiKey: upstream.apiKey, authMode});
     const request = await adapter.buildRequest(parsed, {headers: new Headers(), translatorBudget: budget, abortSignal: upstream.signal});
     const response = await upstream.send(new URL(request.url), {
         method: request.method,
-        headers: {...request.headers, "User-Agent": USER_AGENT},
+        headers: authMode === "oauth" ? request.headers : {...request.headers, "User-Agent": USER_AGENT},
         body: request.body,
     });
     if (!response.ok) {

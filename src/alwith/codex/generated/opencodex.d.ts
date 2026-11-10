@@ -40,7 +40,7 @@ export function createAnthropicAdapter(provider: {
     adapter: "anthropic";
     baseUrl: string;
     apiKey: string;
-    authMode: "key";
+    authMode: "key" | "oauth";
 }): ProviderAdapter;
 
 export function createTranslatorBudget(): TranslatorBudget;

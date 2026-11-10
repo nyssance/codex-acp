@@ -456,7 +456,12 @@ export class ResponsesProxy {
         }
         const apiKey = /^Bearer (.+)$/.exec(String(headers["authorization"]))?.[1];
         if (apiKey === undefined) {
-            response.writeHead(401).end("The Anthropic provider has no API key");
+            response.writeHead(401).end("The Anthropic provider has no credential");
+            return;
+        }
+        const authMode = headers["x-alwith-anthropic-auth-mode"] ?? "key";
+        if (authMode !== "key" && authMode !== "oauth") {
+            response.writeHead(400).end("Unknown Anthropic authentication mode");
             return;
         }
         // The translation core needs Bun; loading it here keeps it out of every other route.
@@ -464,6 +469,7 @@ export class ResponsesProxy {
         const translated = await anthropicResponses(body.toString("utf8"), {
             baseUrl: target.href.slice(0, -"/responses".length),
             apiKey,
+            authMode,
             signal: abort.signal,
             send: async (url, init) => {
                 const native = this.nativeNetwork?.route(url, false, diagnostic.requestId);
