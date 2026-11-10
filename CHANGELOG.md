@@ -1,3 +1,7 @@
+## Unreleased
+
+- Gateways can speak Anthropic Messages. `providers/set` accepts `apiType: "anthropic"` with the Messages endpoint as `baseUrl` and the API key as `_meta.codex.bearerToken`; `providers/list` reports `supported: ["openai", "anthropic"]`. Codex still sends Responses requests: the adapter's local proxy translates each one to Messages and the answer back, so sessions, tools, approvals and compaction stay Codex's. The translation is the core of opencodex 2.100.0, built into the bundle; it needs the Bun runtime. Verified against a scripted Messages endpoint, not yet against Anthropic's API.
+
 ## 0.7.62 (2026-11-10)
 
 - Merge upstream: ACP SDK 2.5.0; checklist plans from `update_plan` are `items` `plan_update`s with `planId` `codex-structured-plan`; fast mode sends the `fast` service tier (Codex reports it back as `priority`, which still reads as fast).

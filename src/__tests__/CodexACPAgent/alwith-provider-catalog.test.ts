@@ -398,6 +398,19 @@ describe("ALwith providers/set validation", () => {
             delete (request._meta.codex as {name?: string}).name;
         }));
 
+    it("rejects an Anthropic gateway without an API key", () => invalid(request => ({...request, apiType: "anthropic"})));
+
+    it("rejects a protocol the adapter cannot translate", () => invalid(request => ({...request, apiType: "vertex"})));
+
+    it("registers an Anthropic gateway that carries its API key", async () => {
+        const {client} = await connect();
+        const request = provider("claude", "model-a");
+        await client.request("providers/set", {...request, apiType: "anthropic", _meta: {...request._meta, codex: {...request._meta.codex, bearerToken: "sk-ant-test"}}});
+        const listed = (await client.request("providers/list", {})) as {providers: Array<{supported: string[]; _meta?: {codex?: {gateway?: {id: string}}}}>};
+        expect(listed.providers[0]!.supported).toEqual(["openai", "anthropic"]);
+        expect(listed.providers[0]!._meta?.codex?.gateway?.id).toBe("claude");
+    });
+
     it("rejects a model without a label", () =>
         invalid(request => ({
             ...request,

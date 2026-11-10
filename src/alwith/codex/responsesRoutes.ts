@@ -15,6 +15,7 @@ export class ResponsesRoutes {
     private readonly modelAliases = new ModelAliases();
     private readonly proxy = new ResponsesProxy();
     private readonly externalProxy = new ResponsesProxy("external");
+    private readonly messagesProxy = new ResponsesProxy("external", "anthropic");
     private readonly contexts = new Map<string, {context: Context; resolve: () => Promise<string>}>();
 
     async config(
@@ -23,7 +24,9 @@ export class ResponsesRoutes {
         context: Context,
         transportProvider: string = provider,
         aliases?: ModelAlias[],
+        protocol: "openai" | "anthropic" = "openai",
     ): Promise<Config> {
+        const externalProxy = protocol === "anthropic" ? this.messagesProxy : this.externalProxy;
         if (aliases !== undefined) {
             const effective = await context.readConfig();
             const base = effective.config["model_catalog_json"];
@@ -58,7 +61,7 @@ export class ResponsesRoutes {
                         throw new Error(`Missing environment variable: ${keyVariable}`);
                 }
                 if (typeof token === "string") headers["authorization"] = `Bearer ${token}`;
-                const local = await this.externalProxy.route(selected["base_url"], headers);
+                const local = await externalProxy.route(selected["base_url"], headers);
                 const remaining = {...providers};
                 delete remaining[provider];
                 return {
@@ -67,7 +70,7 @@ export class ResponsesRoutes {
                     openai_base_url: local,
                 };
             }
-            const local = await this.externalProxy.route(selected["base_url"]);
+            const local = await externalProxy.route(selected["base_url"]);
             const remapped = {...providers};
             if (transportProvider !== provider) delete remapped[provider];
             return {
@@ -123,6 +126,7 @@ export class ResponsesRoutes {
     close(): void {
         this.proxy.close();
         this.externalProxy.close();
+        this.messagesProxy.close();
         this.contexts.clear();
         this.modelAliases.close();
     }

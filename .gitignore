@@ -6,3 +6,6 @@ dist/
 tmp/
 # Bun cross-compilation temporary executables
 *.bun-build
+
+# Built from the pinned opencodex package by opencodex.build.mjs
+src/alwith/codex/generated/opencodex.js

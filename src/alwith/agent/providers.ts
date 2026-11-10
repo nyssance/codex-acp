@@ -45,6 +45,8 @@ export interface GatewayGroup {
 export interface Gateway {
     /** `_meta.codex.id`: the `model_providers` entry, `modelProvider` value and select group of this gateway. */
     id: string;
+    /** `anthropic` is an Anthropic Messages endpoint: Codex still speaks Responses, to the adapter's translating proxy. */
+    apiType: "openai" | "anthropic";
     baseUrl: string;
     headers: Record<string, string>;
     name: string;
@@ -116,7 +118,7 @@ export class ProviderRouting {
             providers: [
                 {
                     providerId: OPENAI_PROVIDER_ID,
-                    supported: ["openai"],
+                    supported: ["openai", "anthropic"],
                     required: false,
                     current: {
                         apiType: "openai",
@@ -145,11 +147,9 @@ export class ProviderRouting {
                 `Unknown providerId "${request.providerId}"; only "${OPENAI_PROVIDER_ID}" is configurable`,
             );
         }
-        if (request.apiType !== "openai") {
-            throw acp.RequestError.invalidParams(
-                {apiType: request.apiType},
-                `Codex only speaks the OpenAI protocol; got apiType "${request.apiType}"`,
-            );
+        const apiType = request.apiType;
+        if (apiType !== "openai" && apiType !== "anthropic") {
+            throw acp.RequestError.invalidParams({apiType}, `Unsupported apiType "${apiType}"; supported: openai, anthropic`);
         }
         const baseUrl = typeof request.baseUrl === "string" ? request.baseUrl.trim() : "";
         if (!/^https?:\/\//.test(baseUrl)) {
@@ -162,8 +162,12 @@ export class ProviderRouting {
                 `_meta.codex.id "${hints.id}" is Codex's own provider; pick another gateway id`,
             );
         }
+        if (apiType === "anthropic" && hints.bearerToken === null) {
+            throw acp.RequestError.invalidParams(undefined, "An anthropic gateway needs _meta.codex.bearerToken: the Anthropic API key");
+        }
         this.gateways.set(hints.id, {
             id: hints.id,
+            apiType,
             baseUrl,
             headers: {...(request.headers ?? {})},
             name: hints.name,

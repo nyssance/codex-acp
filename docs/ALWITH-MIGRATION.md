@@ -47,6 +47,7 @@ ACP envelope. Workarounds for Codex gaps are listed separately in [fallbacks.md]
 | Session list | the upstream session index, enabled by `clientCapabilities._meta.alwith.capabilities: ["sessionIndex"]`; standard `session/list` rows with `archived` and `_meta.codex` lineage | `thread/list` through upstream `SessionIndexService` | module-chat sidebar |
 | Archive and title over v2 | `session/set_title`, `session/archive`, `session/unarchive` | `thread/name/set`, `thread/archive`, `thread/unarchive` | module-chat |
 | Gateway providers | `providers/set` (`mode: "catalog"`) and the per-session model option | none | U through `alwith-modules` `providers.rs` |
+| Anthropic Messages gateways | `providers/set` with `apiType: "anthropic"`; `baseUrl` is the Messages endpoint and `_meta.codex.bearerToken` its API key | none; Codex speaks Responses to the adapter's proxy, which translates with the pinned opencodex core (`src/alwith/codex/anthropicMessages.ts`) | module-chat provider catalog |
 | Client tools | `_alwith/tool/call` | dynamic tools | U, TV |
 | Configuration revisions | `_meta.alwith.configRevision`, `expectedConfigRevision` | none | module-chat, TV |
 | Prompt suggestions | upstream's `_meta.promptSuggestions` on `session_info_update`, enabled by `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]` | `thread/sample` through upstream `PromptSuggestionGenerator` | module-chat composer |

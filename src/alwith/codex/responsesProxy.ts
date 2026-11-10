@@ -125,7 +125,11 @@ export class ResponsesProxy {
     private starting: Promise<void> | null = null;
     private closed = false;
 
-    constructor(private readonly destination: "native" | "external" = "native") {
+    /** `anthropic` answers `/responses` from the route's Anthropic Messages endpoint; the route's bearer token is its API key. */
+    constructor(
+        private readonly destination: "native" | "external" = "native",
+        private readonly protocol: "openai" | "anthropic" = "openai",
+    ) {
         this.server = createServer((request, response) => {
             const diagnostic = new ProxyDiagnostics("http", this.destination);
             response.once("finish", () => diagnostic.end("completed"));
@@ -327,6 +331,14 @@ export class ResponsesProxy {
         this.aborts.add(abort);
         response.once("close", () => abort.abort());
         diagnostic.sent(body.length);
+        if (this.protocol === "anthropic") {
+            try {
+                await this.forwardMessages(response, target, body, headers, abort, diagnostic);
+            } finally {
+                this.aborts.delete(abort);
+            }
+            return;
+        }
         const native = this.nativeNetwork?.route(target, false, diagnostic.requestId);
         if (native) diagnostic.nativeNetwork();
         diagnostic.stage(native ? "connect_native" : "connect_upstream");
@@ -428,6 +440,63 @@ export class ResponsesProxy {
         } finally {
             this.aborts.delete(abort);
         }
+    }
+
+    private async forwardMessages(
+        response: ServerResponse,
+        target: URL,
+        body: Buffer,
+        headers: IncomingHttpHeaders,
+        abort: AbortController,
+        diagnostic: ProxyDiagnostics,
+    ): Promise<void> {
+        if (!target.pathname.endsWith("/responses")) {
+            response.writeHead(404).end();
+            return;
+        }
+        const apiKey = /^Bearer (.+)$/.exec(String(headers["authorization"]))?.[1];
+        if (apiKey === undefined) {
+            response.writeHead(401).end("The Anthropic provider has no API key");
+            return;
+        }
+        // The translation core needs Bun; loading it here keeps it out of every other route.
+        const {anthropicResponses} = await import("./anthropicMessages");
+        const translated = await anthropicResponses(body.toString("utf8"), {
+            baseUrl: target.href.slice(0, -"/responses".length),
+            apiKey,
+            signal: abort.signal,
+            send: async (url, init) => {
+                const native = this.nativeNetwork?.route(url, false, diagnostic.requestId);
+                if (native) diagnostic.nativeNetwork();
+                diagnostic.stage(native ? "connect_native" : "connect_upstream");
+                const options: RequestInit & {proxy?: false} = {
+                    method: init.method,
+                    headers: native ? {...init.headers, ...native.headers} : init.headers,
+                    ...(native ? {proxy: false as const} : {}),
+                    body: init.body,
+                    signal: abort.signal,
+                    redirect: "manual",
+                };
+                const incoming = await fetch(native?.url ?? url, options);
+                const nativeError = native && nativeNetworkError(incoming.headers.get("x-alwith-native-error"));
+                if (nativeError) {
+                    diagnostic.stage("connect_upstream");
+                    await incoming.body?.cancel();
+                    throw nativeError;
+                }
+                diagnostic.headers(incoming.status, incoming.headers.get("request-id"));
+                return incoming;
+            },
+        });
+        response.writeHead(translated.status, Object.fromEntries(translated.headers));
+        const translatedBody = translated.body;
+        if (translatedBody === null) response.end();
+        else
+            await new Promise<void>((resolve, reject) => {
+                const stream = ResponsesReadable.from(translatedBody);
+                stream.on("data", (chunk: Uint8Array) => diagnostic.received(chunk.byteLength));
+                pipeline(stream, response, error => (error ? reject(error) : resolve()));
+            });
     }
 
     private paymentRequired(status: number): boolean {
