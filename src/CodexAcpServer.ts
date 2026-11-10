@@ -214,6 +214,7 @@ import {
     FAST_MODE_ON,
     modelSupportsFast,
     resolveFastServiceTier,
+    serviceTierEnablesFast,
 } from "./FastModeConfig";
 import packageJson from "../package.json";
 import {isJetBrains2026_1Client} from "./JBUtils";
@@ -2008,9 +2009,7 @@ export class CodexAcpServer {
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            fastModeEnabled:
-                sessionMetadata.currentServiceTier === "priority" ||
-                sessionMetadata.currentServiceTier === "fast",
+            fastModeEnabled: serviceTierEnablesFast(sessionMetadata.currentServiceTier),
             currentModelSupportsFast,
             sessionMcpServers,
             clientCapabilities: this.capabilities,
@@ -4949,9 +4948,7 @@ export class CodexAcpServer {
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            fastModeEnabled:
-                sessionMetadata.currentServiceTier === "priority" ||
-                sessionMetadata.currentServiceTier === "fast",
+            fastModeEnabled: serviceTierEnablesFast(sessionMetadata.currentServiceTier),
             currentModelSupportsFast,
             sessionMcpServers,
             clientCapabilities: this.capabilities,
