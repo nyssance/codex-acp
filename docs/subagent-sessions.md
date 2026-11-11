@@ -34,3 +34,9 @@ The adapter verifies the child's ID, parent, and loaded state before accepting r
 ## Legacy fallback
 
 Without native negotiation, subagent lifecycle stays an ordinary ACP tool call. Child permission and elicitation requests stay on the root session.
+
+## Standard subagent cancellation
+
+A live standard child advertises `capabilities.cancel: {}`. `session/cancel` on that child interrupts its current turn and active descendants, leaving its ancestor and siblings alone. Cancelling the root interrupts all active child turns through the same mechanism. Pending child interactions are withdrawn before sending interrupts.
+
+Child interruption reuses the existing bounded retry policy for root turns. Only a missing active turn or a matching active-turn ID mismatch is retried. Retries stop when the addressed work ends, changes turn, or becomes unobservable; an interrupt never transfers to a later child turn. Provider completion remains the evidence of cancellation. Interrupt acknowledgement does not synthesize a terminal state, and a failed attempt leaves cancellation available for another request.

@@ -1,3 +1,7 @@
+## 0.7.65 (2026-11-11)
+
+- Retry transient Codex turn-registration failures when cancelling standard subagents, including cancellation from a parent session. Reuse the existing bounded turn-interruption retry policy and stop retries when the selected child turn ends, changes, or becomes unobservable.
+
 ## 0.7.64 (2026-11-10)
 
 - Persist opaque session input configuration through `_codex/session_input_config_get/set` in Codex thread attachments. Hosts own mode validation and configuration semantics; the adapter does not maintain a separate conversation store.

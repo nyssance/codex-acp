@@ -26,6 +26,8 @@ import {runSubagentInteraction} from "./SubagentInteraction";
 import {logger} from "../Logger";
 import {isAbsoluteProtocolPath} from "../PathUtils";
 
+type ChildInterrupt = (threadId: string, turnId: string, isCurrent: () => boolean) => Promise<void>;
+
 type Child = SubagentAssociation & {
     path?: string;
     title?: string | null;
@@ -627,7 +629,7 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
     }
 
     /** Cancel only the addressed live conversation and its owned descendant work. */
-    async cancelChild(sessionId: string, interrupt: (threadId: string, turnId: string) => Promise<void>): Promise<void> {
+    async cancelChild(sessionId: string, interrupt: ChildInterrupt): Promise<void> {
         const child = [...this.children.values()].find(child => child.sessionId === sessionId);
         if (!child || !this.cancellationReady || this.deferLive || !child.cancelAdvertised || this.currentTurn(child) === null) return;
         const selected = new Set([sessionId]);
@@ -638,14 +640,22 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
                 if (selected.has(descendant.parentSessionId)) selected.add(descendant.sessionId);
             }
         } while (selected.size !== previousSize);
-        const targets = [...this.children.values()].filter(target => selected.has(target.sessionId))
-            .map(target => ({child: target, turnId: this.currentTurn(target)}));
-        await Promise.all(targets.map(async ({child: target, turnId}) => {
+        await this.cancelTargets([...this.children.values()].filter(target => selected.has(target.sessionId)), interrupt);
+    }
+
+    async cancelAll(interrupt: ChildInterrupt): Promise<void> {
+        this.cancelInteractions();
+        await this.cancelTargets([...this.children.values()], interrupt);
+    }
+
+    private async cancelTargets(targets: Child[], interrupt: ChildInterrupt): Promise<void> {
+        await Promise.all(targets.map(async target => {
+            const turnId = this.currentTurn(target);
             if (turnId === null || target.cancellingTurn === turnId) return;
             target.cancellingTurn = turnId;
             this.cancelChildInteractions(target);
             this.closeWorkRequests(target.threadId, turnId);
-            try { await interrupt(target.threadId, turnId); }
+            try { await interrupt(target.threadId, turnId, () => this.currentTurn(target) === turnId); }
             catch (error) { logger.error(`Failed to interrupt child ${target.threadId}`, error); }
             finally {
                 if (target.cancellingTurn === turnId) delete target.cancellingTurn;
@@ -678,9 +688,6 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
             else child.foreground.invalidate();
             child.turnId = null;
         }
-    }
-    activeTurns(): Array<{threadId: string; turnId: string | null}> {
-        return [...this.children.values()].filter(child => child.live).map(child => ({threadId: child.threadId, turnId: child.turnId}));
     }
     setInteractionObserver(observer: (event: ServerNotification, sessionId: string) => Promise<void>): void { this.interactionObserver = observer; }
     isRetired(): boolean { return this.retired; }

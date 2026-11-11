@@ -854,17 +854,8 @@ export class CodexAcpServer {
 
     private async interruptStandardChildren(session: SessionState): Promise<void> {
         if (!(session.subagents instanceof StandardSubagentEventRouter)) return;
-        const router = session.subagents;
-        const turns = router.activeTurns();
-        router.cancelInteractions();
-        await Promise.all(turns.map(async turn => {
-            try {
-                const turnId = this.codexAcpClient.appServerClient.runningTurnId(turn.threadId) ?? turn.turnId;
-                if (turnId === null) return;
-                router.closeWorkRequests(turn.threadId, turnId);
-                await this.codexAcpClient.turnInterrupt({threadId: turn.threadId, turnId});
-            } catch (error) { logger.error(`Failed to interrupt child ${turn.threadId}`, error); }
-        }));
+        await session.subagents.cancelAll((threadId, turnId, isCurrent) =>
+            this.requestTurnInterrupt(session, threadId, turnId, "Cancel", isCurrent));
     }
 
     private observeSubagentWorkEnd(sessionId: string, event: ServerNotification): void {
@@ -5309,6 +5300,7 @@ export class CodexAcpServer {
         threadId: string,
         completionTurnId: string,
         requestName: "Cancel" | "Close",
+        ownsChildTurn?: () => boolean,
     ): Promise<void> {
         if (this.recovery !== null && !this.turnAppServerIsLive(threadId)) {
             // The turn died with its app-server. A restarted app-server has no such turn.
@@ -5318,7 +5310,7 @@ export class CodexAcpServer {
         const activePrompt = this.activePrompts.get(sessionState.sessionId);
         const ownsRegisteredTurn = activePrompt?.currentTurn?.threadId === threadId
             && activePrompt.currentTurn.turnId === completionTurnId;
-        const stillOwnsPrompt = () => ownsRegisteredTurn && activePrompt !== undefined
+        const stillOwnsPrompt = () => ownsChildTurn ? ownsChildTurn() : ownsRegisteredTurn && activePrompt !== undefined
             && this.activePrompts.get(sessionState.sessionId) === activePrompt;
         let turnId = ownsRegisteredTurn ? codexRunningTurnId(sessionState, completionTurnId) : completionTurnId;
         for (let attempt = 0; ; attempt++) {
@@ -5335,7 +5327,7 @@ export class CodexAcpServer {
             } catch (err) {
                 const mismatch = parseExpectedActiveTurnMismatch(err);
                 const isMismatch = mismatch !== null
-                    && mismatch.expected === sessionState.currentTurnId
+                    && mismatch.expected === (ownsChildTurn ? turnId : sessionState.currentTurnId)
                     && mismatch.found !== "";
                 const retryable = stillOwnsPrompt()
                     && (isNoActiveTurnError(err) || isMismatch)
@@ -5354,7 +5346,8 @@ export class CodexAcpServer {
                 // Recompute after the wait: a `turn/started` may have landed in the meantime, and
                 // `interruptTurnId` always wins once it is set. Otherwise fall back to the id Codex
                 // just reported as active, or to the id we started with.
-                turnId = sessionState.interruptTurnId ?? (isMismatch ? mismatch!.found : completionTurnId);
+                const preferredTurnId = ownsChildTurn ? null : sessionState.interruptTurnId;
+                turnId = preferredTurnId ?? (isMismatch ? mismatch!.found : completionTurnId);
                 logger.log(`${requestName} - turn not interruptible yet, retrying`, {
                     sessionId: threadId,
                     currentTurnId: turnId,
@@ -6595,10 +6588,11 @@ export class CodexAcpServer {
     async cancel(params: acp.CancelNotification): Promise<void> {
         const child = this.subagentAssociations.get(params.sessionId);
         if (child && this.usesStandardSubagents()) {
-            const router = this.sessions.get(child.rootSessionId)?.subagents;
-            if (router instanceof StandardSubagentEventRouter) {
-                await router.cancelChild(params.sessionId, (threadId, turnId) =>
-                    this.codexAcpClient.turnInterrupt({threadId, turnId}));
+            const parent = this.sessions.get(child.rootSessionId);
+            const router = parent?.subagents;
+            if (parent && router instanceof StandardSubagentEventRouter) {
+                await router.cancelChild(params.sessionId, (threadId, turnId, isCurrent) =>
+                    this.requestTurnInterrupt(parent, threadId, turnId, "Cancel", isCurrent));
             }
             return;
         }

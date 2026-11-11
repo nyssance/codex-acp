@@ -44,6 +44,71 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
         }));
     }
 
+    it.each(["child", "parent"])("retries %s cancellation when the child turn is not registered yet", async target => {
+        await connect();
+        await start();
+        let attempts = 0;
+        h.setCodexResponse("turn/interrupt", async params => {
+            if ((params as {threadId: string}).threadId === "worker" && ++attempts === 1) {
+                throw new Error("no active turn to interrupt");
+            }
+            return {};
+        });
+        await h.cancel(target === "child" ? id("worker") : sessionId);
+        await vi.waitFor(() => expect(attempts).toBe(2));
+        expect(cancellable()).toBe(true);
+        expect(roster().some(update => update.state != null
+            && (update.state as {stopReason?: string}).stopReason === "cancelled")).toBe(false);
+        h.emit({method: "turn/completed", params: {threadId: "worker", turn: createTurn("interrupted", "worker-turn")}});
+        await vi.waitFor(() => expect(capabilities()?.cancel).toBeNull());
+        expect(roster().some(update => update.state != null
+            && (update.state as {stopReason?: string}).stopReason === "cancelled")).toBe(true);
+    });
+
+    it("retries the turn id reported by the provider without fabricating completion", async () => {
+        await connect();
+        await start();
+        h.setCodexResponse("turn/interrupt", async params => {
+            if ((params as {turnId: string}).turnId === "worker-turn") {
+                throw new Error("expected active turn id worker-turn but found registered-turn");
+            }
+            return {};
+        });
+        await h.cancel(id("worker"));
+        await vi.waitFor(() => expect(h.turnInterruptCalls()).toEqual([
+            {threadId: "worker", turnId: "worker-turn"}, {threadId: "worker", turnId: "registered-turn"},
+        ]));
+        expect(cancellable()).toBe(true);
+    });
+
+    it("does not retry into a new child turn after the selected work ends", async () => {
+        await connect();
+        await start();
+        h.setCodexResponse("turn/interrupt", async () => {
+            h.emit(on("worker", turnCompleted("worker-turn")));
+            h.emit(on("worker", turnStarted("next-turn")));
+            throw new Error("no active turn to interrupt");
+        });
+        await h.cancel(id("worker"));
+        await vi.waitFor(() => expect(h.turnInterruptCalls()).toHaveLength(1));
+        await flush(h);
+        await new Promise(resolve => setTimeout(resolve, 60));
+        expect(h.turnInterruptCalls()).toEqual([{threadId: "worker", turnId: "worker-turn"}]);
+        expect(cancellable()).toBe(true);
+    });
+
+    it("bounds registration retries and permits another cancellation attempt", async () => {
+        await connect();
+        await start();
+        h.setCodexResponse("turn/interrupt", async () => { throw new Error("no active turn to interrupt"); });
+        await h.cancel(id("worker"));
+        await vi.waitFor(() => expect(h.turnInterruptCalls()).toHaveLength(6), {timeout: 2000});
+        await flush(h);
+        h.setCodexResponse("turn/interrupt", async () => ({}));
+        await h.cancel(id("worker"));
+        await vi.waitFor(() => expect(h.turnInterruptCalls()).toHaveLength(7));
+    });
+
     it("targets one child, waits for actual completion, and preserves identity for later work", async () => {
         await connect();
         await start();
