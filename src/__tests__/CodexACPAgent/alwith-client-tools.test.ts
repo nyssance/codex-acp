@@ -64,13 +64,17 @@ describe("ALwith host tools over the upstream ACP router", () => {
             success: true,
             contentItems: [{type: "text", text: "written"}],
         });
-        const {client, finish} = await start({onToolCall: host});
+        const permission = vi.fn().mockReturnValue({outcome: {outcome: "selected", optionId: "allow_once"}});
+        const {client, finish} = await start({onToolCall: host, onRequestPermission: permission});
         const first = client.triggerApproval("item/tool/call", call);
         expect(await client.triggerApproval("item/tool/call", call)).toEqual(await first);
         expect(await first).toEqual({
             success: true,
             contentItems: [{type: "inputText", text: "written"}],
         });
+        expect(permission).toHaveBeenCalledWith(expect.objectContaining({
+            _meta: {alwith: {tool: {name: "write_canvas", toolSetRevision: "canvas-1"}}},
+        }), expect.anything());
         expect(host).toHaveBeenCalledTimes(1);
         for (const changes of [{arguments: {changed: true}}, {turnId: "old"}, {tool: "shell"}]) {
             expect(

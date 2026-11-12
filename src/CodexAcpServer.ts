@@ -1142,6 +1142,7 @@ export class CodexAcpServer {
                             acp.methods.client.session.requestPermission,
                             {
                                 sessionId: params.threadId,
+                                _meta: {alwith: {tool: {name: tool.name, toolSetRevision: tools.revision}}},
                                 toolCall: {
                                     toolCallId: params.callId,
                                     title: tool.description,

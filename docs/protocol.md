@@ -108,6 +108,13 @@ image content blocks, including during history replay. Dynamic tool image data
 URLs are converted into inline ACP images, while other URLs remain resource links.
 Codex retains conversation and media history; the extension creates no image store.
 
+For declared client tools on ACP v2, `session/request_permission` includes
+`_meta.alwith.tool: { name, toolSetRevision }`. The identity
+matches the tool declaration and the subsequent `_alwith/tool/call`; clients can
+match an application-owned permission policy without using display text. Clients
+must establish tool identity before applying that policy; display text is not
+identity. This metadata does not grant permission by itself.
+
 ## Subagent turn origins and reload routing
 
 Standard ACP `subagent_update` carries `_meta.codex.threadId` and the originating
