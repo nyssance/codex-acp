@@ -34,6 +34,7 @@ function authStatusUpdates(fixture: CodexMockTestFixture): AuthStatus[] {
 
 function mockAccount(fixture: CodexMockTestFixture, account: Account | null) {
     return vi.spyOn(fixture.getCodexAcpClient(), "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account,
         requiresOpenaiAuth: account === null,
@@ -402,6 +403,7 @@ describe("authStatus extension", () => {
 
             await agent.authenticate({methodId: "chat-gpt"});
             accountSpy.mockResolvedValue({
+                userId: null,
                 workspaceRouting: null,
                 account: null,
                 requiresOpenaiAuth: true,
@@ -518,6 +520,7 @@ describe("authStatus extension", () => {
 
             await agent.authenticate({methodId: "chat-gpt"});
             accountSpy.mockResolvedValue({
+                userId: null,
                 workspaceRouting: null,
                 account: {
                     type: "chatgpt",

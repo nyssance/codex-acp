@@ -12,6 +12,7 @@ describe("ACP session fork", () => {
 
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
@@ -60,6 +61,7 @@ describe("ACP session fork", () => {
 
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
@@ -104,6 +106,7 @@ describe("ACP session fork", () => {
 
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
@@ -149,6 +152,7 @@ describe("fork lineage response metadata", () => {
         };
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,

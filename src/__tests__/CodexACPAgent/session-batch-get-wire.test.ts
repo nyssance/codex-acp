@@ -27,6 +27,7 @@ async function connect(version: 1 | 2, capabilities: string[]) {
     vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(client, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(client, "getAccount").mockResolvedValue({
+        userId: null,
         account: null,
         requiresOpenaiAuth: false,
         workspaceRouting: null,

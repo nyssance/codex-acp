@@ -175,6 +175,7 @@ describe("CodexACPAgent - loadSession", () => {
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
         const makeThread = (id: string, items: Thread["turns"][number]["items"]): Thread => ({
+            attachedToThreadId: null,
             environments: null,
             extra: null,
             canAcceptDirectInput: null,
@@ -284,6 +285,7 @@ describe("CodexACPAgent - loadSession", () => {
                 durationMs: null,
             },
             {
+                moderation: null,
                 type: "agentMessage",
                 id: "child-history-message-1",
                 text: "Persisted first-generation output",
@@ -304,6 +306,7 @@ describe("CodexACPAgent - loadSession", () => {
             completedAt: firstChildTurn.completedAt,
             durationMs: firstChildTurn.durationMs,
             items: [{
+                moderation: null,
                 type: "agentMessage",
                 id: "child-history-message-2",
                 text: "Persisted second-generation output",
@@ -402,6 +405,7 @@ describe("CodexACPAgent - loadSession", () => {
             items,
         });
         const makeThread = (id: string, turns: Thread["turns"]): Thread => ({
+            attachedToThreadId: null,
             environments: null,
             extra: null,
             canAcceptDirectInput: null,
@@ -446,6 +450,7 @@ describe("CodexACPAgent - loadSession", () => {
         });
         const message = (id: string) => ({
             type: "agentMessage" as const,
+            moderation: null,
             id,
             text: id,
             phase: null,
@@ -558,6 +563,7 @@ describe("CodexACPAgent - loadSession", () => {
             items,
         });
         const makeThread = (id: string, turns: Thread["turns"]): Thread => ({
+            attachedToThreadId: null,
             environments: null,
             extra: null,
             canAcceptDirectInput: true,
@@ -715,6 +721,7 @@ describe("CodexACPAgent - loadSession", () => {
         });
 
         const thread: Thread = {
+            attachedToThreadId: null,
             environments: null,
             extra: null,
             canAcceptDirectInput: null,
@@ -768,6 +775,7 @@ describe("CodexACPAgent - loadSession", () => {
                             ],
                         },
                         {
+                            moderation: null,
                             type: "agentMessage",
                             id: "item-agent-1",
                             text: "Hello!",
@@ -947,7 +955,7 @@ describe("CodexACPAgent - loadSession", () => {
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
+        const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", moderation: null, id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
         appServer.threadItemsList = vi.fn()
             .mockResolvedValueOnce({data: [message("last")], nextCursor: null, backwardsCursor: null})
             .mockResolvedValueOnce({data: [message("first")], nextCursor: "page-2", backwardsCursor: null})
@@ -991,7 +999,7 @@ describe("CodexACPAgent - loadSession", () => {
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
-        const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
+        const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", moderation: null, id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
         let closed: Promise<unknown> = Promise.resolve();
         appServer.threadItemsList = vi.fn()
             .mockResolvedValueOnce({data: [message("last")], nextCursor: null, backwardsCursor: null})
@@ -1063,6 +1071,7 @@ describe("CodexACPAgent - loadSession", () => {
             nextCursor: null,
         });
         const thread: Thread = {
+            attachedToThreadId: null,
             environments: null,
             extra: null,
             canAcceptDirectInput: null,
@@ -1163,6 +1172,7 @@ describe("CodexACPAgent - loadSession", () => {
             nextCursor: null,
         });
         const thread: Thread = {
+            attachedToThreadId: null,
             environments: null,
             extra: null,
             canAcceptDirectInput: null,

@@ -28,6 +28,7 @@ function clientCapabilities(kind: ClientKind): acp.ClientCapabilities | undefine
 
 function createThread(overrides: Partial<Thread> = {}): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,
@@ -85,6 +86,7 @@ async function createAgent(kind: ClientKind, threads: Thread[] = [createThread()
 async function openLocalSession(fixture: CodexMockTestFixture, sessionId: string, additionalDirectories: string[] = []): Promise<void> {
     const client = fixture.getCodexAcpClient();
     vi.spyOn(client, "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,

@@ -15,6 +15,7 @@ const onWorker = (event: ServerNotification): ServerNotification =>
     ({...event, params: {...event.params, threadId: worker}}) as ServerNotification;
 function settings(model: string, effort: ReasoningEffort | null): ThreadSettings {
     return {
+        environments: null,
         multiAgentMode: "explicitRequestOnly" as const,
         disabledPluginIds: [],
         cwd,

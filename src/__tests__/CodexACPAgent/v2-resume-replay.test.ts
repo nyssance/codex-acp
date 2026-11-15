@@ -25,6 +25,7 @@ const P2_ID = "01990000-0000-7000-8000-000000000004"; // a later review turn, T2
 
 function createThread(overrides?: Partial<Thread>): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,
@@ -100,6 +101,7 @@ const reviewReplayTurns: Thread["turns"] = [
             {type: "enteredReviewMode", id: "review-entered", review: "Review the diff"},
             {type: "exitedReviewMode", id: "review-exited", review: "Looks good"},
             {
+                moderation: null,
                 type: "agentMessage",
                 id: "review-summary",
                 text: "Review complete.",
@@ -127,6 +129,7 @@ const reviewReplayTurns: Thread["turns"] = [
                 content: [{type: "text", text: "Reply with just OK.", text_elements: []}],
             },
             {
+                moderation: null,
                 type: "agentMessage",
                 id: "ordinary-reply",
                 text: "OK",
@@ -150,6 +153,7 @@ const reviewReplayTurns: Thread["turns"] = [
             {type: "enteredReviewMode", id: "review2-entered", review: "Second review"},
             {type: "exitedReviewMode", id: "review2-exited", review: "All good"},
             {
+                moderation: null,
                 type: "agentMessage",
                 id: "review2-summary",
                 text: "Second review complete.",
@@ -242,6 +246,7 @@ async function connectV2Client(options?: {
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
@@ -592,6 +597,7 @@ describe('resume replay of Codex file citations', () => {
         completedAt: null,
         durationMs: null,
         items: [{
+            moderation: null,
             type: "agentMessage",
             id: "cited-reply",
             text: 'The limit is 12.\n\n:codex-file-citation{path="policy.txt" purpose="source"}',

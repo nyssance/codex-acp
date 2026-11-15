@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "0.7.67",
+    "version": "0.7.68",
     "description": "ACP adapter for Codex with ALwith client extensions",
     "main": "dist/index.js",
     "bin": {
@@ -74,7 +74,7 @@
     },
     "dependencies": {
         "@agentclientprotocol/sdk": "~2.6.0",
-        "@openai/codex": "^0.167.2",
+        "@openai/codex": "^0.169.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",
         "effect": "^4.1.4",

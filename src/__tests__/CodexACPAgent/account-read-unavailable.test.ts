@@ -263,6 +263,7 @@ describe("CodexACPAgent - an unavailable account read", () => {
 
             await loadAfterGrace(fixture);
             read.resolve({
+                userId: null,
                 workspaceRouting: null,
                 account: null,
                 requiresOpenaiAuth: true,

@@ -30,6 +30,7 @@ function failureEntry(turn: Turn): ReplayEntry[] {
             startedAtMs: null,
             completedAtMs: null,
             item: {
+                moderation: null,
                 type: "agentMessage",
                 id: failure.messageId,
                 text,

@@ -15,6 +15,7 @@ it("reuses workspace routes and replaces their readers after app-server recovery
         readConfig: vi.fn(async () => ({config: {openai_base_url: base}})),
         readAccount: vi.fn(async () => ({
             account: null,
+            userId: null,
             requiresOpenaiAuth: false,
             workspaceRouting: null,
         })),

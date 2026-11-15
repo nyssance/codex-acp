@@ -15,6 +15,7 @@ const threadId = "01a0c48a-fc81-7b33-8d61-f4e2fd7c9b99";
 
 function createLiveThread(): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

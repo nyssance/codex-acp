@@ -10,6 +10,7 @@ import {stubGatewayModelListing} from "../acp-test-utils";
 const resumed = (id: string) => ({
     ...testThreadPermissions(),
     thread: {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

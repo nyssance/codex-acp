@@ -150,6 +150,7 @@ describe("Model filtering", () => {
             additionalDirectories: [],
         });
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,

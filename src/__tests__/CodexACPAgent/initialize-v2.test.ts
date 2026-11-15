@@ -40,6 +40,7 @@ function connectRouter() {
         codexClient = codexAcpClient;
         vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: true,

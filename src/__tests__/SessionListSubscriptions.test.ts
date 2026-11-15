@@ -27,6 +27,7 @@ const HOME = "/codex-home";
 
 function thread(id: string, overrides: Partial<Thread> = {}): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

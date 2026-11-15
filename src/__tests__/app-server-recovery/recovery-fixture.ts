@@ -29,6 +29,7 @@ export const MODEL = {
 
 function thread(id: string) {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

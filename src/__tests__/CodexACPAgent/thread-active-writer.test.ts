@@ -23,6 +23,7 @@ const expectedError = {
 
 function createThread(): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

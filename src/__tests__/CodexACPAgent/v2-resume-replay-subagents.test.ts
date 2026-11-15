@@ -18,6 +18,7 @@ const cwd = "/workspace";
 
 function createThread(id: string, overrides?: Partial<Thread>): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,
@@ -121,6 +122,7 @@ const childTurns: Thread["turns"] = [
                 durationMs: null,
             },
             {
+                moderation: null,
                 type: "agentMessage",
                 id: "child-reply",
                 text: "Investigating the flaky test.",
@@ -192,6 +194,7 @@ async function connectV2Client(
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
@@ -345,6 +348,7 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
         });
         const reply = (id: string, text: string) => ({
             type: "agentMessage" as const,
+            moderation: null,
             id,
             text,
             phase: null,

@@ -74,6 +74,7 @@ function turn(id: string, status: string): Record<string, unknown> {
 
 function thread(items: Record<string, unknown>[], cwd: string): Record<string, unknown> {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

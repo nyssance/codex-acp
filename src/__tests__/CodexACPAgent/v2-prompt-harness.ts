@@ -23,6 +23,7 @@ export const titleThreadId = "title-thread";
 
 export function createThread(): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,
@@ -222,6 +223,7 @@ export async function connectSession(
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
@@ -455,6 +457,7 @@ export function createReplacementCodexAcpClient(): {
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,

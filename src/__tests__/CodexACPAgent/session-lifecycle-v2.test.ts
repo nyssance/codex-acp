@@ -20,6 +20,7 @@ const cwd = "/workspace";
 
 function createThread(overrides?: Partial<Thread>): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,
@@ -168,6 +169,7 @@ async function connectV2Client(options?: {
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
     vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
+        userId: null,
         workspaceRouting: null,
         account: null,
         requiresOpenaiAuth: false,
@@ -658,6 +660,7 @@ describe('Session lifecycle over ACP v2', () => {
                     content: [{type: "text", text: "A legacy message with no clientId", text_elements: []}],
                 },
                 {
+                    moderation: null,
                     type: "agentMessage",
                     id: "item-agent-1",
                     text: "Hello!",

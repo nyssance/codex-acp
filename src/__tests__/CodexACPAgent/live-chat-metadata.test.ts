@@ -30,6 +30,7 @@ it("reserves native message order, keeps phases and records bounded turn timing 
     client.emit(itemCompleted(userMessageItem(userId)));
     await response;
     const message = (id: string, text: string, phase: "commentary" | "final_answer"): Extract<ThreadItem, {type: "agentMessage"}> => ({
+        moderation: null,
         type: "agentMessage",
         id,
         text,

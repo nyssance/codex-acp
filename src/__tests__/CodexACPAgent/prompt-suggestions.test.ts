@@ -16,7 +16,7 @@ const airCapabilities = {_meta: {jetbrains: {air: {version: 1}}}};
 const alwithCapabilities = {_meta: {alwith: {capabilities: ["promptSuggestions"]}}};
 
 function agentMessage(text: string, phase: "commentary" | "final_answer" | null): ThreadItem {
-    return {type: "agentMessage", id: `msg-${phase}`, text, phase, memoryCitation: null, delivery: null, questions: null};
+    return {moderation: null, type: "agentMessage", id: `msg-${phase}`, text, phase, memoryCitation: null, delivery: null, questions: null};
 }
 
 /** The `promptSuggestions` values of the session info updates the client received, in order. */

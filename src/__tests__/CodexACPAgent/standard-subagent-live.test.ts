@@ -384,6 +384,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
         h.emit(itemStarted({...activityItem(worker, "/root/coordinator/worker"), model: "activity-model"}));
         const settings = (model: string) => ({
             multiAgentMode: "explicitRequestOnly" as const,
+            environments: null,
             disabledPluginIds: [],
             cwd,
             approvalPolicy: "on-request" as const,
@@ -411,7 +412,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
 
     it("replays parent history and empty child associations without inventing a gap or current runtime", async () => {
         await connect();
-        const item: ThreadItem = {type: "agentMessage", id: "parent-answer", text: "Parent history", phase: null,
+        const item: ThreadItem = {moderation: null, type: "agentMessage", id: "parent-answer", text: "Parent history", phase: null,
             memoryCitation: null, delivery: null, questions: null};
         history(h, [activityItem(), item], "foreign-root");
         await load();

@@ -17,6 +17,7 @@ afterEach(() => {
     for (const client of clients.splice(0)) client.connection.close();
 });
 const question: Extract<ThreadItem, {type: "agentMessage"}> = {
+    moderation: null,
     type: "agentMessage",
     id: "async-question",
     text: "",

@@ -353,6 +353,7 @@ describe("session compaction", () => {
         const model = createTestModel();
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
         vi.spyOn(client, "getAccount").mockResolvedValue({
+            userId: null,
             workspaceRouting: null,
             account: null,
             requiresOpenaiAuth: false,
@@ -607,11 +608,12 @@ function createTurn(status: Turn["status"]): Turn {
 }
 
 function agentMessage(id: string, text: string): ThreadItem {
-    return {type: "agentMessage", id, text, phase: null, memoryCitation: null, delivery: null, questions: null};
+    return {moderation: null, type: "agentMessage", id, text, phase: null, memoryCitation: null, delivery: null, questions: null};
 }
 
 function createThread(items: ThreadItem[]): Thread {
     return {
+        attachedToThreadId: null,
         environments: null,
         extra: null,
         canAcceptDirectInput: null,

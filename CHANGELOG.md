@@ -1,3 +1,7 @@
+## 0.7.68 (2026-11-15)
+
+- Upgrade Codex to 0.169.0 and regenerate the experimental app-server bindings. Replayed failure messages carry the new required `moderation` field. New in the bindings and unused: agent message moderation display, thread environments and `attachedToThreadId`, deferred item output, model provider configuration (`modelProvider/list`, `modelProvider/config/write`), `account/securitySetup/read` and `thread/prepareApprovedPlan`.
+
 ## 0.7.67 (2026-11-15)
 
 - Merge upstream: ACP SDK 2.6.0, pinned with a tilde as upstream pins it. Delegated tasks are reported as `session_message` updates on both the sender and the child session, linked with `senderMessageId` and `recipientMessageId`; the `spawnAgent` call is no longer shown, and other collaboration calls reference their receivers with `session` tool call content. A child's `description` is the role Codex assigned, never the task prompt.

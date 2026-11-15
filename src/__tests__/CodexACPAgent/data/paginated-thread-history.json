@@ -55,6 +55,7 @@
             ]
           },
           {
+            "moderation": null,
             "type": "agentMessage",
             "id": "first-message",
             "text": "Answer first",
@@ -88,6 +89,7 @@
             ]
           },
           {
+            "moderation": null,
             "type": "agentMessage",
             "id": "second-message",
             "text": "Answer second",
@@ -121,6 +123,7 @@
             ]
           },
           {
+            "moderation": null,
             "type": "agentMessage",
             "id": "third-message",
             "text": "Answer third",
