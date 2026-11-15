@@ -18,6 +18,8 @@ import {NativeNetworkTransport, nativeNetworkError} from "./nativeNetworkTranspo
 
 import {ProxyDiagnostics} from "./proxyDiagnostics";
 
+import {isRecord} from "../../permissions/json";
+import {CompactionSink, summaryRequest} from "./externalCompaction";
 import {compatibleResponsesRequest} from "./responsesCompatibility";
 
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
@@ -289,6 +291,7 @@ export class ResponsesProxy {
             return;
         }
         let body: Buffer;
+        let compaction = false;
         const headers = this.requestHeaders(request, false);
         if (!transformResponses) {
             body = bytes;
@@ -320,7 +323,11 @@ export class ResponsesProxy {
                               maxOutputLength: MAX_BODY_BYTES,
                           })
                         : bytes;
-                body = Buffer.from(compatibleResponsesRequest(decoded.toString("utf8"), this.destination));
+                const compatible = compatibleResponsesRequest(decoded.toString("utf8"), this.destination);
+                const parsed: unknown = this.destination === "external" ? JSON.parse(compatible) : null;
+                const summary = isRecord(parsed) ? summaryRequest(parsed) : null;
+                compaction = summary !== null;
+                body = Buffer.from(summary ? JSON.stringify(summary) : compatible);
             } catch {
                 response.writeHead(400).end("Invalid Responses request body");
                 return;
@@ -331,9 +338,12 @@ export class ResponsesProxy {
         this.aborts.add(abort);
         response.once("close", () => abort.abort());
         diagnostic.sent(body.length);
+        // A summary request must come back readable; its answer is rewritten into the compaction Codex expects.
+        if (compaction) headers["accept-encoding"] = "identity";
+        const out = compaction ? (new CompactionSink(response) as unknown as ServerResponse) : response;
         if (this.protocol === "anthropic") {
             try {
-                await this.forwardMessages(response, target, body, headers, abort, diagnostic);
+                await this.forwardMessages(out, target, body, headers, abort, diagnostic);
             } finally {
                 this.aborts.delete(abort);
             }
@@ -344,7 +354,7 @@ export class ResponsesProxy {
         diagnostic.stage(native ? "connect_native" : "connect_upstream");
         try {
             // Use Bun's native HTTP client for loopback too; node:http compatibility is not a transport boundary.
-            // Node uses raw HTTP below because its fetch always decompresses upstream response bodies.
+            // Node uses raw HTTP below because its fetch always decompresses upstream out bodies.
             if ("Bun" in globalThis) {
                 const options: RequestInit & {
                     decompress: boolean;
@@ -368,7 +378,7 @@ export class ResponsesProxy {
                 diagnostic.headers(incoming.status, incoming.headers.get("x-request-id"));
                 if (this.paymentRequired(incoming.status)) {
                     this.usageLimit(
-                        response,
+                        out,
                         diagnostic,
                         paymentRequiredNotice(
                             target.hostname,
@@ -379,14 +389,14 @@ export class ResponsesProxy {
                     );
                     return;
                 }
-                response.writeHead(incoming.status, forwardingHeaders(Object.fromEntries(incoming.headers), false));
+                out.writeHead(incoming.status, forwardingHeaders(Object.fromEntries(incoming.headers), false));
                 const responseBody = incoming.body;
-                if (responseBody === null) response.end();
+                if (responseBody === null) out.end();
                 else
                     await new Promise<void>((resolve, reject) => {
                         const stream = ResponsesReadable.from(responseBody);
                         stream.on("data", (chunk: Uint8Array) => diagnostic.received(chunk.byteLength));
-                        pipeline(stream, response, error => (error ? reject(error) : resolve()));
+                        pipeline(stream, out, error => (error ? reject(error) : resolve()));
                     });
                 return;
             }
@@ -416,7 +426,7 @@ export class ResponsesProxy {
                             incoming.once("error", reject);
                             incoming.once("end", () => {
                                 this.usageLimit(
-                                    response,
+                                    out,
                                     diagnostic,
                                     paymentRequiredNotice(
                                         target.hostname,
@@ -430,8 +440,8 @@ export class ResponsesProxy {
                             return;
                         }
                         incoming.on("data", (chunk: Buffer) => diagnostic.received(chunk.length));
-                        response.writeHead(incoming.statusCode!, forwardingHeaders(incoming.headers, false));
-                        pipeline(incoming, response, error => (error ? reject(error) : resolve()));
+                        out.writeHead(incoming.statusCode!, forwardingHeaders(incoming.headers, false));
+                        pipeline(incoming, out, error => (error ? reject(error) : resolve()));
                     },
                 );
                 upstream.once("error", reject);

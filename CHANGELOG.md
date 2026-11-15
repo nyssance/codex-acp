@@ -1,3 +1,7 @@
+## 0.7.70 (2026-11-15)
+
+- Fix compaction on a thread that started on OpenAI and then moved to a gateway model (DeepSeek, Anthropic, any custom provider). Codex cannot change a thread's model provider, so such a thread stays on the built-in OpenAI provider and Codex asks the gateway for a server-side compaction that only OpenAI implements. Every turn after the switch and every `/compact` ended with `Error running remote compact task`. The local Responses proxy now implements that protocol for gateways: a request ending in `compaction_trigger` asks the gateway model for the handoff summary Codex itself uses when it compacts locally, the answer goes back to Codex as the single `compaction` item it requires, and that item is turned back into the summary message in later requests, whichever upstream they go to.
+
 ## 0.7.69 (2026-11-15)
 
 - Upgrade the ACP SDK to 2.7.0, ahead of upstream. `prompt_suggestions_update` passes through to v2 clients unchanged; `configOptions` on a v2 `session/fork` is accepted and not applied, as on `session/new` and `session/resume`. New in the SDK and unused: `replay_complete`, skills in `available_commands_update`, the `speed` configuration category.
