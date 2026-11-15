@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "0.7.68",
+    "version": "0.7.69",
     "description": "ACP adapter for Codex with ALwith client extensions",
     "main": "dist/index.js",
     "bin": {
@@ -73,15 +73,15 @@
         "vitest": "^5.1.0"
     },
     "dependencies": {
-        "@agentclientprotocol/sdk": "~2.6.0",
+        "@agentclientprotocol/sdk": "~2.7.0",
         "@openai/codex": "^0.169.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",
         "effect": "^4.1.4",
         "open": "^11.0.4",
         "vscode-jsonrpc": "^10.0.0",
-        "ws": "^8.22.2",
-        "ws-transport": "npm:ws@8.22.1",
+        "ws": "^8.23.0",
+        "ws-transport": "npm:ws@8.23.0",
         "zod": "^4.6.7"
     },
     "exports": {

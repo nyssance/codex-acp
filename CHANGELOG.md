@@ -1,3 +1,8 @@
+## 0.7.69 (2026-11-15)
+
+- Upgrade the ACP SDK to 2.7.0, ahead of upstream. `prompt_suggestions_update` passes through to v2 clients unchanged; `configOptions` on a v2 `session/fork` is accepted and not applied, as on `session/new` and `session/resume`. New in the SDK and unused: `replay_complete`, skills in `available_commands_update`, the `speed` configuration category.
+- ws 8.23.0 and opencodex 2.100.3.
+
 ## 0.7.68 (2026-11-15)
 
 - Upgrade Codex to 0.169.0 and regenerate the experimental app-server bindings. Replayed failure messages carry the new required `moderation` field. New in the bindings and unused: agent message moderation display, thread environments and `attachedToThreadId`, deferred item output, model provider configuration (`modelProvider/list`, `modelProvider/config/write`), `account/securitySetup/read` and `thread/prepareApprovedPlan`.

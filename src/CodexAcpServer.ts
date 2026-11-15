@@ -2416,7 +2416,7 @@ export class CodexAcpServer {
     }
 
     async forkSessionV2(params: acpV2.ForkSessionRequest): Promise<acpV2.ForkSessionResponse> {
-        const {systemPrompt, ...rest} = params;
+        const {systemPrompt, configOptions: _configOptions, ...rest} = params;
         const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt)};
         const {sessionId} = await this.forkSession(request);
         const generation = this.getSessionGeneration(sessionId);

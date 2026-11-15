@@ -183,7 +183,7 @@ describe('Plans, compaction, notices and commands over ACP v2', () => {
         expect(updates[0]!.update.sessionUpdate).toBe("available_commands_update");
         const {availableCommands} = updates[0]!.update as acpV2.AvailableCommandsUpdate;
         // A v2 client's parser drops an untagged input, so the tag must arrive.
-        expect(availableCommands.map((command) => command.input)).toEqual([
+        expect(availableCommands.map((command) => (command.type === "command" ? command.input : undefined))).toEqual([
             {type: "text", hint: "focus"},
             null,
             undefined,
