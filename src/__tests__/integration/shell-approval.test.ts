@@ -103,7 +103,9 @@ describeIntegration("integration: shell approval", () => {
         expect(expectOnePermissionRequest()?.options.map((o) => o.optionId)).toEqual([
             ApprovalOptionId.AllowOnce, ApprovalOptionId.AcceptWithExecpolicyAmendment, ApprovalOptionId.Cancel,
         ]);
-        expect(JSON.stringify(toolCallWithStatus("completed"))).toContain("shell-ok");
+        // Output that Codex streamed is not repeated on completion, so it is in either update.
+        expect(toolCallWithStatus("completed")).toBeDefined();
+        expect(JSON.stringify(toolCallUpdates(agent, sessionId))).toContain("shell-ok");
         expect(commandRan()).toBe(true);
         expectOutputSentToModel("shell-ok");
         expectNoUnscriptedModelRequests(mock);
