@@ -1,3 +1,15 @@
+## 0.7.67 (2026-11-15)
+
+- Merge upstream: ACP SDK 2.6.0, pinned with a tilde as upstream pins it. Delegated tasks are reported as `session_message` updates on both the sender and the child session, linked with `senderMessageId` and `recipientMessageId`; the `spawnAgent` call is no longer shown, and other collaboration calls reference their receivers with `session` tool call content. A child's `description` is the role Codex assigned, never the task prompt.
+- The fork keeps its additions on top of that: standard subagent cancellation, and `_meta.codex.threadId` / `parentTurnId` on `subagent_update`.
+- The AIR retry warning shows the retry cause as its details (upstream).
+- `_codex/session_history` renders collaboration calls without session references, since no session is attached to that request.
+- Codex 0.167.2 and other in-range dependency updates. `typecheck` runs through `bun check`.
+
+## 0.7.66 (2026-11-12)
+
+- Identify application tool permission requests.
+
 ## 0.7.65 (2026-11-11)
 
 - Retry transient Codex turn-registration failures when cancelling standard subagents, including cancellation from a parent session. Reuse the existing bounded turn-interruption retry policy and stop retries when the selected child turn ends, changes, or becomes unobservable.
