@@ -60,6 +60,8 @@ export interface Gateway {
     config: JsonObject;
     /** Entries of `config.model_catalog_json`, keyed by slug, when the client pointed at one. */
     catalogEntries: Map<string, CatalogEntry>;
+    /** `_meta.alwith.webSearch`: the gateway serves DeepSeek's `/v1/tools/search` and `/v1/tools/fetch`, which run Codex's hosted web search. */
+    webSearch: boolean;
 }
 
 /**
@@ -176,6 +178,7 @@ export class ProviderRouting {
             bearerToken: hints.bearerToken,
             config: hints.config,
             catalogEntries: hints.catalogEntries,
+            webSearch: hints.webSearch,
         });
     }
 
@@ -376,6 +379,7 @@ function readHints(meta: unknown): {
     bearerToken: string | null;
     config: JsonObject;
     catalogEntries: Map<string, CatalogEntry>;
+    webSearch: boolean;
 } {
     const root = isRecord(meta) ? meta : {};
     const alwith = isRecord(root["alwith"]) ? root["alwith"] : {};
@@ -430,6 +434,9 @@ function readHints(meta: unknown): {
             '_meta.codex.mode "catalog" needs _meta.alwith.models: the models offered next to Codex\'s',
         );
     }
+    const webSearch = alwith["webSearch"];
+    if (webSearch !== undefined && webSearch !== "deepseek")
+        throw acp.RequestError.invalidParams({webSearch}, '_meta.alwith.webSearch names the search endpoints a gateway serves; only "deepseek" exists');
     const catalogPath = config["model_catalog_json"];
     const catalogEntries = typeof catalogPath === "string" ? readCatalogFile(catalogPath) : new Map<string, CatalogEntry>();
     return {
@@ -440,6 +447,7 @@ function readHints(meta: unknown): {
         bearerToken,
         config,
         catalogEntries,
+        webSearch: webSearch === "deepseek",
     };
 }
 

@@ -25,6 +25,7 @@ export class ResponsesRoutes {
         transportProvider: string = provider,
         aliases?: ModelAlias[],
         protocol: "openai" | "anthropic" = "openai",
+        webSearch = false,
     ): Promise<Config> {
         const externalProxy = protocol === "anthropic" ? this.messagesProxy : this.externalProxy;
         if (aliases !== undefined) {
@@ -61,7 +62,7 @@ export class ResponsesRoutes {
                         throw new Error(`Missing environment variable: ${keyVariable}`);
                 }
                 if (typeof token === "string") headers["authorization"] = `Bearer ${token}`;
-                const local = await externalProxy.route(selected["base_url"], headers);
+                const local = await externalProxy.route(selected["base_url"], headers, webSearch);
                 const remaining = {...providers};
                 delete remaining[provider];
                 return {
@@ -70,7 +71,7 @@ export class ResponsesRoutes {
                     openai_base_url: local,
                 };
             }
-            const local = await externalProxy.route(selected["base_url"]);
+            const local = await externalProxy.route(selected["base_url"], undefined, webSearch);
             const remapped = {...providers};
             if (transportProvider !== provider) delete remapped[provider];
             return {

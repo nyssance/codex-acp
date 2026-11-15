@@ -20,6 +20,7 @@ import {ProxyDiagnostics} from "./proxyDiagnostics";
 
 import {isRecord} from "../../permissions/json";
 import {CompactionSink, summaryRequest} from "./externalCompaction";
+import {GatewayWebSearch, type SearchUpstream} from "./gatewayWebSearch";
 import {compatibleResponsesRequest} from "./responsesCompatibility";
 
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
@@ -121,9 +122,12 @@ export class ResponsesProxy {
     });
     private readonly routes = new Map<string, string | (() => Promise<string>)>();
     private readonly routeHeaders = new Map<string, Record<string, string>>();
+    /** Routes whose upstream serves DeepSeek's search endpoints, which run Codex's hosted web search. */
+    private readonly searchRoutes = new Set<string>();
     private readonly sockets = new Set<Socket>();
     private readonly peers = new Set<WebSocket>();
     private readonly aborts = new Set<AbortController>();
+    private readonly webSearch = new GatewayWebSearch();
     private starting: Promise<void> | null = null;
     private closed = false;
 
@@ -191,7 +195,7 @@ export class ResponsesProxy {
         });
     }
 
-    async route(upstream: string | (() => Promise<string>), headers?: Record<string, string>): Promise<string> {
+    async route(upstream: string | (() => Promise<string>), headers?: Record<string, string>, webSearch = false): Promise<string> {
         if (this.closed) throw new Error("Responses compatibility proxy is closed");
         const canonical = typeof upstream === "string" ? this.validateBase(upstream) : upstream;
         this.starting ??= new Promise<void>((resolve, reject) => {
@@ -214,12 +218,16 @@ export class ResponsesProxy {
                           .sort(([a], [b]) => a!.localeCompare(b!)),
                   );
         let token = [...this.routes].find(
-            ([key, value]) => value === canonical && JSON.stringify(this.routeHeaders.get(key)) === JSON.stringify(normalized),
+            ([key, value]) =>
+                value === canonical &&
+                JSON.stringify(this.routeHeaders.get(key)) === JSON.stringify(normalized) &&
+                this.searchRoutes.has(key) === webSearch,
         )?.[0];
         if (!token) {
             token = randomBytes(24).toString("hex");
             this.routes.set(token, canonical);
             if (normalized !== undefined) this.routeHeaders.set(token, normalized);
+            if (webSearch) this.searchRoutes.add(token);
         }
         const address = this.server.address();
         if (!address || typeof address === "string") throw new Error("Responses compatibility proxy has no TCP address");
@@ -292,6 +300,7 @@ export class ResponsesProxy {
         }
         let body: Buffer;
         let compaction = false;
+        let search: Record<string, unknown> | null = null;
         const headers = this.requestHeaders(request, false);
         if (!transformResponses) {
             body = bytes;
@@ -327,7 +336,9 @@ export class ResponsesProxy {
                 const parsed: unknown = this.destination === "external" ? JSON.parse(compatible) : null;
                 const summary = isRecord(parsed) ? summaryRequest(parsed) : null;
                 compaction = summary !== null;
-                body = Buffer.from(summary ? JSON.stringify(summary) : compatible);
+                if (!summary && isRecord(parsed) && this.protocol === "openai" && this.searchRoutes.has((request.url ?? "").slice(1, 49)))
+                    search = this.webSearch.request(parsed);
+                body = Buffer.from(summary ? JSON.stringify(summary) : search ? JSON.stringify(search) : compatible);
             } catch {
                 response.writeHead(400).end("Invalid Responses request body");
                 return;
@@ -339,7 +350,7 @@ export class ResponsesProxy {
         response.once("close", () => abort.abort());
         diagnostic.sent(body.length);
         // A summary request must come back readable; its answer is rewritten into the compaction Codex expects.
-        if (compaction) headers["accept-encoding"] = "identity";
+        if (compaction || search) headers["accept-encoding"] = "identity";
         const out = compaction ? (new CompactionSink(response) as unknown as ServerResponse) : response;
         if (this.protocol === "anthropic") {
             try {
@@ -355,7 +366,7 @@ export class ResponsesProxy {
         try {
             // Use Bun's native HTTP client for loopback too; node:http compatibility is not a transport boundary.
             // Node uses raw HTTP below because its fetch always decompresses upstream out bodies.
-            if ("Bun" in globalThis) {
+            if ("Bun" in globalThis || search) {
                 const options: RequestInit & {
                     decompress: boolean;
                     proxy?: false;
@@ -387,6 +398,25 @@ export class ResponsesProxy {
                             incoming.headers.get("content-type") ?? undefined,
                         ),
                     );
+                    return;
+                }
+                if (search && incoming.status === 200) {
+                    const post = (url: URL, text: string): Promise<Response> => {
+                        const route = this.nativeNetwork?.route(url, false, diagnostic.requestId);
+                        const sent = {...headers, ...route?.headers, "content-type": "application/json", "content-length": String(Buffer.byteLength(text))};
+                        return fetch(route?.url ?? url, {...options, method: "POST", headers: sent as unknown as Record<string, string>, body: text});
+                    };
+                    const upstream: SearchUpstream = {
+                        responses: text => post(target, text),
+                        tool: (name, text) => post(new URL(`/v1/tools/${name}`, target), text),
+                    };
+                    const {"content-length": _length, ...streamHeaders} = forwardingHeaders(Object.fromEntries(incoming.headers), false);
+                    out.writeHead(200, streamHeaders);
+                    await this.webSearch.relay(search, incoming, upstream, chunk => {
+                        diagnostic.received(Buffer.byteLength(chunk));
+                        out.write(chunk);
+                    });
+                    out.end();
                     return;
                 }
                 out.writeHead(incoming.status, forwardingHeaders(Object.fromEntries(incoming.headers), false));

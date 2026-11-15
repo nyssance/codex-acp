@@ -1486,6 +1486,7 @@ export class CodexAcpClient {
             transportProvider ?? logicalProvider,
             catalog ? this.providerCatalog.modelAliases() : undefined,
             this.providerCatalog.gateway(gatewayId)?.apiType,
+            this.providerCatalog.gateway(gatewayId)?.webSearch,
         );
         const configWithWorkspaceRoots = mergeSandboxWorkspaceWriteRoots(transportConfig, additionalDirectories);
         const permissionProfiles = await this.fetchPermissionProfiles(projectPath);

@@ -1,6 +1,7 @@
 ## 0.7.70 (2026-11-15)
 
 - Fix compaction on a thread that started on OpenAI and then moved to a gateway model (DeepSeek, Anthropic, any custom provider). Codex cannot change a thread's model provider, so such a thread stays on the built-in OpenAI provider and Codex asks the gateway for a server-side compaction that only OpenAI implements. Every turn after the switch and every `/compact` ended with `Error running remote compact task`. The local Responses proxy now implements that protocol for gateways: a request ending in `compaction_trigger` asks the gateway model for the handoff summary Codex itself uses when it compacts locally, the answer goes back to Codex as the single `compaction` item it requires, and that item is turned back into the summary message in later requests, whichever upstream they go to.
+- Web search works on DeepSeek. Codex offers every model OpenAI's hosted `web_search` tool, which DeepSeek accepts and never runs. For a gateway that declares DeepSeek's search endpoints (`_meta.alwith.webSearch: "deepseek"` on `providers/set`: `/v1/tools/search` and `/v1/tools/fetch` under the gateway's origin and credential) the proxy now runs it: the model gets `web_search` and `web_open_page` functions instead, the proxy answers them from those endpoints and lets the model continue within the same response, and Codex receives each call as the `web_search_call` item it gets from OpenAI, so clients show the same search entries. Other gateways are unchanged.
 
 ## 0.7.69 (2026-11-15)
 

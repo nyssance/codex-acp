@@ -54,7 +54,7 @@ it("routes external endpoints through compatibility without changing credentials
         readAccount: vi.fn(),
     };
     const output = await routes.config(config, "kimi", context);
-    expect(route).toHaveBeenCalledExactlyOnceWith("https://api.example/v1");
+    expect(route).toHaveBeenCalledExactlyOnceWith("https://api.example/v1", undefined, false);
     expect(output).toEqual({
         model_providers: {
             ...config.model_providers,
@@ -124,7 +124,7 @@ it("routes a gateway through the reserved openai transport without overriding it
         });
         expect(route).toHaveBeenCalledWith("https://gateway.test/v1", {
             authorization: "Bearer target-key",
-        });
+        }, false);
     } finally {
         routes.close();
     }
@@ -154,7 +154,7 @@ it("preserves provider environment authentication when a native custom provider 
         expect(route).toHaveBeenCalledWith("https://corp.example/v1", {
             authorization: "Bearer provider-key",
             "x-org": "provider-org",
-        });
+        }, false);
     } finally {
         routes.close();
     }
