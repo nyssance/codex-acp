@@ -42,6 +42,7 @@ import {
     isAccountReadUnavailableError,
     isNoActiveTurnError,
     isMissingRolloutError,
+    isThreadClosingError,
     isThreadNotMaterializedError,
     parseExpectedActiveTurnMismatch,
 } from "./CodexThreadErrors";
@@ -2879,9 +2880,10 @@ export class CodexAcpServer {
             }
             let unloaded = false;
             const [unloadedReady, markUnloaded] = createDeferred<void>();
+            const [closedReady, markClosed] = createDeferred<void>();
             const release = client.appServerClient.onClientTransportEvent(event => {
+                if (event.eventType !== "notification") return;
                 if (
-                    event.eventType === "notification" &&
                     event.method === "thread/status/changed" &&
                     event.params.threadId === session.sessionId &&
                     event.params.status.type === "notLoaded"
@@ -2889,6 +2891,7 @@ export class CodexAcpServer {
                     unloaded = true;
                     markUnloaded(undefined);
                 }
+                if (event.method === "thread/closed" && event.params.threadId === session.sessionId) markClosed(undefined);
             });
             try {
                 const detached = await client.appServerClient.threadUnsubscribe({threadId: session.sessionId});
@@ -2896,7 +2899,11 @@ export class CodexAcpServer {
                     if ((await settledWithin(unloadedReady, 10_000)) === "pending")
                         throw RequestError.invalidRequest(undefined, "Timed out waiting for the previous thread writer to unload");
                 }
-                const metadata = await resume(model);
+                const metadata = await resume(model).catch(async error => {
+                    // Codex can report the unload just before it finishes closing the thread.
+                    if (!isThreadClosingError(error) || (await settledWithin(closedReady, 10_000)) === "pending") throw error;
+                    return resume(model);
+                });
                 const expectedProvider = target ?? (await client.getCurrentModelProvider()) ?? "openai";
                 const ignoredOverrides =
                     metadata.modelProvider !== expectedProvider ||

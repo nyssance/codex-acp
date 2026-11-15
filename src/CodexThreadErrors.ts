@@ -28,6 +28,14 @@ export function isMissingRolloutError(err: unknown): boolean {
     return errorText(err).includes("no rollout found for thread id");
 }
 
+/**
+ * `thread/resume` answers this for a thread Codex has reported as not loaded but has not
+ * finished closing. `thread/closed` follows, and the resume succeeds after it.
+ */
+export function isThreadClosingError(err: unknown): boolean {
+    return errorText(err).includes("is closing; retry thread/resume");
+}
+
 /** History paging rejects a live thread whose rollout has not been written yet. */
 export function isThreadNotMaterializedError(err: unknown): boolean {
     return errorText(err).includes("not materialized");

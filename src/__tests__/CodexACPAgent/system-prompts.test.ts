@@ -240,6 +240,21 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         expect(client.agent.getSessionState(sessionId).codexReportedRunningTurnId).toBe("turn-1");
     });
 
+    it("retries the resume that Codex rejects while the thread is still closing", async () => {
+        const {calls} = await connect();
+        let resumed = 0;
+        client.setCodexResponse("thread/resume", async params => {
+            calls.push({method: "thread/resume", params});
+            if (++resumed > 1) return codexResponse("thread/resume");
+            client.emit({method: "thread/status/changed", params: {threadId: sessionId, status: {type: "notLoaded"}}});
+            client.emit({method: "thread/closed", params: {threadId: sessionId}} as any);
+            throw new Error(`thread ${sessionId} is closing; retry thread/resume after the thread is closed`);
+        });
+        await client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Closing")});
+        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume", "thread/resume"]);
+        expect(calls.at(-1)?.params).toEqual(calls.at(-2)?.params);
+    });
+
     it("resends known instructions after a provider restart", async () => {
         await connect();
         await client.request("session/new", {cwd, mcpServers: [], systemPrompt: prompt("Keep after restart"), ...air});

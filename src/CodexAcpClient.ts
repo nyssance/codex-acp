@@ -40,7 +40,7 @@ import {AgentMode} from "./AgentMode";
 import path from "node:path";
 import {isDeepStrictEqual} from "node:util";
 import {logger} from "./Logger";
-import {isModelProviderRouteError, isAccountReadAuthFailureError, isAccountReadUnavailableError} from "./CodexThreadErrors";
+import {isModelProviderRouteError, isAccountReadAuthFailureError, isAccountReadUnavailableError, isThreadClosingError} from "./CodexThreadErrors";
 import {listedSessionTitle, normalizeSessionTitle} from "./SessionTitle";
 import {type AcpMcpServer, type WithAcpMcpServers, normalizeMcpServers, toCodexMcpServerConfig} from "./McpServerConfig";
 import type {
@@ -1217,12 +1217,15 @@ export class CodexAcpClient {
         let detached = false;
         let resumed = false;
         const unloading = Promise.withResolvers<void>();
+        const closing = Promise.withResolvers<void>();
         const release = this.codexClient.onClientTransportEvent(event => {
-            if (event.eventType === "notification" && event.method === "thread/status/changed"
+            if (event.eventType !== "notification") return;
+            if (event.method === "thread/status/changed"
                 && event.params.threadId === request.sessionId && event.params.status.type === "notLoaded") {
                 unloaded = true;
                 unloading.resolve();
             }
+            if (event.method === "thread/closed" && event.params.threadId === request.sessionId) closing.resolve();
         });
         try {
             const detachment = await this.codexClient.threadUnsubscribe({threadId: request.sessionId});
@@ -1231,7 +1234,11 @@ export class CodexAcpClient {
             if (detachment.status === "unsubscribed" && !unloaded && (await settledWithin(unloading.promise, 10_000)) === "pending") {
                 throw RequestError.invalidRequest(undefined, "Timed out waiting for the session to unload; systemPrompt could not be changed. Retry when idle");
             }
-            const response = await this.resumeThread(params);
+            const response = await this.resumeThread(params).catch(async error => {
+                // Codex can report the unload just before it finishes closing the thread.
+                if (!isThreadClosingError(error) || (await settledWithin(closing.promise, 10_000)) === "pending") throw error;
+                return this.resumeThread(params);
+            });
             resumed = true;
             if (!unloaded) {
                 throw RequestError.invalidParams(

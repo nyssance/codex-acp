@@ -5,6 +5,7 @@
 - The AIR retry warning shows the retry cause as its details (upstream).
 - `_codex/session_history` renders collaboration calls without session references, since no session is attached to that request.
 - Codex 0.167.2 and other in-range dependency updates. `typecheck` runs through `bun check`.
+- Codex 0.167.2 can report a thread as not loaded just before it finishes closing it, and rejects a resume in between. Changing `systemPrompt` on `session/resume` and switching providers now wait for `thread/closed` and retry the resume once.
 
 ## 0.7.66 (2026-11-12)
 
