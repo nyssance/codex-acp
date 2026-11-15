@@ -53,12 +53,22 @@ export class CodexBackgroundTerminalTasks {
     private appServerQueriesEnabled = true;
     private disposed = false;
 
+    readonly enabled: boolean;
+    private readonly rootSessionId: string;
+    private appServer: CodexAppServerClient;
+    private readonly session: ACPSessionConnection;
+
     constructor(
-        readonly enabled: boolean,
-        private readonly rootSessionId: string,
-        private appServer: CodexAppServerClient,
-        private readonly session: ACPSessionConnection,
-    ) {}
+        enabled: boolean,
+        rootSessionId: string,
+        appServer: CodexAppServerClient,
+        session: ACPSessionConnection,
+    ) {
+        this.enabled = enabled;
+        this.rootSessionId = rootSessionId;
+        this.appServer = appServer;
+        this.session = session;
+    }
 
     async handleNotification(
         notification: ServerNotification,

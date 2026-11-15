@@ -97,8 +97,11 @@ export class CompactionSink extends Writable {
     private headers: OutgoingHttpHeaders = {};
     private readonly chunks: Buffer[] = [];
 
-    constructor(private readonly client: ServerResponse) {
+    private readonly client: ServerResponse;
+
+    constructor(client: ServerResponse) {
         super();
+        this.client = client;
     }
 
     writeHead(status: number, headers: OutgoingHttpHeaders = {}): this {

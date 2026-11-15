@@ -6,7 +6,10 @@ export class SessionBirths<Update> {
     private overflow: Error | null = null;
     private frames: {sessionId: string; update: Update}[] = [];
 
-    constructor(private readonly capacity = 4096) {
+    private readonly capacity: number;
+
+    constructor(capacity = 4096) {
+        this.capacity = capacity;
         if (!Number.isSafeInteger(capacity) || capacity < 1) throw new RangeError("Birth buffer capacity must be positive");
     }
 

@@ -89,7 +89,10 @@ class RuntimePaths {
     readonly workspaceDir: string;
     readonly appServerLogsDir: string;
 
-    constructor(readonly rootDir: string) {
+    readonly rootDir: string;
+
+    constructor(rootDir: string) {
+        this.rootDir = rootDir;
         this.codexHome = path.join(rootDir, "codex-home");
         this.workspaceDir = path.join(rootDir, "workspace");
         this.appServerLogsDir = path.join(rootDir, "logs");
@@ -187,14 +190,27 @@ class SpawnedAgentFixtureImpl implements SpawnedAgentFixture {
     readonly connection: acp.ClientContext;
     private disposed = false;
 
+    private readonly client: RecordingClient;
+    private readonly agentProcess: ChildProcessWithoutNullStreams;
+    private readonly paths: RuntimePaths;
+    private readonly initializeConnection: ConnectionInitializer;
+    private readonly extraEnv: NodeJS.ProcessEnv;
+    private readonly mcpServers: acp.McpServerStdio[];
+
     constructor(
-        private readonly client: RecordingClient,
-        private readonly agentProcess: ChildProcessWithoutNullStreams,
-        private readonly paths: RuntimePaths,
-        private readonly initializeConnection: ConnectionInitializer,
-        private readonly extraEnv: NodeJS.ProcessEnv,
-        private readonly mcpServers: acp.McpServerStdio[],
+        client: RecordingClient,
+        agentProcess: ChildProcessWithoutNullStreams,
+        paths: RuntimePaths,
+        initializeConnection: ConnectionInitializer,
+        extraEnv: NodeJS.ProcessEnv,
+        mcpServers: acp.McpServerStdio[],
     ) {
+        this.client = client;
+        this.agentProcess = agentProcess;
+        this.paths = paths;
+        this.initializeConnection = initializeConnection;
+        this.extraEnv = extraEnv;
+        this.mcpServers = mcpServers;
         const output = Readable.toWeb(agentProcess.stdout) as ReadableStream<Uint8Array>;
         this.connection = acp.client()
             .onRequest(acp.methods.client.session.requestPermission, ctx => client.requestPermission(ctx.params))

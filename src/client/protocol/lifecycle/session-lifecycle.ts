@@ -80,8 +80,11 @@ export class SessionLifecycle {
 
 /** A queued operation retains the attachment that admitted it, never the later selected chat. */
 class AttachmentAdmission extends SessionAdmission {
-    constructor(private readonly registry: () => SessionGenerations) {
+    private readonly registry: () => SessionGenerations;
+
+    constructor(registry: () => SessionGenerations) {
         super();
+        this.registry = registry;
     }
     override enqueue<A>(sessionId: string, work: () => Promise<A>, continueAfterFailure = true): Promise<A> {
         const generation = this.registry().capture(sessionId);

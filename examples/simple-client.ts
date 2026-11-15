@@ -47,7 +47,6 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { Readable, Writable } from "node:stream";
-import { fileURLToPath } from "node:url";
 import {
     PROTOCOL_VERSION,
     client as acpClient,

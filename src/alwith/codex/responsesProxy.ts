@@ -132,10 +132,15 @@ export class ResponsesProxy {
     private closed = false;
 
     /** `anthropic` answers `/responses` from the route's Anthropic Messages endpoint; the route's bearer token is its API key. */
+    private readonly destination: "native" | "external";
+    private readonly protocol: "openai" | "anthropic";
+
     constructor(
-        private readonly destination: "native" | "external" = "native",
-        private readonly protocol: "openai" | "anthropic" = "openai",
+        destination: "native" | "external" = "native",
+        protocol: "openai" | "anthropic" = "openai",
     ) {
+        this.destination = destination;
+        this.protocol = protocol;
         this.server = createServer((request, response) => {
             const diagnostic = new ProxyDiagnostics("http", this.destination);
             response.once("finish", () => diagnostic.end("completed"));

@@ -15,7 +15,11 @@ import type {
 /** A view of the current upstream app-server, never a second process or connection. */
 export class AppServerClient {
     private readonly signals = new WeakMap<CodexAppServerClient, AbortSignal>();
-    constructor(private readonly current: () => CodexAppServerClient) {}
+    private readonly current: () => CodexAppServerClient;
+
+    constructor(current: () => CodexAppServerClient) {
+        this.current = current;
+    }
 
     get disconnectSignal(): AbortSignal {
         const client = this.current();

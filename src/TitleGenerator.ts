@@ -41,13 +41,25 @@ export class TitleGenerator {
     private inFlight: Promise<void> | null = null;
     private renameEchoResolve: (() => void) | null = null;
 
+    private client: CodexAppServerClient;
+    private readonly mainThreadId: string;
+    private readonly cwd: string;
+    private readonly getSessionTitleSource: () => string;
+    private readonly serializeTitleWrite: SerializeTitleWrite;
+
     constructor(
-        private client: CodexAppServerClient,
-        private readonly mainThreadId: string,
-        private readonly cwd: string,
-        private readonly getSessionTitleSource: () => string,
-        private readonly serializeTitleWrite: SerializeTitleWrite = runTitleWriteNow,
-    ) {}
+        client: CodexAppServerClient,
+        mainThreadId: string,
+        cwd: string,
+        getSessionTitleSource: () => string,
+        serializeTitleWrite: SerializeTitleWrite = runTitleWriteNow,
+    ) {
+        this.client = client;
+        this.mainThreadId = mainThreadId;
+        this.cwd = cwd;
+        this.getSessionTitleSource = getSessionTitleSource;
+        this.serializeTitleWrite = serializeTitleWrite;
+    }
 
     /**
      * Call when the session is loaded or resumed with an existing thread.name.

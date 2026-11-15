@@ -9,7 +9,11 @@ type FileChangeItem = ThreadItem & {type: "fileChange"};
 export class PermissionLifecycleContext {
     private permissionRequestSequence = 0;
 
-    constructor(private readonly session: Pick<SessionState, "sessionId">) {}
+    private readonly session: Pick<SessionState, "sessionId">;
+
+    constructor(session: Pick<SessionState, "sessionId">) {
+        this.session = session;
+    }
 
     beginPrompt(): PermissionPromptContext {
         return new PermissionPromptContext(serverName => this.nextStandaloneMcpToolCallId(serverName));
@@ -28,7 +32,11 @@ export class PermissionPromptContext {
     private readonly fileChanges = new Map<string, Map<string, FileChangeItem>>();
     private readonly pendingMcpApprovals = new Map<string, Map<string, string[]>>();
 
-    constructor(private readonly nextStandaloneId: (serverName: string) => string) {}
+    private readonly nextStandaloneId: (serverName: string) => string;
+
+    constructor(nextStandaloneId: (serverName: string) => string) {
+        this.nextStandaloneId = nextStandaloneId;
+    }
 
     handleNotification(notification: ServerNotification): void {
         switch (notification.method) {

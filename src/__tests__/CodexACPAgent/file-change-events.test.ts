@@ -15,7 +15,7 @@ async function createFileChangeUpdate(item: ThreadItem & {type: 'fileChange'}, d
     return new AcpToolCallRenderer(ClientCapabilities.DEFAULT).render(FileChangeReporter.started(item, diffPatch ? "air" : "none"));
 }
 
-const { mockFiles, mockReadDelays, mockFileContent, delayMockFileRead, removeMockFile, clearMockFiles } = vi.hoisted(() => {
+const { mockFiles, mockReadDelays, mockFileContent, removeMockFile, clearMockFiles } = vi.hoisted(() => {
     const files = new Map<string, string>();
     const readDelays = new Map<string, Promise<void>>();
     return {

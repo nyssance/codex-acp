@@ -6,7 +6,6 @@ import {
     turnStarted,
     turnCompleted,
     userMessageItem,
-    itemStarted,
     itemCompleted,
 } from "./v2-prompt-harness";
 import {goalSessionInfoUpdate, sameThreadGoalSnapshot, toThreadGoalSnapshot} from "../../ThreadGoalSnapshot";

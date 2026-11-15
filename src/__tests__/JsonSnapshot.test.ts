@@ -19,7 +19,11 @@ function nested(depth: number, leaf: unknown): unknown {
 }
 
 class Box {
-    constructor(readonly value: number) {}
+    readonly value: number;
+
+    constructor(value: number) {
+        this.value = value;
+    }
 }
 
 const nullPrototype = Object.assign(Object.create(null) as Record<string, unknown>, {a: 1});

@@ -23,7 +23,11 @@ export type ImportConnection = Pick<MessageConnection, "sendRequest" | "onUnhand
 
 /** Uses an initialized app-server connection; never creates a chat or owns the process. */
 export class CodexImportClient {
-    constructor(private readonly connection: ImportConnection) {}
+    private readonly connection: ImportConnection;
+
+    constructor(connection: ImportConnection) {
+        this.connection = connection;
+    }
 
     /** Acceptance only. Subscribe to completion before sending this request. */
     import(

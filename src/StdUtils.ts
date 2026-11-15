@@ -131,7 +131,11 @@ class LineSplitter {
     /** The parts of the line whose end has not arrived yet. */
     private parts: string[] = [];
 
-    constructor(private readonly onLine: (line: string) => void) {}
+    private readonly onLine: (line: string) => void;
+
+    constructor(onLine: (line: string) => void) {
+        this.onLine = onLine;
+    }
 
     push(chunk: Buffer): void {
         const text = this.decoder.write(chunk);

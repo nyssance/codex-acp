@@ -118,12 +118,19 @@ export class HistoryRead {
     readonly after: string | null;
     private readonly binding: string;
     private readonly previous: Cursor | null;
+    private readonly codex: AppServerClient;
+    readonly params: HistoryParams;
+    private readonly signal?: AbortSignal;
+
     constructor(
-        private readonly codex: AppServerClient,
-        readonly params: HistoryParams,
+        codex: AppServerClient,
+        params: HistoryParams,
         scope: Record<string, unknown>,
-        private readonly signal?: AbortSignal,
+        signal?: AbortSignal,
     ) {
+        this.codex = codex;
+        this.params = params;
+        this.signal = signal;
         this.direction = params.sortDirection ?? "asc";
         this.mode = params.mode ?? "browse";
         this.binding = JSON.stringify({

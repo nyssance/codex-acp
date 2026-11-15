@@ -46,7 +46,10 @@ export class CodexCapabilitiesClient {
     private readonly unsubscribe: () => void;
     private closed = false;
 
-    constructor(private readonly connection: CodexCapabilitiesConnection) {
+    private readonly connection: CodexCapabilitiesConnection;
+
+    constructor(connection: CodexCapabilitiesConnection) {
+        this.connection = connection;
         this.unsubscribe = connection.onNotification((method, params) => {
             if (this.closed) return;
             if (method === "_codex/realtime/update") {

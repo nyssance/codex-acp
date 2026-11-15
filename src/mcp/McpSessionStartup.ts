@@ -44,6 +44,8 @@ export class McpSessionStartup {
     private readonly isSessionOpen: (sessionId: string) => boolean;
     private readonly pendingSessions = new Map<string, PendingMcpStartupSession>();
 
+    private readonly waitForSessionSetup: (sessionId: string, signal: AbortSignal) => Promise<void> | null;
+
     constructor(
         connection: AcpClientConnection,
         codexAcpClient: () => CodexAcpClient,
@@ -51,8 +53,9 @@ export class McpSessionStartup {
         signIn: McpServerSignIn,
         capabilities: () => ClientCapabilities,
         isSessionOpen: (sessionId: string) => boolean,
-        private readonly waitForSessionSetup: (sessionId: string, signal: AbortSignal) => Promise<void> | null = () => null,
+        waitForSessionSetup: (sessionId: string, signal: AbortSignal) => Promise<void> | null = () => null,
     ) {
+        this.waitForSessionSetup = waitForSessionSetup;
         this.connection = connection;
         this.codexAcpClient = codexAcpClient;
         this.runWithProcessCheck = runWithProcessCheck;

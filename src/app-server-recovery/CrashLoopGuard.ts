@@ -6,11 +6,19 @@
 export class CrashLoopGuard {
     private readonly crashes = new Map<string, number[]>();
 
+    readonly limit: number;
+    readonly windowMs: number;
+    private readonly now: () => number;
+
     constructor(
-        readonly limit: number,
-        readonly windowMs: number,
-        private readonly now: () => number = Date.now,
-    ) {}
+        limit: number,
+        windowMs: number,
+        now: () => number = Date.now,
+    ) {
+        this.limit = limit;
+        this.windowMs = windowMs;
+        this.now = now;
+    }
 
     record(key = ""): void {
         const times = this.recent(key);

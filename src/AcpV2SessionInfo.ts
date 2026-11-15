@@ -13,10 +13,13 @@ export class AcpV2SessionInfo {
     private tail = Promise.resolve();
     private disposed = false;
 
+    private readonly send: (update: Update, notificationMetadata?: NotificationMetadata) => Promise<void>;
+
     constructor(
-        private readonly send: (update: Update, notificationMetadata?: NotificationMetadata) => Promise<void>,
+        send: (update: Update, notificationMetadata?: NotificationMetadata) => Promise<void>,
         initialMetadata: Record<string, unknown> | null = null,
     ) {
+        this.send = send;
         this.applyMetadata(JSON.parse(JSON.stringify({_meta: initialMetadata}))._meta);
     }
 

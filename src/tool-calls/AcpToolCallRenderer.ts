@@ -14,7 +14,11 @@ type ToolCallReport = Extract<UpdateSessionEvent, {sessionUpdate: "tool_call" | 
  * `ToolCallReports` then drops the fields that an earlier report already sent.
  */
 export class AcpToolCallRenderer {
-    constructor(readonly capabilities: ClientCapabilities) {}
+    readonly capabilities: ClientCapabilities;
+
+    constructor(capabilities: ClientCapabilities) {
+        this.capabilities = capabilities;
+    }
 
     render(facts: ToolFacts): ToolCallReport {
         const rendered: Record<string, unknown> = {

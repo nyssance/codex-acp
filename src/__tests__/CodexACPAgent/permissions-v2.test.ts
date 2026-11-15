@@ -126,7 +126,7 @@ describe('session/request_permission over ACP v2', () => {
             },
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
 
         await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams({reason: "Needs a listing"}));
 
@@ -149,7 +149,7 @@ describe('session/request_permission over ACP v2', () => {
             },
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
         client.emit(itemStarted(commandExecutionItem("first")));
         client.emit(itemStarted(commandExecutionItem("second")));
         await settle();
@@ -241,7 +241,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "cancelled"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());
@@ -259,7 +259,7 @@ describe('session/request_permission over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "some_future_outcome"} as unknown as acpV2.RequestPermissionOutcome}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());
 
@@ -274,7 +274,7 @@ describe('session/request_permission over ACP v2', () => {
             },
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval(CommandExecutionApprovalRequest.method, commandApprovalParams());

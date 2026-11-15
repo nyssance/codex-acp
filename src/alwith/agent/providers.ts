@@ -76,10 +76,16 @@ export interface Gateway {
 export class ProviderRouting {
     private gateways = new Map<string, Gateway>();
 
+    private readonly baseConfig: JsonObject;
+    private readonly configuredProvider: string | null;
+
     constructor(
-        private readonly baseConfig: JsonObject,
-        private readonly configuredProvider: string | null,
-    ) {}
+        baseConfig: JsonObject,
+        configuredProvider: string | null,
+    ) {
+        this.baseConfig = baseConfig;
+        this.configuredProvider = configuredProvider;
+    }
 
     copy(): ProviderRouting {
         const copy = new ProviderRouting(this.baseConfig, this.configuredProvider);

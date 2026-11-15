@@ -6,7 +6,6 @@ import type {
 import type {
     SessionFailure,
     SessionFailureAction,
-    SessionFailureCategory,
     SessionState,
 } from "./CodexAcpServer";
 import {type Error as AcpError, type PlanEntry, RequestError} from "@agentclientprotocol/sdk/unstable";
@@ -148,6 +147,9 @@ export class CodexEventHandler {
     /** Connection-level `authStatus` sink; the app-server account push feeds it. */
     private readonly onAccountUpdated: ((notification: AccountUpdatedNotification) => void) | undefined;
 
+    private readonly supportsCompaction: boolean;
+    private readonly supportsNotices: boolean;
+
     constructor(
         connection: AcpClientConnection,
         sessionState: SessionState,
@@ -156,9 +158,11 @@ export class CodexEventHandler {
         subagents: SubagentEventRouter,
         onAccountUpdated: ((notification: AccountUpdatedNotification) => void) | undefined,
         collectTurnDiffs: boolean,
-        private readonly supportsCompaction: boolean,
-        private readonly supportsNotices: boolean,
+        supportsCompaction: boolean,
+        supportsNotices: boolean,
     ) {
+        this.supportsCompaction = supportsCompaction;
+        this.supportsNotices = supportsNotices;
         this.onAccountUpdated = onAccountUpdated;
         this.sessionState = sessionState;
         this.supportsTypedSessionFailures = supportsTypedSessionFailures;

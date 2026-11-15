@@ -125,7 +125,7 @@ import {settledWithin} from "./StdUtils";
 import type {ToolCallReports} from "./ToolCallReports";
 import {AcpClientDelivery} from "./AcpClientDelivery";
 import {throwIfRequestCancelled, withRequestCancellation} from "./RequestCancellation";
-import {type AcpMcpServer, getMcpServerName, type WithAcpMcpServers} from "./McpServerConfig";
+import {type AcpMcpServer, type WithAcpMcpServers} from "./McpServerConfig";
 import {
     AUTH_STATUS_META_KEY,
     AUTH_STATUS_UPDATE_METHOD,
@@ -217,7 +217,6 @@ import {randomUUID} from "node:crypto";
 import {TitleGenerator} from "./TitleGenerator";
 import {PromptSuggestionGenerator, promptSuggestionsEnabled, promptSuggestionsMeta} from "./PromptSuggestionGenerator";
 import {ALWITH_PROMPT_SUGGESTIONS_KEY, clientSupportsAlwithCapability} from "./alwith/agent/sessionList";
-import {once} from "node:events";
 import {
     AIR_AGENT_FILE_CHANGE_REPORT_KEY,
     AIR_CUSTOM_INSTRUCTIONS_KEY,

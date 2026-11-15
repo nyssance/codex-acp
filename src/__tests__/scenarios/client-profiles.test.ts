@@ -1,7 +1,6 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
 import fs from "node:fs";
 import path from "node:path";
-import {fileURLToPath} from "node:url";
 import {beforeAll, describe, expect, it} from "vitest";
 import packageJson from "../../../package.json";
 import {schemaErrors} from "./acp-schema";

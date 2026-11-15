@@ -42,10 +42,16 @@ export class PromptSuggestionGenerator {
     private generation = 0;
     private lastPublished: string | null = null;
 
+    private client: CodexAppServerClient;
+    private readonly publish: PublishPromptSuggestion;
+
     constructor(
-        private client: CodexAppServerClient,
-        private readonly publish: PublishPromptSuggestion,
-    ) {}
+        client: CodexAppServerClient,
+        publish: PublishPromptSuggestion,
+    ) {
+        this.client = client;
+        this.publish = publish;
+    }
 
     /** Fire-and-forget hook, called after a turn ends normally. A newer turn or {@link invalidate} drops its result. */
     onTurnCompleted(threadId: string, turnId: string): void {

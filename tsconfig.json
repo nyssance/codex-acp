@@ -1,32 +1,4 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
-  "compilerOptions": {
-    "rootDir": "./src",
-
-        "module": "ES2022",
-        "moduleResolution": "Bundler",
-        "target": "ES2023",
-        "lib": ["ES2023"],
-        "types": ["bun"],
-
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-     "noImplicitReturns": true,
-     "noImplicitOverride": true,
-//     "noUnusedLocals": true,
-//     "noUnusedParameters": true,
-     "noFallthroughCasesInSwitch": true,
-     "noPropertyAccessFromIndexSignature": true,
-
-        "strict": true,
-        "verbatimModuleSyntax": true,
-        "noUncheckedSideEffectImports": true,
-        "skipLibCheck": true
-    },
-    "exclude": [".claude", "examples", "src/client", "src/__tests__/client"]
+  "extends": "@nyssance/tsconfig/bun.json",
+  "exclude": [".claude", "examples", "src/client", "src/__tests__/client"]
 }

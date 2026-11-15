@@ -541,7 +541,11 @@ export class SessionIndexActivity {
      * @param isSession true for a thread that is a session of this connection. Only those are recorded: the
      *   ephemeral threads of the title generation and other helper threads never show in the list.
      */
-    constructor(private readonly isSession: (threadId: string) => boolean = () => true) {}
+    private readonly isSession: (threadId: string) => boolean;
+
+    constructor(isSession: (threadId: string) => boolean = () => true) {
+        this.isSession = isSession;
+    }
 
     observe(notification: ServerNotification): void {
         if (notification.method === "thread/deleted") {

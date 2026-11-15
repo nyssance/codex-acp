@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test";
 
-import {isText, textOf} from "../blocks";
-import {addPrompt, applyUpdate, createSession, DISCONNECTED, INTERRUPTED, markDisconnected, terminalOf, type ToolItem} from "../session";
+import {isText} from "../blocks";
+import {applyUpdate, createSession, DISCONNECTED, INTERRUPTED, markDisconnected, terminalOf, type ToolItem} from "../session";
 import {SessionStore} from "../store";
 
 function text(session: ReturnType<typeof createSession>, index = 0): string {

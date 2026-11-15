@@ -192,7 +192,10 @@ export class SessionListSubscriptions {
     private readonly forking = new Map<string, {count: number, forks: Set<string>}>();
     private disposed = false;
 
-    constructor(private readonly deps: SessionListSubscriptionDeps) {
+    private readonly deps: SessionListSubscriptionDeps;
+
+    constructor(deps: SessionListSubscriptionDeps) {
+        this.deps = deps;
         this.timings = deps.timings ?? DEFAULT_SESSION_LIST_SUBSCRIPTION_TIMINGS;
         this.now = deps.now ?? Date.now;
     }
@@ -525,7 +528,7 @@ export class SessionListSubscriptions {
      * Makes a new group ready. It reads no rows: a subscription gets the first row of each thread that changes after
      * it started in full, and compares only the later ones. It waits for the mark, so a change after it is scanned.
      */
-    private async makeReady(group: Group): Promise<void> {
+    private async makeReady(_group: Group): Promise<void> {
         await this.markReady;
     }
 

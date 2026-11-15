@@ -19,12 +19,22 @@ export type JsonTree = null | boolean | number | string | readonly JsonTree[] | 
 
 /** The serialized members of a plain object, in the order of the text. */
 export class JsonObject {
-    constructor(readonly keys: readonly string[], readonly values: readonly JsonTree[]) {}
+    readonly keys: readonly string[];
+    readonly values: readonly JsonTree[];
+
+    constructor(keys: readonly string[], values: readonly JsonTree[]) {
+        this.keys = keys;
+        this.values = values;
+    }
 }
 
 /** The serialized text of a value that `JSON.stringify` serialized. */
 export class JsonText {
-    constructor(readonly text: string) {}
+    readonly text: string;
+
+    constructor(text: string) {
+        this.text = text;
+    }
 }
 
 /** Deeper values go to `JSON.stringify`, so that the walk does not use more stack than the serializer. */

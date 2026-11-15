@@ -173,7 +173,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "decline", _meta: null}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
 
@@ -203,7 +203,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "cancel"}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
 
@@ -216,7 +216,7 @@ describe('elicitation/create over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "accept"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
         const start = client.transcript.length;
 
         const response = await client.triggerApproval('mcpServer/elicitation/request', oauthReauthParams());
@@ -259,7 +259,7 @@ describe('elicitation/create over ACP v2', () => {
             onElicitation: async () => ({action: "accept", content: null, _meta: {source: "client"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
         await finishTurn();
         await settle();
         const start = client.transcript.length;
@@ -278,7 +278,7 @@ describe('elicitation/create over ACP v2', () => {
             onRequestPermission: async () => ({outcome: {outcome: "selected", optionId: "accept"}}),
         });
         closeClient = () => client.connection.close();
-        const {finishTurn, clientUserMessageId} = await startRunningPrompt(client);
+        const {finishTurn} = await startRunningPrompt(client);
         await finishTurn();
         await settle();
         const start = client.transcript.length;

@@ -98,12 +98,21 @@ export class AlwithExtensions {
             stopLoss();
         };
     }
+    private readonly current: () => CodexAppServerClient;
+    private readonly notify: (method: string, params: Record<string, unknown>) => Promise<void>;
+    private readonly running: (id: string) => boolean;
+    private readonly render: HistoryRenderer;
+
     constructor(
-        private readonly current: () => CodexAppServerClient,
-        private readonly notify: (method: string, params: Record<string, unknown>) => Promise<void>,
-        private readonly running: (id: string) => boolean,
-        private readonly render: HistoryRenderer,
+        current: () => CodexAppServerClient,
+        notify: (method: string, params: Record<string, unknown>) => Promise<void>,
+        running: (id: string) => boolean,
+        render: HistoryRenderer,
     ) {
+        this.current = current;
+        this.notify = notify;
+        this.running = running;
+        this.render = render;
         this.codex = new AppServerClient(current);
     }
 

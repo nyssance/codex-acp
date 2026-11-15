@@ -35,12 +35,22 @@ import {FileChangeReporter} from "../tool-calls/reporters/FileChangeReporter";
 import {SandboxPermissionReporter} from "../tool-calls/reporters/SandboxPermissionReporter";
 
 export class CodexApprovalHandler implements ApprovalHandler {
+    private readonly connection: AcpClientConnection;
+    private readonly permissionContext: PermissionPromptContext;
+    private readonly cancellationSignal: AbortSignal | undefined;
+    private readonly renderer: AcpToolCallRenderer;
+
     constructor(
-        private readonly connection: AcpClientConnection,
-        private readonly permissionContext: PermissionPromptContext,
-        private readonly cancellationSignal: AbortSignal | undefined,
-        private readonly renderer: AcpToolCallRenderer,
-    ) {}
+        connection: AcpClientConnection,
+        permissionContext: PermissionPromptContext,
+        cancellationSignal: AbortSignal | undefined,
+        renderer: AcpToolCallRenderer,
+    ) {
+        this.connection = connection;
+        this.permissionContext = permissionContext;
+        this.cancellationSignal = cancellationSignal;
+        this.renderer = renderer;
+    }
 
     async handleCommandExecution(
         params: CommandExecutionRequestApprovalParams,

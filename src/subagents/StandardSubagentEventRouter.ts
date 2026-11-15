@@ -90,23 +90,49 @@ export class StandardSubagentEventRouter implements SubagentEventRouter {
     private interactionObserver?: (event: ServerNotification, sessionId: string) => Promise<void>;
     private readonly messages = new SubagentMessages((update, sessionId) => this.session.update(update, sessionId));
 
+    private readonly rootSessionId: string;
+    private readonly session: ACPSessionConnection;
+    private readonly associations: SubagentAssociations;
+    private readonly onChildWorkEnded: (sessionId: string) => void;
+    private readonly capabilities: typeof ClientCapabilities.DEFAULT;
+    private deferLive: boolean;
+    private readonly ready: Promise<void>;
+    private readonly runningTurnId: (threadId: string) => string | undefined;
+    private readonly rootModels: () => SubagentModels | null;
+    private readonly configurationRuntime?: {
+            read(threadId: string, parentThreadId: string): Promise<ObservedSubagentConfiguration | null>;
+            enqueuePublication(publish: () => Promise<void>): Promise<void>;
+        };
+    private readonly userMessageContent: (item: ThreadItem & {type: "userMessage"}) => ContentBlock[];
+
     constructor(
-        private readonly rootSessionId: string,
-        private readonly session: ACPSessionConnection,
-        private readonly associations: SubagentAssociations,
-        private readonly onChildWorkEnded: (sessionId: string) => void,
-        private readonly capabilities = ClientCapabilities.DEFAULT,
-        private deferLive = false,
-        private readonly ready: Promise<void> = Promise.resolve(),
-        private readonly runningTurnId: (threadId: string) => string | undefined = () => undefined,
-        private readonly rootModels: () => SubagentModels | null = () => null,
-        private readonly configurationRuntime?: {
+        rootSessionId: string,
+        session: ACPSessionConnection,
+        associations: SubagentAssociations,
+        onChildWorkEnded: (sessionId: string) => void,
+        capabilities = ClientCapabilities.DEFAULT,
+        deferLive = false,
+        ready: Promise<void> = Promise.resolve(),
+        runningTurnId: (threadId: string) => string | undefined = () => undefined,
+        rootModels: () => SubagentModels | null = () => null,
+        configurationRuntime?: {
             read(threadId: string, parentThreadId: string): Promise<ObservedSubagentConfiguration | null>;
             enqueuePublication(publish: () => Promise<void>): Promise<void>;
         },
-        private readonly userMessageContent: (item: ThreadItem & {type: "userMessage"}) => ContentBlock[]
+        userMessageContent: (item: ThreadItem & {type: "userMessage"}) => ContentBlock[]
             = item => [{type: "text", text: userMessageText(item)}],
     ) {
+        this.rootSessionId = rootSessionId;
+        this.session = session;
+        this.associations = associations;
+        this.onChildWorkEnded = onChildWorkEnded;
+        this.capabilities = capabilities;
+        this.deferLive = deferLive;
+        this.ready = ready;
+        this.runningTurnId = runningTurnId;
+        this.rootModels = rootModels;
+        this.configurationRuntime = configurationRuntime;
+        this.userMessageContent = userMessageContent;
         this.deferredLive = new PendingNotificationBuffer(rootSessionId);
     }
 

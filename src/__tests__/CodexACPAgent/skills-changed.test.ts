@@ -43,7 +43,7 @@ describe('skills/changed republishes the available commands', () => {
                 : []);
 
     /** Waits out the publish the notification debounces, plus the wire round-trip behind it. */
-    const settleSkillsPublish = async (client: PromptSession) => {
+    const settleSkillsPublish = async (_client: PromptSession) => {
         await new Promise(resolve => setTimeout(resolve, 400));
         await settle();
     };

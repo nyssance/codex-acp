@@ -7,7 +7,6 @@ import {
     turnStarted,
     turnCompleted,
     sessionId,
-    turnId,
     type PromptSession,
 } from "./v2-prompt-harness";
 const clients: PromptSession[] = [];

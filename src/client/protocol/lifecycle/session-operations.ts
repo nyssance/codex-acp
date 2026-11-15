@@ -18,11 +18,16 @@ interface Lane {
 }
 
 export class LifecycleCapacityError extends Error {
+    readonly sessionId: string;
+    readonly capacity: number;
+
     constructor(
-        readonly sessionId: string,
-        readonly capacity: number,
+        sessionId: string,
+        capacity: number,
     ) {
         super(`Session ${sessionId} already has ${capacity} queued lifecycle operations`);
+        this.sessionId = sessionId;
+        this.capacity = capacity;
         this.name = "LifecycleCapacityError";
     }
 }

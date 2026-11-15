@@ -1,6 +1,6 @@
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
-import type {ThreadItem, Turn} from "../../app-server/v2";
+import type {Turn} from "../../app-server/v2";
 import type {AppServerClient} from "../codex/AppServerClient";
 import {type HistoryOmission, type HistoryRenderer, projectHistoryItem} from "./historyProjection";
 import {historyError, type HistoryPage, HistoryRead, type SessionHistoryItemsParams, type SessionHistoryParams} from "./historyProtocol";

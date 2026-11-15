@@ -771,4 +771,3 @@ export class CodexCommands {
     }
 }
 
-type ParsedCommand = { name: string; };

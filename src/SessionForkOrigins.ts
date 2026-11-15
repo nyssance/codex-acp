@@ -46,7 +46,11 @@ export class SessionForkOrigins {
     private running = false;
     private disposed = false;
 
-    constructor(private readonly deps: SessionForkOriginsDeps) {}
+    private readonly deps: SessionForkOriginsDeps;
+
+    constructor(deps: SessionForkOriginsDeps) {
+        this.deps = deps;
+    }
 
     /**
      * The fork parent of a thread: `Thread.forkedFromId` when Codex gives it, else the one `thread/read` gave,

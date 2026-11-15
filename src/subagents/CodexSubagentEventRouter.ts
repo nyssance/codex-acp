@@ -124,13 +124,25 @@ export class CodexSubagentEventRouter {
      * @param rootModels gives the models of the root session when a child needs them, or `null` when the client
      *   gets no session configuration.
      */
+    private readonly rootSessionId: string;
+    private readonly supported: boolean;
+    private readonly session: ACPSessionConnection;
+    private readonly onChildSessionEnded: (sessionId: string) => void;
+    private readonly rootModels: () => SubagentModels | null;
+
     constructor(
-        private readonly rootSessionId: string,
-        private readonly supported: boolean,
-        private readonly session: ACPSessionConnection,
-        private readonly onChildSessionEnded: (sessionId: string) => void,
-        private readonly rootModels: () => SubagentModels | null,
-    ) {}
+        rootSessionId: string,
+        supported: boolean,
+        session: ACPSessionConnection,
+        onChildSessionEnded: (sessionId: string) => void,
+        rootModels: () => SubagentModels | null,
+    ) {
+        this.rootSessionId = rootSessionId;
+        this.supported = supported;
+        this.session = session;
+        this.onChildSessionEnded = onChildSessionEnded;
+        this.rootModels = rootModels;
+    }
 
     async handle(notification: ServerNotification): Promise<boolean> {
         if (notification.method === "thread/started") {

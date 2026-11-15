@@ -34,7 +34,11 @@ type SessionSubscription = {
 export class CodexSubagentSubscriptions {
     private readonly sessions = new Map<string, SessionSubscription>();
 
-    constructor(private readonly client: CodexAppServerClient) {}
+    private readonly client: CodexAppServerClient;
+
+    constructor(client: CodexAppServerClient) {
+        this.client = client;
+    }
 
     subscribe(subscription: Subscription): void {
         const existing = this.sessions.get(subscription.rootSessionId);

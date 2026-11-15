@@ -41,7 +41,11 @@ export class SubagentMessages {
     private readonly unlinkedOutgoing = new Map<string, View[]>();
     private readonly unlinkedIncoming = new Map<string, View[]>();
 
-    constructor(private readonly send: (update: SessionMessageUpdate, sessionId: string) => Promise<void>) {}
+    private readonly send: (update: SessionMessageUpdate, sessionId: string) => Promise<void>;
+
+    constructor(send: (update: SessionMessageUpdate, sessionId: string) => Promise<void>) {
+        this.send = send;
+    }
 
     async outgoing(senderSessionId: string, recipientSessionId: string, messageId: string, text: string): Promise<void> {
         if (!this.claim(senderSessionId, messageId)) return;

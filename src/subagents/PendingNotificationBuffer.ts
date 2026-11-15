@@ -25,7 +25,13 @@ export class PendingNotificationBuffer {
     private bytes = 0;
     private dropped = 0;
 
-    constructor(private readonly threadId: string, private readonly maxBytes = PendingNotificationBuffer.MAX_BYTES) {}
+    private readonly threadId: string;
+    private readonly maxBytes: typeof PendingNotificationBuffer.MAX_BYTES;
+
+    constructor(threadId: string, maxBytes = PendingNotificationBuffer.MAX_BYTES) {
+        this.threadId = threadId;
+        this.maxBytes = maxBytes;
+    }
 
     push(notification: ServerNotification): void {
         const deltaField = DELTA_FIELDS[notification.method];

@@ -45,7 +45,7 @@ function agentMessageChunks(transcript: PromptSession['transcript']) {
  * finished and installed the session's real notification handler.
  */
 function fireGoalTurnDuring(client: PromptSession, method: string) {
-    client.setCodexResponse(method, async (params) => {
+    client.setCodexResponse(method, async (_params) => {
         client.emit(turnStartedFor(secondSessionId, secondTurnId));
         client.emit(agentMessageDeltaFor(secondSessionId, secondTurnId, "Working on the goal"));
         return codexResponse(method);

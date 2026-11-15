@@ -50,7 +50,13 @@ export class SessionIndexTitles {
      */
     private readonly explicitTitles = new Map<string, {confirmed: boolean, pending: number}>();
 
-    constructor(private readonly host: SessionIndexHost, private readonly writes: SessionWriteQueue) {}
+    private readonly host: SessionIndexHost;
+    private readonly writes: SessionWriteQueue;
+
+    constructor(host: SessionIndexHost, writes: SessionWriteQueue) {
+        this.host = host;
+        this.writes = writes;
+    }
 
     /**
      * `_session/rename`: sets the explicit title of a thread, loaded or not.

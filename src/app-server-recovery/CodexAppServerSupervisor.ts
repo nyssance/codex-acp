@@ -97,9 +97,17 @@ export class CodexAppServerSupervisor {
     private readonly exits = new Map<number, AppServerExit>();
     private readonly timings: SupervisorTimings;
 
+    private readonly state: SupervisedProcessState;
+    private readonly spawnConnection: (
+            codexPath: string | undefined,
+            appServerStartupArgs: string[],
+            env: Record<string, string>,
+        ) => CodexConnection;
+    private readonly now: () => number;
+
     constructor(
-        private readonly state: SupervisedProcessState,
-        private readonly spawnConnection: (
+        state: SupervisedProcessState,
+        spawnConnection: (
             codexPath: string | undefined,
             appServerStartupArgs: string[],
             env: Record<string, string>,
@@ -107,8 +115,11 @@ export class CodexAppServerSupervisor {
             (codexPath, appServerStartupArgs, env) =>
                 startCodexConnection(codexPath, {...process.env, ...env}, appServerStartupArgs, {disposeOnExit: false}),
         timings: Partial<SupervisorTimings> = {},
-        private readonly now: () => number = Date.now,
+        now: () => number = Date.now,
     ) {
+        this.state = state;
+        this.spawnConnection = spawnConnection;
+        this.now = now;
         this.timings = {...DEFAULT_TIMINGS, ...timings};
         this.child = this.watch(state.connection);
     }

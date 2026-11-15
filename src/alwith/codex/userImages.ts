@@ -1,6 +1,6 @@
 import {constants} from "node:fs";
 import {open} from "node:fs/promises";
-import {fileURLToPath, pathToFileURL} from "node:url";
+import {fileURLToPath} from "node:url";
 
 import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 

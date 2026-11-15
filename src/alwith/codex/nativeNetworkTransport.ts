@@ -6,7 +6,11 @@ interface Endpoint {
 }
 /** Local HTTP messages hand network ownership to the native host, including WebSocket upgrades. */
 export class NativeNetworkTransport {
-    private constructor(private readonly endpoint: Endpoint) {}
+    private readonly endpoint: Endpoint;
+
+    private constructor(endpoint: Endpoint) {
+        this.endpoint = endpoint;
+    }
     static fromEnvironment(): NativeNetworkTransport | null {
         const raw = process.env["CODEX_ACP_NATIVE_NETWORK_ENDPOINT"];
         if (raw === undefined) return null;

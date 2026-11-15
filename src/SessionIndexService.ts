@@ -16,7 +16,6 @@ import type {SessionState} from "./CodexAcpServer";
 import {sessionNotFoundRequestError} from "./CodexThreadErrors";
 import {logger} from "./Logger";
 import {arePathBasenamesEqual, isAbsolutePathLike} from "./PathUtils";
-import type {Thread} from "./app-server/v2";
 import {
     AIR_ARCHIVED_KEY,
     AIR_SESSION_ARCHIVE_KEY,
@@ -87,7 +86,10 @@ export class SessionIndexService {
     /** Whether a cwd lies in a worktree that Codex made, read from the disk at most once a minute per cwd. */
     private readonly codexWorktrees = new CodexWorktreeMarks();
 
-    constructor(private readonly host: SessionIndexHost, subscriptionTimings?: SessionListSubscriptionTimings) {
+    private readonly host: SessionIndexHost;
+
+    constructor(host: SessionIndexHost, subscriptionTimings?: SessionListSubscriptionTimings) {
+        this.host = host;
         this.activity = new SessionIndexActivity(threadId => host.session(threadId) !== undefined);
         this.titles = new SessionIndexTitles(host, this.writes);
         const reader = () => {

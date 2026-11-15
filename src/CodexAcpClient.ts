@@ -199,12 +199,15 @@ export class CodexAcpClient {
     private skillExtraRoots: string[] = [];
     private configPath: string | null = null;
 
+    private responsesRoutes: ResponsesRoutes;
+
     constructor(
         codexClient: CodexAppServerClient,
         codexConfig?: JsonObject,
         modelProvider?: string,
-        private responsesRoutes = new ResponsesRoutes(),
+        responsesRoutes = new ResponsesRoutes(),
     ) {
+        this.responsesRoutes = responsesRoutes;
         this.codexClient = codexClient;
         this.config = codexConfig ?? {};
         this.modelProvider = modelProvider ?? null;

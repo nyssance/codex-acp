@@ -13,10 +13,16 @@ export interface ProjectPort {
 /** Codex owns project IDs and persistence. This class only serializes concurrent registrations. */
 export class CodexProjects {
     private readonly registrations = new Map<string, Promise<string>>();
+    private readonly port: ProjectPort;
+    private readonly home: ReturnType<typeof homedir>;
+
     constructor(
-        private readonly port: ProjectPort,
-        private readonly home = homedir(),
-    ) {}
+        port: ProjectPort,
+        home = homedir(),
+    ) {
+        this.port = port;
+        this.home = home;
+    }
 
     async list(): Promise<Project[]> {
         const projects: Project[] = [];

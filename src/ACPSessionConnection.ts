@@ -34,7 +34,10 @@ export class AcpV2Connection {
     private sessionDelivery: AcpClientDelivery | null = null;
     private sendElicitationCompletion: (params: unknown) => Promise<void>;
 
-    constructor(private readonly transportClient: AcpV2ClientConnection) {
+    private readonly transportClient: AcpV2ClientConnection;
+
+    constructor(transportClient: AcpV2ClientConnection) {
+        this.transportClient = transportClient;
         const client = transportClient;
         this.sendElicitationCompletion = params => client.notify(acpV2.methods.client.elicitation.complete, params as acpV2.CompleteElicitationNotification);
         this.client = {
