@@ -9,6 +9,15 @@ import {fakeAppServer, fakeSpawner} from "./fake-app-server";
 
 const FAST = {closeGraceMs: 20, drainMs: 1, terminateAfterMs: 20, abandonAfterMs: 20, wedgedAfterMs: 20};
 
+function writeNodeScript(dir: string, source: string): string {
+    const script = path.join(dir, "codex");
+    fs.writeFileSync(`${script}.js`, source);
+    const node = `'${process.execPath.replace(/'/g, "'\\''")}'`;
+    fs.writeFileSync(script, `#!/bin/sh\nexec ${node} "$0.js" "$@"\n`);
+    fs.chmodSync(script, 0o755);
+    return script;
+}
+
 function supervisorWith(configure?: Parameters<typeof fakeSpawner>[0]) {
     const initial = fakeAppServer();
     const state = {connection: initial.connection, codexPath: undefined, stderr: ""};
@@ -37,17 +46,11 @@ describe("CodexAppServerSupervisor", () => {
         expect(describeExit(supervisor.lastExit!)).toBe("was killed by SIGKILL, which usually means it ran out of memory");
     });
 
-    it.skipIf(process.platform === "win32")(
-        "delivers a notification written right before the exit, then disposes",
-        async () => {
-            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-dying-"));
-            const script = path.join(dir, "codex");
-            fs.writeFileSync(
-                script,
-                `#!${process.execPath}
+    it.skipIf(process.platform === "win32")("delivers a notification written right before the exit, then disposes", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-dying-"));
+        const script = writeNodeScript(dir, `
 process.stdout.write(JSON.stringify({method: "turn/completed", params: {threadId: "t", turn: {id: "u"}}}) + "\\n", () => process.exit(1));
 `);
-        fs.chmodSync(script, 0o755);
         const state = {connection: startCodexConnection(script, undefined, undefined, {disposeOnExit: false}), codexPath: script, stderr: ""};
         const received: string[] = [];
         state.connection.connection.onUnhandledNotification((notification) => {
@@ -67,20 +70,14 @@ process.stdout.write(JSON.stringify({method: "turn/completed", params: {threadId
         fs.rmSync(dir, {recursive: true, force: true});
     }, 15_000);
 
-    it.skipIf(process.platform === "win32")(
-        "delivers a burst of output written before the exit, up to its last message",
-        async () => {
-            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-burst-"));
-            const script = path.join(dir, "codex");
-            fs.writeFileSync(
-                script,
-                `#!${process.execPath}
+    it.skipIf(process.platform === "win32")("delivers a burst of output written before the exit, up to its last message", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-burst-"));
+        const script = writeNodeScript(dir, `
 let out = "";
 for (let i = 0; i < 10000; i++) out += JSON.stringify({method: "item/agentMessage/delta", params: {threadId: "t", delta: "x"}}) + "\\n";
 out += JSON.stringify({method: "turn/completed", params: {threadId: "t", turn: {id: "u"}}}) + "\\n";
 process.stdout.write(out, () => process.exit(1));
 `);
-        fs.chmodSync(script, 0o755);
         const state = {connection: startCodexConnection(script, undefined, undefined, {disposeOnExit: false}), codexPath: script, stderr: ""};
         let deltas = 0;
         let completedBeforeDispose = false;
@@ -101,20 +98,14 @@ process.stdout.write(out, () => process.exit(1));
         fs.rmSync(dir, {recursive: true, force: true});
     }, 30_000);
 
-    it.skipIf(process.platform === "win32")(
-        "waits for a backlog that takes longer to handle than the close grace time",
-        async () => {
-            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-backlog-"));
-            const script = path.join(dir, "codex");
-            fs.writeFileSync(
-                script,
-                `#!${process.execPath}
+    it.skipIf(process.platform === "win32")("waits for a backlog that takes longer to handle than the close grace time", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-backlog-"));
+        const script = writeNodeScript(dir, `
 let out = "";
 for (let i = 0; i < 2000; i++) out += JSON.stringify({method: "item/agentMessage/delta", params: {threadId: "t", delta: "x"}}) + "\\n";
 out += JSON.stringify({method: "turn/completed", params: {threadId: "t", turn: {id: "u"}}}) + "\\n";
 process.stdout.write(out, () => process.exit(1));
 `);
-        fs.chmodSync(script, 0o755);
         const state = {connection: startCodexConnection(script, undefined, undefined, {disposeOnExit: false}), codexPath: script, stderr: ""};
         let completed = false;
         state.connection.connection.onUnhandledNotification((notification) => {

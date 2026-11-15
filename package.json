@@ -46,7 +46,7 @@
         "test:watch": "vitest",
         "codex-test": "bun .agents/skills/run-codex/scripts/run-codex-test.ts",
         "check": "bun check --no-script && bun check --no-script -p tsconfig.client-check.json && bun check --no-script -p examples/tsconfig.json",
-        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client-check.json && tsc --noEmit -p examples/tsconfig.json",
+        "typecheck": "bun check --no-script && bun check --no-script -p tsconfig.client-check.json && bun check --no-script -p examples/tsconfig.json",
         "test:app-server": "bun -e 'if(process.env.RUN_APP_SERVER_TESTS!==\"1\")throw new Error(\"Real app-server tests require explicit authorization and RUN_APP_SERVER_TESTS=1\")' && vitest run --no-file-parallelism src/__tests__/CodexACPAgent/CodexAcpClient.test.ts src/__tests__/CodexACPAgent/mcp-session.test.ts src/__tests__/CodexACPAgent/mcp-config-merge.test.ts"
     },
     "homepage": "https://github.com/nyssance/codex-acp#readme",
@@ -73,11 +73,11 @@
         "vitest": "^5.1.0"
     },
     "dependencies": {
-        "@agentclientprotocol/sdk": "^2.5.0",
-        "@openai/codex": "^0.167.0",
+        "@agentclientprotocol/sdk": "~2.6.0",
+        "@openai/codex": "^0.167.2",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",
-        "effect": "^4.1.2",
+        "effect": "^4.1.4",
         "open": "^11.0.4",
         "vscode-jsonrpc": "^10.0.0",
         "ws": "^8.22.2",
