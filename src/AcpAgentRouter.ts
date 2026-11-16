@@ -260,7 +260,7 @@ function createRouter(
     }
 
     for (const method of ALWITH_METHODS) {
-        v2Agent = v2Agent.onRequest(method, {parse: objectParams}, (ctx) => getAgent().alwithRequest(method, ctx.params, ctx.signal));
+        v2Agent = v2Agent.onRequest(method, {parse: objectParams}, (ctx) => getAgent().alwithRequest(method, ctx.params, ctx.signal, ctx.requestId));
     }
 
     return acpV2.agentProtocolRouter().withV1(v1Agent).withV2(v2Agent);

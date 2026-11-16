@@ -1185,3 +1185,38 @@ describe("app-server recovery", () => {
             .resolves.toEqual({});
     });
 });
+
+it("preserves process-exit details for a catalog request and restarts on the next read", async () => {
+    const fixture = createRecoveryFixture();
+    await initialize(fixture);
+    fixture.answers.set("plugin/list", () => undefined);
+    const pending = fixture.agent.alwithRequest("_codex/plugin_list", {});
+    const failed = expect(pending).rejects.toMatchObject({code: 1001, message: expect.stringContaining("SIGKILL")});
+    await vi.waitFor(() => expect(requestsOf(fixture.current(), "plugin/list")).toHaveLength(1));
+    await fixture.kill();
+    await failed;
+    const catalog = {marketplaces: [], marketplaceLoadErrors: [], featuredPluginIds: []};
+    fixture.answers.set("plugin/list", () => catalog);
+    await expect(fixture.agent.alwithRequest("_codex/plugin_list", {})).resolves.toEqual(catalog);
+    expect(fixture.servers).toHaveLength(2);
+    fixture.agent.sessionIndex.dispose();
+    fixture.supervisor.shutdown();
+});
+
+it("budgets the final error after process recovery has classified it", async () => {
+    const fixture = createRecoveryFixture();
+    await initialize(fixture);
+    const original = new Error("upstream failure");
+    fixture.answers.set("plugin/list", () => original);
+    const mapping = vi.spyOn(internals(fixture).recovery, "mapError").mockReturnValue(
+        acp.RequestError.internalError({details: "x".repeat(32 * 1024 * 1024)}),
+    );
+    try {
+        await expect(fixture.agent.alwithRequest("_codex/plugin_list", {})).rejects.toMatchObject({data: {reason: "catalog_response_too_large"}});
+        expect(mapping).toHaveBeenCalledWith(original, expect.anything());
+    } finally {
+        mapping.mockRestore();
+        fixture.agent.sessionIndex.dispose();
+        fixture.supervisor.shutdown();
+    }
+});

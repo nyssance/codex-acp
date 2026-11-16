@@ -1,3 +1,5 @@
+import {readPluginCatalog} from "./plugin-catalog";
+import {PLUGIN_CATALOG_PAGE_METHOD, type CatalogPage} from "../catalog-protocol";
 import type {McpToolCallParams, McpToolCallResult, AppsInstalledParams, AppsInstalledResponse} from "./codex-extensions";
 import {sessionGroup, type ProjectContext, type SessionGroup} from "../projects/projection";
 import type {NewSessionOptions} from "./protocol";
@@ -998,7 +1000,10 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
     }
 
     listPlugins(params: PluginListParams = {}): Promise<PluginListResponse> {
-        return this.live().request<PluginListResponse>("_codex/plugin_list", params);
+        const connection = this.live();
+        if (codexExtensionCapabilities(this.state.agent).pluginCatalogPages)
+            return readPluginCatalog(page => connection.request<CatalogPage>(PLUGIN_CATALOG_PAGE_METHOD, page), params);
+        return connection.request<PluginListResponse>("_codex/plugin_list", params);
     }
 
     installedPlugins(cwds?: string[]): Promise<PluginInstalledResponse> {

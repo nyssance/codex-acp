@@ -45,6 +45,9 @@
         },
         "skills": true,
         "plugins": true,
+        "pluginCatalogPages": {
+          "version": 1
+        },
         "account": true,
         "fuzzyFileSearch": true,
         "realtime": {

@@ -1,3 +1,5 @@
+import {CatalogPages} from "./CatalogPages";
+import {PLUGIN_CATALOG_PAGE_METHOD} from "../catalog-protocol";
 import {readSessionInputConfig, writeSessionInputConfig} from "./codex/sessionInputConfig";
 import {generateImage} from "./codex/images";
 import {projectsFor} from "../projects/registry";
@@ -43,6 +45,7 @@ export const ALWITH_METHODS = [
     "_codex/session_input_config_get",
     "_codex/session_input_config_set",
     ...Object.keys(CATALOG_METHODS),
+    PLUGIN_CATALOG_PAGE_METHOD,
     "_codex/plugin_set_enabled",
     "_codex/session_history",
     "_codex/session_history_items",
@@ -68,6 +71,7 @@ export function objectParams(value: unknown): Record<string, unknown> {
 /** Host extensions share the upstream process and read native Codex history. */
 export class AlwithExtensions {
     readonly codex: AppServerClient;
+    private readonly catalogPages = new CatalogPages();
     private observed: CodexAppServerClient | null = null;
     private stopObserving: (() => void) | null = null;
 
@@ -117,6 +121,7 @@ export class AlwithExtensions {
     }
 
     async request(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+        if (method === PLUGIN_CATALOG_PAGE_METHOD) return this.catalogPages.read(params, query => this.codex.request("plugin/list", query), signal);
         signal?.throwIfAborted();
         if (method === "_codex/images/generate") return generateImage(this.codex, params, signal);
         if (method === "_codex/session_input_config_get" || method === "_codex/session_input_config_set") {

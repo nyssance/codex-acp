@@ -49,6 +49,7 @@ export type CodexExtensionCapabilities = {
     sessionLineage: boolean;
     skills: boolean;
     plugins: boolean;
+    pluginCatalogPages: boolean;
     rename: boolean;
     account: boolean;
     fuzzyFileSearch: boolean;
@@ -70,6 +71,7 @@ export function codexExtensionCapabilities(agent: acp.InitializeResponse | null)
         sessionLineage: flags.sessionLineage === true,
         skills: flags.skills === true,
         plugins: flags.plugins === true,
+        pluginCatalogPages: versionOf(flags.pluginCatalogPages) === 1,
         // The standard `session/set_title` capability.
         rename: agent?.capabilities?.session?.title != null,
         account: flags.account === true,

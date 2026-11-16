@@ -1,3 +1,4 @@
+import {boundedResponse} from "./alwith/responseBudget";
 import {requestCodexNative, realtimeUpdate, CODEX_REALTIME_UPDATE, type CodexNativeMethod} from "./CodexNativeExtensions";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ReplayEntry } from "./ReplayHistory";
@@ -969,6 +970,7 @@ export class CodexAcpServer {
                         },
                         skills: true,
                         plugins: true,
+                        pluginCatalogPages: {version: 1},
                         account: true,
                         fuzzyFileSearch: true,
                         realtime: {
@@ -1204,7 +1206,11 @@ export class CodexAcpServer {
         return response;
     }
 
-    async alwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    async alwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal, requestId: string | number | null = null): Promise<unknown> {
+        return boundedResponse(requestId, method, () => this.executeAlwithRequest(method, params, signal), signal);
+    }
+
+    private async executeAlwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
         if (!this.codexAcpClient.initialized) throw RequestError.invalidRequest(undefined, "Initialize before calling ALwith extensions");
         if (this.providerUpdate !== null) await this.waitForProviderUpdate();
         const ready = this.ensureAppServer();

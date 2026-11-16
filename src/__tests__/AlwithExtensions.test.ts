@@ -192,3 +192,68 @@ describe("ALwith extensions on the upstream connection", () => {
         expect(objectParams(undefined)).toEqual({});
     });
 });
+
+it.each(["cancel", "timeout"])("ends catalog waits on %s without leaking snapshots or exceeding upstream concurrency", async mode => {
+    vi.useFakeTimers();
+    const upstream = peer();
+    const extensions = new AlwithExtensions(() => upstream.client, vi.fn(), () => false, async () => []);
+    const deferred: Array<{resolve: (value: unknown) => void; reject: (error: unknown) => void}> = [];
+    upstream.sendRequest.mockImplementation(() => new Promise<unknown>((resolve, reject) => deferred.push({resolve, reject})));
+    const controllers = Array.from({length: 4}, () => new AbortController());
+    const outcomes: unknown[] = [];
+    const pending = controllers.map(controller => extensions.request("_codex/plugin_list_page", {}, controller.signal).then(
+        value => outcomes.push(value), error => outcomes.push(error),
+    ));
+    try {
+        if (mode === "cancel") for (const controller of controllers) controller.abort();
+        await vi.advanceTimersByTimeAsync(mode === "timeout" ? 60000 : 0);
+        expect(outcomes).toHaveLength(4);
+        for (const outcome of outcomes) expect(outcome).toMatchObject(mode === "cancel"
+            ? {code: -32800}
+            : {data: {reason: "catalog_load_timeout", retryable: true}});
+        expect(vi.getTimerCount()).toBe(0);
+
+        // Native plugin/list has no cancellation operation: retries must not multiply abandoned work.
+        await expect(extensions.request("_codex/plugin_list_page", {})).rejects.toMatchObject({data: {reason: "catalog_busy"}});
+        expect(upstream.sendRequest).toHaveBeenCalledTimes(4);
+        for (let i = 0; i < deferred.length; i++) {
+            if (i % 2 === 0) deferred[i]!.resolve({value: "x".repeat(1024 * 1024)});
+            else deferred[i]!.reject(new Error("Late upstream failure"));
+        }
+        await vi.advanceTimersByTimeAsync(0);
+        expect(vi.getTimerCount()).toBe(0);
+
+        // Late results must not consume any of the four snapshot slots.
+        upstream.sendRequest.mockResolvedValue({value: "fresh".repeat(200000)});
+        for (let i = 0; i < 4; i++) await expect(extensions.request("_codex/plugin_list_page", {}))
+            .resolves.toMatchObject({nextCursor: expect.any(String)});
+        await expect(extensions.request("_codex/plugin_list_page", {})).rejects.toMatchObject({data: {reason: "catalog_busy"}});
+        expect(upstream.sendRequest).toHaveBeenCalledTimes(8);
+    } finally {
+        for (const item of deferred) item.resolve({});
+        await Promise.all(pending);
+        vi.clearAllTimers();
+        vi.useRealTimers();
+    }
+});
+
+it("clears catalog load deadlines on success and preserves upstream failures", async () => {
+    vi.useFakeTimers();
+    try {
+        const upstream = peer();
+        const extensions = new AlwithExtensions(() => upstream.client, vi.fn(), () => false, async () => []);
+        const error = new Error("Native catalog read failed");
+        upstream.sendRequest.mockRejectedValueOnce(error);
+        await expect(extensions.request("_codex/plugin_list_page", {})).rejects.toBe(error);
+        await expect(extensions.request("_codex/plugin_list_page", {})).resolves.toMatchObject({nextCursor: null});
+        expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+});
+
+it("rejects a pre-cancelled catalog read without contacting the upstream server", async () => {
+    const upstream = peer();
+    const extensions = new AlwithExtensions(() => upstream.client, vi.fn(), () => false, async () => []);
+    await expect(extensions.request("_codex/plugin_list_page", {}, AbortSignal.abort("Caller left")))
+        .rejects.toMatchObject({code: -32800});
+    expect(upstream.sendRequest).not.toHaveBeenCalled();
+});

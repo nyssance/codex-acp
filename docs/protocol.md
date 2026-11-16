@@ -198,3 +198,41 @@ readable as opaque data; hosts reject unsupported modes before executing them. V
 Host input-mode definitions own configuration validation, tool selection and prompt
 routing. The adapter validates generic protocol values and translates native tool
 switches and application context without understanding input modes.
+
+## Plugin catalog pages
+
+ACP v2 advertises `_meta.codex.pluginCatalogPages.version: 1` for
+`_codex/plugin_list_page`. Its initial request takes `{ query?: PluginListParams }`;
+continuations take `{ cursor: string }`. The result is
+`{ encoding: "base64-json", data: string, totalBytes: number, nextCursor: string | null }`.
+Chunks contain at most 512 KiB of the exact native `plugin/list` JSON bytes.
+`CodexClient.listPlugins()` reconstructs the complete result and uses the legacy
+method with agents that do not advertise paging. Plugin details remain on demand.
+
+Initial upstream loads have a 60-second caller wait deadline and return
+`catalog_load_timeout` with `retryable: true` on expiry. Request cancellation
+ends the wait with ACP's request-cancelled error. Neither path stores a late
+result as a snapshot, and late upstream errors are observed. Codex does not expose
+cancellation for `plugin/list`: an abandoned native read still counts toward the
+four-read limit until it settles. Retries cannot multiply outstanding native
+reads; capacity recovers as they finish. If all four native reads remain stuck,
+new reads return `catalog_busy` until one finishes or the upstream connection
+recovers. The adapter does not restart a shared app-server to recover a catalog read.
+
+Snapshots expire after 60 seconds without a successful page read or five minutes
+after creation, whichever comes first. Reading a page refreshes the idle timer;
+finishing a traversal releases its snapshot. Expired cursors return
+`catalog_snapshot_expired` with `retryable: true`. At most four reads may be
+pending or retained, and retained snapshots share a 128 MiB byte budget. Temporary
+concurrency or retained-memory pressure returns `catalog_busy` with
+`retryable: true`; a single catalog exceeding 128 MiB returns
+`catalog_response_too_large` with `retryable: false`. Invalid cursors or query
+changes during continuation return invalid parameters. Clients surface these
+errors without automatic retries.
+
+Application-extension responses are checked against 32 MiB using their complete
+UTF-8 JSON-RPC envelope, after process-error classification. The check measures
+SDK-normalized errors while preserving original exceptions that fit. Oversized
+results or errors become bounded request errors without closing the connection.
+Large native catalogs emit `[alwith-catalog-size] ` diagnostics with method, byte
+counts and fixed field byte counts; catalog contents and credentials are omitted.
