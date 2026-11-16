@@ -88,7 +88,6 @@ export class CommandReporter {
         const facts = completionFacts(item, streamed, withName);
         return {
             ...facts,
-            ...(item.source === "userShell" ? {commandSource: "userShell" as const} : {}),
             standard: {
                 content: null,
                 commandEnd: {
@@ -232,6 +231,7 @@ function completionFacts(
         toolCallId: item.id,
         report: "update",
         ...(name === undefined ? {} : {name}),
+        ...(item.source === "userShell" ? {commandSource: "userShell" as const} : {}),
         status: toTerminalToolStatus(item.status),
     };
     if (!commandUsesTerminal(item)) {

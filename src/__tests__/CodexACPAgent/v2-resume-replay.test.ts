@@ -413,7 +413,7 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             ...createTurn("completed"),
             itemsView: "full",
             items: [
-                {...commandExecutionItem("command", "completed"), aggregatedOutput: "Recorded output"},
+                {...commandExecutionItem("command", "completed"), source: "userShell", aggregatedOutput: "Recorded output"},
                 {type: "mcpToolCall", id: "mcp", server: "docs", tool: "lookup", status: "completed",
                     arguments: {}, appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: null,
                     result: null, error: null, durationMs: null},
@@ -446,6 +446,10 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
                     .filter((meta) => meta === null || Object.keys(meta).length > 0);
             expect(metadata(update => acpV2.SessionUpdate.isTerminalUpdate(update) && update.terminalId === "command")).toEqual([null]);
             expect(metadata(update => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "command")).toEqual([null]);
+            for (const update of current.filter(update => acpV2.SessionUpdate.isToolCallUpdate(update)
+                && update.toolCallId === "command" && update._meta !== null)) {
+                expect(update._meta).toMatchObject({codex: {commandSource: "userShell"}});
+            }
             expect(metadata(update => acpV2.SessionUpdate.isToolCallUpdate(update) && update.toolCallId === "mcp"))
                 .toEqual([null, {is_mcp_tool_call: true}]);
             expect(metadata(update => acpV2.SessionUpdate.isCompactionUpdate(update) && update.compactionId === "compaction")).toEqual([null]);

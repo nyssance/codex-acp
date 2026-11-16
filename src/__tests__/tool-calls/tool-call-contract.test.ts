@@ -67,7 +67,10 @@ it("keeps user shell provenance and terminal output in history, including read c
             kind: "execute",
             _meta: {codex: {commandSource: "userShell"}},
         });
-        expect(history.at(-1)).toMatchObject({_meta: {terminal_output: {data: "ok\n"}}});
+        expect(history.at(-1)).toMatchObject({_meta: {
+            terminal_output: {data: "ok\n"},
+            codex: {commandSource: "userShell"},
+        }});
     }
 });
 
