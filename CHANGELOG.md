@@ -1,3 +1,10 @@
+## 0.7.71 (2026-11-16)
+
+- Add background-terminal listing and stop-all controls on both ACP versions, with typed client methods. Stop-all snapshots every page before terminating processes, verifies removal, reports individual failures, and leaves later processes running. Session close reuses the same cleanup implementation.
+- Diagnose request uploads with bounded byte counts, allowlisted content encodings, completion and abort flags, and safe exception names. Oversized Responses requests return HTTP 413 without contacting the upstream; interrupted reads and WebSocket receiver failures retain their transport codes without exposing request content or credentials.
+- Keep unassigned history in quick chats when a default chat directory is also a registered project. Broad roots such as the home directory no longer absorb unrelated child projects; explicit project assignments remain authoritative.
+- Preserve user-shell command provenance during history replay.
+
 ## 0.7.70 (2026-11-15)
 
 - Fix compaction on a thread that started on OpenAI and then moved to a gateway model (DeepSeek, Anthropic, any custom provider). Codex cannot change a thread's model provider, so such a thread stays on the built-in OpenAI provider and Codex asks the gateway for a server-side compaction that only OpenAI implements. Every turn after the switch and every `/compact` ended with `Error running remote compact task`. The local Responses proxy now implements that protocol for gateways: a request ending in `compaction_trigger` asks the gateway model for the handoff summary Codex itself uses when it compacts locally, the answer goes back to Codex as the single `compaction` item it requires, and that item is turned back into the summary message in later requests, whichever upstream they go to.

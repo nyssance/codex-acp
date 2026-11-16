@@ -126,3 +126,43 @@ test.each([
 ])("groups %s using server context and persistent assignment", (cwd, projectId, expected) => {
     expect(sessionGroup(context, {cwd: cwd!, projectId}).id).toBe(expected);
 });
+
+test.each(["/remote/home", "/remote/home/Documents/ALwith", "/remote/home/Documents/Codex"])(
+    "registered default workspace %s keeps unassigned history in quick chats",
+    cwd => {
+        const registered = {...context, projects: [project("default", [cwd])]};
+        for (const projectId of [undefined, null]) {
+            expect(sessionGroup(registered, {cwd, projectId}).id).toBe("quick-chats");
+        }
+        expect(sessionGroup(registered, {cwd, projectId: "default"}).id).toBe("project:default");
+    },
+);
+
+
+test.each(["/Users/macbookpro", "C:/Users/macbookpro"])(
+    "a registered home at %s cannot absorb quick chats or unrelated project history",
+    home => {
+        const scoped: ProjectContext = {
+            homeDirectory: home,
+            chatDirectory: `${home}/Documents/ALwith`,
+            codexChatDirectory: `${home}/Documents/Codex`,
+            projects: [project("home", [home], "macbookpro")],
+        };
+        expect(sessionGroup(scoped, {cwd: scoped.chatDirectory, projectId: null}).id).toBe("quick-chats");
+        expect(sessionGroup(scoped, {cwd: `${home}/Documents/Codex/day/chat`}).id).toBe("quick-chats");
+        expect(sessionGroup(scoped, {cwd: `${home}/work/app`}).id).toBe(`${home}/work/app`);
+        expect(sessionGroup(scoped, {cwd: `${home}/work/app`, projectId: "home"}).id).toBe("project:home");
+    },
+);
+
+test.each(["/", "/remote", "/remote/home"])(
+    "a broad project root %s does not become the persistent assignment of a selected child directory",
+    async root => {
+        const f = fixture([project("broad", [root])]);
+        expect(await f.registry.resolve("/remote/home/work/app", undefined)).toBe("server-1");
+        expect(await f.registry.resolve("/remote/home/work/app/src", undefined)).toBe("server-1");
+        expect(await f.registry.resolve(root, undefined)).toBe("broad");
+        expect(await f.registry.resolve("/remote/home/Documents/ALwith", {codex: {projectId: null}})).toBeNull();
+        expect(f.calls.filter(call => call.method === "project/create")).toHaveLength(1);
+    },
+);

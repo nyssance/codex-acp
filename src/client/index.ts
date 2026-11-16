@@ -34,3 +34,5 @@ export {
     QUICK_CHATS_GROUP,
 } from "../projects/projection";
 export type {ProjectContext, SessionGroup} from "../projects/projection";
+
+export type {BackgroundTerminal, BackgroundTerminalStopResult} from "../BackgroundTerminalTypes";

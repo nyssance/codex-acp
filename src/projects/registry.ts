@@ -78,7 +78,7 @@ export class CodexProjects {
     }
 
     private async register(cwd: string): Promise<string> {
-        const existing = matchingProject(await this.list(), cwd);
+        const existing = matchingProject(await this.list(), cwd, this.home);
         if (existing) return existing.id;
         const name = directoryName(cwd);
         const {project} = await this.port.request<ProjectCreateResponse>("project/create", {

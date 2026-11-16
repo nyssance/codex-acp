@@ -27,10 +27,13 @@ export function pathContains(root: string, path: string): boolean {
     return parent === child || child.startsWith(parent === "/" ? "/" : `${parent}/`);
 }
 
-export function matchingProject(projects: readonly Project[], cwd: string): Project | undefined {
+export function matchingProject(projects: readonly Project[], cwd: string, homeDirectory: string): Project | undefined {
     return projects
         .flatMap(project => project.roots.map(root => ({project, root: root.path})))
-        .filter(({root}) => pathContains(root, cwd))
+        // Broad personal roots are reusable only when that exact directory was selected.
+        .filter(({root}) => pathContains(root, cwd) && (
+            normalizedPath(root) === normalizedPath(cwd) || !pathContains(root, homeDirectory)
+        ))
         .toSorted((a, b) => normalizedPath(b.root).length - normalizedPath(a.root).length || a.project.id.localeCompare(b.project.id))[0]
         ?.project;
 }
@@ -40,9 +43,16 @@ export type SessionGroup = {id: string; name: string; cwd: string | null};
 
 /** Display projection only. Inferred grouping never becomes a persisted project assignment. */
 export function sessionGroup(context: ProjectContext, row: {cwd: string; projectId?: string | null}): SessionGroup {
+    const cwd = normalizedPath(row.cwd);
+    // A registered default workspace must not capture unassigned quick chats.
+    if (!row.projectId && (
+        cwd === normalizedPath(context.homeDirectory) ||
+        cwd === normalizedPath(context.chatDirectory) ||
+        cwd === normalizedPath(context.codexChatDirectory)
+    )) return {id: QUICK_CHATS_GROUP, name: "", cwd: null};
     const project = row.projectId
         ? context.projects.find(project => project.id === row.projectId)
-        : matchingProject(context.projects, row.cwd);
+        : matchingProject(context.projects, row.cwd, context.homeDirectory);
     if (project)
         return {
             id: `project:${project.id}`,
@@ -55,7 +65,6 @@ export function sessionGroup(context: ProjectContext, row: {cwd: string; project
             name: row.projectId,
             cwd: row.cwd,
         };
-    const cwd = normalizedPath(row.cwd);
     if (
         cwd === normalizedPath(context.homeDirectory) ||
         pathContains(context.codexChatDirectory, cwd) ||

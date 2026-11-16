@@ -1,11 +1,11 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {once} from "node:events";
-import {createServer, type Server} from "node:http";
+import {createServer, request as httpRequest, type Server} from "node:http";
 import {gzipSync, zstdCompressSync} from "node:zlib";
 
 import WebSocket, {type RawData, WebSocketServer} from "ws";
 
-import {PROXY_DIAGNOSTIC_PREFIX} from "../alwith/codex/proxyDiagnostics";
+import {PROXY_DIAGNOSTIC_PREFIX, ProxyDiagnostics} from "../alwith/codex/proxyDiagnostics";
 
 import {paymentRequiredNotice, ResponsesProxy} from "../alwith/codex/responsesProxy";
 
@@ -719,5 +719,43 @@ describe("an exhausted balance reported as HTTP 402", () => {
         expect(() => paymentRequiredNotice("gateway.example", Buffer.from("x"), "compress", undefined)).toThrow(
             "Unsupported upstream content-encoding: compress",
         );
+    });
+});
+
+describe("request ingestion diagnostics", () => {
+    it("returns 413 with measured bytes for oversized bodies without contacting the upstream", async () => {
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        let contacted = false;
+        const upstream = createServer((_request, response) => {
+            contacted = true;
+            response.end("unexpected");
+        });
+        const route = await proxy().route(await listen(upstream));
+        const bytes = 64 * 1024 * 1024 + 1;
+        const response = await fetch(`${route}/responses`, {method: "POST", body: Buffer.alloc(bytes, 120)});
+        expect(response.status).toBe(413);
+        expect(await response.text()).toContain("REQUEST_BODY_TOO_LARGE");
+        expect(contacted).toBe(false);
+        const events = log.mock.calls.map(call => JSON.parse(String(call[0]).slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+        const failed = events.find(event => event.phase === "failed");
+        expect(failed).toMatchObject({stage: "read_request", sentBytes: 0, errors: ["REQUEST_BODY_TOO_LARGE"], requestBody: {declaredBytes: bytes, limitBytes: 67108864, encoding: "identity"}});
+        expect(failed.requestBody.readBytes).toBeGreaterThan(67108864);
+    });
+
+    it("distinguishes interrupted small uploads from the size limit", async () => {
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        const read = vi.spyOn(ProxyDiagnostics.prototype, "requestRead");
+        const route = await proxy().route("http://127.0.0.1:1");
+        const request = httpRequest(`${route}/responses`, {method: "POST", headers: {"content-length": "1024"}});
+        request.on("error", () => {});
+        request.flushHeaders();
+        request.write("short body");
+        await vi.waitFor(() => expect(read).toHaveBeenCalledWith(10));
+        request.destroy();
+        await vi.waitFor(() => {
+            const events = log.mock.calls.map(call => JSON.parse(String(call[0]).slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+            const failed = events.find(event => event.phase === "failed");
+            expect(failed).toMatchObject({stage: "read_request", sentBytes: 0, errors: ["REQUEST_BODY_READ_FAILED", "ECONNRESET"], requestBody: {declaredBytes: 1024, readBytes: 10, complete: false, aborted: true}});
+        });
     });
 });

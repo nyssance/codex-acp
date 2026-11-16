@@ -3,6 +3,12 @@ import {randomBytes} from "node:crypto";
 export const PROXY_DIAGNOSTIC_PREFIX = "[alwith-model-proxy] ";
 
 const ERROR_CODES = new Set([
+    "ERR_INVALID_ARG_TYPE",
+    "ERR_HTTP_REQUEST_BODY_TOO_LARGE",
+    "REQUEST_BODY_TOO_LARGE",
+    "REQUEST_BODY_READ_FAILED",
+    "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH",
+    "ERR_STREAM_PREMATURE_CLOSE",
     "NATIVE_NETWORK_CONNECT_FAILED",
     "NATIVE_PROXY_RESOLUTION_FAILED",
     "NATIVE_NETWORK_AUTH_FAILED",
@@ -16,7 +22,6 @@ const ERROR_CODES = new Set([
     "EPIPE",
     "ECONNABORTED",
     "ABORT_ERR",
-    "ERR_STREAM_PREMATURE_CLOSE",
     "CERT_HAS_EXPIRED",
     "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     "DEPTH_ZERO_SELF_SIGNED_CERT",
@@ -47,6 +52,19 @@ export function transportErrors(error: unknown): string[] {
     return codes.length ? codes : ["UNKNOWN"];
 }
 
+/** Exception classes identify unclassified failures without exporting arbitrary messages. */
+function errorNames(error: unknown): string[] {
+    const names: string[] = [];
+    const seen = new Set<unknown>();
+    for (let depth = 0; depth < 4 && error !== null && typeof error === "object" && !seen.has(error); depth++) {
+        seen.add(error);
+        const value = error as {name?: unknown; cause?: unknown};
+        names.push(typeof value.name === "string" && ["Error", "TypeError", "RangeError", "AbortError", "TimeoutError", "AggregateError"].includes(value.name) ? value.name : "Other");
+        error = value.cause;
+    }
+    return names;
+}
+
 export class ProxyDiagnostics {
     private readonly started = performance.now();
     private ended = false;
@@ -65,6 +83,14 @@ export class ProxyDiagnostics {
         forwardedStatus: null as number | null,
         closeCode: null as number | null,
         upstreamRequestId: null as string | null,
+        requestBody: null as null | {
+            declaredBytes: number | null;
+            readBytes: number;
+            limitBytes: number;
+            encoding: string;
+            complete: boolean;
+            aborted: boolean;
+        },
         sentBytes: 0,
         receivedBytes: 0,
         firstByteMs: null as number | null,
@@ -111,6 +137,25 @@ export class ProxyDiagnostics {
         this.data.stage = stage;
     }
 
+    requestBody(declared: string | undefined, encoding: string | undefined, limit: number): void {
+        this.data.requestBody = {
+            declaredBytes: declared !== undefined && /^\d+$/.test(declared) && Number.isSafeInteger(Number(declared)) ? Number(declared) : null,
+            readBytes: 0,
+            limitBytes: limit,
+            encoding: ["identity", "zstd", "gzip", "deflate", "br"].includes(encoding ?? "identity") ? encoding ?? "identity" : "other",
+            complete: false,
+            aborted: false,
+        };
+    }
+
+    requestRead(bytes: number): void {
+        if (this.data.requestBody) this.data.requestBody.readBytes += bytes;
+    }
+
+    requestEnded(complete: boolean, aborted: boolean): void {
+        if (this.data.requestBody) Object.assign(this.data.requestBody, {complete, aborted});
+    }
+
     sent(bytes: number): void {
         this.data.sentBytes += bytes;
     }
@@ -142,10 +187,10 @@ export class ProxyDiagnostics {
         if (this.ended) return;
         this.ended = true;
         const errors = phase === "failed" ? transportErrors(error) : [];
-        this.emit(errors.length > 0 && errors.every(code => code === "ABORT_ERR") ? "cancelled" : phase, errors);
+        this.emit(errors.length > 0 && errors.every(code => code === "ABORT_ERR") ? "cancelled" : phase, errors, errorNames(error));
     }
 
-    private emit(phase: string, errors: string[] = []): void {
+    private emit(phase: string, errors: string[] = [], errorNames: string[] = []): void {
         // stderr is carried by Runtime and projected by the host's bounded diagnostic collector.
         console.error(
             PROXY_DIAGNOSTIC_PREFIX +
@@ -154,6 +199,7 @@ export class ProxyDiagnostics {
                     phase,
                     elapsedMs: Math.round(performance.now() - this.started),
                     errors,
+                    errorNames,
                 }),
         );
     }
