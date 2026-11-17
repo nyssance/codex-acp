@@ -8,6 +8,7 @@ import crossSpawn from "cross-spawn";
 import {createJSONRPCReader, createJSONRPCWriter} from "./StdUtils";
 import {logger} from "./Logger";
 import {providerConnections} from "./ProviderConnections";
+import {CodexAppServerSupervisor} from "./app-server-recovery/CodexAppServerSupervisor";
 
 const require = createRequire(import.meta.url);
 
@@ -34,7 +35,7 @@ export interface StartCodexConnectionOptions {
 
 export function startCodexConnection(codexPath?: string, env?: NodeJS.ProcessEnv, appServerStartupArgs: string[] = ["app-server"], options: StartCodexConnectionOptions = {}): CodexConnection {
     const primary = startRawCodexConnection(codexPath, env, appServerStartupArgs, {disposeOnExit: false});
-    const children = new Map<NativeConnection, (unexpected: boolean) => Promise<void>>();
+    const children = new Map<NativeConnection, () => Promise<void>>();
     let closing = false;
     primary.connection.onDispose(() => {
         closing = true;
@@ -48,39 +49,29 @@ export function startCodexConnection(codexPath?: string, env?: NodeJS.ProcessEnv
         const child = startRawCodexConnection(codexPath, env, args, {
             disposeOnExit: false,
         });
-        let intentional = false;
-        let finalizing: Promise<void> | undefined;
-        const finish = (unexpected: boolean): Promise<void> => {
-            finalizing ??= waitForNativeOutput(child).then(() => {
-                children.delete(child);
-                child.connection.dispose();
-                // Deliver the final child frames before the primary exit triggers upstream recovery.
-                if (unexpected && !closing) primary.process.stdin.end();
-            });
-            if (!unexpected) requestNativeStop(child);
-            return finalizing;
-        };
-        children.set(child, finish);
-        child.connection.onDispose(() => {
-            intentional = true;
+        // Upstream's supervisor stops the child and reads its last output before disposing the connection.
+        const supervisor = new CodexAppServerSupervisor(
+            {connection: child, codexPath, appServerStartupArgs: args, stderr: ""},
+            () => {
+                throw new Error("A provider app-server is never restarted in place");
+            },
+        );
+        children.set(child, async () => {
+            await supervisor.stop();
+        });
+        supervisor.onExit((exit) => {
             children.delete(child);
-            requestNativeStop(child);
+            // Deliver the final child frames before the primary exit triggers upstream recovery.
+            if (!exit.intentional && !closing) primary.process.stdin.end();
         });
-        child.process.once("error", (error) => {
-            logger.error("Provider app-server failed", error);
-            if (!intentional) void finish(!closing);
-        });
-        child.process.stdout.once("end", () => {
-            if (!intentional) void finish(!closing);
-        });
-        child.process.once("exit", () => {
-            if (!intentional) void finish(!closing);
+        child.connection.onDispose(() => {
+            void supervisor.stop();
         });
         return child.connection;
     });
     const drained = primary.drained.then(async () => {
         closing = true;
-        await Promise.all([...children.values()].map((finish) => finish(false)));
+        await Promise.all([...children.values()].map((stop) => stop()));
     });
     if (options.disposeOnExit ?? true)
         primary.process.once("exit", () => {
@@ -90,35 +81,6 @@ export function startCodexConnection(codexPath?: string, env?: NodeJS.ProcessEnv
 }
 
 type NativeConnection = CodexConnection & {drained: Promise<void>};
-
-function requestNativeStop(child: NativeConnection): void {
-    if (child.process.exitCode !== null || child.process.signalCode !== null || child.process.stdin.writableEnded) return;
-    child.process.stdin.end();
-    const timer = setTimeout(() => child.process.kill("SIGTERM"), 2_000);
-    timer.unref();
-    child.process.once("exit", () => clearTimeout(timer));
-}
-
-/** Like the upstream supervisor, bound inherited stdout pipes, but never truncate a queue after EOF. */
-function waitForNativeOutput(child: NativeConnection): Promise<void> {
-    return new Promise((resolve) => {
-        let grace: ReturnType<typeof setTimeout> | undefined;
-        const ended = () => clearTimeout(grace);
-        const settle = () => {
-            clearTimeout(grace);
-            child.process.stdout.off("end", ended);
-            disposed.dispose();
-            resolve();
-        };
-        const disposed = child.connection.onDispose(settle);
-        if (!child.process.stdout.readableEnded) {
-            child.process.stdout.once("end", ended);
-            grace = setTimeout(settle, 2_000);
-            grace.unref();
-        }
-        void child.drained.then(settle);
-    });
-}
 
 function startRawCodexConnection(codexPath: string | undefined, env: NodeJS.ProcessEnv | undefined, appServerStartupArgs: string[], options: StartCodexConnectionOptions): NativeConnection {
     const spawnEnv = env ?? process.env;

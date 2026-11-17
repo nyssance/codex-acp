@@ -19,7 +19,7 @@ code; a gap that can be fixed in this repository is not a workaround.
 | `src/CodexEventHandler.ts` turn timing | Caps the work duration at the turn's own duration. | Codex reports a turn's start in whole seconds and the final answer in milliseconds. | Codex reports turn start in milliseconds. |
 | `src/CodexEventHandler.ts` `guardianWarning` | Drops a warning whose text starts with "Automatic approval review … (risk:". | Codex also reports that review summary as an auto-approval review item, and only the message text tells a summary from a failure. | Codex marks guardian warnings with a structured kind. |
 | `src/client/history.ts` `exportConversation` | Uses the session creation time for an item without `startedAtMs`. | Older Codex rollouts have no item timestamps, and the archive format requires one. | Rollouts without item timestamps are no longer supported. |
-| `src/CodexJsonRpcConnection.ts` | Waits 2 seconds before `SIGTERM` and for stdout after a provider child exits. | Mirrors the grace periods of upstream's app-server supervisor. | Upstream exposes its timings for reuse. |
+| `src/CodexJsonRpcConnection.ts`, `src/ProviderConnections.ts` | Starts one Codex app-server per model provider and routes each thread's requests to the process of its provider. Upstream's `CodexAppServerSupervisor` stops each of them. When one dies unexpectedly, the primary is ended too, so upstream's recovery reconnects every session. | `model_provider` applies to a whole app-server process, and a thread cannot change provider. | Codex accepts the model provider per thread. |
 
 ## Backends and protocols
 
