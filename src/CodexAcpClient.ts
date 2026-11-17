@@ -824,7 +824,7 @@ export class CodexAcpClient {
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             threadStatus: response.thread.status,
             sessionTitle: normalizeSessionTitle(listedSessionTitle(response.thread)),
-            modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai",
+            modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()),
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
             threadApprovalsReviewer: response.threadApprovalsReviewer,
@@ -888,7 +888,7 @@ export class CodexAcpClient {
         try {
             if (storedInput.inputConfig)
                 await writeSessionInputConfig(this.inputConfigClient, forked.sessionId, storedInput.inputConfig);
-            const modelProvider = route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai";
+            const modelProvider = route.gatewayId ?? (await this.getResumeModelProvider());
             if (nativeTools !== undefined) this.nativeToolSettings.set(forked.sessionId, nativeTools);
             if (route.catalog) this.catalogSessions.add(forked.sessionId);
             return {...forked, modelProvider};
@@ -1004,7 +1004,7 @@ export class CodexAcpClient {
             lineage: await readSessionLineage(this.codexClient, response.thread),
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
-            modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai",
+            modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()),
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
             threadApprovalsReviewer: response.threadApprovalsReviewer,
@@ -1149,7 +1149,7 @@ export class CodexAcpClient {
             models: codexModels,
             lineage: await readSessionLineage(this.codexClient, response.thread),
             collaborationMode: this.getCollaborationMode(response.thread.id),
-            modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai",
+            modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()),
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.activePermissionProfile?.id,
             threadApprovalsReviewer: response.approvalsReviewer,

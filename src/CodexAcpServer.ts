@@ -154,7 +154,7 @@ import type {ToolFacts} from "./tool-calls/ToolFacts";
 import {CollabAgentReporter} from "./tool-calls/reporters/CollabAgentReporter";
 import {CommandReporter} from "./tool-calls/reporters/CommandReporter";
 import {CompactionReporter} from "./tool-calls/reporters/CompactionReporter";
-import {DynamicToolReporter} from "./tool-calls/reporters/DynamicToolReporter";
+import {DynamicToolReporter, inlineImage} from "./tool-calls/reporters/DynamicToolReporter";
 import {FileChangeReporter} from "./tool-calls/reporters/FileChangeReporter";
 import {ImageGenerationReporter} from "./tool-calls/reporters/ImageGenerationReporter";
 import {ImageViewReporter} from "./tool-calls/reporters/ImageViewReporter";
@@ -203,7 +203,7 @@ import {SubagentAssociations} from "./subagents/SubagentAssociations";
 import {SubagentInteractionHandlers} from "./subagents/SubagentInteractionHandlers";
 import type {SubagentEventRouter} from "./subagents/SubagentEventRouter";
 import {subagentConfigurationOptions, type ObservedSubagentConfiguration} from "./subagents/SubagentConfiguration";
-import {listCodexHooks, trustCodexHooks, type CodexHookIdentity} from "./CodexHookTrust";
+import {CODEX_HOOKS_LIST_METHOD, CODEX_HOOKS_TRUST_METHOD, listCodexHooks, trustCodexHooks, type CodexHookIdentity} from "./CodexHookTrust";
 import type {HooksListEntry} from "./app-server/v2/HooksListEntry";
 import {
     accountFromUpdated,
@@ -979,8 +979,8 @@ export class CodexAcpServer {
                         },
                         hooks: {
                             version: 1,
-                            listMethod: "_codex/hooks/list",
-                            trustMethod: "_codex/hooks/trust",
+                            listMethod: CODEX_HOOKS_LIST_METHOD,
+                            trustMethod: CODEX_HOOKS_TRUST_METHOD,
                         },
                         goal: {
                             version: GOAL_EXTENSION_VERSION,
@@ -2221,15 +2221,16 @@ export class CodexAcpServer {
         }
     }
 
-    /**
-     * Shows a landed steer as a live-only `user_message` (v2 only; the steering response itself
-     * carries no `messageId`, per user decision).
-     */
+    /** The `_meta.codex.turnId` of the turn Codex reports running, for a live user message. */
     private liveTurnMeta(sessionId: string) {
         const turnId = this.getSessionState(sessionId).codexReportedRunningTurnId;
         return turnId === null ? undefined : {codex: {turnId}};
     }
 
+    /**
+     * Shows a landed steer as a live-only `user_message` (v2 only; the steering response itself
+     * carries no `messageId`, per user decision).
+     */
     private async emitLiveSteerUserMessage(sessionId: string, messageId: string, prompt: acp.ContentBlock[]): Promise<void> {
         const session = new ACPSessionConnection(this.connection, sessionId);
         if (session.protocolVersion !== 2) {
@@ -5038,8 +5039,8 @@ export class CodexAcpServer {
             }
             case "image": {
                 if ("url" in input) {
-                    const inline = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/]+={0,2})$/i.exec(input.url);
-                    if (inline) return [{type: "image", mimeType: inline[1]!, data: inline[2]!}];
+                    const image = inlineImage(input.url);
+                    if (image) return [{type: "image", ...image}];
                 }
                 return [{
                     type: "text",
