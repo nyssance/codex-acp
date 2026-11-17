@@ -945,6 +945,14 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
 
     // ── Account, rate limits, file search ──
 
+    listBackgroundTerminals(sessionId: string): Promise<import("../BackgroundTerminalTypes").BackgroundTerminal[]> {
+        return this.live().request("_codex/terminals/list", {sessionId});
+    }
+
+    stopBackgroundTerminals(sessionId: string): Promise<import("../BackgroundTerminalTypes").BackgroundTerminalStopResult> {
+        return this.live().request("_codex/terminals/stopAll", {sessionId});
+    }
+
     readAccount(): Promise<AccountReadResponse> {
         return this.live().request<AccountReadResponse>("_codex/account_read", {});
     }

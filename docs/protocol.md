@@ -53,7 +53,18 @@ and one terminal `completed`, `cancelled` or `failed` event share that identifie
 Events include the request stage, target hostname and port, endpoint category,
 transport/runtime, elapsed time, request/response byte counts, first-byte timing,
 HTTP status, WebSocket close code and a syntax-checked `x-request-id` when available. Error cause chains
-contain at most four allowlisted transport codes, never messages or stacks.
+contain at most four allowlisted transport codes and `errorNames` contains the
+corresponding bounded exception classes, never messages or stacks.
+
+HTTP ingestion adds optional `requestBody` metadata: `declaredBytes` (null when
+absent or invalid), `readBytes`, `limitBytes`, the allowlisted `encoding`, and the
+`IncomingMessage` flags `complete` and `aborted`. These are wire bytes before
+request decompression or rewriting, separate from upstream `sentBytes`. Exceeding
+the local limit returns HTTP 413 with `REQUEST_BODY_TOO_LARGE` and records
+`forwardedStatus: 413`. Other upload-read failures record `REQUEST_BODY_READ_FAILED`
+followed by the cause codes. WebSocket receiver errors retain their allowlisted
+codes, including `WS_ERR_UNSUPPORTED_MESSAGE_LENGTH`. Older events can omit the
+new metadata; hosts must continue accepting them.
 
 No prompt, response text, authorization headers, URL paths or queries, local route
 tokens, model identifiers, proxy addresses or environment values are emitted.
@@ -197,3 +208,9 @@ readable as opaque data; hosts reject unsupported modes before executing them. V
 Host input-mode definitions own configuration validation, tool selection and prompt
 routing. The adapter validates generic protocol values and translates native tool
 switches and application context without understanding input modes.
+
+### Background terminal controls
+
+- `_codex/terminals/list({sessionId})` returns the current background processes as `{itemId, processId, command}[]`. Foreground commands are excluded.
+- `_codex/terminals/stopAll({sessionId})` snapshots all pages before stopping, then verifies removal of every target. It returns `{stopped: string[], failures: {processId, message}[]}` and continues after individual failures. New processes outside the initial snapshot are left running.
+- Both ACP versions use the same adapter implementation. Application clients consume `listBackgroundTerminals` and `stopBackgroundTerminals` through the shared chat client. Terminal logs remain in the existing session projection; neither method creates a second log store.

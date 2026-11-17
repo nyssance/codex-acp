@@ -49,3 +49,20 @@ it("retains abnormal WebSocket close codes and ignores headers after termination
         runtime: "node-websocket",
     });
 });
+
+it("records bounded request metadata and preserves read failures and nested transport causes", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const trace = new ProxyDiagnostics("http", "native");
+    trace.requestBody("1024", "private-encoding", 67108864);
+    trace.requestRead(10);
+    trace.requestEnded(false, true);
+    trace.end("failed", Object.assign(new Error("private-body"), {
+        code: "REQUEST_BODY_READ_FAILED",
+        cause: Object.assign(new Error("private-cause"), {code: "ECONNRESET"}),
+    }));
+    const event = JSON.parse(String(log.mock.calls.at(-1)![0]).slice(PROXY_DIAGNOSTIC_PREFIX.length));
+    expect(event.requestBody).toEqual({declaredBytes: 1024, readBytes: 10, limitBytes: 67108864, encoding: "other", complete: false, aborted: true});
+    expect(event.errors).toEqual(["REQUEST_BODY_READ_FAILED", "ECONNRESET"]);
+    expect(JSON.stringify(event)).not.toContain("private-");
+    expect(transportErrors({code: "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH"})).toEqual(["WS_ERR_UNSUPPORTED_MESSAGE_LENGTH"]);
+});

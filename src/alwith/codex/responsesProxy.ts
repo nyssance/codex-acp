@@ -16,7 +16,7 @@ import WebSocket, {type RawData, WebSocketServer} from "ws-transport";
 
 import {NativeNetworkTransport, nativeNetworkError} from "./nativeNetworkTransport";
 
-import {ProxyDiagnostics} from "./proxyDiagnostics";
+import {ProxyDiagnostics, transportErrors} from "./proxyDiagnostics";
 
 import {isRecord} from "../../permissions/json";
 import {CompactionSink, summaryRequest} from "./externalCompaction";
@@ -96,14 +96,24 @@ function forwardingHeaders(headers: IncomingHttpHeaders, websocket: boolean): In
     return Object.fromEntries(Object.entries(headers).filter(([name]) => !blocked.has(name)));
 }
 
-async function requestBody(request: IncomingMessage): Promise<Buffer> {
+async function requestBody(request: IncomingMessage, diagnostic: ProxyDiagnostics): Promise<Buffer> {
     const chunks: Buffer[] = [];
     let length = 0;
-    for await (const chunk of request) {
-        const bytes = Buffer.from(chunk as Uint8Array);
-        length += bytes.length;
-        if (length > MAX_BODY_BYTES) throw new Error("Responses request is too large");
-        chunks.push(bytes);
+    diagnostic.requestBody(request.headers["content-length"], request.headers["content-encoding"], MAX_BODY_BYTES);
+    try {
+        for await (const chunk of request) {
+            const bytes = Buffer.from(chunk as Uint8Array);
+            length += bytes.length;
+            diagnostic.requestRead(bytes.length);
+            if (length > MAX_BODY_BYTES)
+                throw Object.assign(new Error("Responses request is too large"), {code: "REQUEST_BODY_TOO_LARGE"});
+            chunks.push(bytes);
+        }
+    } catch (cause) {
+        if (cause instanceof Error && "code" in cause && cause.code === "REQUEST_BODY_TOO_LARGE") throw cause;
+        throw Object.assign(new Error("Cannot read Responses request body", {cause}), {code: "REQUEST_BODY_READ_FAILED"});
+    } finally {
+        diagnostic.requestEnded(request.complete, request.aborted);
     }
     return Buffer.concat(chunks);
 }
@@ -148,6 +158,8 @@ export class ResponsesProxy {
                 if (!response.writableFinished) setImmediate(() => diagnostic.end("cancelled"));
             });
             void this.forwardHttp(request, response, diagnostic).catch((error: unknown) => {
+                const tooLarge = transportErrors(error).includes("REQUEST_BODY_TOO_LARGE");
+                if (tooLarge) diagnostic.forwarded(413);
                 diagnostic.end("failed", error);
                 if (response.destroyed) return;
                 if (response.headersSent) {
@@ -156,7 +168,7 @@ export class ResponsesProxy {
                 }
                 // Transport errors must not expose upstream URLs, headers or conversation content.
                 if (!response.headersSent)
-                    response.writeHead(502, {
+                    response.writeHead(tooLarge ? 413 : 502, {
                         "content-type": "text/plain",
                     });
                 const code =
@@ -167,7 +179,8 @@ export class ResponsesProxy {
                     /^[A-Za-z0-9_]+$/.test(error.code)
                         ? error.code
                         : "UPSTREAM_TRANSPORT_ERROR";
-                response.end(`Responses compatibility proxy could not forward the request (${code})`);
+                const transport = transportErrors(error).find(value => value !== "UNKNOWN");
+                response.end(`Responses compatibility proxy could not forward the request (${transport ?? code})`);
             });
         });
         this.server.on("connection", socket => {
@@ -296,7 +309,7 @@ export class ResponsesProxy {
         }
         const transformResponses = /\/responses(?:\/compact)?$/.test(target.pathname);
         diagnostic.stage("read_request");
-        const bytes = await requestBody(request);
+        const bytes = await requestBody(request, diagnostic);
         diagnostic.stage("prepare_request");
         const encoding = request.headers["content-encoding"];
         if (transformResponses && encoding && encoding !== "identity" && encoding !== "zstd") {
@@ -654,7 +667,10 @@ export class ResponsesProxy {
             upstream.terminate();
         };
         upstream.on("error", fail);
-        downstream.on("error", () => upstream.terminate());
+        downstream.on("error", error => {
+            diagnostic.end("failed", error);
+            upstream.terminate();
+        });
         downstream.on("message", (data, binary) => {
             if (binary) {
                 downstream.close(1003, "Expected a JSON text frame");

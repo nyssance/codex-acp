@@ -1,3 +1,4 @@
+import {stopBackgroundTerminals} from "./BackgroundTerminals";
 import {applicationContextOf, nativeToolsOf, nativeToolsConfig, type NativeToolSettings} from "./alwith/codex/hostExecution";
 import {AppServerClient} from "./alwith/codex/AppServerClient";
 import {readSessionInputConfig, writeSessionInputConfig} from "./alwith/codex/sessionInputConfig";
@@ -87,8 +88,6 @@ import {
     isMissingRolloutError,
     isThreadNotMaterializedError,
     isThreadActiveWriterError,
-    isThreadNotFoundError,
-    isThreadNotLoadedError,
     isUnknownThreadError,
     threadActiveWriterRequestError,
 } from "./CodexThreadErrors";
@@ -1279,25 +1278,8 @@ export class CodexAcpClient {
     }
 
     private async stopBackgroundTerminals(threadId: string): Promise<void> {
-        try {
-            // Read all pages before removing processes so cleanup cannot disturb pagination.
-            const terminals = [];
-            for await (const page of this.codexClient.backgroundTerminalPages(threadId)) terminals.push(...page);
-            for (const terminal of terminals) {
-                const result = await this.codexClient.threadBackgroundTerminalsTerminate({threadId, processId: terminal.processId});
-                if (!result.terminated) {
-                    // False can mean either "already gone" or a failed stop. Verify which before closing.
-                    for await (const page of this.codexClient.backgroundTerminalPages(threadId)) {
-                        if (page.some(current => current.processId === terminal.processId)) {
-                            throw new Error(`Codex could not stop background terminal ${terminal.processId}`);
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            // An already-unloaded runtime has no processes left to stop.
-            if (!isThreadNotFoundError(error) && !isThreadNotLoadedError(error)) throw error;
-        }
+        const result = await stopBackgroundTerminals(this.codexClient, threadId, false);
+        if (result.failures.length) throw new Error(result.failures.map(failure => failure.message).join("; "));
     }
 
     /**
