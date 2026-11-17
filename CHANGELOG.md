@@ -1,3 +1,14 @@
+## 0.7.72 (2026-11-17)
+
+- Merge upstream 2.7.0: a Codex hook that blocks or stops a prompt or tool call is reported as a warning with the hook's reason, instead of a silent empty turn. Over v2 the notice carries `_meta.codex.turnId` like the other notices.
+- A failed v2 turn's `codex-error:<turnId>` message is sent once; the terminal error and `turn/completed` both sent it.
+- A v2 question reply keeps the notification's `_meta` (the turn id) when it becomes a `user_message`.
+- A resumed built-in `:workspace` thread with auto review restores as Agent again when an approvals reviewer is configured; the configured default no longer overwrites the thread's own reviewer.
+- Two v2 prompts sent during one running turn are steered in arrival order through upstream's steering queue, which also checks their content, instead of reaching Codex at the same time.
+- A provider catalog change queued behind a failing one runs instead of failing with that error.
+- Provider app-servers are stopped by upstream's `CodexAppServerSupervisor`, which also abandons a child that ignores SIGTERM and stops one whose stdout ended.
+- `docs/ALWITH-MIGRATION.md` lists every difference from upstream: the fork-only surface, the upstream behavior the fork changes, and the registered workarounds, with the surface no app uses yet.
+
 ## 0.7.71 (2026-11-16)
 
 - Add background-terminal listing and stop-all controls on both ACP versions, with typed client methods. Stop-all snapshots every page before terminating processes, verifies removal, reports individual failures, and leaves later processes running. Session close reuses the same cleanup implementation.

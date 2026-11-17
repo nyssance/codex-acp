@@ -56,6 +56,7 @@ Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/sess
 | Import | `_codex/import/*` and the `./import` package export (no consumer, see Pending) | `externalAgentConfig/*` | none |
 | Account, rate limits, file search | `_codex/account_read`, `_codex/rate_limits`, `_codex/rate_limits_updated`, `_codex/fuzzy_file_search` and its `updated`/`completed` notifications | `account/read`, `account/rateLimits/read`, `fuzzyFileSearch` | module-chat |
 | Shell | `_codex/shell/execute` | `thread/shellCommand` | module-chat composer |
+| Background terminals | `_codex/terminals/list`, `_codex/terminals/stopAll` (`src/BackgroundTerminals.ts`) | `thread/backgroundTerminals/list`, `thread/backgroundTerminals/terminate` | U terminal workspace |
 | Projects | `_codex/project_context`, `_meta.codex.projectId`, `_codex/projects_changed`, `_codex/thread_project_updated` (`src/projects`) | `project/*` | module-chat, U |
 | Async questions | question card over `session/request_permission`; over v2 a reply envelope becomes a `user_message` with `_meta.codex.questionReplyParts` | `request_user_input` | module-chat |
 | Browser client | `@nyssance/codex-acp-v2/client` (`src/client`) | none | module-chat re-exports it to U, TV, Desktop |
