@@ -1,3 +1,11 @@
+## 0.7.79 (2026-11-17)
+
+- Preserve a session's native model identity when provider catalogs initialize after the session.
+- Adopt user-message echoes in place so late receipts do not reorder the transcript.
+- Expose paginated model catalogs for automatic recovery of unavailable session models.
+- Expose transient ChatGPT plugin-service authentication separately from host catalog and search requests.
+- Share gateway compaction request and response handling across HTTP and WebSocket, including continued conversation after compaction.
+
 ## 0.7.78 (2026-11-17)
 
 - `Agent` in `./client` runs the SDK's own client connection over the Runtime port: the handshake, requests in both directions, their cancellation and their answers go through it, and the SDK refuses any protocol version but 2.
