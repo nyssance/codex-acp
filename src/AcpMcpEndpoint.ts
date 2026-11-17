@@ -72,16 +72,18 @@ export class AcpMcpEndpoint {
     }
 
     private origin(): string {
-        this.listener ??= Bun.serve({hostname: "127.0.0.1", port: 0, fetch: request => this.fetch(request)});
+        this.listener ??= Bun.serve({hostname: "127.0.0.1", port: 0, fetch: (request, server) => this.fetch(request, server)});
         return `http://127.0.0.1:${this.listener.port}`;
     }
 
-    private async fetch(request: Request): Promise<Response> {
+    private async fetch(request: Request, server: Bun.Server<undefined>): Promise<Response> {
         const invalidHost = hostHeaderValidationResponse(request, localhostAllowedHostnames());
         if (invalidHost) return invalidHost;
         const authInfo = await this.authenticate(request);
         if (authInfo instanceof Response) return authInfo;
         if (!this.route(request.url)) return new Response(null, {status: 404});
+        // Application tools can wait for page controls or user interaction. MCP owns cancellation.
+        server.timeout(request, 0);
         return this.handler.fetch(request, {authInfo});
     }
 

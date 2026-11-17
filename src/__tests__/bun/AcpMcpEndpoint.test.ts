@@ -73,6 +73,23 @@ test("passes inner MCP errors through unchanged", async () => {
     await mcp.close();
 });
 
+test.each([false, true])("keeps a slow tool's result connected (failure: %s)", async failure => {
+    const {endpoint, servers} = await connect(async ({method}) => {
+        if (method === "tools/list") return {result: {tools: [{name: "wait", inputSchema: {type: "object"}}]}};
+        await Bun.sleep(12000);
+        if (failure) return {error: {code: -32603, message: "Control did not become editable"}};
+        return {result: {content: [{type: "text", text: "Control became editable"}]}};
+    });
+    const mcp = await codex(servers.url, endpoint.env[ACP_MCP_TOKEN_ENV]);
+    try {
+        const call = mcp.callTool({name: "wait", arguments: {}});
+        if (failure) await expect(call).rejects.toThrow("Control did not become editable");
+        else expect((await call).content).toEqual([{type: "text", text: "Control became editable"}]);
+    } finally {
+        await mcp.close();
+    }
+}, 20000);
+
 test("refuses requests without the token or after the connection closed", async () => {
     const {endpoint, servers, disconnect} = await connect(() => ({result: {tools: []}}));
 
