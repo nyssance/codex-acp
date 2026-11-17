@@ -158,6 +158,17 @@ describe("ALwith extensions on the upstream connection", () => {
         expect(notify).not.toHaveBeenCalled();
     });
 
+    it("rejects enabling a remote plugin, which ChatGPT owns", async () => {
+        const upstream = peer();
+        const notify = vi.fn();
+        const extensions = new AlwithExtensions(() => upstream.client, notify, () => false, async () => []);
+        await expect(
+            extensions.request("_codex/plugin_set_enabled", {pluginId: "plug", enabled: true, remotePluginId: "remote"}),
+        ).rejects.toThrow("Remote plugins are enabled in ChatGPT");
+        expect(upstream.sendRequest).not.toHaveBeenCalled();
+        expect(notify).not.toHaveBeenCalled();
+    });
+
     it("rebinds notifications once and removes listeners from the dead process", async () => {
         const first = peer();
         const second = peer();

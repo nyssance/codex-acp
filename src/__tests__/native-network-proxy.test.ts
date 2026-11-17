@@ -1,6 +1,4 @@
 import {listGatewayModels} from "../GatewayModelDiscovery";
-import {setRemotePluginEnabled} from "../alwith/codex/remotePluginEnablement";
-import type {AppServerClient} from "../alwith/codex/AppServerClient";
 import {nativeFetch} from "../alwith/codex/nativeFetch";
 import {afterEach, expect, it, vi} from "vitest";
 import {once} from "node:events";
@@ -407,7 +405,7 @@ it("keeps auxiliary requests and redirects on the native route", async () => {
     expect(opens).toHaveLength(2);
     expect(opens.map(open => open["host"])).toEqual(["example.test", "elsewhere.test"]);
 });
-it("retains redirect rejection for remote plugin mutations", async () => {
+it("rejects a redirect when the request forbids one", async () => {
     const server = createServer((_request, response) => response.writeHead(302, {location: "https://other.test/"}).end());
     const port = await listen(server);
     const opens = await bridge();
@@ -429,31 +427,5 @@ it("routes gateway model discovery through the native service", async () => {
     const port = await listen(server);
     const opens = await bridge();
     expect(await listGatewayModels(`https://example.test:${port}/v1`, {})).toEqual(new Set(["model-test"]));
-    expect(opens).toHaveLength(1);
-});
-it("routes remote plugin enablement through the native service", async () => {
-    const server = createServer((request, response) => {
-        expect(request.url).toBe("/backend-api/ps/plugins/plugin-test/enable");
-        expect(request.method).toBe("POST");
-        response.setHeader("content-type", "application/json");
-        response.end(JSON.stringify({id: "plugin-test", enabled: true}));
-    });
-    const port = await listen(server);
-    const opens = await bridge();
-    const client = {
-        accountRead: async () => ({
-            account: {type: "chatgpt"},
-            workspaceRouting: {
-                backendOrigin: `https://native-test.chatgpt.com:${port}`,
-                chatgptAccountId: "test-account",
-            },
-        }),
-        getAuthStatus: async () => ({
-            authMethod: "chatgpt",
-            authToken: "test-token",
-        }),
-        disconnectSignal: new AbortController().signal,
-    } as unknown as AppServerClient;
-    await setRemotePluginEnabled(client, "plugin-test", true);
     expect(opens).toHaveLength(1);
 });

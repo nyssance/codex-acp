@@ -1,3 +1,7 @@
+## 0.7.74 (2026-11-17)
+
+- Remote plugins are no longer enabled or disabled by the adapter. It called ChatGPT's plugin service with the Codex login, which Codex itself does not do; `_codex/plugin_set_enabled` now rejects `remotePluginId`, and `CodexClient.setPluginEnabled` takes only the plugin id and state. Remote plugins are enabled in ChatGPT, and Codex picks the state up when it reconciles.
+
 ## 0.7.73 (2026-11-17)
 
 - Remove extension surface no ALwith application uses: the `_codex/import/*` methods and the `./import` package export; realtime `appendAudio`, `appendText`, `appendSpeech` and `listVoices`; `_codex/apps_list`, `_codex/mcp_status` and `_codex/mcp_tool_call` with `CodexClient.callMcpTool`; the browser client's hooks and goal methods and `onFileSearchUpdate`, with the fuzzy file search session notifications; the `configRevision`, `hooks` and `goal` initialize flags; and the client re-exports of internal history and project helpers.

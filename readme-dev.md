@@ -438,7 +438,7 @@ network errors are not retried directly or through Bun. Closing the local reques
 cancels upstream work; stopping the host closes all connections. Environment
 proxy variables do not override the Windows system-proxy decision.
 
-The same service handles gateway model discovery and remote plugin enablement.
+The same service handles gateway model discovery.
 Redirects of auxiliary requests remain on the native path; cross-origin redirects
 remove credential headers. Native `[alwith-native-network]` records correlate with
 adapter records through a 24-character request ID. Records contain only bounded

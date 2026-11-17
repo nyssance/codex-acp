@@ -5,10 +5,9 @@ import {logger} from "../Logger";
 import {historyError} from "./agent/historyProtocol";
 import {RequestError} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type {CodexAppServerClient} from "../CodexAppServerClient";
-import type {PluginInstalledResponse, ConfigWriteResponse, SkillsListResponse} from "../app-server/v2";
+import type {ConfigWriteResponse, SkillsListResponse} from "../app-server/v2";
 import {withoutUnsupportedSkills} from "../UnsupportedSkills";
 import {AppServerClient} from "./codex/AppServerClient";
-import {setRemotePluginEnabled} from "./codex/remotePluginEnablement";
 import type {HistoryRenderer} from "./agent/historyProjection";
 import {
     readSessionHistory,
@@ -148,26 +147,16 @@ export class AlwithExtensions {
             if (typeof params["enabled"] !== "boolean" || typeof params["pluginId"] !== "string" || !params["pluginId"]) {
                 throw RequestError.invalidParams(undefined, "pluginId and enabled are required");
             }
+            // Codex ignores local configuration for remote installs, which ChatGPT enables itself.
+            if (params["remotePluginId"] !== undefined) throw RequestError.invalidParams(undefined, "Remote plugins are enabled in ChatGPT");
             const enabled = params["enabled"];
-            if (params["remotePluginId"] !== undefined) {
-                const remoteId = params["remotePluginId"];
-                if (typeof remoteId !== "string" || !remoteId) throw RequestError.invalidParams(undefined, "Invalid remotePluginId");
-                await setRemotePluginEnabled(this.codex, remoteId, enabled);
-                await this.codex.request("plugin/reconcile", {
-                    reason: "plugin-enabled-changed",
-                });
-                const installed = await this.codex.request<PluginInstalledResponse>("plugin/installed", {});
-                const plugin = installed.marketplaces.flatMap(m => m.plugins).find(p => p.remotePluginId === remoteId);
-                if (plugin?.enabled !== enabled) throw RequestError.internalError(undefined, "Remote plugin state was not synchronized");
-            } else {
-                const response = await this.codex.request<ConfigWriteResponse>("config/value/write", {
-                    keyPath: `plugins.${JSON.stringify(params["pluginId"])}.enabled`,
-                    value: enabled,
-                    mergeStrategy: "upsert",
-                });
-                if (response.status === "okOverridden")
-                    throw RequestError.invalidRequest(undefined, "Plugin enablement is overridden by higher-priority configuration");
-            }
+            const response = await this.codex.request<ConfigWriteResponse>("config/value/write", {
+                keyPath: `plugins.${JSON.stringify(params["pluginId"])}.enabled`,
+                value: enabled,
+                mergeStrategy: "upsert",
+            });
+            if (response.status === "okOverridden")
+                throw RequestError.invalidRequest(undefined, "Plugin enablement is overridden by higher-priority configuration");
             await this.notify("_codex/skills_changed", {});
             return {enabled};
         }
