@@ -107,7 +107,8 @@ export class AcpV2Connection {
                         content,
                         ...(meta ? {_meta: meta} : {}),
                     };
-                    await this.client.notify(acpV2.methods.client.session.update, {sessionId, update: reply});
+                    await this.client.notify(acpV2.methods.client.session.update,
+                        {sessionId, update: reply, ...(metadata !== undefined ? {_meta: metadata} : {})});
                     continue;
                 }
             }
