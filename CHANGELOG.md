@@ -2,7 +2,6 @@
 
 - Preserve a session's native model identity when provider catalogs initialize after the session.
 - Adopt user-message echoes in place so late receipts do not reorder the transcript.
-- Expose paginated model catalogs for automatic recovery of unavailable session models.
 - Expose transient ChatGPT plugin-service authentication separately from host catalog and search requests.
 - Share gateway compaction request and response handling across HTTP and WebSocket, including continued conversation after compaction.
 
