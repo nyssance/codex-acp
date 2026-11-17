@@ -448,3 +448,14 @@ test("usage cost persists when omitted, replaces when present, and clears on nul
     session = apply(session, usage({}));
     expect(session.usage?.cost).toBeNull();
 });
+
+test.each(["user_message", "user_message_chunk"] as const)("a late %s adopts an acknowledged command without moving it past newer messages", sessionUpdate => {
+    let session = acknowledgePrompt(addPrompt(createSession("late-echo", "/tmp"), [{type: "text", text: "/compact"}], "local"), "local", "command");
+    session = applyUpdate(session, {sessionUpdate: "user_message", messageId: "later", content: [{type: "text", text: "Next question"}]});
+    session = applyUpdate(session, sessionUpdate === "user_message"
+        ? {sessionUpdate, messageId: "command", content: [{type: "text", text: "/compact"}]}
+        : {sessionUpdate, messageId: "command", content: {type: "text", text: "/compact"}});
+    expect(session.items.map(item => item.id)).toEqual(["command", "later"]);
+    expect((session.items[0] as MessageItem).content).toEqual([{type: "text", text: "/compact"}]);
+    expect((session.items[0] as MessageItem).echo).toBe("adopted");
+});

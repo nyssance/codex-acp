@@ -566,14 +566,11 @@ function fold(session: Session, update: acp.SessionUpdate, options: ApplyOptions
             if (acknowledged?.kind === "user") {
                 return {
                     ...session,
-                    items: [
-                        ...session.items.filter(item => item !== acknowledged),
-                        {
-                            ...acknowledged,
-                            echo: "adopted",
-                            _meta: isChunk ? patchChunkMeta(acknowledged._meta, frame._meta) : patchMeta(acknowledged._meta, frame._meta),
-                        },
-                    ],
+                    items: session.items.map(item => item === acknowledged ? {
+                        ...acknowledged,
+                        echo: "adopted",
+                        _meta: isChunk ? patchChunkMeta(acknowledged._meta, frame._meta) : patchMeta(acknowledged._meta, frame._meta),
+                    } : item),
                 };
             }
         }
