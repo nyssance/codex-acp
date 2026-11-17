@@ -98,32 +98,6 @@
       },
       {
         "sessionUpdate": {
-          "messageId": "codex-error:turn-1",
-          "content": [
-            {
-              "text": "You've hit your usage limit.",
-              "type": "text"
-            }
-          ],
-          "_meta": {
-            "codex": {
-              "turnId": "turn-1",
-              "error": {
-                "kind": "quota_exhausted",
-                "category": "limit",
-                "actions": [],
-                "message": "You've hit your usage limit.",
-                "codexErrorInfo": "usageLimitExceeded",
-                "additionalDetails": null,
-                "misalignment": null
-              }
-            }
-          },
-          "sessionUpdate": "agent_message"
-        }
-      },
-      {
-        "sessionUpdate": {
           "error": {
             "code": -32603,
             "message": "You've hit your usage limit."

@@ -163,6 +163,8 @@ export class CodexEventHandler {
     private lastSessionNotice: {key: string; failure: SessionFailure} | undefined;
     private failure: RequestError | null = null;
     private terminalTurnError: {turnId: string; error: ErrorNotification["error"]} | null = null;
+    /** v2 turns whose error message was already sent, so `turn/completed` does not repeat it. */
+    private readonly reportedTurnErrors = new Set<string>();
     private completedPlan: CompletedPlan | null = null;
     private readonly session: ACPSessionConnection;
     private readonly renderer: AcpToolCallRenderer;
@@ -657,7 +659,8 @@ export class CodexEventHandler {
                     if (!this.supportsTypedSessionFailures) {
                         const turn = notification.params.turn;
                         const error = turn.error ?? (this.terminalTurnError?.turnId === turn.id ? this.terminalTurnError.error : null);
-                        if (error && !this.isAuthenticationRequiredError(error.codexErrorInfo)) await this.session.updateV2(turnErrorUpdate(turn.id, error), this.subagents.notificationSessionId(notification));
+                        // The terminal `error` may already have reported it; Codex can also fail a turn without one.
+                        if (error && !this.reportedTurnErrors.has(turn.id) && !this.isAuthenticationRequiredError(error.codexErrorInfo)) await this.session.updateV2(turnErrorUpdate(turn.id, error), this.subagents.notificationSessionId(notification));
                     }
                     for (const update of this.sessionState.openToolCalls.finishOutstanding()) {
                         await this.session.update(update, this.subagents.notificationSessionId(notification));
@@ -1267,6 +1270,7 @@ export class CodexEventHandler {
             failuresShownAsMessages.add(this.failure);
         }
         if (this.session.protocolVersion === 2) {
+            this.reportedTurnErrors.add(params.turnId);
             await this.session.updateV2(turnErrorUpdate(params.turnId, params.error));
             return null;
         }

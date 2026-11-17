@@ -95,32 +95,6 @@
   },
   {
     "sessionUpdate": {
-      "messageId": "codex-error:turn-1",
-      "content": [
-        {
-          "text": "The current provider can't read this thread's earlier reasoning, which another provider or account encrypted. This happens after the provider changes in a thread. Switch back to the previous provider or start a new thread.",
-          "type": "text"
-        }
-      ],
-      "_meta": {
-        "codex": {
-          "turnId": "turn-1",
-          "error": {
-            "kind": "bad_request",
-            "category": "request",
-            "actions": [],
-            "message": "{\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"{\\\"error\\\":{\\\"message\\\":\\\"The encrypted content for item rs_1 could not be verified.\\\",\\\"code\\\":\\\"invalid_encrypted_content\\\"}}\",\"provider_name\":\"Azure\",\"provider_error_code\":\"invalid_encrypted_content\"}}}",
-            "codexErrorInfo": "badRequest",
-            "additionalDetails": null,
-            "misalignment": null
-          }
-        }
-      },
-      "sessionUpdate": "agent_message"
-    }
-  },
-  {
-    "sessionUpdate": {
       "title": "Hello",
       "sessionUpdate": "session_info_update"
     }
