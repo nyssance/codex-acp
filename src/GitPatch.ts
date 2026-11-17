@@ -214,33 +214,15 @@ function quotedGitName(prefix: string, name: string): string {
     let quoted = "";
     for (const char of full) {
         switch (char) {
-            case '"':
-                quoted += String.raw`\"`;
-                break;
-            case "\\":
-                quoted += String.raw`\\`;
-                break;
-            case "\x07":
-                quoted += String.raw`\a`;
-                break;
-            case "\b":
-                quoted += String.raw`\b`;
-                break;
-            case "\t":
-                quoted += String.raw`\t`;
-                break;
-            case "\n":
-                quoted += String.raw`\n`;
-                break;
-            case "\v":
-                quoted += String.raw`\v`;
-                break;
-            case "\f":
-                quoted += String.raw`\f`;
-                break;
-            case "\r":
-                quoted += String.raw`\r`;
-                break;
+            case "\"": quoted += String.raw`\"`; break;
+            case "\\": quoted += String.raw`\\`; break;
+            case "\x07": quoted += String.raw`\a`; break;
+            case "\b": quoted += String.raw`\b`; break;
+            case "\t": quoted += String.raw`\t`; break;
+            case "\n": quoted += String.raw`\n`; break;
+            case "\v": quoted += String.raw`\v`; break;
+            case "\f": quoted += String.raw`\f`; break;
+            case "\r": quoted += String.raw`\r`; break;
             default: {
                 const code = char.codePointAt(0)!;
                 quoted += code < 0x20 || code === 0x7f ? `\\${code.toString(8).padStart(3, "0")}` : char;

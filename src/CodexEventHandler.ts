@@ -773,6 +773,9 @@ export class CodexEventHandler {
                 // The server lists the skills again and publishes the commands. The change itself is no update.
                 return null;
             // ignored events
+            // Read markers and predictions have no ACP session update counterpart.
+            case "thread/readState/changed":
+            case "thread/prediction/updated":
             case "thread/deleted":
             case "thread/reverted":
             case "thread/queue/changed":
@@ -818,9 +821,7 @@ export class CodexEventHandler {
             case "externalAgentConfig/import/progress":
             case "process/outputDelta":
             case "process/exited":
-            case "thread/prediction/updated":
             case "autoApprovalReview/strictReviewRequired":
-            case "thread/readState/changed":
             case "thread/section/changed":
                 return null;
         }

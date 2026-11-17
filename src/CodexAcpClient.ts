@@ -2052,38 +2052,37 @@ export type SessionConfig = {
 
 export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
     return prompt.map((block): UserInput | null => {
-            switch (block.type) {
-                case "text":
-                    return {type: "text", text: block.text, text_elements: []};
-                case "image": {
-                    const url = isSupportedImageUrl(block.uri) ? block.uri : imageDataUrl(block);
-                    return {type: "image", url};
-                }
-                case "resource_link":
+        switch (block.type) {
+            case "text":
+                return {type: "text", text: block.text, text_elements: []};
+            case "image": {
+                const url = isSupportedImageUrl(block.uri) ? block.uri : imageDataUrl(block);
+                return {type: "image", url};
+            }
+            case "resource_link":
                 if (/^app:\/\/[^/?#\s]+$/.test(block.uri)) {
-                    return { type: "mention", name: block.name, path: block.uri };
+                    return {type: "mention", name: block.name, path: block.uri};
                 }
-                    return {type: "text", text: formatUriAsLink(block.name, block.uri), text_elements: []};
-                case "resource": {
-                    const resource = block.resource as EmbeddedResourceResource;
-                    if ("text" in resource) {
-                        const link = formatUriAsLink(null, resource.uri);
-                        const context = `<context ref="${resource.uri}">\n${resource.text}\n</context>`;
-                        return {type: "text", text: `${link}\n${context}`, text_elements: []};
-                    }
-                    if (isImageMimeType(resource.mimeType)) {
-                        return {type: "image", url: `data:${resource.mimeType};base64,${resource.blob}`};
-                    }
+                return {type: "text", text: formatUriAsLink(block.name, block.uri), text_elements: []};
+            case "resource": {
+                const resource = block.resource as EmbeddedResourceResource;
+                if ("text" in resource) {
                     const link = formatUriAsLink(null, resource.uri);
-                    const mimeType = resource.mimeType ?? "application/octet-stream";
-                    const context = `<context ref="${resource.uri}" mimeType="${mimeType}" encoding="base64">\n${resource.blob}\n</context>`;
+                    const context = `<context ref="${resource.uri}">\n${resource.text}\n</context>`;
                     return {type: "text", text: `${link}\n${context}`, text_elements: []};
                 }
-                case "audio":
-                    return null;
+                if (isImageMimeType(resource.mimeType)) {
+                    return {type: "image", url: `data:${resource.mimeType};base64,${resource.blob}`};
+                }
+                const link = formatUriAsLink(null, resource.uri);
+                const mimeType = resource.mimeType ?? "application/octet-stream";
+                const context = `<context ref="${resource.uri}" mimeType="${mimeType}" encoding="base64">\n${resource.blob}\n</context>`;
+                return {type: "text", text: `${link}\n${context}`, text_elements: []};
             }
-        })
-        .filter((block): block is UserInput => block !== null);
+            case "audio":
+                return null;
+        }
+    }).filter((block): block is UserInput => block !== null);
 }
 
 function imageDataUrl(block: acp.ContentBlock & { type: "image" }): string {
