@@ -1,4 +1,3 @@
-import {isRecord} from "./permissions/json";
 import {questionReplyContent, withQuestionReplyParts} from "./alwith/codex/questionReplies";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
@@ -404,38 +403,6 @@ export class ACPSessionConnection {
 
     /** On v2, the view renders the update in the v2 shape (`extensionOnlyV1View`). */
     async update(update: UpdateSessionEvent, sessionId: string = this.sessionId) {
-        // Domain writers share the codex/AIR namespaces; rebuild their owned value before a shallow wire patch.
-        if (this.v2Connection && update.sessionUpdate === "session_info_update" && update.title === undefined && update.updatedAt === undefined && isRecord(update._meta) && (isRecord(update._meta["codex"]) || isRecord(update._meta["jetbrains"]))) {
-            const patch = update._meta;
-            await this.v2Connection.patchSessionMetadata(sessionId, (current) => ({
-                ...patch,
-                ...(isRecord(patch["codex"])
-                    ? {
-                          codex: {
-                              ...(isRecord(current["codex"]) ? current["codex"] : {}),
-                              ...patch["codex"],
-                          },
-                      }
-                    : {}),
-                ...(isRecord(patch["jetbrains"])
-                    ? {
-                          jetbrains: {
-                              ...(isRecord(current["jetbrains"]) ? current["jetbrains"] : {}),
-                              ...patch["jetbrains"],
-                              ...(isRecord(patch["jetbrains"]["air"])
-                                  ? {
-                                        air: {
-                                            ...(isRecord(current["jetbrains"]) && isRecord(current["jetbrains"]["air"]) ? current["jetbrains"]["air"] : {}),
-                                            ...patch["jetbrains"]["air"],
-                                        },
-                                    }
-                                  : {}),
-                          },
-                      }
-                    : {}),
-            }));
-            return;
-        }
         await this.connection.notify(acp.methods.client.session.update, asSdkSessionNotification({
             sessionId,
             update: update

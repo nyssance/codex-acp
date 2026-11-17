@@ -1,5 +1,6 @@
 import type {ACPSessionConnection, UpdateSessionEvent} from "./ACPSessionConnection";
-import {AIR_GOAL_KEY, withAirMeta} from "./AirExtension";
+import {AIR_GOAL_KEY, JETBRAINS_META_KEY, publishAirSessionMetadata, withAirMeta} from "./AirExtension";
+import {isRecord} from "./permissions/json";
 import {GOAL_CONTROL_METHOD, type GoalSnapshot, type GoalStatus} from "./GoalExtension";
 import type {ThreadGoal} from "./app-server/v2";
 
@@ -64,8 +65,13 @@ export function goalSessionInfoUpdate(goal: ThreadGoalSnapshot | null, airClient
     };
 }
 
-/** On v2 the session connection merges the update into the current `codex` and AIR values. */
+/** On v2 the goal is patched into the current `codex` value (and AIR's), as upstream patches AIR metadata. */
 export function publishGoalSessionInfo(session: ACPSessionConnection, goal: ThreadGoalSnapshot | null, airClient: boolean): Promise<void> {
-    const update = goalSessionInfoUpdate(goal, airClient, session.protocolVersion === 2);
-    return update === null ? Promise.resolve() : session.update(update);
+    if (session.protocolVersion === 2) {
+        return session.patchSessionMetadata(current => ({
+            ...(airClient ? {[JETBRAINS_META_KEY]: withAirMeta(current, AIR_GOAL_KEY, goal)[JETBRAINS_META_KEY]} : {}),
+            codex: {...(isRecord(current["codex"]) ? current["codex"] : {}), goal},
+        }));
+    }
+    return airClient ? publishAirSessionMetadata(session, AIR_GOAL_KEY, goal) : Promise.resolve();
 }
