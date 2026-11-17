@@ -6,6 +6,7 @@ import type {ServerNotification} from "../app-server";
 import {PermissionLifecycleContext} from "../permissions/lifecycle";
 import {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
 import {ClientCapabilities} from "../tool-calls/ClientCapabilities";
+import {toV2RequestPermissionRequest} from "../AcpV2Permissions";
 
 function sessionState(): SessionState {
     return {
@@ -215,12 +216,15 @@ describe("PermissionLifecycleContext", () => {
         expect(prompt.nextStandaloneMcpToolCallId("server")).toBe("elicitation:session:server:1");
     });
 
-    it("does not allocate a synthetic ID for a correlated permission fallback", async () => {
+    it.each([false, true])("keeps correlated approvals usable without allocating a synthetic ID (v2: %s)", async (v2) => {
         const state = sessionState();
         const prompt = new PermissionLifecycleContext(state).beginPrompt();
         const requests: Array<{toolCall: {toolCallId: string}}> = [];
         const connection = {
             request: vi.fn().mockImplementation((_method, request) => {
+                if (v2) expect(toV2RequestPermissionRequest(request).title).toBe(
+                    request.toolCall.toolCallId === "correlated-call" ? "Allow?" : "MCP tool call approval",
+                );
                 requests.push(request);
                 return Promise.resolve({outcome: {outcome: "selected", optionId: "cancel"}});
             }),
@@ -231,7 +235,7 @@ describe("PermissionLifecycleContext", () => {
             prompt,
             null,
             undefined,
-            new AcpToolCallRenderer(ClientCapabilities.DEFAULT),
+            new AcpToolCallRenderer(v2 ? ClientCapabilities.fromV2(null) : ClientCapabilities.DEFAULT),
         );
         const approval = {
             threadId: "thread",

@@ -4,7 +4,7 @@ import type {
     McpServerElicitationRequestParams,
     McpServerElicitationRequestResponse,
 } from "../app-server/v2";
-import {optionPermissionMeta} from "./metadata";
+import {optionPermissionMeta, requestPermissionMeta} from "./metadata";
 import {McpApprovalOptionId} from "./option-ids";
 import {isRecord} from "./json";
 import type {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
@@ -113,11 +113,15 @@ export function buildMcpPermissionRequest(
         nextStandaloneToolCallId,
     ));
     const toolApprovalMeta = context.isToolApproval && params.mode !== "url" ? {_meta: {is_mcp_tool_approval: true}} : {};
+    const promptMeta = correlatedCallId !== undefined && renderer.capabilities.permissionPromptFields && "message" in params
+        ? requestPermissionMeta(renderer.capabilities, params.message)
+        : {};
     return {
         request: {
             sessionId,
             toolCall,
             ...toolApprovalMeta,
+            ...(promptMeta._meta ? {_meta: {...toolApprovalMeta._meta, ...promptMeta._meta}} : {}),
             options: buildMcpPermissionOptions(
                 context.isToolApproval,
                 context.persistOptions,
