@@ -32,5 +32,19 @@
       "title": "Optional integration unavailable",
       "sessionUpdate": "notice"
     }
+  },
+  {
+    "sessionId": "session-1",
+    "update": {
+      "severity": "warning",
+      "title": "UserPromptSubmit hook blocked the prompt",
+      "description": "blocked by policy",
+      "_meta": {
+        "codex": {
+          "turnId": "turn-1"
+        }
+      },
+      "sessionUpdate": "notice"
+    }
   }
 ]
