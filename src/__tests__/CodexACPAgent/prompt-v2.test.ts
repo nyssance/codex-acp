@@ -473,6 +473,30 @@ describe('session/prompt over ACP v2', () => {
         expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
     });
 
+    it("steers concurrent running prompts one at a time, in arrival order", async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+        await insertPrompt(client, 0);
+        const started: string[] = [];
+        let releaseFirst: () => void = () => {};
+        client.setCodexResponse("turn/steer", async (params) => {
+            const text = ((params as {input: {text: string}[]}).input[0]!).text;
+            started.push(text);
+            if (text === "Two") await new Promise<void>(resolve => { releaseFirst = resolve; });
+            return {};
+        });
+
+        const second = client.sendPrompt([{type: "text", text: "Two"}]);
+        const third = client.sendPrompt([{type: "text", text: "Three"}]);
+        await vi.waitFor(() => expect(started).toEqual(["Two"]));
+        await settle();
+        expect(started).toEqual(["Two"]);
+        releaseFirst();
+        await Promise.all([second, third]);
+        expect(started).toEqual(["Two", "Three"]);
+        expect(client.turnStartParams).toHaveLength(1);
+    });
+
     it('queues a local slash command behind a running prompt', async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();

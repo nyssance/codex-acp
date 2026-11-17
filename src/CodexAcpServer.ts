@@ -596,6 +596,8 @@ export class CodexAcpServer {
     /** Tail of the per-session turn-start FIFO; see `acquireTurnStartReservation`. */
     private readonly turnStartQueueTail: Map<string, {promise: Promise<void>; settled: boolean}>;
     private readonly steeringQueues: Map<string, SteeringQueue>;
+    /** The client's message id for a v2 prompt that goes through the steering queue. */
+    private readonly steeringMessageIds = new WeakMap<SessionSteerRequest, string>();
     /** The async questions of each session, shown while the turn that asked them runs. */
     private readonly asyncQuestions = new Map<string, AsyncQuestionElicitations>();
     /**
@@ -3764,7 +3766,7 @@ export class CodexAcpServer {
     private getSteeringQueue(sessionId: string): SteeringQueue {
         let queue = this.steeringQueues.get(sessionId);
         if (!queue) {
-            queue = new SteeringQueue((params) => this.performSteeringRequest(params));
+            queue = new SteeringQueue((params) => this.performSteeringRequest(params, this.steeringMessageIds.get(params)));
             this.steeringQueues.set(sessionId, queue);
         }
         return queue;
@@ -3780,7 +3782,7 @@ export class CodexAcpServer {
      *     "promptRequired" when the host requested an owned idle fallback, or
      *     the outcome of starting a legacy fallback turn.
      */
-    private async performSteeringRequest(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
+    private async performSteeringRequest(params: SessionSteerRequest, clientUserMessageId: string = randomUUID()): Promise<SessionSteeringResponse> {
         assertPromptContentSupported(params);
         logger.log("Steering session requested", {
             sessionId: params.sessionId,
@@ -3789,11 +3791,10 @@ export class CodexAcpServer {
         const sessionState = this.getSessionState(params.sessionId);
         this.assertSteerInputSupported(params, sessionState);
 
-        // Minted fresh for every steer (both protocol versions), passed to Codex as
-        // `TurnSteerParams.clientUserMessageId`/`TurnStartParams.clientUserMessageId`. It is a
+        // Minted fresh for every steer (both protocol versions) unless a v2 prompt brings its own, passed to
+        // Codex as `TurnSteerParams.clientUserMessageId`/`TurnStartParams.clientUserMessageId`. It is a
         // Codex-side param only; on v2 it doubles as the `messageId` of the live `user_message`
         // shown once the steer lands (the steering response itself carries no id).
-        const clientUserMessageId = randomUUID();
         const turnId = await this.getSteerableTurnId(sessionState);
         if (turnId) {
             const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState, clientUserMessageId);
@@ -5456,6 +5457,16 @@ export class CodexAcpServer {
         return turnId;
     }
 
+    /** Checks the prompt's configuration revision and returns its client message id, or a new one. */
+    private promptMessageId(params: acpV2.PromptRequest, sessionState: SessionState): string {
+        this.configRevisions.assert(params._meta, this.configSnapshot(sessionState));
+        const requestedId = (params._meta?.["alwith"] as {messageId?: unknown} | undefined)?.messageId;
+        if (requestedId !== undefined && (typeof requestedId !== "string" || !requestedId)) {
+            throw RequestError.invalidParams(undefined, "_meta.alwith.messageId must be a non-empty string");
+        }
+        return requestedId ?? randomUUID();
+    }
+
     /**
      * v2 `session/prompt`: answers `{messageId}` once the user message is inserted and lets the
      * turn run on in the background. A Codex prompt is inserted when Codex records its user
@@ -5476,15 +5487,17 @@ export class CodexAcpServer {
             !this.v2CommandSessions.has(sessionId) &&
             (sessionState.codexReportedRunningTurnId !== null || this.pendingTurnStarts.has(sessionId))
         ) {
-            const turnId = await this.getSteerableTurnId(sessionState);
-            if (turnId !== null) {
-                this.configRevisions.assert(params._meta, this.configSnapshot(sessionState));
-                const requestedId = (params._meta?.["alwith"] as {messageId?: unknown} | undefined)?.messageId;
-                if (requestedId !== undefined && (typeof requestedId !== "string" || !requestedId))
-                    throw RequestError.invalidParams(undefined, "_meta.alwith.messageId must be a non-empty string");
-                this.assertSteerInputSupported(request, sessionState);
-                const messageId = requestedId ?? randomUUID();
-                if (await this.injectSteerIntoActiveTurn(request, turnId, sessionState, messageId)) return {messageId};
+            const messageId = this.promptMessageId(params, sessionState);
+            const steer: SessionSteerRequest = {
+                sessionId,
+                prompt: request.prompt,
+                _meta: {...params._meta, steering: {idleBehavior: "promptRequired"}},
+            };
+            this.steeringMessageIds.set(steer, messageId);
+            const steered = await this.executeOrQueueSteeringRequest(steer);
+            if (steered.outcome === "injected") return {messageId};
+            if (steered.outcome !== "promptRequired") {
+                throw RequestError.internalError(undefined, `Steering the running turn of session ${sessionId} failed`);
             }
         }
         const reservation = this.acquireTurnStartReservation(sessionId);
@@ -5521,12 +5534,7 @@ export class CodexAcpServer {
         }
         let messageId: string;
         try {
-            this.configRevisions.assert(params._meta, this.configSnapshot(sessionState));
-            const requestedId = (params._meta?.["alwith"] as {messageId?: unknown} | undefined)?.messageId;
-            if (requestedId !== undefined && (typeof requestedId !== "string" || !requestedId)) {
-                throw RequestError.invalidParams(undefined, "_meta.alwith.messageId must be a non-empty string");
-            }
-            messageId = requestedId ?? randomUUID();
+            messageId = this.promptMessageId(params, sessionState);
         } catch (error) {
             reservation.release();
             throw error;
