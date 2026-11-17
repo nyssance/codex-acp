@@ -49,6 +49,14 @@ describe("ALwith extensions on the upstream connection", () => {
         expect(notify).not.toHaveBeenCalled();
     });
 
+    it("validates host authentication requests and preserves actionable failures", async () => {
+        const upstream = peer();
+        upstream.client.accountRead = vi.fn().mockRejectedValue(new Error("Workspace routing unavailable"));
+        const extensions = new AlwithExtensions(() => upstream.client, vi.fn(), () => false, async () => []);
+        await expect(extensions.request("_codex/plugin_service_auth", {refreshToken: "yes"})).rejects.toThrow("boolean");
+        await expect(extensions.request("_codex/plugin_service_auth", {})).rejects.toMatchObject({code: -32000, message: "Workspace routing unavailable"});
+    });
+
     it("rejects aborted requests before contacting Codex", async () => {
         const upstream = peer();
         const extensions = new AlwithExtensions(

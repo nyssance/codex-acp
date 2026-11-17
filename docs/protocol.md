@@ -214,3 +214,7 @@ switches and application context without understanding input modes.
 - `_codex/terminals/list({sessionId})` returns the current background processes as `{itemId, processId, command}[]`. Foreground commands are excluded.
 - `_codex/terminals/stopAll({sessionId})` snapshots all pages before stopping, then verifies removal of every target. It returns `{stopped: string[], failures: {processId, message}[]}` and continues after individual failures. New processes outside the initial snapshot are left running.
 - Both ACP versions use the same adapter implementation. Application clients consume `listBackgroundTerminals` and `stopBackgroundTerminals` through the shared chat client. Terminal logs remain in the existing session projection; neither method creates a second log store.
+
+## Plugin-service authentication for hosts
+
+`_codex/plugin_service_auth({refreshToken?: boolean | null})` returns `{backendOrigin, accountId, accessToken}` for the current ChatGPT account, or `null` for a non-ChatGPT account. `refreshToken: true` requests refreshed credentials after HTTP 401. Missing workspace routing, missing credentials, cancellation and account changes reject the request. The account is checked again before returning credentials. This is a host authentication method, not a model tool: never log, persist or add its result to conversation projections. Hosts own HTTP catalog and search requests; this method reads no plugin catalog and issues no plugin search.

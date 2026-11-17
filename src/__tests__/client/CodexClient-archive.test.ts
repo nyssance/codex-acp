@@ -53,3 +53,10 @@ test("renames with session/set_title and keeps the title the agent stored", asyn
     expect(request).toHaveBeenCalledWith("session/set_title", {sessionId: "a", title: "  New  "});
     expect(codex.state.sessionList[0]?.title).toBe("New");
 });
+
+test("host plugin authentication remains separate from catalog and search requests", async () => {
+    const response = {backendOrigin: "https://chatgpt.com", accountId: "account", accessToken: "private-test-token"};
+    const {codex, request} = client(() => response);
+    await expect(codex.readPluginServiceAuth(true)).resolves.toBe(response);
+    expect(request).toHaveBeenCalledWith("_codex/plugin_service_auth", {refreshToken: true});
+});

@@ -39,6 +39,7 @@ import type {
     PluginInstallResponse,
     PluginListParams,
     PluginListResponse,
+    PluginServiceAuth,
     PluginReadParams,
     PluginReadResponse,
     PluginUninstallParams,
@@ -992,6 +993,10 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
 
     listPlugins(params: PluginListParams = {}): Promise<PluginListResponse> {
         return this.live().request<PluginListResponse>("_codex/plugin_list", params);
+    }
+
+    readPluginServiceAuth(refreshToken = false): Promise<PluginServiceAuth | null> {
+        return this.live().request<PluginServiceAuth | null>("_codex/plugin_service_auth", {refreshToken});
     }
 
     installedPlugins(cwds?: string[]): Promise<PluginInstalledResponse> {

@@ -220,3 +220,5 @@ export type InstalledApp = {id: string; runtimeName: string | null; enabled: boo
 export type AppsInstalledParams = {threadId?: string | null; forceRefresh?: boolean};
 export type AppsInstalledResponse = {apps: InstalledApp[]};
 
+/** Ephemeral host credentials; never persisted in conversation projections. */
+export type PluginServiceAuth = {backendOrigin: string; accountId: string; accessToken: string};

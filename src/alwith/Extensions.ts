@@ -8,6 +8,7 @@ import type {CodexAppServerClient} from "../CodexAppServerClient";
 import type {ConfigWriteResponse, SkillsListResponse} from "../app-server/v2";
 import {withoutUnsupportedSkills} from "../UnsupportedSkills";
 import {AppServerClient} from "./codex/AppServerClient";
+import {readPluginServiceAuth} from "./codex/pluginServiceAuth";
 import type {HistoryRenderer} from "./agent/historyProjection";
 import {
     readSessionHistory,
@@ -35,6 +36,7 @@ export const CATALOG_METHODS = {
     "_codex/fuzzy_file_search": "fuzzyFileSearch",
 } as const;
 export const ALWITH_METHODS = [
+    "_codex/plugin_service_auth",
     "_codex/project_context",
     "_codex/images/generate",
     "_codex/session_input_config_get",
@@ -113,6 +115,16 @@ export class AlwithExtensions {
 
     async request(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
         signal?.throwIfAborted();
+        if (method === "_codex/plugin_service_auth") {
+            const refresh = params["refreshToken"];
+            if (refresh != null && typeof refresh !== "boolean") throw RequestError.invalidParams(undefined, "refreshToken must be a boolean");
+            try {
+                return await readPluginServiceAuth(this.codex, refresh === true, signal);
+            } catch (error) {
+                if (error instanceof RequestError) throw error;
+                throw new RequestError(-32000, error instanceof Error ? error.message : "Plugin authentication failed");
+            }
+        }
         if (method === "_codex/images/generate") return generateImage(this.codex, params, signal);
         if (method === "_codex/session_input_config_get" || method === "_codex/session_input_config_set") {
             const sessionId = params["sessionId"];
