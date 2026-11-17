@@ -6,7 +6,7 @@ These ACP v2 additions preserve the existing client exports and request methods.
 - Native assistant-item start emits an `agent_message` upsert with its native ID, initial text and phase, reserving its transcript position before text arrives. Every subsequent text delta carries the same `_meta.codex.phase`, so completion does not reclassify commentary as a final answer or vice versa.
 - Native assistant-item completion emits a full `agent_message` upsert, preserving the native message ID, phase, delivery and async questions. `_meta.codex.messageCompleted` is `true`; `messageCompletedAt` is included when the native event supplies its timestamp. This is item completion, not turn completion.
 - Runtime `state_update` remains authoritative for whether the session is working or idle. Prompt responses acknowledge acceptance only.
-- Live native turn completion upserts its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and, when a final answer began, `workDurationMs`. Native timestamps win; notification arrival times cover older native versions without them. These transient measurements are discarded when the turn ends. Terminal exit sends the full aggregate output snapshot so streamed chunks cannot be lost.
+- Live native turn completion upserts its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and, when a final answer began, `workDurationMs`. They come from Codex's own turn timestamps; a turn without them carries no timing. These transient measurements are discarded when the turn ends. Terminal exit sends the full aggregate output snapshot so streamed chunks cannot be lost.
 
 Running ACP v2 prompts use native turn steering and return an acceptance receipt without waiting for the foreground turn to finish. Native user-message insertion supplies the original turn identity; commands retain their separate turn lifecycle.
 
@@ -24,8 +24,7 @@ retrying. These operations do not create or attach a conversation.
 
 `_codex/shell/execute` accepts `{ sessionId, command, timeoutMs? }` and forwards to
 Codex `thread/shellCommand` on the existing connection after preparing the writable
-session. The adapter owns the `sessionId` to `threadId` translation. Initialization
-advertises `_meta.codex.shellCommand.version: 1`.
+session. The adapter owns the `sessionId` to `threadId` translation.
 
 The response acknowledges acceptance. Execution, output, interruption, completion
 and replay use the existing session updates and native thread history. The command

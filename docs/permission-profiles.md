@@ -14,9 +14,11 @@ When custom profiles exist, the config option groups entries under **Sandbox Mod
 
 ## Initial and restored modes
 
-New, loaded, resumed, and forked sessions select the active custom profile reported by Codex when that profile is available. Built-in or unavailable active profiles keep the adapter's default `agent` mode (Auto review).
+New sessions select the active custom profile reported by Codex when that profile is available. Built-in or unavailable active profiles keep the adapter's default `agent` mode (Auto review).
 
-`INITIAL_AGENT_MODE` overrides the active profile. Set it to an available mode ID, including `permission-profile:<profile-id>`. An unavailable override falls back to the default mode.
+Loaded, resumed, and forked sessions restore the thread's own permissions: its custom profile, the built-in mode whose approval policy, reviewer and sandbox it matches, or a `custom` mode ("Custom permissions") that keeps the thread's settings.
+
+`INITIAL_AGENT_MODE` overrides the active profile of a new session. Set it to an available mode ID, including `permission-profile:<profile-id>`. An unavailable override is rejected with `Unknown INITIAL_AGENT_MODE`.
 
 ## Applying permissions
 
