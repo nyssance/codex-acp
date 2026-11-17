@@ -4024,7 +4024,7 @@ export class CodexAcpServer {
             case ":read-only":
                 return AgentMode.ReadOnly;
             case ":workspace":
-                return metadata.approvalsReviewer === "auto_review" ? AgentMode.Agent : AgentMode.WorkspaceWrite;
+                return metadata.threadApprovalsReviewer === "auto_review" ? AgentMode.Agent : AgentMode.WorkspaceWrite;
             case ":danger-full-access":
                 return AgentMode.AgentFullAccess;
             default:

@@ -47,6 +47,8 @@ async function createSession(
         activePermissionProfileId?: string | null;
         approvalPolicy?: "on-request" | "never";
         approvalsReviewer?: "user" | "auto_review";
+        permissionProfile?: string;
+        threadApprovalsReviewer?: "user" | "auto_review";
     } = {},
 ) {
     const {
@@ -56,6 +58,8 @@ async function createSession(
         activePermissionProfileId = null,
         approvalPolicy = "on-request",
         approvalsReviewer = "user",
+        permissionProfile,
+        threadApprovalsReviewer,
     } = options;
     const fixture = createCodexMockTestFixture();
     const codexAcpAgent = fixture.getCodexAcpAgent();
@@ -78,6 +82,8 @@ async function createSession(
         approvalPolicy,
         approvalsReviewer,
         permissionProfiles,
+        ...(permissionProfile === undefined ? {} : {permissionProfile}),
+        ...(threadApprovalsReviewer === undefined ? {} : {threadApprovalsReviewer}),
     });
 
     if (clientCapabilities) {
@@ -302,6 +308,18 @@ describe("Session config options", () => {
                 .toBe(AgentMode.DEFAULT_AGENT_MODE.id);
         },
     );
+
+    it("restores a built-in profile with the thread's reviewer, not the configured default", async () => {
+        vi.stubEnv("INITIAL_AGENT_MODE", undefined);
+        const {fast} = buildModels();
+        const {response} = await createSession("fast-model[medium]", [fast], {
+            permissionProfile: ":workspace",
+            threadApprovalsReviewer: "auto_review",
+            approvalsReviewer: "user",
+        });
+
+        expect(response.modes?.currentModeId).toBe(AgentMode.Agent.id);
+    });
 
     it("honors INITIAL_AGENT_MODE=permission-profile:team-default before the active profile", async () => {
         vi.stubEnv("INITIAL_AGENT_MODE", "permission-profile:team-default");

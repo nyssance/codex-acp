@@ -116,7 +116,7 @@ export type RecordedSubagentEntry = {item: ThreadItem; completed: boolean; turnI
 type ResumedThread = {
     agentMode?: AgentMode | undefined;
     permissionProfile?: string | null | undefined;
-    approvalsReviewer?: ApprovalsReviewer | undefined;
+    threadApprovalsReviewer?: ApprovalsReviewer | undefined;
     readOnly: boolean;
     thread: Thread;
     model: string | null;
@@ -695,7 +695,7 @@ export class CodexAcpClient {
                 thread: response.thread,
                 agentMode: AgentMode.fromThread(response),
                 permissionProfile: response.activePermissionProfile?.id,
-                approvalsReviewer: response.approvalsReviewer,
+                threadApprovalsReviewer: response.approvalsReviewer,
                 model: response.model,
                 modelProvider: response.modelProvider,
                 reasoningEffort: response.reasoningEffort,
@@ -827,7 +827,7 @@ export class CodexAcpClient {
             modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai",
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
-            approvalsReviewer: response.approvalsReviewer,
+            threadApprovalsReviewer: response.threadApprovalsReviewer,
             additionalDirectories,
             skippedMcpServers,
             ...(instructions ? {instructions} : {}),
@@ -1007,7 +1007,7 @@ export class CodexAcpClient {
             modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai",
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.permissionProfile,
-            approvalsReviewer: response.approvalsReviewer,
+            threadApprovalsReviewer: response.threadApprovalsReviewer,
             thread,
             history,
             additionalDirectories,
@@ -1152,7 +1152,7 @@ export class CodexAcpClient {
             modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()) ?? "openai",
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.activePermissionProfile?.id,
-            approvalsReviewer: response.approvalsReviewer,
+            threadApprovalsReviewer: response.approvalsReviewer,
             additionalDirectories,
             skippedMcpServers,
             ...(instructions ? {instructions} : {}),

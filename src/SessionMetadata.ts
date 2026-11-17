@@ -22,7 +22,8 @@ export type SessionMetadata = {
         forkedAtTurnId?: string | null;
     };
     permissionProfile?: string | null | undefined;
-    approvalsReviewer?: ApprovalsReviewer | undefined;
+    /** The thread's own reviewer; `approvalsReviewer` is the configured default for profile modes. */
+    threadApprovalsReviewer?: ApprovalsReviewer | undefined;
     currentModelId: string;
     models: Model[];
     collaborationMode: ModeKind;
@@ -35,6 +36,7 @@ export type SessionMetadata = {
     sessionTitle?: string | null;
     activePermissionProfileId?: string | null;
     approvalPolicy?: AskForApproval;
+    approvalsReviewer?: ApprovalsReviewer;
     permissionProfiles?: PermissionProfileSummary[];
 };
 
