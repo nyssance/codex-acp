@@ -27,13 +27,13 @@ function userMessage(text: string): Record<string, unknown> {
 }
 
 /** The request that asks the upstream model for the summary, or `null` when `request` is not a compaction. */
-export function summaryRequest(request: Record<string, unknown>): Record<string, unknown> | null {
+export function summaryRequest(request: Record<string, unknown>, transport: "http" | "websocket" = "http"): Record<string, unknown> | null {
     const input = request["input"];
     if (!Array.isArray(input)) return null;
     const last: unknown = input.at(-1);
     if (!isRecord(last) || last["type"] !== "compaction_trigger") return null;
-    const {tools: _tools, tool_choice: _toolChoice, parallel_tool_calls: _parallel, ...rest} = request;
-    return {...rest, input: [...input.slice(0, -1), userMessage(SUMMARY_REQUEST)], stream: true};
+    const {tools: _tools, tool_choice: _toolChoice, parallel_tool_calls: _parallel, stream: _stream, ...rest} = request;
+    return {...rest, input: [...input.slice(0, -1), userMessage(SUMMARY_REQUEST)], ...(transport === "http" ? {stream: true} : {})};
 }
 
 /** Replaces the `compaction` items this proxy produced with the summary message they stand for. */
@@ -49,43 +49,48 @@ export function expandSummaries(input: unknown[]): unknown[] {
     return changed ? expanded : input;
 }
 
-/** Turns the upstream answer to a summary request into the response Codex expects from a compaction. */
-export function compactionResponse(stream: string): string {
-    let text = "";
-    let completed: Record<string, unknown> | undefined;
-    for (const block of stream.split(/\r?\n\r?\n/)) {
-        const data = block
-            .split(/\r?\n/)
-            .filter(line => line.startsWith("data:"))
-            .map(line => line.slice("data:".length).trimStart())
-            .join("\n");
-        if (!data || data === "[DONE]") continue;
-        const event: unknown = JSON.parse(data);
-        if (!isRecord(event)) continue;
+/** Collects the same model events from SSE or WebSocket without exposing the summary as an assistant answer. */
+export class CompactionResponse {
+    private text = "";
+    private completed: Record<string, unknown> | null = null;
+
+    accept(event: unknown): void {
+        if (!isRecord(event)) return;
         if (event["type"] === "response.failed" || event["type"] === "response.incomplete" || event["type"] === "error")
-            throw new Error(`The model did not complete the compaction summary: ${data.slice(0, 2000)}`);
-        if (event["type"] === "response.completed" && isRecord(event["response"])) completed = event["response"];
+            throw new Error(`The model did not complete the compaction summary: ${JSON.stringify(event).slice(0, 2000)}`);
+        if (event["type"] === "response.completed" && isRecord(event["response"])) this.completed = event["response"];
         const item = event["type"] === "response.output_item.done" ? event["item"] : undefined;
-        if (!isRecord(item) || item["type"] !== "message" || !Array.isArray(item["content"])) continue;
+        if (!isRecord(item) || item["type"] !== "message" || !Array.isArray(item["content"])) return;
         for (const part of item["content"] as unknown[])
-            if (isRecord(part) && part["type"] === "output_text" && typeof part["text"] === "string") text += part["text"];
+            if (isRecord(part) && part["type"] === "output_text" && typeof part["text"] === "string") this.text += part["text"];
     }
-    if (!completed) throw new Error("The model's compaction summary ended without response.completed");
-    if (!text.trim()) throw new Error("The model returned an empty compaction summary");
-    const id = typeof completed["id"] === "string" ? completed["id"] : "resp_compaction";
-    const item = {
-        type: "compaction",
-        id: `cmp_${id}`,
-        encrypted_content: ENVELOPE + Buffer.from(text, "utf8").toString("base64url"),
-    };
-    return [
-        {type: "response.created", response: {id}},
-        {type: "response.output_item.added", output_index: 0, item},
-        {type: "response.output_item.done", output_index: 0, item},
-        {type: "response.completed", response: {...completed, output: [item]}},
-    ]
-        .map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
-        .join("");
+
+    events(): Array<Record<string, unknown>> {
+        if (this.completed === null) throw new Error("The model's compaction summary ended without response.completed");
+        if (!this.text.trim()) throw new Error("The model returned an empty compaction summary");
+        const id = typeof this.completed["id"] === "string" ? this.completed["id"] : "resp_compaction";
+        const item = {
+            type: "compaction",
+            id: `cmp_${id}`,
+            encrypted_content: ENVELOPE + Buffer.from(this.text, "utf8").toString("base64url"),
+        };
+        return [
+            {type: "response.created", response: {id}},
+            {type: "response.output_item.added", output_index: 0, item},
+            {type: "response.output_item.done", output_index: 0, item},
+            {type: "response.completed", response: {...this.completed, output: [item]}},
+        ];
+    }
+}
+
+/** Turns an SSE summary into the same compaction events used by the WebSocket transport. */
+export function compactionResponse(stream: string): string {
+    const response = new CompactionResponse();
+    for (const block of stream.split(/\r?\n\r?\n/)) {
+        const data = block.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice("data:".length).trimStart()).join("\n");
+        if (data && data !== "[DONE]") response.accept(JSON.parse(data));
+    }
+    return response.events().map(event => `event: ${event["type"]}\ndata: ${JSON.stringify(event)}\n\n`).join("");
 }
 
 /**

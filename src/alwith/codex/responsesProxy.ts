@@ -19,7 +19,7 @@ import {NativeNetworkTransport, nativeNetworkError} from "./nativeNetworkTranspo
 import {ProxyDiagnostics, transportErrors} from "./proxyDiagnostics";
 
 import {isRecord} from "../../permissions/json";
-import {CompactionSink, summaryRequest} from "./externalCompaction";
+import {CompactionResponse, CompactionSink, summaryRequest} from "./externalCompaction";
 import {GatewayWebSearch, type SearchUpstream} from "./gatewayWebSearch";
 import {compatibleResponsesRequest} from "./responsesCompatibility";
 
@@ -661,6 +661,8 @@ export class ResponsesProxy {
 
     private forwardWebsocket(downstream: WebSocket, upstream: WebSocket, transformResponses: boolean, diagnostic: ProxyDiagnostics): void {
         this.peers.add(downstream);
+        // Responses creates and their output streams are ordered on a WebSocket connection.
+        const pending: Array<CompactionResponse | null> = [];
         const fail = (error?: Error): void => {
             diagnostic.end("failed", error);
             if (downstream.readyState === WebSocket.OPEN) downstream.close(1011, "Responses upstream disconnected");
@@ -680,6 +682,14 @@ export class ResponsesProxy {
             try {
                 const text = messageBytes(data).toString("utf8");
                 message = transformResponses ? compatibleResponsesRequest(text, this.destination) : text;
+                if (transformResponses && this.destination === "external") {
+                    const parsed: unknown = JSON.parse(message);
+                    if (isRecord(parsed) && parsed["type"] === "response.create") {
+                        const summary = summaryRequest(parsed, "websocket");
+                        pending.push(summary === null ? null : new CompactionResponse());
+                        if (summary !== null) message = JSON.stringify(summary);
+                    }
+                }
             } catch {
                 downstream.close(1007, "Invalid Responses JSON");
                 return;
@@ -702,7 +712,30 @@ export class ResponsesProxy {
                 upstream.terminate();
                 return;
             }
-            downstream.send(data, {binary}, error => {
+            let converted: string[] | null = null;
+            if (pending.length > 0) {
+                try {
+                    const event: unknown = JSON.parse(messageBytes(data).toString("utf8"));
+                    if (isRecord(event)) {
+                        const type = event["type"];
+                        const failed = type === "response.failed" || type === "response.incomplete" || type === "error";
+                        const compaction = pending[0];
+                        if (compaction && !failed && typeof type === "string" && type.startsWith("response.")) {
+                            compaction.accept(event);
+                            converted = type === "response.completed" ? compaction.events().map(value => JSON.stringify(value)) : [];
+                        }
+                        // Preserve provider errors and free the slot for the next request.
+                        if (type === "response.completed" || failed) pending.shift();
+                    }
+                } catch (error) {
+                    fail(error instanceof Error ? error : new Error(String(error)));
+                    return;
+                }
+            }
+            if (converted === null) downstream.send(data, {binary}, error => {
+                if (error) upstream.terminate();
+            });
+            else for (const message of converted) downstream.send(message, error => {
                 if (error) upstream.terminate();
             });
             if (downstream.bufferedAmount > MAX_BODY_BYTES) fail();

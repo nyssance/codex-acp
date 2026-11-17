@@ -452,3 +452,21 @@ responses. Adapter diagnostics use `connect_native` until the local host respond
 a structured host connection error uses `connect_upstream`. Native HTTP parser
 errors and connection-task failures are recorded against the loopback endpoint,
 without unvalidated request bytes or panic messages.
+
+### Gateway compaction transport regression
+
+The opt-in real Codex regression uses `startTestRuntime`, a temporary Codex home,
+synthetic API credentials, and local HTTP/WebSocket model endpoints. It covers
+manual and automatic compaction after switching an OpenAI thread to a gateway,
+including continued conversation after the summary. It does not copy login data.
+
+Set `RUN_CODEX_COMPACTION_TESTS=1`, `COMPACTION_TEST_RUNTIME` to the installed Runtime
+binary, and `COMPACTION_TEST_CODEX` to the Codex binary, then run:
+
+```sh
+bunx --no-install vitest run --no-file-parallelism src/__tests__/integration/websocket-compaction-runtime.test.ts
+```
+
+`COMPACTION_TEST_ADAPTER` can select a locally built adapter entry;
+`COMPACTION_TEST_BUN` can select its Bun executable. Without these overrides the
+fixture uses `src/index.ts` and `bun`. Models and credentials remain local test data.
