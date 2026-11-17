@@ -1,3 +1,7 @@
+## 0.7.75 (2026-11-17)
+
+- Export `prependHistory`, `projectHistoryTurns` and `readHistoryPage` from `./client` again; module-chat's history tests use them, and 0.7.73 removed them.
+
 ## 0.7.74 (2026-11-17)
 
 - Remote plugins are no longer enabled or disabled by the adapter. It called ChatGPT's plugin service with the Codex login, which Codex itself does not do; `_codex/plugin_set_enabled` now rejects `remotePluginId`, and `CodexClient.setPluginEnabled` takes only the plugin id and state. Remote plugins are enabled in ChatGPT, and Codex picks the state up when it reconciles.

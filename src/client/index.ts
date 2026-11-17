@@ -8,6 +8,7 @@ export * from "./codex-extensions";
 export type {HistoryRequest} from "./history";
 export {nativeTurnId} from "./history-navigation";
 export type {HistoryNavigationState, HistoryTurnPreview, HistoryTurnSummary} from "./history-navigation";
+export {prependHistory, projectHistoryTurns, readHistoryPage} from "./history-page";
 export type {BrowseHistoryRequest, HistoryPageState} from "./history-page";
 export {latestAssistantReply} from "./activity-preview";
 
