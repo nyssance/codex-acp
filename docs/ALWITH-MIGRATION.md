@@ -47,7 +47,7 @@ Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/sess
 | Session input configuration | `_codex/session_input_config_get`, `_codex/session_input_config_set`, stored as a thread attachment of type `alwith.session-input.v2` (`src/alwith/codex/sessionInputConfig.ts`) | thread attachments | module-chat `agent/client.ts` |
 | Configuration revisions | `_meta.alwith.configRevision`, `expectedConfigRevision` | none | module-chat, TV |
 | Client message IDs | `_meta.alwith.messageId` on v2 `session/prompt`, validated | `clientUserMessageId` | module-chat |
-| Prompt suggestions | upstream's `_meta.promptSuggestions` on `session_info_update`, enabled by `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]` | `thread/sample` through upstream `PromptSuggestionGenerator` | module-chat composer |
+| Prompt suggestions | upstream's `_meta.promptSuggestions` on `session_info_update`, enabled by `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]`; always on for ALwith clients, with no per-session switch | `thread/sample` through upstream `PromptSuggestionGenerator` | module-chat composer |
 | Retry | `_codex/session_retry` | none | module-chat |
 | Image generation | `_codex/images/generate` | ChatGPT backend images | module-chat `image-tools.ts` |
 | Sites and connectors | `_codex/apps_installed`, `_codex/apps_read` | `app/installed`, `app/read` | module-chat, U |
