@@ -1101,7 +1101,7 @@ export class CodexAcpServer {
             this.toolCalls.set(prompt, calls);
         }
         const key = `${params.turnId}:${params.callId}`;
-        const fingerprint = JSON.stringify([params.tool, params.arguments, tools.revision]);
+        const fingerprint = JSON.stringify([params.tool, params.arguments]);
         const previous = calls.get(key);
         if (previous)
             return previous.fingerprint === fingerprint
@@ -1134,7 +1134,7 @@ export class CodexAcpServer {
                             acp.methods.client.session.requestPermission,
                             {
                                 sessionId: params.threadId,
-                                _meta: {alwith: {tool: {name: tool.name, toolSetRevision: tools.revision}}},
+                                _meta: {alwith: {tool: {name: tool.name}}},
                                 toolCall: {
                                     toolCallId: params.callId,
                                     title: tool.description,
@@ -1172,7 +1172,6 @@ export class CodexAcpServer {
                             toolCallId: params.callId,
                             name: tool.name,
                             arguments: params.arguments,
-                            toolSetRevision: tools.revision,
                         },
                         {cancellationSignal: signal},
                     ),

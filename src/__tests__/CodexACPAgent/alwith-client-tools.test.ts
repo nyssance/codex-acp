@@ -13,7 +13,6 @@ import {
 import {clientToolsOf, toolResponse} from "../../alwith/agent/clientTools";
 const tools = {
     version: 1,
-    revision: "canvas-1",
     definitions: [
         {
             name: "write_canvas",
@@ -73,7 +72,7 @@ describe("ALwith host tools over the upstream ACP router", () => {
             contentItems: [{type: "inputText", text: "written"}],
         });
         expect(permission).toHaveBeenCalledWith(expect.objectContaining({
-            _meta: {alwith: {tool: {name: "write_canvas", toolSetRevision: "canvas-1"}}},
+            _meta: {alwith: {tool: {name: "write_canvas"}}},
         }), expect.anything());
         expect(host).toHaveBeenCalledTimes(1);
         for (const changes of [{arguments: {changed: true}}, {turnId: "old"}, {tool: "shell"}]) {

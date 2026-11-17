@@ -12,7 +12,6 @@ export type ClientTool = {
 };
 export type ClientToolSet = {
     version: 1;
-    revision: string;
     definitions: ClientTool[];
 };
 const PREFIX = "alwith_client_";
@@ -24,12 +23,10 @@ export function clientToolsOf(meta: unknown): ClientToolSet | undefined {
     if (
         !record(value) ||
         value["version"] !== 1 ||
-        typeof value["revision"] !== "string" ||
-        !value["revision"].trim() ||
         !Array.isArray(value["definitions"]) ||
         value["definitions"].length > 128
     ) {
-        throw acp.RequestError.invalidParams(undefined, "Expected a version 1 client tool set with revision and definitions");
+        throw acp.RequestError.invalidParams(undefined, "Expected a version 1 client tool set with definitions");
     }
     const names = new Set<string>();
     const definitions = value["definitions"].map((tool): ClientTool => {
@@ -51,7 +48,7 @@ export function clientToolsOf(meta: unknown): ClientToolSet | undefined {
             inputSchema: structuredClone(tool["inputSchema"]) as JsonValue,
         };
     });
-    return {version: 1, revision: value["revision"], definitions};
+    return {version: 1, definitions};
 }
 
 export function dynamicTools(set: ClientToolSet): DynamicToolSpec[] {

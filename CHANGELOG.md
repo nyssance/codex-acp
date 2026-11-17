@@ -1,3 +1,7 @@
+## 0.7.76 (2026-11-17)
+
+- Client tool sets no longer carry a `revision`, and `_alwith/tool/call` and the permission identity no longer carry `toolSetRevision`. Each new, resumed or forked session replaces its declared tools, so the name identifies the tool.
+
 ## 0.7.75 (2026-11-17)
 
 - Export `prependHistory`, `projectHistoryTurns` and `readHistoryPage` from `./client` again; module-chat's history tests use them, and 0.7.73 removed them.

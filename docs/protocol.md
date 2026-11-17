@@ -95,15 +95,15 @@ status, bounded structured service message, error code and request ID when suppl
 Credentials and raw response bodies are not forwarded. Account changes and
 connection cancellation invalidate pending results. API-key accounts are rejected.
 
-The host may expose image generation through its versioned client tool set and
+The host may expose image generation through its client tool set and
 handle `_alwith/tool/call` on the same ACP connection. Tool results use standard
 image content blocks, including during history replay. Dynamic tool image data
 URLs are converted into inline ACP images, while other URLs remain resource links.
 Codex retains conversation and media history; the extension creates no image store.
 
 For declared client tools on ACP v2, `session/request_permission` includes
-`_meta.alwith.tool: { name, toolSetRevision }`. The identity
-matches the tool declaration and the subsequent `_alwith/tool/call`; clients can
+`_meta.alwith.tool: { name }`. The name matches the tool declaration and the
+subsequent `_alwith/tool/call`; clients can
 match an application-owned permission policy without using display text. Clients
 must establish tool identity before applying that policy; display text is not
 identity. This metadata does not grant permission by itself.
