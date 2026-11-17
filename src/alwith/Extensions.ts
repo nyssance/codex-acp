@@ -18,7 +18,6 @@ import {
 } from "./agent/sessionHistory";
 
 export const CATALOG_METHODS = {
-    "_codex/models_list": "model/list",
     "_codex/apps_installed": "app/installed",
     "_codex/apps_read": "app/read",
     "_codex/skills_list": "skills/list",

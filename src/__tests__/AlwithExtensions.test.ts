@@ -42,10 +42,6 @@ describe("ALwith extensions on the upstream connection", () => {
         expect(upstream.sendRequest).toHaveBeenLastCalledWith("account/read", {
             refreshToken: false,
         });
-        const page = {data: [{id: "native-model", hidden: false}], nextCursor: "next"};
-        upstream.sendRequest.mockResolvedValueOnce(page);
-        expect(await extensions.request("_codex/models_list", {cursor: null, limit: 50})).toEqual(page);
-        expect(upstream.sendRequest).toHaveBeenLastCalledWith("model/list", {cursor: null, limit: 50});
         expect(notify).not.toHaveBeenCalled();
     });
 

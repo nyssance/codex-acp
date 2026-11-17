@@ -110,21 +110,6 @@ follow its MCP policy and tool annotations, and dropping the HTTP request cancel
 ACP request. The host may expose image generation this way; Codex retains
 conversation and media history, and the extension creates no image store.
 
-## Model recovery
-
-`_codex/models_list({cursor?: string | null, limit?: number | null})` forwards to
-Codex's `model/list` on the existing connection and returns its model page and
-`nextCursor` unchanged. It creates no thread and writes no configuration. Hosts
-skip hidden models and follow pagination before considering configured gateway
-models. Transport and listing failures remain errors; they are not empty catalogs.
-
-When resuming a conversation whose model or provider is unavailable, ALwith chat
-selects the first available native model, then the first configured gateway model
-if the native catalog is empty. It retries the same session once with an explicit
-selection. Account invalidation uses the same recovery and does not mark a
-conversation read-only. Only an active writer in another client does that. An
-empty catalog leaves the session detached with a configuration action.
-
 ## Subagent turn origins and reload routing
 
 Standard ACP `subagent_update` carries `_meta.codex.threadId` and the originating
