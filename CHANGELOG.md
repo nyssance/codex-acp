@@ -1,3 +1,7 @@
+## 0.7.73 (2026-11-17)
+
+- Remove extension surface no ALwith application uses: the `_codex/import/*` methods and the `./import` package export; realtime `appendAudio`, `appendText`, `appendSpeech` and `listVoices`; `_codex/apps_list`, `_codex/mcp_status` and `_codex/mcp_tool_call` with `CodexClient.callMcpTool`; the browser client's hooks and goal methods and `onFileSearchUpdate`, with the fuzzy file search session notifications; the `configRevision`, `hooks` and `goal` initialize flags; and the client re-exports of internal history and project helpers.
+
 ## 0.7.72 (2026-11-17)
 
 - Merge upstream 2.7.0: a Codex hook that blocks or stops a prompt or tool call is reported as a warning with the hook's reason, instead of a silent empty turn. Over v2 the notice carries `_meta.codex.turnId` like the other notices.
