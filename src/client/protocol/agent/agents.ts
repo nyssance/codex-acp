@@ -6,11 +6,11 @@
 // - swapping the engine = stop -> wait for exit -> start (one process per agentId at a time; the Runtime rejects concurrent starts);
 // - when the process exits / is stopped / is let go, requests still awaiting an answer fail immediately, so the caller's await never hangs;
 // - stop must wait for the exit event, otherwise the engine-switch resume would reattach to the old process.
-import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {Effect, Exit, Scope} from "effect";
 
 import {attempt, failure, run} from "../lifecycle/internal";
-import {type AgentRequest} from "./requests";
+import {type AgentRequest, requestKey} from "./requests";
 
 /** The only protocol version this library speaks. */
 export const PROTOCOL_VERSION = 2;
@@ -56,56 +56,55 @@ export class AgentGoneError extends Error {
     }
 }
 
-/** The agent answered initialize with a protocol version this library cannot speak. Nothing after the handshake would be well-defined, so the agent is refused. */
-export class ProtocolVersionError extends Error {
-    readonly agentId: string;
-    readonly protocolVersion: unknown;
-    constructor(agentId: string, protocolVersion: unknown) {
-        super(
-            `agent ${agentId} answered initialize with protocolVersion ${JSON.stringify(protocolVersion)}; this client speaks ${PROTOCOL_VERSION} only`,
-        );
-        this.name = "ProtocolVersionError";
-        this.agentId = agentId;
-        this.protocolVersion = protocolVersion;
-    }
-}
+/** The SDK id of a request, as a map key: JSON-RPC ids are strings or numbers, and `9` and `"9"` differ. */
+const idKey = (id: acp.JsonRpcId): string => JSON.stringify(id);
 
 /**
- * The ACP handshake. The protocol lets an agent answer with a lower version than the one requested; this library speaks version 2 only
- * (Zed refuses anything else the same way), so any other answer is a `ProtocolVersionError`. The Runtime answers a repeated initialize for a live
- * process from its cache, so the handshake is safe on takeover.
+ * A port failure as the JSON-RPC error the SDK settles the request with. A Runtime request error carries the agent's
+ * own message as `reason`; its `message` is prefixed with the port method.
  */
-export async function initialize(
-    port: Pick<AgentPort<unknown>, "acpRequest">,
-    agentId: string,
-    handshake: Handshake,
-): Promise<acp.InitializeResponse> {
-    const response = await port.acpRequest<unknown>(agentId, "initialize", {
-        protocolVersion: PROTOCOL_VERSION,
-        info: handshake.info,
-        capabilities: handshake.capabilities ?? {},
-    });
-    const protocolVersion = (response as {protocolVersion?: unknown} | null)?.protocolVersion;
-    if (protocolVersion !== PROTOCOL_VERSION) throw new ProtocolVersionError(agentId, protocolVersion);
-    return response as acp.InitializeResponse;
+function wireError(error: unknown): {code: number; message: string; data?: unknown} {
+    const {code, message, reason, data} = error as {code?: unknown; message?: unknown; reason?: unknown; data?: unknown};
+    return {
+        code: typeof code === "number" ? code : -32603,
+        message: typeof reason === "string" ? reason : typeof message === "string" ? message : String(error),
+        ...(data === undefined ? {} : {data}),
+    };
 }
 
 /**
  * A live agent. Created by `Agents.start` / `Agents.attach`; never construct it directly.
+ *
+ * Its ACP connection is the SDK's own client connection, carried over the Runtime port: the handshake, requests in
+ * both directions, their cancellation and their answers all go through it, and `mcp/message` is served by the SDK's
+ * MCP-over-ACP provider. The Runtime port is message-oriented, not a byte stream: one refused message does not end the
+ * connection, so a failed request settles only that request.
+ *
+ * Notifications other than `$/cancel_request` reach the app straight from the port, in the order they arrive. The SDK
+ * has nothing to do for them, and it dispatches each message on its own promise chain and drops the ones it has not
+ * dispatched when the connection ends: the last frames before a process exits would be lost.
  */
 export class Agent {
     readonly agentId: string;
     /** The engine reported by the Runtime (on takeover) or supplied at start; the app interprets it. */
     readonly engine: string | null;
-    /** Result of initialize: the agent's identity, capabilities, and login methods. */
-    readonly initialized: acp.InitializeResponse;
     /** Resolves once the process is gone (exit event); detach does not count. */
     readonly exited: Promise<void>;
 
     private _alive = true;
+    private _initialized: acp.InitializeResponse | null = null;
     private readonly port: AgentPort<unknown>;
-    /** Requests awaiting a reply, by the id we gave them, with the method (detach abandons all but a turn). */
-    private readonly inflight = new Map<string, {method: string; fail: (error: Error) => void}>();
+    private readonly connection: acp.ClientConnection;
+    private readonly mcp = new acp.McpOverAcpProvider();
+    private inbound!: ReadableStreamDefaultController<acp.AnyMessage>;
+    /** Our requests on the wire, by the id the Runtime books them under, with the SDK's id for the reply. */
+    private readonly wire = new Map<string, acp.JsonRpcId>();
+    /** The wire id of each SDK request id, so a cancellation names the request the Runtime knows. */
+    private readonly wireIds = new Map<string, string>();
+    /** Requests awaiting a reply, with the method (detach abandons all but a turn). */
+    private readonly inflight = new Set<{method: string; fail: (error: Error) => void}>();
+    /** Agent requests the app has yet to answer, by request key; `respond` settles them. */
+    private readonly answering = new Map<string, {resolve: (result: unknown) => void; reject: (error: unknown) => void}>();
     private readonly notificationHandlers = new Set<(method: string, params: unknown) => void>();
     private readonly requestHandlers = new Set<(request: AgentRequest) => void>();
     private readonly idPrefix = `app-${Math.random().toString(36).slice(2, 8)}`;
@@ -117,25 +116,62 @@ export class Agent {
     private readonly failureListeners = new Set<(error: Error) => void>();
 
     /** @internal */
-    constructor(port: AgentPort<unknown>, agentId: string, engine: string | null, initialized: acp.InitializeResponse) {
+    constructor(port: AgentPort<unknown>, agentId: string, engine: string | null) {
         this.port = port;
         this.agentId = agentId;
         this.engine = engine;
-        this.initialized = initialized;
         let resolve: () => void = () => {};
         this.exited = new Promise<void>(r => {
             resolve = r;
         });
         this.resolveExited = resolve;
+        this.connection = acp
+            .client({name: agentId})
+            .onRequest(acp.methods.client.mcp.message, this.mcp.handleRequest)
+            .onRequest("*", context => this.answer(context))
+            .connect({
+                readable: new ReadableStream<acp.AnyMessage>({start: controller => void (this.inbound = controller)}),
+                writable: new WritableStream<acp.AnyMessage>({write: message => this.send(message)}),
+            });
+        // Unanswered agent requests end with the connection: there is no one left to send their answers to.
+        void this.connection.closed.then(() => this.answering.clear());
     }
 
     get alive(): boolean {
         return this._alive;
     }
 
+    /** Result of initialize: the agent's identity, capabilities, and login methods. */
+    get initialized(): acp.InitializeResponse {
+        if (this._initialized === null) throw new Error(`agent ${this.agentId} has not answered initialize`);
+        return this._initialized;
+    }
+
     /** Number of requests still awaiting an agent reply. Check before stop / detach: above zero means a round of work is being cut off. */
     get inflightCount(): number {
         return this.inflight.size;
+    }
+
+    /**
+     * Registers an MCP server the agent reaches over this connection (MCP-over-ACP). Declare it in a session request only
+     * after this returns; it ends with this connection or when disposed.
+     */
+    registerMcpServer(options: acp.McpServerOptions): acp.McpServerRegistration {
+        return this.mcp.registerServer(this.connection.agent, options);
+    }
+
+    /**
+     * @internal The ACP handshake, through the SDK connection, which refuses any protocol version but 2 (an agent may
+     * answer with a lower one). The Runtime answers a repeated initialize for a live process from its cache, so the
+     * handshake is safe on takeover.
+     */
+    async initialize(handshake: Handshake): Promise<acp.InitializeResponse> {
+        this._initialized = await this.request(acp.methods.agent.initialize, {
+            protocolVersion: PROTOCOL_VERSION,
+            info: handshake.info,
+            capabilities: handshake.capabilities ?? {},
+        });
+        return this._initialized;
     }
 
     /**
@@ -175,18 +211,15 @@ export class Agent {
                 yield* own(() =>
                     self.port.onAcpNotification(notification => {
                         if (!self._alive || notification.agentId !== self.agentId) return;
-                        for (const handler of self.notificationHandlers) handler(notification.method, notification.params);
+                        if (notification.method === "$/cancel_request")
+                            self.inbound.enqueue({jsonrpc: "2.0", method: notification.method, params: notification.params} as acp.AnyMessage);
+                        else for (const handler of self.notificationHandlers) handler(notification.method, notification.params);
                     }),
                 );
                 yield* own(() =>
                     self.port.onAcpAgentRequest(request => {
                         if (!self._alive || request.agentId !== self.agentId) return;
-                        for (const handler of self.requestHandlers)
-                            handler({
-                                id: request.id,
-                                method: request.method,
-                                params: request.params,
-                            });
+                        self.receive([request]);
                     }),
                 );
                 if (!self._alive) return yield* Effect.fail(new AgentGoneError(self.agentId, "agent retired during subscription"));
@@ -196,6 +229,15 @@ export class Agent {
             ),
         );
         return this.listening;
+    }
+
+    /**
+     * Agent requests that reach this connection other than as they are sent: the ones the Runtime hands over on takeover,
+     * still waiting for an answer. They enter the connection as if just received.
+     */
+    receive(requests: readonly AgentRequest[]): void {
+        for (const request of requests)
+            this.inbound.enqueue({jsonrpc: "2.0", id: request.id, method: request.method, params: request.params} as acp.AnyMessage);
     }
 
     private closeSubscriptions(): void {
@@ -214,51 +256,41 @@ export class Agent {
         params?: unknown,
         options?: acp.SendRequestOptions,
     ): Promise<T> => {
-        const signal = options?.cancellationSignal;
         if (!this._alive) return Promise.reject(new AgentGoneError(this.agentId, "agent is gone"));
-        const id = `${this.idPrefix}-${this.nextId++}`;
         return new Promise<T>((resolve, reject) => {
-            let settled = false;
-            let cancellationSent = false;
-            const settle = () => {
-                settled = true;
-                this.inflight.delete(id);
-                signal?.removeEventListener("abort", onAbort);
-            };
-            const fail = (error: Error) => {
-                if (settled) return;
-                settle();
-                reject(error);
-            };
-            const onAbort = () => {
-                if (settled || cancellationSent) return;
-                cancellationSent = true;
-                signal?.removeEventListener("abort", onAbort);
-                void this.notify("$/cancel_request", {requestId: id}).catch((error: unknown) => {
-                    fail(error instanceof Error ? error : new Error(String(error)));
-                });
-            };
-            signal?.addEventListener("abort", onAbort, {once: true});
-            this.inflight.set(id, {method, fail});
-            this.port.acpRequest<T>(this.agentId, method, params, {id}).then(
-                result => {
-                    if (settled) return;
-                    settle();
-                    resolve(result);
+            const entry = {
+                method,
+                fail: (error: Error) => {
+                    if (this.inflight.delete(entry)) reject(error);
                 },
-                (error: unknown) => fail(error instanceof Error ? error : new Error(String(error))),
+            };
+            this.inflight.add(entry);
+            const context = this.connection.agent as unknown as {
+                request(method: string, params?: unknown, options?: acp.SendRequestOptions): Promise<T>;
+            };
+            context.request(method, params, options).then(
+                result => {
+                    if (this.inflight.delete(entry)) resolve(result);
+                },
+                (error: unknown) => entry.fail(error instanceof Error ? error : new Error(String(error))),
             );
-            if (signal?.aborted) onAbort();
         });
     };
 
+    /** The port reports a failed notification to its sender; written to the SDK stream, it would end the whole connection. */
     notify: acp.ClientContext["notify"] = (method: string, params?: unknown): Promise<void> => {
         return this.port.acpNotify(this.agentId, method, params);
     };
 
     /** Answers a request sent by the agent, with the original id. */
     respond(id: unknown, result?: unknown, error?: {code: number; message: string; data?: unknown}): Promise<void> {
-        return this.port.acpRespond(this.agentId, id, result, error);
+        const key = requestKey(id);
+        const pending = this.answering.get(key);
+        if (pending === undefined) throw new Error(`agent ${this.agentId} has no request ${key} awaiting an answer`);
+        this.answering.delete(key);
+        if (error) pending.reject(new acp.RequestError(error.code, error.message, error.data));
+        else pending.resolve(result ?? null);
+        return Promise.resolve();
     }
 
     onNotification(handler: (method: string, params: unknown) => void): () => void {
@@ -296,23 +328,84 @@ export class Agent {
         if (!this._alive) return;
         this._alive = false;
         this.closeSubscriptions();
-        this.failInflight(new AgentGoneError(this.agentId, "agent detached"));
+        this.close(new AgentGoneError(this.agentId, "agent detached"));
+    }
+
+    /** An agent request the app answers later through `respond`; the SDK writes the answer when it settles. */
+    private answer(context: acp.ClientRequestContext<unknown>): Promise<unknown> {
+        const request: AgentRequest = {id: context.requestId, method: context.method, params: context.params};
+        const answered = new Promise<unknown>((resolve, reject) => this.answering.set(requestKey(request.id), {resolve, reject}));
+        for (const handler of this.requestHandlers) handler(request);
+        // The agent withdrew it (`$/cancel_request`), possibly before the SDK dispatched it: the SDK aborts the handler,
+        // and the ledger learns it as the notification it was.
+        const withdrawn = () => {
+            if (!this._alive || !this.answering.has(requestKey(request.id))) return;
+            for (const handler of this.notificationHandlers) handler("$/cancel_request", {requestId: request.id});
+        };
+        if (context.signal.aborted) withdrawn();
+        else context.signal.addEventListener("abort", withdrawn, {once: true});
+        return answered;
+    }
+
+    /** One message the SDK writes, carried by the Runtime port. Never rejects: a rejected write would end the SDK connection. */
+    private send(message: acp.AnyMessage): void {
+        if ("method" in message && "id" in message) {
+            const sdkId = message.id as acp.JsonRpcId;
+            const id = `${this.idPrefix}-${this.nextId++}`;
+            this.wire.set(id, sdkId);
+            this.wireIds.set(idKey(sdkId), id);
+            this.port.acpRequest(this.agentId, message.method, message.params, {id}).then(
+                result => this.settle(id, {result}),
+                (error: unknown) => this.settle(id, {error: wireError(error)}),
+            );
+            return;
+        }
+        if ("method" in message) {
+            if (message.method !== "$/cancel_request") throw new Error(`SDK notification ${message.method} bypassed Agent.notify`);
+            const sdkId = (message.params as {requestId: acp.JsonRpcId}).requestId;
+            const id = this.wireIds.get(idKey(sdkId));
+            // Settled before the cancellation was written: nothing is left to cancel.
+            if (id === undefined) return;
+            this.port.acpNotify(this.agentId, "$/cancel_request", {requestId: id}).catch((error: unknown) =>
+                this.settle(id, {error: wireError(error)}),
+            );
+            return;
+        }
+        const {id, result, error} = message as {id: unknown; result?: unknown; error?: unknown};
+        void this.port.acpRespond(this.agentId, id, result, error);
+    }
+
+    /** Hands the Runtime's reply to a request back to the SDK, once; replies to requests already failed here are dropped. */
+    private settle(id: string, outcome: {result: unknown} | {error: {code: number; message: string; data?: unknown}}): void {
+        const sdkId = this.wire.get(id);
+        if (sdkId === undefined) return;
+        this.wire.delete(id);
+        this.wireIds.delete(idKey(sdkId));
+        if (!this.connection.signal.aborted) this.inbound.enqueue({jsonrpc: "2.0", id: sdkId, ...outcome} as acp.AnyMessage);
     }
 
     private gone(reason: string): void {
         const wasAlive = this._alive;
         this._alive = false;
         this.closeSubscriptions();
-        this.failInflight(new AgentGoneError(this.agentId, reason));
+        this.close(new AgentGoneError(this.agentId, reason));
         if (!wasAlive) return;
         this.resolveExited();
         for (const listener of [...this.goneListeners]) listener();
     }
 
+    /** Ends the SDK connection: in-flight requests fail with `error`, and unanswered agent requests have no one left to answer them. */
+    private close(error: AgentGoneError): void {
+        this.failInflight(error);
+        this.answering.clear();
+        this.connection.close(error);
+    }
+
     private failInflight(error: Error): void {
         for (const listener of this.failureListeners) listener(error);
-        for (const {fail} of [...this.inflight.values()]) fail(error);
-        this.inflight.clear();
+        for (const {fail} of [...this.inflight]) fail(error);
+        // Their replies, if they ever arrive, belong to requests that already failed.
+        for (const id of [...this.wire.keys()]) this.settle(id, {error: {code: -32603, message: error.message}});
     }
 }
 
@@ -415,9 +508,15 @@ export class Agents<Launch = unknown, Info extends AttachInfo = AttachInfo> {
     }
 
     private async acquireAgent(agentId: string, engine: string | null): Promise<Agent> {
+        const agent = new Agent(this.port, agentId, engine);
         // ACP v2 handshakes once per connection; on takeover the Runtime answers with the cached handshake result, without disturbing the engine
-        const initialized = await initialize(this.port, agentId, this.handshake);
-        const agent = new Agent(this.port, agentId, engine, initialized);
+        try {
+            await agent.initialize(this.handshake);
+        } catch (error) {
+            // Nobody will hold an agent that cannot be spoken to; its connection ends here.
+            agent.detach();
+            throw error;
+        }
         await agent.listen();
         if (!agent.alive) throw new AgentGoneError(agentId, "agent exited during adoption");
         this.held.set(agentId, agent);

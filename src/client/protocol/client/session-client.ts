@@ -232,6 +232,8 @@ export class SessionClient<State extends ClientState = ClientState> {
     readonly store: Store<State>;
     protected readonly options: ClientOptions;
     protected readonly sessions: SessionStore;
+    /** Agent requests the Runtime handed over when attaching, until the connection is listened to. */
+    private handover: AgentRequest[] = [];
     /** Agent requests awaiting user input (permissions, questionnaires), including answers, cancellation on Stop, and agent withdrawals. */
     // The ledger is released when the agent goes away, so a reply always has an agent to go to.
     protected readonly requests = new AgentRequests((id, result, error) => {
@@ -379,6 +381,9 @@ export class SessionClient<State extends ClientState = ClientState> {
                 }
                 if (!this.handleAgentRequest(agent, request)) this.requests.receive(request);
             });
+            // Requests the Runtime handed over on attach enter the connection once someone listens for them.
+            agent.receive(this.handover);
+            this.handover = [];
             void agent.exited.then(() => this.onClosed(agent));
             this.onConnected(agent);
             this.patch({
@@ -417,7 +422,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             if ((await port.agentForSession(state.sessionId)) !== this.options.agentId) continue;
             const attached = await agents.attach(state.sessionId);
             if (!attached) continue;
-            this.requests.receiveAll(attached.info.pendingAgentRequests.filter(request => this.acceptsPendingRequest(request)));
+            this.handover = attached.info.pendingAgentRequests.filter(request => this.acceptsPendingRequest(request));
             return attached.agent;
         }
         // A freshly started agent has no Runtime session yet. After a webview reload there is

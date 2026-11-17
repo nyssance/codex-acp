@@ -8,7 +8,7 @@ import type {
     RuntimeClient,
     RuntimeExitPayload,
 } from "@alwith/api";
-import {AgentGoneError, Agents, ProtocolVersionError} from "../agents";
+import {AgentGoneError, Agents} from "../agents";
 
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
@@ -148,9 +148,11 @@ describe("start and attach", () => {
         const seen: string[] = [];
         agent.onNotification(method => seen.push(method));
         agent.onAgentRequest(request => seen.push(`req ${request.method}`));
-        runtime.emitNotification("a1", "session/update", {});
-        runtime.emitNotification("other", "session/update", {});
+        const update = {sessionId: "s1", update: {sessionUpdate: "state_update", state: "idle"}};
+        runtime.emitNotification("a1", "session/update", update);
+        runtime.emitNotification("other", "session/update", update);
         runtime.emitRequest("a1", 1, "session/request_permission", {});
+        await flush();
         expect(seen).toEqual(["session/update", "req session/request_permission"]);
     });
 
@@ -288,6 +290,7 @@ describe("requests", () => {
         const controller = new AbortController();
         controller.abort();
         const response = agent.request("_test/cancel", {}, {cancellationSignal: controller.signal});
+        await flush();
         expect(runtime.calls).toContain("request a1 _test/cancel");
         expect(runtime.notified).toHaveLength(1);
         expect(agent.inflightCount).toBe(1);
@@ -322,7 +325,10 @@ describe("requests", () => {
     test("respond answers the agent with the original id", async () => {
         const {runtime, agents} = make();
         const agent = await agents.start("a1", {engine: "alwith"});
+        runtime.emitRequest("a1", 9, "session/request_permission", {});
+        await flush();
         await agent.respond(9, {outcome: {outcome: "cancelled"}});
+        await flush();
         expect(runtime.responded).toEqual([
             {
                 agentId: "a1",
@@ -359,7 +365,7 @@ describe("handshake", () => {
     test("an agent answering initialize with any protocol version but 2 is refused; a process started here is stopped again", async () => {
         const {runtime, agents} = make();
         runtime.protocolVersion = 1;
-        await expect(agents.start("a1", {engine: "alwith"})).rejects.toBeInstanceOf(ProtocolVersionError);
+        await expect(agents.start("a1", {engine: "alwith"})).rejects.toMatchObject({code: -32600});
         await flush();
         expect(runtime.calls).toEqual(["start a1", "initialize a1 test-app", "stop a1"]);
         expect(agents.get("a1")).toBeUndefined();
@@ -370,7 +376,7 @@ describe("handshake", () => {
             pendingAgentRequests: [],
         } as never);
         runtime.protocolVersion = "2";
-        await expect(agents.attach("s2")).rejects.toBeInstanceOf(ProtocolVersionError);
+        await expect(agents.attach("s2")).rejects.toThrow("protocolVersion");
         // Attached but refused: the claim is given back; the process is someone else's to stop
         expect(runtime.calls.slice(-3)).toEqual(["attach s2", "initialize a2 test-app", "release s2"]);
     });
@@ -413,8 +419,8 @@ describe("abandoned requests", () => {
             seen.push(options?.id);
             return Promise.resolve({});
         }) as typeof runtime.acpRequest;
-        await agent.request("session/list", {});
-        await agent.request("session/list", {});
+        await agent.request("_test/echo", {});
+        await agent.request("_test/echo", {});
         expect(seen.map(id => typeof id)).toEqual(["string", "string"]);
         expect(seen[0]).not.toBe(seen[1]);
     });
@@ -493,4 +499,45 @@ test("a rejected stop preserves the live binding and its subscriptions", async (
     expect(agents.get("a1")).toBe(agent);
     expect(runtime.listeners).toBe(3);
     agents.release(agent);
+});
+
+describe("the SDK connection", () => {
+    test("messages that arrived before the process exited are still delivered", async () => {
+        const {runtime, agents} = make();
+        const agent = await agents.start("a1", {engine: "alwith"});
+        const seen: string[] = [];
+        agent.onNotification(method => seen.push(method));
+        runtime.emitNotification("a1", "_test/last", {});
+        runtime.exit("a1");
+        await flush();
+        expect(seen).toEqual(["_test/last"]);
+    });
+
+    test("an MCP server registered on the agent answers mcp/message through the SDK provider", async () => {
+        const {runtime, agents} = make();
+        const agent = await agents.start("a1", {engine: "alwith"});
+        const registration = agent.registerMcpServer({
+            name: "alwith",
+            handler: ({method}) => ({result: {method}}),
+        });
+        expect(registration.declaration).toMatchObject({type: "acp", name: "alwith"});
+        const envelope = (requestId: string) => ({
+            serverId: registration.serverId,
+            requestId,
+            method: "tools/list",
+            params: {
+                _meta: {
+                    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientCapabilities": {},
+                },
+            },
+        });
+        runtime.emitRequest("a1", 5, "mcp/message", envelope("r1"));
+        await flush();
+        expect(runtime.responded).toEqual([{agentId: "a1", id: 5, result: {result: {method: "tools/list"}}, error: undefined}]);
+        await registration.dispose();
+        runtime.emitRequest("a1", 6, "mcp/message", envelope("r2"));
+        await flush();
+        expect(runtime.responded[1]).toMatchObject({id: 6, error: {code: -33001}});
+    });
 });

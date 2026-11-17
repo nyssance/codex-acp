@@ -1,3 +1,9 @@
+## 0.7.78 (2026-11-17)
+
+- `Agent` in `./client` runs the SDK's own client connection over the Runtime port: the handshake, requests in both directions, their cancellation and their answers go through it, and the SDK refuses any protocol version but 2.
+- `Agent.registerMcpServer` registers an MCP server the agent reaches over this connection; the SDK's MCP-over-ACP provider serves `mcp/message` (binding, cancellation and its errors), so clients no longer implement the binding themselves.
+- Agent requests the Runtime hands over on attach enter the connection through `Agent.receive`. The standalone `initialize` and `ProtocolVersionError` exports are removed.
+
 ## 0.7.77 (2026-11-17)
 
 - Applications provide tools as MCP servers over ACP (`type: "acp"` in `mcpServers`, `mcp/message`), following the MCP-over-ACP draft; the adapter advertises the `acp` MCP capability and serves these servers to Codex on a token-protected loopback endpoint. Codex owns the calls, their approvals and their cancellation, as for any MCP server.
