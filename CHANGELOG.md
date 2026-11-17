@@ -1,3 +1,9 @@
+## 0.7.77 (2026-11-17)
+
+- Applications provide tools as MCP servers over ACP (`type: "acp"` in `mcpServers`, `mcp/message`), following the MCP-over-ACP draft; the adapter advertises the `acp` MCP capability and serves these servers to Codex on a token-protected loopback endpoint. Codex owns the calls, their approvals and their cancellation, as for any MCP server.
+- `Agent.respond` in `./client` passes an error's `data`, so a client can answer with the binding error details MCP-over-ACP defines.
+- The private client tool channel is removed: `_meta.alwith.tools`, `_alwith/tool/call`, Codex dynamic tools for client tools, and the `_meta.alwith.tool` permission identity.
+
 ## 0.7.76 (2026-11-17)
 
 - Client tool sets no longer carry a `revision`, and `_alwith/tool/call` and the permission identity no longer carry `toolSetRevision`. Each new, resumed or forked session replaces its declared tools, so the name identifies the tool.

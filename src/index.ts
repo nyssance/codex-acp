@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import {startCodexConnection} from "./CodexJsonRpcConnection";
+import {AcpMcpEndpoint} from "./AcpMcpEndpoint";
 import {CodexAcpServer, type CodexProcessState} from "./CodexAcpServer";
 import {createJsonStream} from "./StdUtils";
 import {isCodexAuthRequest} from "./CodexAuthMethod";
@@ -12,7 +13,7 @@ import {appServerStartup, CodexAppServerSupervisor} from "./app-server-recovery/
 import {runLoginCommand} from "./login";
 import {runCodexCli} from "./CodexCli";
 import {prepareCodexHookConfig} from "./CodexHookConfig";
-import {createAcpAgentRouter} from "./AcpAgentRouter";
+import {type AcpTransport, createAcpAgentRouter} from "./AcpAgentRouter";
 import type {AcpClientConnection, AcpV2Connection} from "./ACPSessionConnection";
 
 if (process.argv.includes("--version")) {
@@ -65,28 +66,33 @@ function startAcpServer() {
         providerStartupConfig: providerStartupConfig(modelProvider ?? null, hookConfig.sessionConfig ?? {}, null),
     };
     const startup = appServerStartup(startupState);
+    const mcpEndpoint = new AcpMcpEndpoint();
+    const spawn = (path: string | undefined, args: string[], env: Record<string, string>) =>
+        startCodexConnection(path, {...process.env, ...mcpEndpoint.env, ...env}, args, {disposeOnExit: false});
     const codexProcessState: CodexProcessState = {
         // The supervisor disposes the connection itself, after the last output of the process was read.
-        connection: startCodexConnection(codexPath, {...process.env, ...startup.env}, startup.args, {disposeOnExit: false}),
+        connection: spawn(codexPath, startup.args, startup.env),
         codexPath,
         config: hookConfig.sessionConfig,
         ...startupState,
         modelProvider,
         stderr: "",
     };
-    const supervisor = new CodexAppServerSupervisor(codexProcessState);
+    const supervisor = new CodexAppServerSupervisor(codexProcessState, spawn);
     codexProcessState.supervisor = supervisor;
 
     process.stdin.on("close", () => {
         // Ends the stdin of the app-server, sends SIGTERM if it is still running 2 s later, and never restarts it.
         supervisor.shutdown();
+        void mcpEndpoint.close();
     });
 
     const acpJsonStream = createJsonStream(process.stdin, process.stdout);
 
-    function createAgent(connection: AcpClientConnection | AcpV2Connection): CodexAcpServer {
+    function createAgent(connection: AcpClientConnection | AcpV2Connection, transport: AcpTransport): CodexAcpServer {
         const appServerClient = new CodexAppServerClient(codexProcessState.connection.connection);
         const codexClient = new CodexAcpClient(appServerClient, hookConfig.sessionConfig, modelProvider);
+        codexClient.acpMcpServers = mcpEndpoint.attach(transport.context, transport.signal);
         process.stdin.once("close", () => codexClient.closeTransports());
         return new CodexAcpServer(
             connection,

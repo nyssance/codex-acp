@@ -95,18 +95,20 @@ status, bounded structured service message, error code and request ID when suppl
 Credentials and raw response bodies are not forwarded. Account changes and
 connection cancellation invalidate pending results. API-key accounts are rejected.
 
-The host may expose image generation through its client tool set and
-handle `_alwith/tool/call` on the same ACP connection. Tool results use standard
-image content blocks, including during history replay. Dynamic tool image data
-URLs are converted into inline ACP images, while other URLs remain resource links.
-Codex retains conversation and media history; the extension creates no image store.
-
-For declared client tools on ACP v2, `session/request_permission` includes
-`_meta.alwith.tool: { name }`. The name matches the tool declaration and the
-subsequent `_alwith/tool/call`; clients can
-match an application-owned permission policy without using display text. Clients
-must establish tool identity before applying that policy; display text is not
-identity. This metadata does not grant permission by itself.
+Applications provide their own tools as MCP servers over ACP (the MCP-over-ACP draft):
+they declare `{type: "acp", name, serverId}` in `mcpServers` on `session/new`,
+`session/resume` and `session/fork`, and answer `mcp/message` on the same ACP
+connection. The adapter advertises v1 `mcpCapabilities.acp` and v2
+`session.mcp.acp`. Codex reaches these servers like any other HTTP MCP server: the
+adapter serves each one on a loopback endpoint, authenticated by a per-process bearer
+token that the app-server reads from `CODEX_ACP_MCP_TOKEN` and that never appears in
+thread config or URLs. The endpoint answers Codex's 2025 stateless handshake and MCP
+2026-07-28, and forwards `tools/list` and `tools/call` as `mcp/message` requests with
+the 2026-07-28 metadata; Codex's own request `_meta` (`callId`, `threadId`,
+`x-codex-turn-metadata`) is passed through. Codex owns these tool calls: approvals
+follow its MCP policy and tool annotations, and dropping the HTTP request cancels the
+ACP request. The host may expose image generation this way; Codex retains
+conversation and media history, and the extension creates no image store.
 
 ## Subagent turn origins and reload routing
 
@@ -143,7 +145,7 @@ The optional `imageGeneration` boolean maps to Codex's native
 `features.image_generation` and `features.imagegenext` switches. Omitted switches
 leave native configuration unchanged. Unknown capability names and non-boolean
 values are rejected. This is a capability-specific protocol, not arbitrary Codex
-configuration passthrough. Application tools continue to use `_meta.alwith.tools`.
+configuration passthrough. Application tools are MCP servers over ACP.
 An omitted `nativeTools` field preserves in-memory settings during internal
 connection/provider repairs; an explicit object replaces those cached settings.
 Hosts resend settings when reopening a session after an adapter restart.

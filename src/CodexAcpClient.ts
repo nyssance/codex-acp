@@ -9,7 +9,6 @@ import { hostThreadOptions } from "./alwith/hostSession";
 import { ResponsesRoutes } from "./alwith/codex/responsesRoutes";
 import { ProviderRouting } from "./alwith/agent/providers";
 import { isRecord } from "./permissions/json";
-import { clientToolsOf, dynamicTools } from "./alwith/agent/clientTools";
 import {
     type ApiKeyAuthRequest,
     CODEX_API_KEY_ENV_VAR,
@@ -44,6 +43,7 @@ import {logger} from "./Logger";
 import {isModelProviderRouteError, isAccountReadAuthFailureError, isAccountReadUnavailableError, isThreadClosingError} from "./CodexThreadErrors";
 import {listedSessionTitle, normalizeSessionTitle} from "./SessionTitle";
 import {type AcpMcpServer, type WithAcpMcpServers, normalizeMcpServers, toCodexMcpServerConfig} from "./McpServerConfig";
+import type {AcpMcpServers} from "./AcpMcpEndpoint";
 import type {
     AccountUpdatedNotification,
     ApprovalsReviewer,
@@ -199,6 +199,8 @@ export class CodexAcpClient {
     private configPath: string | null = null;
 
     private responsesRoutes: ResponsesRoutes;
+    /** Serves this connection's `"type": "acp"` MCP servers to Codex; none when the process runs no endpoint. */
+    acpMcpServers: AcpMcpServers | null = null;
 
     constructor(
         codexClient: CodexAppServerClient,
@@ -234,6 +236,7 @@ export class CodexAcpClient {
     withAppServer(codexClient: CodexAppServerClient): CodexAcpClient {
         const client = new CodexAcpClient(codexClient, this.config, this.modelProvider ?? undefined, this.responsesRoutes);
         client.adoptRoutingFrom(this);
+        client.acpMcpServers = this.acpMcpServers;
         return client;
     }
 
@@ -1102,7 +1105,6 @@ export class CodexAcpClient {
     readSubagentThread(threadId: string): Promise<Thread | null> { return this.subagents.readChildThread(threadId); }
 
     async newSession(request: WithAcpMcpServers<acp.NewSessionRequest>): Promise<SessionMetadata> {
-        const tools = clientToolsOf(request._meta);
         const nativeTools = this.sessionNativeTools(request);
         const instructions = await this.resolveSessionInstructions(request, undefined, true);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
@@ -1122,7 +1124,6 @@ export class CodexAcpClient {
         const projectId = await projectsFor(this.codexClient).resolve(request.cwd, request._meta);
         const response = await this.codexClient.threadStart({
             ...hostThreadOptions(request._meta, AgentMode.getInitialAgentMode()),
-            ...(tools ? {dynamicTools: dynamicTools(tools)} : {}),
             projectId,
             config,
             modelProvider: route.modelProvider,
@@ -1511,7 +1512,7 @@ export class CodexAcpClient {
         return {
             config: {
                 ...configWithWorkspaceRoots,
-                "mcp_servers": Object.fromEntries(serversToConfigure.map(mcp => [mcp.name, toCodexMcpServerConfig(mcp.server)])),
+                "mcp_servers": Object.fromEntries(serversToConfigure.map(mcp => [mcp.name, toCodexMcpServerConfig(mcp.server, this.acpMcpServers)])),
             },
             skippedMcpServers,
             ...permissionProfileMetadata,

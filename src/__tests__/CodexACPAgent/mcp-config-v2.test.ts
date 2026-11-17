@@ -3,14 +3,20 @@ import type * as acp from '@agentclientprotocol/sdk/unstable';
 import type * as acpV2 from '@agentclientprotocol/sdk/experimental/v2/unstable';
 import {createCodexMockTestFixture, createTestModel} from '../acp-test-utils';
 import type {AcpMcpServer} from '../../McpServerConfig';
+import type {AcpMcpServers} from '../../AcpMcpEndpoint';
 
 /**
  * Starts a session with the given MCP servers and returns the `mcp_servers` config
  * sent to Codex `thread/start`.
  */
-async function startSessionWithMcpServers(mcpServers: Array<AcpMcpServer> | undefined, configuredNames: string[] = []) {
+async function startSessionWithMcpServers(
+    mcpServers: Array<AcpMcpServer> | undefined,
+    configuredNames: string[] = [],
+    acpMcpServers: AcpMcpServers | null = null,
+) {
     const mockFixture = createCodexMockTestFixture();
     const codexAcpClient = mockFixture.getCodexAcpClient();
+    codexAcpClient.acpMcpServers = acpMcpServers;
     const codexAppServerClient = mockFixture.getCodexAppServerClient();
 
     vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
@@ -76,16 +82,26 @@ describe('MCP server config from ACP v1 and v2 session requests', () => {
             .toMatchFileSnapshot("data/mcp-config-v1-servers.json");
     });
 
+    it('serves acp servers through the connection endpoint, the token only named', async () => {
+        const servers = await startSessionWithMcpServers(
+            [{type: "acp", name: "app", serverId: "server-1"}],
+            [],
+            serverId => ({url: `http://127.0.0.1:1234/connection/${serverId}`, bearer_token_env_var: "CODEX_ACP_MCP_TOKEN"}),
+        );
+
+        expect(servers).toEqual({app: {url: "http://127.0.0.1:1234/connection/server-1", bearer_token_env_var: "CODEX_ACP_MCP_TOKEN"}});
+    });
+
     it('adds no MCP config when mcpServers is omitted', async () => {
         expect(await startSessionWithMcpServers(undefined)).toBeNull();
     });
 
-    it('rejects sse, acp, and custom transports', async () => {
+    it('rejects sse and custom transports, and acp without an endpoint', async () => {
         const unsupported: Record<string, unknown> = {
             "v2 sse": {type: "sse", name: "sse", url: "https://example.com/sse"},
             "v2 custom": {type: "_custom", name: "custom", endpoint: "somewhere"},
             "v1 sse": {type: "sse", name: "sse", url: "https://example.com/sse", headers: []} satisfies acp.McpServer,
-            "v1 acp": {type: "acp", name: "acp", id: "server-1"},
+            "v1 acp": {type: "acp", name: "acp", serverId: "server-1"},
         };
         const rejections: Record<string, unknown> = {};
         for (const [label, server] of Object.entries(unsupported)) {

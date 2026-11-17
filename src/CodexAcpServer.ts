@@ -4,8 +4,6 @@ import type { ReplayEntry } from "./ReplayHistory";
 import { codexFailureKind, SESSION_FAILURE_POLICY } from "./CodexFailures";
 import { ConfigRevisions } from "./alwith/ConfigRevisions";
 import type { ProviderRouting } from "./alwith/agent/providers";
-import {clientToolsOf, toolResponse, toolFailure, CLIENT_TOOLS_METHOD, type ClientToolSet} from "./alwith/agent/clientTools";
-import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
 import { AlwithExtensions } from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {RequestError, type SessionId, type SessionModeState} from "@agentclientprotocol/sdk/unstable";
@@ -61,7 +59,6 @@ import {AppServerConnectionLostError} from "./app-server-recovery/ConnectionLoss
 import {
     type AcpClientConnection,
     ACPSessionConnection,
-    type AcpV2ClientConnection,
     AcpV2Connection,
     type UpdateSessionEvent,
 } from "./ACPSessionConnection";
@@ -258,7 +255,6 @@ import {
 
 
 export interface SessionState extends SessionIndexTitleState {
-    clientTools?: ClientToolSet;
     readOnly?: boolean;
     lineage?: SessionMetadata["lineage"];
     sessionId: string;
@@ -563,7 +559,6 @@ export class CodexAcpServer {
     /** ACP protocol version of the connection this agent serves, fixed by the protocol router. */
     readonly protocolVersion: 1 | 2;
     /** The v2 client handle; `null` on a v1 connection. */
-    private readonly v2Connection: AcpV2ClientConnection | null;
     private readonly defaultAuthRequest: CodexAuthRequest | null;
     private readonly getExitCode: () => number | null;
     private readonly getRecentStderr: () => string;
@@ -673,7 +668,6 @@ export class CodexAcpServer {
         const sessionIsClosing = (id: string) => this.sessionIsClosing(this.subagentAssociations.get(id)?.rootSessionId ?? id);
         if (connection instanceof AcpV2Connection) {
             this.protocolVersion = 2;
-            this.v2Connection = connection.client;
             this.clientDelivery = new AcpClientDelivery(connection.extensionOnlyV1View(), sessionIsClosing);
             this.connection = this.clientDelivery.asClientConnection();
             connection.registerView(this.connection);
@@ -687,7 +681,6 @@ export class CodexAcpServer {
             });
         } else {
             this.protocolVersion = 1;
-            this.v2Connection = null;
             this.clientDelivery = new AcpClientDelivery(connection, sessionIsClosing);
             this.connection = this.clientDelivery.asClientConnection();
         }
@@ -882,7 +875,6 @@ export class CodexAcpServer {
         this.booleanConfigOptionsSupported = clientSupportsBooleanConfigOptions(_params.clientCapabilities);
         this.sessionIndex.configure(_params.clientCapabilities);
         this.sessionIndex.observe(this.codexAcpClient);
-        this.bindClientTools();
         this.publishFirstAuthStatusAfterResponse();
         const sessionCapabilities: SubagentAwareSessionCapabilities = {
             resume: { },
@@ -915,7 +907,7 @@ export class CodexAcpServer {
                 },
                 sessionCapabilities,
                 mcpCapabilities: {
-                    acp: false,
+                    acp: this.codexAcpClient.acpMcpServers !== null,
                     http: true,
                     sse: false
                 },
@@ -949,7 +941,6 @@ export class CodexAcpServer {
         this.sessionIndex.configure(clientCapabilities);
         this.sessionIndex.observe(this.codexAcpClient);
         this.alwith.observe();
-        this.bindClientTools();
         this.publishFirstAuthStatusAfterResponse();
         return {
             protocolVersion: 2,
@@ -996,6 +987,7 @@ export class CodexAcpServer {
                     mcp: {
                         stdio: {},
                         http: {},
+                        ...(this.codexAcpClient.acpMcpServers ? {acp: {}} : {}),
                     },
                     delete: {},
                     archive: {},
@@ -1069,127 +1061,6 @@ export class CodexAcpServer {
     private readonly configRevisions = new ConfigRevisions();
     private configSnapshot(session: SessionState) {
         return this.configRevisions.read(session, toV2ConfigOptions(this.createSessionConfigOptions(session)));
-    }
-
-    private readonly toolBoundClients = new WeakSet<CodexAppServerClient>();
-    private readonly toolCalls = new WeakMap<
-        ActivePrompt,
-        Map<string, {fingerprint: string; response: Promise<DynamicToolCallResponse>}>
-    >();
-
-    private bindClientTools(): void {
-        const client = this.codexAcpClient.appServerClient;
-        if (this.toolBoundClients.has(client)) return;
-        this.toolBoundClients.add(client);
-        const lifetime = new AbortController();
-        client.connectionLoss.onLost(() => lifetime.abort());
-        client.onDynamicToolCall(params => this.callClientTool(params, lifetime.signal));
-    }
-
-    private async callClientTool(params: DynamicToolCallParams, lifetime: AbortSignal): Promise<DynamicToolCallResponse> {
-        const session = this.sessions.get(params.threadId);
-        const prompt = this.activePrompts.get(params.threadId);
-        if (!session?.clientTools || !prompt || !this.v2Connection || this.sessionIsClosing(params.threadId)) {
-            return toolFailure("Client tool session is no longer active");
-        }
-        const tools = session.clientTools;
-        const tool = tools.definitions.find(tool => `alwith_client_${tool.name}` === params.tool);
-        if (!tool || params.namespace !== null) return toolFailure("Client tool was not declared for this session");
-        let calls = this.toolCalls.get(prompt);
-        if (!calls) {
-            calls = new Map();
-            this.toolCalls.set(prompt, calls);
-        }
-        const key = `${params.turnId}:${params.callId}`;
-        const fingerprint = JSON.stringify([params.tool, params.arguments]);
-        const previous = calls.get(key);
-        if (previous)
-            return previous.fingerprint === fingerprint
-                ? previous.response
-                : toolFailure("Client tool call ID was reused with different arguments");
-        const execute = async (): Promise<DynamicToolCallResponse> => {
-            const signal = AbortSignal.any([lifetime, prompt.signal, prompt.interactionSignal]);
-            try {
-                signal.throwIfAborted();
-                if (!prompt.currentTurn) {
-                    const pending = this.pendingTurnStarts.get(params.threadId);
-                    if (pending) await withRequestCancellation(pending.promise, signal);
-                }
-                const assertCurrent = () => {
-                    signal.throwIfAborted();
-                    if (
-                        this.activePrompts.get(params.threadId) !== prompt ||
-                        prompt.currentTurn?.turnId !== params.turnId ||
-                        session.currentTurnId !== params.turnId ||
-                        this.sessions.get(params.threadId) !== session ||
-                        this.sessionIsClosing(params.threadId)
-                    ) {
-                        throw new Error("Client tool turn is no longer active");
-                    }
-                };
-                assertCurrent();
-                if (session.agentMode.approvalPolicy !== "never") {
-                    const permission = await withRequestCancellation(
-                        this.connection.request<acp.RequestPermissionResponse>(
-                            acp.methods.client.session.requestPermission,
-                            {
-                                sessionId: params.threadId,
-                                _meta: {alwith: {tool: {name: tool.name}}},
-                                toolCall: {
-                                    toolCallId: params.callId,
-                                    title: tool.description,
-                                    kind: "other",
-                                    status: "pending",
-                                },
-                                options: [
-                                    {
-                                        optionId: "allow_once",
-                                        name: "Allow",
-                                        kind: "allow_once",
-                                    },
-                                    {
-                                        optionId: "reject_once",
-                                        name: "Reject",
-                                        kind: "reject_once",
-                                    },
-                                ],
-                            },
-                            {cancellationSignal: signal},
-                        ),
-                        signal,
-                    );
-                    if (permission.outcome.outcome !== "selected" || permission.outcome.optionId !== "allow_once") {
-                        return toolFailure("Client tool permission was denied");
-                    }
-                }
-                assertCurrent();
-                const response = await withRequestCancellation(
-                    this.v2Connection!.request(
-                        CLIENT_TOOLS_METHOD,
-                        {
-                            sessionId: params.threadId,
-                            turnId: params.turnId,
-                            toolCallId: params.callId,
-                            name: tool.name,
-                            arguments: params.arguments,
-                        },
-                        {cancellationSignal: signal},
-                    ),
-                    signal,
-                );
-                assertCurrent();
-                return toolResponse(response);
-            } catch (error) {
-                return toolFailure(
-                    signal.aborted
-                        ? "Client tool call was cancelled"
-                        : `Client tool call failed: ${error instanceof Error ? error.message : String(error)}`,
-                );
-            }
-        };
-        const response = execute();
-        calls.set(key, {fingerprint, response});
-        return response;
     }
 
     async alwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
@@ -1603,7 +1474,6 @@ export class CodexAcpServer {
         operation: "new" | "resume" | "fork" = "sessionId" in request ? "resume" : "new",
     ): Promise<[SessionId, LegacySessionModelState, SessionModeState]> {
         clientSystemPromptText(request.systemPrompt);
-        const clientTools = clientToolsOf(request._meta);
         const modeHint = (request._meta?.["codex"] as {mode?: unknown} | undefined)?.mode;
         const usesInitialMode = modeHint === undefined || (modeHint === "custom" && "sessionId" in request);
         const hintedMode = !usesInitialMode && typeof modeHint === "string" ? AgentMode.find(modeHint) : null;
@@ -1734,7 +1604,6 @@ export class CodexAcpServer {
             supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
             agentMode: operation !== "new" || modeHint === undefined ? this.restoredAgentMode(sessionMetadata, initialMode) : initialMode,
             availableAgentModes,
-            ...(clientTools ? {clientTools} : {}),
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
             interruptTurnId: null,
@@ -3007,7 +2876,6 @@ export class CodexAcpServer {
         this.codexAcpClient = replacement;
         this.sessionIndex.observe(replacement);
         if (this.protocolVersion === 2) this.alwith.observe();
-        this.bindClientTools();
         this.availableCommands = this.createAvailableCommands(replacement);
 
         const resumeErrors: unknown[] = [];
@@ -3244,7 +3112,6 @@ export class CodexAcpServer {
         // The session index watches the thread notifications of the app-server that runs now.
         this.sessionIndex.observe(client);
         if (this.protocolVersion === 2) this.alwith.observe();
-        this.bindClientTools();
         this.availableCommands = this.createAvailableCommands(client);
         for (const session of this.sessions.values()) {
             session.asyncTasks.setAppServer(client.appServerClient);

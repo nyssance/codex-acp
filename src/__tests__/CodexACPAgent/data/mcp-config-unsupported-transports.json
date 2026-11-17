@@ -13,6 +13,6 @@
   },
   "v1 acp": {
     "code": -32602,
-    "message": "Invalid params: Codex doesn't support MCP ACP transport protocol"
+    "message": "Invalid params: This connection doesn't serve MCP over ACP"
   }
 }

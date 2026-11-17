@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "0.7.76",
+    "version": "0.7.77",
     "description": "ACP adapter for Codex with ALwith client extensions",
     "main": "dist/index.js",
     "bin": {
@@ -39,7 +39,7 @@
         "example:steering": "bun examples/steering.ts",
         "example:steering:multistep": "bun examples/steering.ts",
         "generate-types": "codex app-server generate-ts --experimental --out src/app-server",
-        "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**' --exclude 'src/client/protocol/**' --exclude 'src/__tests__/CodexACPAgent/CodexAcpClient.test.ts' --exclude 'src/__tests__/CodexACPAgent/mcp-session.test.ts' --exclude 'src/__tests__/CodexACPAgent/mcp-config-merge.test.ts' && bun test src/client/protocol",
+        "test": "vitest run --no-file-parallelism --retry=0 --exclude 'src/__tests__/integration/**' --exclude 'src/__tests__/CodexACPAgent/e2e/**' --exclude '**/node_modules/**' --exclude '**/.git/**' --exclude 'src/client/protocol/**' --exclude 'src/__tests__/bun/**' --exclude 'src/__tests__/CodexACPAgent/CodexAcpClient.test.ts' --exclude 'src/__tests__/CodexACPAgent/mcp-session.test.ts' --exclude 'src/__tests__/CodexACPAgent/mcp-config-merge.test.ts' && bun test src/client/protocol src/__tests__/bun",
         "test:integration": "vitest run --no-file-parallelism --hookTimeout=30000 src/__tests__/integration",
         "test:e2e": "bun run build && RUN_E2E_TESTS=true vitest run --no-file-parallelism --retry=0 src/__tests__/CodexACPAgent/e2e",
         "test:watch": "vitest",
@@ -74,6 +74,7 @@
     },
     "dependencies": {
         "@agentclientprotocol/sdk": "^2.7.0",
+        "@modelcontextprotocol/server": "^2.4.0",
         "@openai/codex": "^0.169.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",

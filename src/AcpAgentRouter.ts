@@ -5,6 +5,9 @@ import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {z} from "zod";
 import type {CodexAcpServer} from "./CodexAcpServer";
 import {type AcpClientConnection, AcpV2Connection} from "./ACPSessionConnection";
+
+/** The SDK connection behind an agent, for helpers such as the MCP-over-ACP caller, and its lifetime. */
+export type AcpTransport = {context: acpV2.HasConnectionContext; signal: AbortSignal};
 import packageJson from "../package.json";
 import {AcpResponseDelivery} from "./AcpResponseDelivery";
 import {isAbsoluteProtocolPath} from "./PathUtils";
@@ -70,7 +73,7 @@ const hooksTrustParamsParser = z.object({
  * request, and only the selected chain's `onConnect` runs for the connection.
  */
 export function createAcpAgentRouter(
-    createAgent: (connection: AcpClientConnection | AcpV2Connection) => CodexAcpServer,
+    createAgent: (connection: AcpClientConnection | AcpV2Connection, transport: AcpTransport) => CodexAcpServer,
 ): Pick<acpV2.AgentProtocolRouter, "connect"> {
     return {
         connect(stream, options) {
@@ -83,7 +86,7 @@ export function createAcpAgentRouter(
 }
 
 function createRouter(
-    createAgent: (connection: AcpClientConnection | AcpV2Connection) => CodexAcpServer,
+    createAgent: (connection: AcpClientConnection | AcpV2Connection, transport: AcpTransport) => CodexAcpServer,
     responses: AcpResponseDelivery,
 ): acpV2.AgentProtocolRouter {
     let codexAcpServer: CodexAcpServer | null = null;
@@ -185,7 +188,7 @@ function createRouter(
     };
 
     let v1Agent = acp.agent({name: packageJson.name})
-        .onConnect((connection) => attachAgent(createAgent(connection.client), connection.signal))
+        .onConnect((connection) => attachAgent(createAgent(connection.client, {context: connection.client, signal: connection.signal}), connection.signal))
         .onRequest(acp.methods.agent.initialize, (ctx) => initialize(ctx.requestId, () => getAgent().initialize(ctx.params)))
         .onRequest(acp.methods.agent.session.new, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).newSession(ctx.params)))
         .onRequest(acp.methods.agent.session.load, (ctx) => setup(ctx.params.sessionId, ctx.requestId, () => getAgentForPaths(ctx.params).loadSession(ctx.params), ctx.signal))
@@ -220,7 +223,7 @@ function createRouter(
         .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
 
     let v2Agent = acpV2.agent({name: packageJson.name})
-        .onConnect((connection) => attachAgent(createAgent(new AcpV2Connection(connection.client)), connection.signal))
+        .onConnect((connection) => attachAgent(createAgent(new AcpV2Connection(connection.client), {context: connection.client, signal: connection.signal}), connection.signal))
         .onRequest(acpV2.methods.agent.initialize, (ctx) => initialize(ctx.requestId, () => getAgent().initializeV2(ctx.params)))
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
         .onRequest(acpV2.methods.agent.session.new, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).newSessionV2(ctx.params))))

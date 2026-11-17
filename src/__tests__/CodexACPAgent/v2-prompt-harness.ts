@@ -162,7 +162,6 @@ export async function connectSession(
     options: {
         mcpServers?: acpV2.McpServer[];
         newSessionMeta?: Record<string, unknown>;
-        onToolCall?: (params: unknown, signal: AbortSignal) => unknown | Promise<unknown>;
         mcpStartup?: McpStartupResult;
         /** Sent on `initialize` (v2 only). */
         clientCapabilities?: acpV2.ClientCapabilities;
@@ -295,10 +294,6 @@ export async function connectSession(
                     throw new Error("Received an elicitation request with no onElicitation handler configured");
                 }
                 return await options.onElicitation(ctx.params, ctx.signal);
-            })
-            .onRequest("_alwith/tool/call", {parse: (value: unknown) => value}, async (ctx) => {
-                if (!options.onToolCall) throw new Error("Unexpected client tool request");
-                return options.onToolCall(ctx.params, ctx.signal);
             })
             .onNotification(acpV2.methods.client.elicitation.complete, (ctx) => {
                 transcript.push({elicitationComplete: ctx.params});

@@ -3,6 +3,7 @@ import {RequestError} from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type {JsonObject} from "./CodexAcpClient";
 import {sanitizeMcpServerName} from "./McpServerName";
+import type {AcpMcpServers} from "./AcpMcpEndpoint";
 
 /**
  * An MCP server entry from an ACP v1 or v2 session request.
@@ -25,6 +26,11 @@ export type NormalizedMcpServer =
         name: string;
         url: string;
         headers: Array<{name: string; value: string}>;
+    }
+    | {
+        type: "acp";
+        name: string;
+        serverId: string;
     };
 
 /**
@@ -69,8 +75,10 @@ export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
             const http = server as acp.McpServerHttp | acpV2.McpServerHttp;
             return {type: "http", name: http.name, url: http.url, headers: http.headers ?? []};
         }
-        case "acp":
-            throw RequestError.invalidParams(undefined, "Codex doesn't support MCP ACP transport protocol");
+        case "acp": {
+            const acpServer = server as acp.McpServerAcp | acpV2.McpServerAcp;
+            return {type: "acp", name: acpServer.name, serverId: acpServer.serverId};
+        }
         case "sse":
             throw RequestError.invalidParams(undefined, "Codex doesn't support MCP SSE transport protocol");
         default:
@@ -82,7 +90,7 @@ export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
 /**
  * Creates a Codex `mcp_servers` config entry.
  */
-export function toCodexMcpServerConfig(server: NormalizedMcpServer): JsonObject {
+export function toCodexMcpServerConfig(server: NormalizedMcpServer, acpServers: AcpMcpServers | null): JsonObject {
     switch (server.type) {
         case "stdio":
             return {
@@ -95,6 +103,9 @@ export function toCodexMcpServerConfig(server: NormalizedMcpServer): JsonObject 
                 "url": server.url,
                 "http_headers": Object.fromEntries(server.headers.map(h => [h.name, h.value])),
             };
+        case "acp":
+            if (!acpServers) throw RequestError.invalidParams(undefined, "This connection doesn't serve MCP over ACP");
+            return acpServers(server.serverId);
     }
 }
 

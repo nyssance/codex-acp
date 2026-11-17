@@ -1,5 +1,4 @@
 import type {ThreadSettingsUpdateParams} from "./app-server/v2/ThreadSettingsUpdateParams";
-import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
 import {type MessageConnection, RequestType} from "vscode-jsonrpc/node";
 import {AppServerConnectionLostError, ConnectionLoss} from "./app-server-recovery/ConnectionLoss";
 import {explainCodexError} from "./CodexErrorExplanations";
@@ -304,10 +303,6 @@ export class CodexAppServerClient {
             }
             return await handler.handleUserInput(params);
         });
-    }
-
-    onDynamicToolCall(handler: (params: DynamicToolCallParams) => Promise<DynamicToolCallResponse>): void {
-        this.connection.onRequest(new RequestType<DynamicToolCallParams, DynamicToolCallResponse, void>("item/tool/call"), handler);
     }
 
     onApprovalRequest(threadId: string, handler: ApprovalHandler): void {

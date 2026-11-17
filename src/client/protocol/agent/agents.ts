@@ -257,7 +257,7 @@ export class Agent {
     };
 
     /** Answers a request sent by the agent, with the original id. */
-    respond(id: unknown, result?: unknown, error?: {code: number; message: string}): Promise<void> {
+    respond(id: unknown, result?: unknown, error?: {code: number; message: string; data?: unknown}): Promise<void> {
         return this.port.acpRespond(this.agentId, id, result, error);
     }
 
