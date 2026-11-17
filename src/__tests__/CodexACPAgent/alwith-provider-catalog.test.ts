@@ -137,6 +137,25 @@ describe("ALwith session-scoped provider catalog", () => {
         ]);
         expect(resumes).not.toHaveBeenCalled();
     });
+    it("does not fail a catalog change with the failure of the change before it", async () => {
+        const {client, resumes} = await connect();
+        await client.request("providers/set", provider("one", "model-a"));
+        await client.request("session/set_config_option", {sessionId, configId: "model", type: "id", value: "gateway:one:model-a"});
+        let failRebind: ((error: Error) => void) | null = null;
+        resumes.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+            failRebind = reject;
+        }));
+        const moved = provider("one", "model-a");
+        moved.baseUrl = "https://moved.example/v1";
+        const first = client.request("providers/set", moved);
+        await vi.waitFor(() => expect(failRebind).not.toBeNull());
+        const second = client.request("providers/set", provider("two", "model-b"));
+        await client.waitForNotifications();
+        failRebind!(new Error("Gateway unavailable"));
+        await expect(first).rejects.toThrow();
+        await expect(second).resolves.toEqual({});
+        expect(client.agent.getSessionState(sessionId).availableModels.map(model => model.id)).toContain("gateway:two:model-b");
+    });
     it("moves only the logical route and persists the full selection with a fixed native provider", async () => {
         const {client, resumes} = await connect();
         await client.request("providers/set", provider("one", "model-a"));

@@ -2763,7 +2763,8 @@ export class CodexAcpServer {
     }
 
     private async changeProviderCatalog(change: (routing: ProviderRouting) => void): Promise<void> {
-        const update = (this.providerUpdate ?? Promise.resolve()).then(async () => {
+        // An earlier update's failure belongs to its own caller, as in enqueueProviderUpdate.
+        const update = (this.providerUpdate?.catch(() => undefined) ?? Promise.resolve()).then(async () => {
             const previous = this.codexAcpClient.providerCatalog;
             const next = previous.copy();
             change(next);
