@@ -57,26 +57,6 @@ describe("shared Codex capabilities client", () => {
         await expect(peer.client.startRealtime("a", {outputModality: "audio"})).rejects.toThrow("closed");
         expect(peer.request).not.toHaveBeenCalled();
     });
-    it("keeps goal clearing distinct from an unrelated session-info patch", () => {
-        const peer = connected();
-        const listener = vi.fn();
-        peer.client.onGoal("a", listener);
-        peer.receive("session/update", {
-            sessionId: "a",
-            update: {sessionUpdate: "session_info_update", title: "Name"},
-        });
-        expect(listener).not.toHaveBeenCalled();
-        peer.receive("session/update", {
-            sessionId: "a",
-            update: {
-                sessionUpdate: "session_info_update",
-                _meta: {codex: {goal: null}},
-            },
-        });
-        expect(listener).toHaveBeenCalledExactlyOnceWith(null);
-        expect(peer.client.goal("a")).toBeNull();
-        peer.client.dispose();
-    });
     it("sends native features through ACP extension methods", async () => {
         const peer = connected();
         await peer.client.startRealtime("a", {
@@ -87,11 +67,6 @@ describe("shared Codex capabilities client", () => {
             sessionId: "a",
             outputModality: "audio",
             transport: {type: "websocket"},
-        });
-        await peer.client.controlGoal({sessionId: "a", action: "pause"});
-        expect(peer.request).toHaveBeenLastCalledWith("_session/goal", {
-            sessionId: "a",
-            action: "pause",
         });
         peer.client.dispose();
     });

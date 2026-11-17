@@ -7,16 +7,9 @@ import type {CodexAppServerClient} from "./CodexAppServerClient";
 export const CODEX_NATIVE_METHODS = {
     "_codex/terminals/list": "thread/backgroundTerminals/list",
     "_codex/terminals/stopAll": "thread/backgroundTerminals/terminate",
-    "_codex/import/detect": "externalAgentConfig/detect",
-    "_codex/import/run": "externalAgentConfig/import",
-    "_codex/import/history": "externalAgentConfig/import/readHistories",
     "_codex/shell/execute": "thread/shellCommand",
     "_codex/realtime/start": "thread/realtime/start",
-    "_codex/realtime/appendAudio": "thread/realtime/appendAudio",
-    "_codex/realtime/appendText": "thread/realtime/appendText",
-    "_codex/realtime/appendSpeech": "thread/realtime/appendSpeech",
     "_codex/realtime/stop": "thread/realtime/stop",
-    "_codex/realtime/listVoices": "thread/realtime/listVoices",
 } as const satisfies Record<string, ClientRequest["method"]>;
 
 export type CodexNativeMethod = keyof typeof CODEX_NATIVE_METHODS;
@@ -60,17 +53,14 @@ export async function requestCodexNative(
         return method === "_codex/terminals/list" ? listBackgroundTerminals(client, sessionId) : stopBackgroundTerminals(client, sessionId);
     }
     const target = CODEX_NATIVE_METHODS[method];
-    if (target === "thread/shellCommand" || (target.startsWith("thread/realtime/") && target !== "thread/realtime/listVoices")) {
-        const {sessionId, threadId, ...data} = params;
-        if (typeof sessionId !== "string" || sessionId.trim().length === 0 || threadId !== undefined) {
-            throw RequestError.invalidParams(undefined, "Expected sessionId; threadId is owned by the ACP adapter");
-        }
-        // Stop must remain available for a thread that became read-only during a voice session.
-        await prepareSession(sessionId, target !== "thread/realtime/stop");
-        return client.connection.sendRequest(target, {
-            ...data,
-            threadId: sessionId,
-        });
+    const {sessionId, threadId, ...data} = params;
+    if (typeof sessionId !== "string" || sessionId.trim().length === 0 || threadId !== undefined) {
+        throw RequestError.invalidParams(undefined, "Expected sessionId; threadId is owned by the ACP adapter");
     }
-    return client.connection.sendRequest(target, params);
+    // Stop must remain available for a thread that became read-only during a voice session.
+    await prepareSession(sessionId, target !== "thread/realtime/stop");
+    return client.connection.sendRequest(target, {
+        ...data,
+        threadId: sessionId,
+    });
 }

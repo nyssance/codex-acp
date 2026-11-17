@@ -50,11 +50,10 @@ Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/sess
 | Prompt suggestions | upstream's `_meta.promptSuggestions` on `session_info_update`, enabled by `clientCapabilities._meta.alwith.capabilities: ["promptSuggestions"]` | `thread/sample` through upstream `PromptSuggestionGenerator` | module-chat composer |
 | Retry | `_codex/session_retry` | none | module-chat |
 | Image generation | `_codex/images/generate` | ChatGPT backend images | module-chat `image-tools.ts` |
-| Sites and connectors | `_codex/apps_installed`, `_codex/apps_read`; also `_codex/apps_list`, `_codex/mcp_status`, `_codex/mcp_tool_call` (no consumer, see Pending) | `app/list`, `mcpServerStatus/list`, `mcpServer/tool/call` | module-chat, U |
+| Sites and connectors | `_codex/apps_installed`, `_codex/apps_read` | `app/installed`, `app/read` | module-chat, U |
 | Plugins, skills, marketplace | `_codex/plugin_*`, `_codex/plugin_set_enabled`, `_codex/skills_*`, `_codex/marketplace_*`, `_codex/skills_changed` | `plugin/*`, `skills/*`, `marketplace/*` | module-chat and U settings |
-| Realtime voice | `_codex/realtime/start`, `stop` and the update notification; also `appendAudio`, `appendText`, `appendSpeech`, `listVoices` (no consumer, see Pending) | `thread/realtime/*` | module-chat voice, TV |
-| Import | `_codex/import/*` and the `./import` package export (no consumer, see Pending) | `externalAgentConfig/*` | none |
-| Account, rate limits, file search | `_codex/account_read`, `_codex/rate_limits`, `_codex/rate_limits_updated`, `_codex/fuzzy_file_search` and its `updated`/`completed` notifications | `account/read`, `account/rateLimits/read`, `fuzzyFileSearch` | module-chat |
+| Realtime voice | `_codex/realtime/start`, `_codex/realtime/stop` and the `_codex/realtime/update` notification | `thread/realtime/*` | module-chat voice, TV |
+| Account, rate limits, file search | `_codex/account_read`, `_codex/rate_limits`, `_codex/rate_limits_updated`, `_codex/fuzzy_file_search` | `account/read`, `account/rateLimits/read`, `fuzzyFileSearch` | module-chat |
 | Shell | `_codex/shell/execute` | `thread/shellCommand` | module-chat composer |
 | Background terminals | `_codex/terminals/list`, `_codex/terminals/stopAll` (`src/BackgroundTerminals.ts`) | `thread/backgroundTerminals/list`, `thread/backgroundTerminals/terminate` | U terminal workspace |
 | Projects | `_codex/project_context`, `_meta.codex.projectId`, `_codex/projects_changed`, `_codex/thread_project_updated` (`src/projects`) | `project/*` | module-chat, U |
@@ -94,7 +93,7 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 **Goals and hooks**
 
 - The goal is published to v2 clients as `_meta.codex.goal` (upstream: AIR only), and an update is sent whenever usage changes, not only when the objective, status, budget or creation time do.
-- `_codex/hooks/list` and `_codex/hooks/trust` are registered over v2 too, and v2 `initialize` advertises `_meta.codex.hooks` and `_meta.codex.goal`. Upstream registers hooks over v1 and advertises goal to AIR only.
+- `_codex/hooks/list` and `_codex/hooks/trust` are registered over v2 too. Upstream registers them over v1.
 
 **Tools**
 
@@ -114,5 +113,5 @@ The open items of this repository. Each names what unblocks it.
 | Title generation on gateway sessions | `TitleGenerator` starts the title thread on the default model; whether it succeeds for a gateway-only login is unverified. Upstream PR #595 (skip AI titles on other providers) is open. Until then the history title repairs envelope previews (`src/alwith/agent/historyTitle.ts`). | Verified, or #595 decides it. |
 | Standard ACP methods | The spec has `session/set_title`, `session/archive`, `session/unarchive`, `session/status`, `auth/status` + `auth/status_update`, `proxy/initialize` / `proxy/successor`, and v2 background work (`ToolCallStatus` `paused`, `tool_call/cancel`, `terminal/cancel`, `background` on state snapshots). SDK 2.7.0 ships them all; upstream 2.7.0 adopts `session/set_title` only (#727). The fork serves `session/archive`, `session/unarchive` and the `session/list` `archived` filter over v2 (advertised as `session.archive`); AIR keeps `_session/*`. Auth status still goes out as the interim `_auth/status_update` with `_meta.authStatus` (`src/AuthStatusMeta.ts`), not `auth/status`. `session/status`, background work and the proxy methods are not served; no consumer asks for them. | Upstream adopts them; the fork's routes become upstream's. Background work and `session/status` are picked up only when a consumer needs them. |
 | `session/options` | SDK 2.6.0 added it (unstable); upstream 2.7.0 does not implement it. | Upstream implements it; then module-chat drafts use it instead of creating a session. |
-| Surface without a consumer | No app uses: the import surface (`_codex/import/*`, the `./import` export and its client methods); realtime `appendAudio`, `appendText`, `appendSpeech`, `listVoices`; `_codex/apps_list`, `_codex/mcp_status`, `_codex/mcp_tool_call` and `CodexClient.callMcpTool`; the client's hooks, goal and `generateImage` methods and `onFileSearchUpdate`; the `_codex/fuzzy_file_search_completed` notification; the initialize flags `hooks`, `goal`, `sessionInputConfig` and `configRevision.version`; nine re-exports of `src/client/index.ts`. Checked in alwith-modules, U, TV and Desktop (2026-11-17). | Each is deleted, or a consumer is named here. |
+| Surface without a consumer | The browser client's `CodexCapabilitiesClient.generateImage` has no caller (module-chat sends `_codex/images/generate` itself); kept until the image client is wired (`docs/plans/index.md` in Desktop). The rest of the unused surface was removed on 2026-11-17 after a check of alwith-modules, U, TV and Desktop. | It gets a caller, or is removed. |
 | Upstream candidates | Fixes upstream would take: the `openai/form` elicitation, subagent cancellation retries, closing the session of a cancelled open, and waiting for `thread/closed` before a resume (Codex 0.167 race, see fallbacks.md). | Offered upstream; on merge the local copy goes. |

@@ -16,7 +16,6 @@
         "package.json",
         "dist/client.js",
         "dist/types",
-        "dist/import.js",
         "docs/protocol.md",
         "licenses/alwith-protocol.txt",
         "docs/acp-client.md",
@@ -90,10 +89,6 @@
         "./client": {
             "types": "./dist/types/client/index.d.ts",
             "import": "./dist/client.js"
-        },
-        "./import": {
-            "types": "./dist/types/import/index.d.ts",
-            "import": "./dist/import.js"
         }
     },
     "peerDependencies": {

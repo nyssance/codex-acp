@@ -29,11 +29,6 @@
     },
     "providers": {},
     "_meta": {
-      "alwith": {
-        "configRevision": {
-          "version": 1
-        }
-      },
       "codex": {
         "sessionHistory": {
           "version": 2,
@@ -50,21 +45,6 @@
         "realtime": {
           "version": 1,
           "notificationMethod": "_codex/realtime/update"
-        },
-        "hooks": {
-          "version": 1,
-          "listMethod": "_codex/hooks/list",
-          "trustMethod": "_codex/hooks/trust"
-        },
-        "goal": {
-          "version": 1,
-          "controlMethod": "_session/goal",
-          "actions": [
-            "set",
-            "pause",
-            "resume",
-            "clear"
-          ]
         },
         "providerCatalog": true,
         "forkAtTurn": true,

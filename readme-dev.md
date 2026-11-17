@@ -358,10 +358,9 @@ importing it never starts a process. Pass the existing ACP connection, route all
 session operations by explicit session ID, and dispose the client when that
 connection closes. Consumers must use version 0.7.32 or later.
 
-Hooks and experimental realtime requests use
-`_codex/*` extensions on that connection. Realtime notifications arrive through
-`_codex/realtime/update`; ACP v2 goal snapshots use `session_info_update` metadata
-at `_meta.codex.goal` (omitted preserves the prior value, null clears it).
+Experimental realtime requests use `_codex/realtime/start` and
+`_codex/realtime/stop` on that connection, and notifications arrive through
+`_codex/realtime/update`.
 Capability availability must be read from initialization metadata. A realtime
 start response alone does not establish a working voice session: clients must
 observe the native startup/error/closed notifications and stop active realtime

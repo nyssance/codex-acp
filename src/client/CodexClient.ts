@@ -1,4 +1,4 @@
-import type {McpToolCallParams, McpToolCallResult, AppsInstalledParams, AppsInstalledResponse} from "./codex-extensions";
+import type {AppsInstalledParams, AppsInstalledResponse} from "./codex-extensions";
 import {sessionGroup, type ProjectContext, type SessionGroup} from "../projects/projection";
 import type {NewSessionOptions} from "./protocol";
 // The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
@@ -28,7 +28,6 @@ import type {
     AccountReadResponse,
     FuzzyFileSearchParams,
     FuzzyFileSearchResponse,
-    FuzzyFileSearchSessionUpdated,
     MarketplaceAddParams,
     MarketplaceAddResponse,
     MarketplaceRemoveParams,
@@ -120,7 +119,6 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
     private nativeClient: CodexCapabilitiesClient | null = null;
     private readonly skillsListeners = new Set<() => void>();
     private readonly rateLimitListeners = new Set<(limits: RateLimitSnapshot) => void>();
-    private readonly fileSearchListeners = new Set<(update: FuzzyFileSearchSessionUpdated) => void>();
     /** Forks allocate titles and lineage one at a time. */
     private forkQueue: Promise<unknown> = Promise.resolve();
     private archivedGeneration = 0;
@@ -216,10 +214,6 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
             // Codex's rolling rate-limit updates (`account/rateLimits/updated`), payload verbatim.
             case "_codex/rate_limits_updated":
                 for (const listener of this.rateLimitListeners) listener((params as RateLimitsResponse).rateLimits);
-                return true;
-            // Incremental results of a `fuzzyFileSearch` session; the final page arrives here too.
-            case "_codex/fuzzy_file_search_updated":
-                for (const listener of this.fileSearchListeners) listener(params as FuzzyFileSearchSessionUpdated);
                 return true;
             default:
                 return false;
@@ -973,11 +967,6 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
         return this.live().request<FuzzyFileSearchResponse>("_codex/fuzzy_file_search", params);
     }
 
-    onFileSearchUpdate(listener: (update: FuzzyFileSearchSessionUpdated) => void): () => void {
-        this.fileSearchListeners.add(listener);
-        return () => this.fileSearchListeners.delete(listener);
-    }
-
     // ── Skills and plugin marketplaces ──
 
     /** Fires after `_codex/skills_changed`; returns the unsubscribe. */
@@ -995,10 +984,6 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
 
     setSkillEnabled(params: SkillsConfigWriteParams): Promise<SkillsConfigWriteResponse> {
         return this.live().request<SkillsConfigWriteResponse>("_codex/skills_config_write", params);
-    }
-
-    callMcpTool(params: McpToolCallParams): Promise<McpToolCallResult> {
-        return this.live().request<McpToolCallResult>("_codex/mcp_tool_call", params);
     }
 
     installedApps(params: AppsInstalledParams = {}): Promise<AppsInstalledResponse> {

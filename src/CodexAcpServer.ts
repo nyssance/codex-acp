@@ -203,7 +203,7 @@ import {SubagentAssociations} from "./subagents/SubagentAssociations";
 import {SubagentInteractionHandlers} from "./subagents/SubagentInteractionHandlers";
 import type {SubagentEventRouter} from "./subagents/SubagentEventRouter";
 import {subagentConfigurationOptions, type ObservedSubagentConfiguration} from "./subagents/SubagentConfiguration";
-import {CODEX_HOOKS_LIST_METHOD, CODEX_HOOKS_TRUST_METHOD, listCodexHooks, trustCodexHooks, type CodexHookIdentity} from "./CodexHookTrust";
+import {listCodexHooks, trustCodexHooks, type CodexHookIdentity} from "./CodexHookTrust";
 import type {HooksListEntry} from "./app-server/v2/HooksListEntry";
 import {
     accountFromUpdated,
@@ -960,9 +960,6 @@ export class CodexAcpServer {
             },
             capabilities: {
                 _meta: {
-                    alwith: {
-                        configRevision: { version: 1 },
-                    },
                     codex: {
                         sessionHistory: {
                             version: 2,
@@ -976,16 +973,6 @@ export class CodexAcpServer {
                         realtime: {
                             version: 1,
                             notificationMethod: CODEX_REALTIME_UPDATE,
-                        },
-                        hooks: {
-                            version: 1,
-                            listMethod: CODEX_HOOKS_LIST_METHOD,
-                            trustMethod: CODEX_HOOKS_TRUST_METHOD,
-                        },
-                        goal: {
-                            version: GOAL_EXTENSION_VERSION,
-                            controlMethod: GOAL_CONTROL_METHOD,
-                            actions: [...GOAL_CONTROL_ACTIONS],
                         },
                         providerCatalog: true,
                         forkAtTurn: true,
@@ -1272,25 +1259,6 @@ export class CodexAcpServer {
         if (this.providerUpdate !== null) await this.waitForProviderUpdate();
         const ready = this.ensureAppServer();
         if (ready) await ready;
-        if (method === "_codex/import/run") {
-            const {operationId, request} = params;
-            if (typeof operationId !== "string" || typeof request !== "object" || request === null)
-                throw RequestError.invalidParams(undefined, "Expected operationId and import request");
-            const pending: Array<Promise<void>> = [];
-            const result = await this.codexAcpClient.appServerClient.imports.run(
-                request as Parameters<import("./import").CodexImportClient["run"]>[0],
-                event => {
-                    pending.push(
-                        this.connection.notify("_codex/import/progress", {
-                            operationId,
-                            ...event,
-                        }),
-                    );
-                },
-            );
-            await Promise.all(pending);
-            return result;
-        }
         return this.runWithProcessCheck(() =>
             requestCodexNative(this.codexAcpClient.appServerClient, method, params, async (id, writable) => {
                 const session = this.getSessionState(id);

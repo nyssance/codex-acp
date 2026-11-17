@@ -1,25 +1,8 @@
-import type {
-    ExternalAgentConfigDetectParams,
-    ExternalAgentConfigDetectResponse,
-    ExternalAgentConfigImportParams,
-    ExternalAgentConfigImportCompletedNotification,
-    ExternalAgentConfigImportProgressNotification,
-    ExternalAgentConfigImportHistoriesReadResponse,
-} from "../app-server/v2";
 import type {ThreadRealtimeStartParams} from "../app-server/v2/ThreadRealtimeStartParams";
-import type {ThreadRealtimeAppendAudioParams} from "../app-server/v2/ThreadRealtimeAppendAudioParams";
-import type {ThreadRealtimeAppendTextParams} from "../app-server/v2/ThreadRealtimeAppendTextParams";
-import type {ThreadRealtimeListVoicesResponse} from "../app-server/v2/ThreadRealtimeListVoicesResponse";
-import type {HooksListEntry} from "../app-server/v2/HooksListEntry";
-import type {GoalControlRequest, GoalSnapshot} from "../GoalExtension";
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {codexExtensionCapabilities} from "./codex-extensions";
 
-export type {GoalSnapshot} from "../GoalExtension";
-export type {HooksListEntry} from "../app-server/v2/HooksListEntry";
 export type RealtimeStart = Omit<ThreadRealtimeStartParams, "threadId">;
-export type RealtimeAudio = ThreadRealtimeAppendAudioParams["audio"];
-export type RealtimeTextRole = ThreadRealtimeAppendTextParams["role"];
 export type RealtimeEvent = {
     sessionId: string;
     event: string;
@@ -41,8 +24,6 @@ export class CodexCapabilitiesClient {
         return this.request("_codex/shell/execute", {sessionId, command});
     }
     private readonly realtimeListeners = new Map<string, Set<(event: RealtimeEvent) => void>>();
-    private readonly goalListeners = new Map<string, Set<(goal: GoalSnapshot | null) => void>>();
-    private readonly goals = new Map<string, GoalSnapshot | null>();
     private readonly unsubscribe: () => void;
     private closed = false;
 
@@ -56,21 +37,6 @@ export class CodexCapabilitiesClient {
                 const event = params as RealtimeEvent;
                 const listeners = this.realtimeListeners.get(event.sessionId);
                 if (listeners) for (const listener of listeners) listener(event);
-            } else if (method === "session/update") {
-                const {sessionId, update} = params as {
-                    sessionId: string;
-                    update: {
-                        sessionUpdate: string;
-                        _meta?: {codex?: {goal?: GoalSnapshot | null}};
-                    };
-                };
-                if (update.sessionUpdate !== "session_info_update") return;
-                const codex = update._meta?.codex;
-                if (codex === undefined || !("goal" in codex)) return;
-                const goal = codex.goal!;
-                this.goals.set(sessionId, goal);
-                const listeners = this.goalListeners.get(sessionId);
-                if (listeners) for (const listener of listeners) listener(goal);
             }
         });
     }
@@ -80,82 +46,8 @@ export class CodexCapabilitiesClient {
         return this.connection.request<T>(method, params);
     }
 
-    detectImports(params: ExternalAgentConfigDetectParams): Promise<ExternalAgentConfigDetectResponse> {
-        return this.request("_codex/import/detect", params);
-    }
-    importHistory(): Promise<ExternalAgentConfigImportHistoriesReadResponse> {
-        return this.request("_codex/import/history", {});
-    }
-    async runImport(
-        request: ExternalAgentConfigImportParams,
-        progress: (event: ExternalAgentConfigImportProgressNotification) => void,
-    ): Promise<ExternalAgentConfigImportCompletedNotification> {
-        const operationId = crypto.randomUUID();
-        const stop = this.connection.onNotification((method, params) => {
-            if (method !== "_codex/import/progress") return;
-            const event = params as ExternalAgentConfigImportProgressNotification & {
-                operationId: string;
-            };
-            if (event.operationId === operationId) progress(event);
-        });
-        try {
-            return await this.request("_codex/import/run", {
-                operationId,
-                request,
-            });
-        } finally {
-            stop();
-        }
-    }
-
-    goal(sessionId: string): GoalSnapshot | null | undefined {
-        return this.goals.get(sessionId);
-    }
-    controlGoal(params: GoalControlRequest): Promise<Record<string, never>> {
-        return this.request("_session/goal", params);
-    }
-    onGoal(sessionId: string, listener: (goal: GoalSnapshot | null) => void): () => void {
-        let listeners = this.goalListeners.get(sessionId);
-        if (!listeners) {
-            listeners = new Set();
-            this.goalListeners.set(sessionId, listeners);
-        }
-        listeners.add(listener);
-        return () => {
-            listeners.delete(listener);
-            if (listeners.size === 0) this.goalListeners.delete(sessionId);
-        };
-    }
-    listHooks(cwd: string): Promise<HooksListEntry> {
-        return this.request("_codex/hooks/list", {cwd});
-    }
-    trustHooks(cwd: string, hooks: Array<{key: string; currentHash: string}>): Promise<{trusted: boolean}> {
-        return this.request("_codex/hooks/trust", {cwd, hooks});
-    }
-    listVoices(): Promise<ThreadRealtimeListVoicesResponse> {
-        return this.request("_codex/realtime/listVoices", {});
-    }
     startRealtime(sessionId: string, params: RealtimeStart): Promise<Record<string, never>> {
         return this.request("_codex/realtime/start", {...params, sessionId});
-    }
-    appendAudio(sessionId: string, audio: RealtimeAudio): Promise<Record<string, never>> {
-        return this.request("_codex/realtime/appendAudio", {
-            sessionId,
-            audio,
-        });
-    }
-    appendText(sessionId: string, text: string, role: RealtimeTextRole): Promise<Record<string, never>> {
-        return this.request("_codex/realtime/appendText", {
-            sessionId,
-            text,
-            role,
-        });
-    }
-    appendSpeech(sessionId: string, text: string): Promise<Record<string, never>> {
-        return this.request("_codex/realtime/appendSpeech", {
-            sessionId,
-            text,
-        });
     }
     stopRealtime(sessionId: string): Promise<Record<string, never>> {
         return this.request("_codex/realtime/stop", {sessionId});
@@ -180,8 +72,6 @@ export class CodexCapabilitiesClient {
             for (const listener of listeners) listener({sessionId, event: "disconnected", data: {}});
         }
         this.realtimeListeners.clear();
-        this.goalListeners.clear();
-        this.goals.clear();
     }
 }
 

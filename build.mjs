@@ -1,10 +1,5 @@
 for (const options of [
     {
-        entrypoints: ['src/import/index.ts'],
-        target: 'browser',
-        naming: 'import.js',
-    },
-    {
         entrypoints: ['src/index.ts'],
         target: 'bun',
         naming: 'index.js',

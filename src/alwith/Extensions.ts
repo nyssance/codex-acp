@@ -18,10 +18,7 @@ import {
 } from "./agent/sessionHistory";
 
 export const CATALOG_METHODS = {
-    "_codex/mcp_status": "mcpServerStatus/list",
-    "_codex/mcp_tool_call": "mcpServer/tool/call",
     "_codex/apps_installed": "app/installed",
-    "_codex/apps_list": "app/list",
     "_codex/apps_read": "app/read",
     "_codex/skills_list": "skills/list",
     "_codex/skills_config_write": "skills/config/write",
@@ -83,8 +80,6 @@ export class AlwithExtensions {
                 "thread/project/updated": "_codex/thread_project_updated",
                 "skills/changed": "_codex/skills_changed",
                 "account/rateLimits/updated": "_codex/rate_limits_updated",
-                "fuzzyFileSearch/sessionUpdated": "_codex/fuzzy_file_search_updated",
-                "fuzzyFileSearch/sessionCompleted": "_codex/fuzzy_file_search_completed",
             };
             const method = methods[event.method];
             if (method)

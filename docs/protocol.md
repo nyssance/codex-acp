@@ -10,16 +10,6 @@ These ACP v2 additions preserve the existing client exports and request methods.
 
 Running ACP v2 prompts use native turn steering and return an acceptance receipt without waiting for the foreground turn to finish. Native user-message insertion supplies the original turn identity; commands retain their separate turn lifecycle.
 
-### Import settings control plane
-
-The standalone `/import` API is also reachable through the existing initialized
-agent connection. `_codex/import/detect` and `_codex/import/history` forward
-Codex's detection and persisted history. `_codex/import/run` takes
-`{ operationId, request }` and returns the matching completion, not acceptance.
-`_codex/import/progress` includes the caller's `operationId` and Codex's progress.
-Disconnect rejects the wait; reconnecting clients must inspect history before
-retrying. These operations do not create or attach a conversation.
-
 ## User shell commands
 
 `_codex/shell/execute` accepts `{ sessionId, command, timeoutMs? }` and forwards to
@@ -77,8 +67,8 @@ component reset a connection without additional network or server evidence.
 
 ## Application connectors
 
-`_codex/apps_installed`, `_codex/apps_list`, and `_codex/apps_read` forward to
-Codex `app/installed`, `app/list`, and `app/read` respectively, with the same
+`_codex/apps_installed` and `_codex/apps_read` forward to
+Codex `app/installed` and `app/read` respectively, with the same
 parameters, results and errors. They are advertised through the existing
 extension-method catalog. `CodexClient.installedApps()` returns effective
 `enabled` and `callable` state; clients must not treat catalog presence as
@@ -89,13 +79,6 @@ For both ACP protocol versions, an explicit `resource_link` with URI
 `app://<id>` becomes a native Codex `mention` input with the link's name and URI.
 Ordinary resource links retain their existing text representation. The adapter
 does not infer application mentions from ordinary prompt text or enable apps.
-
-`_codex/mcp_status` and `_codex/mcp_tool_call` forward the native
-`mcpServerStatus/list` and `mcpServer/tool/call` contracts. Tool calls require a
-loaded thread ID and retain the native server's authentication, tool policy and
-error handling. `CodexClient.callMcpTool()` exposes the latter without creating a
-model turn. These operations do not change account configuration or retry failed
-calls. Applications must obtain user intent before issuing mutating tools.
 
 ## ChatGPT image generation
 

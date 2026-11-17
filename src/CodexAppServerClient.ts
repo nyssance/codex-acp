@@ -1,4 +1,3 @@
-import {CodexImportClient} from "./import";
 import type {ThreadSettingsUpdateParams} from "./app-server/v2/ThreadSettingsUpdateParams";
 import type {DynamicToolCallParams, DynamicToolCallResponse} from "./app-server/v2";
 import {type MessageConnection, RequestType} from "vscode-jsonrpc/node";
@@ -178,7 +177,6 @@ const HISTORY_PAGE_TIMEOUT_MS = 60_000;
  */
 export class CodexAppServerClient {
     readonly connection: MessageConnection;
-    readonly imports: CodexImportClient;
     private approvalHandlers = new Map<string, ApprovalHandler>();
     private elicitationHandlers = new Map<string, ElicitationHandler>();
     readonly mcpStartup = new McpStartupTracker();
@@ -201,7 +199,6 @@ export class CodexAppServerClient {
 
     constructor(connection: MessageConnection) {
         this.connection = connection;
-        this.imports = new CodexImportClient(connection);
         this.connectionLoss = new ConnectionLoss(connection);
         // The process exit disposes the connection and does not close it, so both events end the MCP waits.
         this.connection.onClose?.(() => this.disposeMcpWaits());

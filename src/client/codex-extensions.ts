@@ -38,7 +38,6 @@ export type {
     FuzzyFileSearchParams,
     FuzzyFileSearchResponse,
     FuzzyFileSearchResult,
-    FuzzyFileSearchSessionUpdatedNotification as FuzzyFileSearchSessionUpdated,
 } from "../app-server";
 import type {CodexFailureKind, SessionFailureAction, SessionFailureCategory} from "../CodexFailures";
 
@@ -221,5 +220,3 @@ export type InstalledApp = {id: string; runtimeName: string | null; enabled: boo
 export type AppsInstalledParams = {threadId?: string | null; forceRefresh?: boolean};
 export type AppsInstalledResponse = {apps: InstalledApp[]};
 
-export type McpToolCallParams = {threadId: string; server: string; tool: string; arguments?: Record<string, unknown>};
-export type McpToolCallResult = {content: unknown[]; structuredContent?: unknown; isError?: boolean};
