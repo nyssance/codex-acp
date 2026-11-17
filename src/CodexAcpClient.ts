@@ -1783,7 +1783,8 @@ export class CodexAcpClient {
     }
 
     private nativeModel(selection: string, sessionId: string): string {
-        return this.providerCatalog.nativeModel(selection, this.providerCatalog.hasGateways || this.catalogSessions.has(sessionId));
+        // A later providers/set must not alias a thread that still owns a native catalog.
+        return this.providerCatalog.nativeModel(selection, this.catalogSessions.has(sessionId));
     }
 
     private upstreamModelId(value: string, sessionId: string): string {

@@ -264,6 +264,28 @@ describe("ALwith session-scoped provider catalog", () => {
     });
 });
 
+it.each([1, 2] as const)("keeps the native model identity when providers initialize after the session (v%s)", async protocol => {
+    const {client, resumes} = await connect(protocol);
+    await client.request("providers/set", provider("one", "model-a"));
+    const prompt = client.sendPrompt([{type: "text", text: "Hello"}]);
+    await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+    expect(client.turnStartParams[0]?.["model"]).toBe("gpt-5");
+    expect(resumes).not.toHaveBeenCalled();
+    const clientId = client.turnStartParams[0]?.["clientUserMessageId"];
+    const item = userMessageItem(typeof clientId === "string" ? clientId : null, "Hello");
+    client.emit(itemStarted(item));
+    client.emit(itemCompleted(item));
+    client.emit({
+        method: "turn/completed",
+        params: {
+            threadId: sessionId,
+            turn: createTurn("completed", turnId),
+        },
+    });
+    await prompt;
+    await client.promptRunFinished();
+});
+
 it("switches the logical gateway while retaining the Codex thread provider and session id", async () => {
     const {client, resumes} = await connect();
     await client.request("providers/set", provider("one", "model-a"));
