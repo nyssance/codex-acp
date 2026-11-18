@@ -2,7 +2,7 @@ import {expect, test} from "vitest";
 
 import type {SessionSummary} from "../../client/protocol/client";
 
-import {groupSessions, isQuickChatDirectory, projectName, QUICK_CHATS_GROUP} from "../../projects/projection";
+import {groupSessions, isQuickChatDirectory, normalizedPath, projectName, QUICK_CHATS_GROUP} from "../../projects/projection";
 
 const context = {
     homeDirectory: "/Users/mac",
@@ -115,4 +115,8 @@ test.each([
     ["/", "/"],
 ])("%s shows as %s", (cwd, name) => {
     expect(projectName(cwd)).toBe(name);
+});
+
+test("Windows drive roots compare equally across casing", () => {
+    expect(normalizedPath("C:/")).toBe(normalizedPath("c:/"));
 });

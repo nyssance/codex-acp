@@ -65,12 +65,12 @@ describe("project registration", () => {
         await expect(f.registry.resolve("/work", {codex: {projectId: "missing"}})).rejects.toThrow("not found");
         await expect(f.registry.resolve("/work", {codex: {projectId: 3}})).rejects.toThrow();
     });
-    test("folder intent reuses the longest registered root with exact path boundaries", async () => {
-        const f = fixture([project("outer", ["/work"]), project("inner", ["/work/a", "/alias"])]);
-        expect(await f.registry.resolve("/work/a/src", undefined)).toBe("inner");
-        expect(await f.registry.resolve("/work/abc", undefined)).toBe("outer");
-        expect(await f.registry.resolve("/alias/src", undefined)).toBe("inner");
-        expect(f.calls.some(call => call.method === "project/create")).toBe(false);
+    test("selecting project B inside project A registers B and reuses its exact root", async () => {
+        const f = fixture([project("A", ["/work/A", "/alias"])]);
+        expect(await f.registry.resolve("/work/A/B", undefined)).toBe("server-1");
+        expect(await f.registry.resolve("/work/A/B/", undefined)).toBe("server-1");
+        expect(await f.registry.resolve("/alias", undefined)).toBe("A");
+        expect(f.calls.filter(call => call.method === "project/create")).toHaveLength(1);
     });
     test("concurrent requests register once; deleting a project permits a fresh registration key", async () => {
         const f = fixture();
@@ -120,7 +120,9 @@ test.each([
     ["/remote/home/Documents/Codex/day/chat", null, "quick-chats"],
     ["/remote/home/Documents/ALwith", null, "quick-chats"],
     ["/remote/home/Documents/ALwith/child", null, "/remote/home/Documents/ALwith/child"],
-    ["/remote/home/Documents/Codex/project/src", null, "project:registered"],
+    ["/remote/home/Documents/Codex/project", null, "project:registered"],
+    ["/work/B", null, "/work/B"],
+    ["/remote/home/Documents/Codex/project/src", null, "quick-chats"],
     ["/workshop", null, "/workshop"],
     ["/unrelated", "registered", "project:registered"],
 ])("groups %s using server context and persistent assignment", (cwd, projectId, expected) => {
@@ -160,9 +162,9 @@ test.each(["/", "/remote", "/remote/home"])(
     async root => {
         const f = fixture([project("broad", [root])]);
         expect(await f.registry.resolve("/remote/home/work/app", undefined)).toBe("server-1");
-        expect(await f.registry.resolve("/remote/home/work/app/src", undefined)).toBe("server-1");
+        expect(await f.registry.resolve("/remote/home/work/app/src", undefined)).toBe("server-2");
         expect(await f.registry.resolve(root, undefined)).toBe("broad");
         expect(await f.registry.resolve("/remote/home/Documents/ALwith", {codex: {projectId: null}})).toBeNull();
-        expect(f.calls.filter(call => call.method === "project/create")).toHaveLength(1);
+        expect(f.calls.filter(call => call.method === "project/create")).toHaveLength(2);
     },
 );

@@ -31,6 +31,25 @@ describe.each([1, 2] as const)("project assignment through ACP v%s", version => 
         // ACP v1 carries no session lineage; v2 returns the project with the setup.
         if (version === 2) expect(response._meta.codex.projectId).toBe("native-project");
     });
+    test("selecting nested project B passes B's new ID and working directory to Codex", async () => {
+        const client = await connectSession(version, {newSessionMeta: {codex: {projectId: null}}});
+        clients.push(client);
+        client.setCodexResponse("project/list", async () => ({
+            data: [{id: "A", roots: [{path: "/projects/A"}]}],
+            nextCursor: null,
+        }));
+        const create = vi.fn(async () => ({project: {id: "B"}}));
+        const start = vi.fn(async () => ({
+            ...(codexResponse("thread/start") as object),
+            thread: {...createThread(), cwd: "/projects/A/B", projectId: "B"},
+        }));
+        client.setCodexResponse("project/create", create);
+        client.setCodexResponse("thread/start", start);
+        const response = await client.request("session/new", {cwd: "/projects/A/B", mcpServers: []});
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({roots: [{path: "/projects/A/B"}]}));
+        expect(start).toHaveBeenCalledWith(expect.objectContaining({cwd: "/projects/A/B", projectId: "B"}));
+        if (version === 2) expect(response._meta.codex.projectId).toBe("B");
+    });
     test("explicit null creates a projectless session without project registration", async () => {
         const list = vi.fn(async () => {
             throw new Error("must not list");

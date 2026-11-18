@@ -13,7 +13,7 @@ export function normalizedPath(value: string): string {
         .replace(/^\/\/\?\/UNC\//i, "//")
         .replace(/^\/\/\?\//, "");
     const normalized = path.replace(/\/+$/, "") || "/";
-    return /^[a-z]:\//i.test(normalized) || normalized.startsWith("//") ? normalized.toLowerCase() : normalized;
+    return /^[a-z]:\//i.test(path) || normalized.startsWith("//") ? normalized.toLowerCase() : normalized;
 }
 
 /** The last segment of a directory path; the path itself for a root such as `/`. */
@@ -27,15 +27,11 @@ export function pathContains(root: string, path: string): boolean {
     return parent === child || child.startsWith(parent === "/" ? "/" : `${parent}/`);
 }
 
-export function matchingProject(projects: readonly Project[], cwd: string, homeDirectory: string): Project | undefined {
+export function matchingProject(projects: readonly Project[], cwd: string): Project | undefined {
+    const selected = normalizedPath(cwd);
     return projects
-        .flatMap(project => project.roots.map(root => ({project, root: root.path})))
-        // Broad personal roots are reusable only when that exact directory was selected.
-        .filter(({root}) => pathContains(root, cwd) && (
-            normalizedPath(root) === normalizedPath(cwd) || !pathContains(root, homeDirectory)
-        ))
-        .toSorted((a, b) => normalizedPath(b.root).length - normalizedPath(a.root).length || a.project.id.localeCompare(b.project.id))[0]
-        ?.project;
+        .filter(project => project.roots.some(root => normalizedPath(root.path) === selected))
+        .toSorted((a, b) => a.id.localeCompare(b.id))[0];
 }
 
 export const QUICK_CHATS_GROUP = "quick-chats";
@@ -52,7 +48,7 @@ export function sessionGroup(context: ProjectContext, row: {cwd: string; project
     )) return {id: QUICK_CHATS_GROUP, name: "", cwd: null};
     const project = row.projectId
         ? context.projects.find(project => project.id === row.projectId)
-        : matchingProject(context.projects, row.cwd, context.homeDirectory);
+        : matchingProject(context.projects, row.cwd);
     if (project)
         return {
             id: `project:${project.id}`,
