@@ -13,3 +13,6 @@ ignorePatterns = [
 
 [run]
 bun = true
+
+[test]
+preload = ["./src/__tests__/native-catalog-setup.ts"]

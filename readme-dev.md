@@ -464,7 +464,7 @@ Set `RUN_CODEX_COMPACTION_TESTS=1`, `COMPACTION_TEST_RUNTIME` to the installed R
 binary, and `COMPACTION_TEST_CODEX` to the Codex binary, then run:
 
 ```sh
-bunx --no-install vitest run --no-file-parallelism src/__tests__/integration/websocket-compaction-runtime.test.ts
+bun test src/__tests__/integration/websocket-compaction-runtime.test.ts
 ```
 
 `COMPACTION_TEST_ADAPTER` can select a locally built adapter entry;
