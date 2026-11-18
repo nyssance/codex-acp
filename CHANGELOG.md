@@ -1,3 +1,7 @@
+## 0.7.80 (2026-11-18)
+
+- Upgrade Codex to 0.170.0 and regenerate the experimental app-server bindings: recovered answers carry a `show` / `hide` / `block` display mode, and user verification reports the biometric type.
+
 ## 0.7.79 (2026-11-17)
 
 - Preserve a session's native model identity when provider catalogs initialize after the session.
