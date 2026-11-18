@@ -40,7 +40,7 @@
         "example:steering:multistep": "bun examples/steering.ts",
         "generate-types": "codex app-server generate-ts --experimental --out src/app-server",
         "test": "bun test --parallel --path-ignore-patterns='src/__tests__/integration/**' --path-ignore-patterns='src/__tests__/CodexACPAgent/e2e/**' --path-ignore-patterns='src/__tests__/CodexACPAgent/CodexAcpClient.test.ts' --path-ignore-patterns='src/__tests__/CodexACPAgent/mcp-session.test.ts' --path-ignore-patterns='src/__tests__/CodexACPAgent/mcp-config-merge.test.ts' src/__tests__ scripts src/client/protocol",
-        "test:integration": "bun test src/__tests__/integration",
+        "test:integration": "bun test --parallel src/__tests__/integration",
         "test:e2e": "bun run build && RUN_E2E_TESTS=true bun test src/__tests__/CodexACPAgent/e2e",
         "test:watch": "bun test --watch --path-ignore-patterns='src/__tests__/integration/**' --path-ignore-patterns='src/__tests__/CodexACPAgent/e2e/**' --path-ignore-patterns='src/__tests__/CodexACPAgent/CodexAcpClient.test.ts' --path-ignore-patterns='src/__tests__/CodexACPAgent/mcp-session.test.ts' --path-ignore-patterns='src/__tests__/CodexACPAgent/mcp-config-merge.test.ts' src/__tests__ scripts src/client/protocol",
         "codex-test": "bun .agents/skills/run-codex/scripts/run-codex-test.ts",
