@@ -74,7 +74,6 @@
     },
     "dependencies": {
         "@agentclientprotocol/sdk": "^2.8.0",
-        "@modelcontextprotocol/server": "^2.4.0",
         "@openai/codex": "^0.170.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",

@@ -1,36 +1,30 @@
 import type * as acp from "@agentclientprotocol/sdk/unstable";
-import {RequestError} from "@agentclientprotocol/sdk/unstable";
+import {isMcpServerAcp, RequestError} from "@agentclientprotocol/sdk/unstable";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type {McpServerHttpDeclaration} from "@agentclientprotocol/sdk/experimental/mcp-http";
 import type {JsonObject} from "./CodexAcpClient";
 import {sanitizeMcpServerName} from "./McpServerName";
-import type {AcpMcpServers} from "./AcpMcpEndpoint";
 
 /**
  * An MCP server entry from an ACP v1 or v2 session request.
  */
 export type AcpMcpServer = acp.McpServer | acpV2.McpServer;
 
+/** Re-exports one registration as HTTP for Codex, on the ACP connection that declared it. */
+export type McpOverAcpToHttp = (server: acp.McpServerAcpDeclaration) => Promise<McpServerHttpDeclaration>;
+
 /**
  * Version-independent MCP server config. Optional v2 fields are already defaulted.
  */
 export type NormalizedMcpServer =
+    | {type: "acp"; name: string; toHttp(): Promise<McpServerHttpDeclaration>}
+    | McpServerHttpDeclaration
     | {
         type: "stdio";
         name: string;
         command: string;
         args: string[];
         env: Array<{name: string; value: string}>;
-    }
-    | {
-        type: "http";
-        name: string;
-        url: string;
-        headers: Array<{name: string; value: string}>;
-    }
-    | {
-        type: "acp";
-        name: string;
-        serverId: string;
     };
 
 /**
@@ -41,21 +35,21 @@ export function getMcpServerName(server: AcpMcpServer): string {
 }
 
 /** Validate the whole request before filtering out servers configured independently of ACP. */
-export function normalizeMcpServers(servers: AcpMcpServer[]): NormalizedMcpServer[] {
+export function normalizeMcpServers(servers: AcpMcpServer[], toHttp?: McpOverAcpToHttp): NormalizedMcpServer[] {
     const names = new Set<string>();
     return servers.map(server => {
         const name = sanitizeMcpServerName(getMcpServerName(server));
         // Codex keys servers by the sanitized name, so collisions must not silently overwrite one.
         if (names.has(name)) throw RequestError.invalidParams({name: getMcpServerName(server)}, "MCP server names must be unique");
         names.add(name);
-        return {...normalizeMcpServer(server), name};
+        return {...normalizeMcpServer(server, toHttp), name};
     });
 }
 
 /**
  * Converts a v1 or v2 MCP server entry into one shape, rejecting transports Codex can't run.
  */
-export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
+export function normalizeMcpServer(server: AcpMcpServer, toHttp?: McpOverAcpToHttp): NormalizedMcpServer {
     if (!("type" in server)) {
         // v1 stdio entries have no `type` tag.
         return {type: "stdio", name: server.name, command: server.command, args: server.args, env: server.env};
@@ -76,8 +70,12 @@ export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
             return {type: "http", name: http.name, url: http.url, headers: http.headers ?? []};
         }
         case "acp": {
-            const acpServer = server as acp.McpServerAcp | acpV2.McpServerAcp;
-            return {type: "acp", name: acpServer.name, serverId: acpServer.serverId};
+            if (!isMcpServerAcp(server)) {
+                throw RequestError.invalidParams(undefined, "An ACP MCP server requires a string name and serverId");
+            }
+            if (!toHttp) throw RequestError.invalidParams(undefined, "MCP-over-ACP is unavailable on this connection");
+            // Validate now, but open a listener only if this server survives name filtering.
+            return {type: "acp", name: server.name, toHttp: () => toHttp(server)};
         }
         case "sse":
             throw RequestError.invalidParams(undefined, "Codex doesn't support MCP SSE transport protocol");
@@ -90,7 +88,14 @@ export function normalizeMcpServer(server: AcpMcpServer): NormalizedMcpServer {
 /**
  * Creates a Codex `mcp_servers` config entry.
  */
-export function toCodexMcpServerConfig(server: NormalizedMcpServer, acpServers: AcpMcpServers | null): JsonObject {
+export async function toCodexMcpServerConfig(server: NormalizedMcpServer): Promise<JsonObject> {
+    if (server.type === "acp") {
+        try {
+            server = await server.toHttp();
+        } catch (error) {
+            throw RequestError.internalError({name: server.name}, `Could not open the MCP-over-ACP endpoint for ${server.name}: ${error}`);
+        }
+    }
     switch (server.type) {
         case "stdio":
             return {
@@ -103,9 +108,6 @@ export function toCodexMcpServerConfig(server: NormalizedMcpServer, acpServers: 
                 "url": server.url,
                 "http_headers": Object.fromEntries(server.headers.map(h => [h.name, h.value])),
             };
-        case "acp":
-            if (!acpServers) throw RequestError.invalidParams(undefined, "This connection doesn't serve MCP over ACP");
-            return acpServers(server.serverId);
     }
 }
 

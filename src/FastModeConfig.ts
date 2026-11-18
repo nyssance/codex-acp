@@ -3,7 +3,7 @@ import type * as acp from "@agentclientprotocol/sdk/unstable";
 import type {Model} from "./app-server/v2";
 
 export const FAST_MODE_CONFIG_ID = "fast-mode";
-export const FAST_MODE_CATEGORY = "model_config";
+export const FAST_MODE_CATEGORY = "speed";
 export const FAST_MODE_ON = "on";
 export const FAST_MODE_OFF = "off";
 

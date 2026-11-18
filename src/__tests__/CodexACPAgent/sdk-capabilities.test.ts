@@ -14,6 +14,8 @@ describe.each([1, 2] as const)("ACP v%s SDK upgrade capabilities", version => {
             // The fork serves the standard archive methods over v2.
             expect(session.archive).toEqual(version === 2 ? {} : undefined);
             expect(session.status).toBeUndefined();
+            expect(session.options).toBeUndefined();
+            expect(session.prompt?.skill).toBeUndefined();
             expect(capabilities.auth.status).toBeUndefined();
             for (const method of ["auth/status", "session/status", ...(version === 1 ? ["session/archive", "session/unarchive"] : [])]) {
                 await expect(h.request(method, {sessionId})).rejects.toMatchObject({code: -32601});

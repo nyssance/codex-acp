@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 
 import {startCodexConnection} from "./CodexJsonRpcConnection";
-import {AcpMcpEndpoint} from "./AcpMcpEndpoint";
 import {CodexAcpServer, type CodexProcessState} from "./CodexAcpServer";
 import {createJsonStream} from "./StdUtils";
 import {isCodexAuthRequest} from "./CodexAuthMethod";
@@ -13,8 +12,9 @@ import {appServerStartup, CodexAppServerSupervisor} from "./app-server-recovery/
 import {runLoginCommand} from "./login";
 import {runCodexCli} from "./CodexCli";
 import {prepareCodexHookConfig} from "./CodexHookConfig";
-import {type AcpTransport, createAcpAgentRouter} from "./AcpAgentRouter";
+import {createAcpAgentRouter} from "./AcpAgentRouter";
 import type {AcpClientConnection, AcpV2Connection} from "./ACPSessionConnection";
+import type {McpOverAcpToHttp} from "./McpServerConfig";
 
 if (process.argv.includes("--version")) {
     console.log(`${packageJson.name} ${packageJson.version}`);
@@ -66,9 +66,8 @@ function startAcpServer() {
         providerStartupConfig: providerStartupConfig(modelProvider ?? null, hookConfig.sessionConfig ?? {}, null),
     };
     const startup = appServerStartup(startupState);
-    const mcpEndpoint = new AcpMcpEndpoint();
     const spawn = (path: string | undefined, args: string[], env: Record<string, string>) =>
-        startCodexConnection(path, {...process.env, ...mcpEndpoint.env, ...env}, args, {disposeOnExit: false});
+        startCodexConnection(path, {...process.env, ...env}, args, {disposeOnExit: false});
     const codexProcessState: CodexProcessState = {
         // The supervisor disposes the connection itself, after the last output of the process was read.
         connection: spawn(codexPath, startup.args, startup.env),
@@ -84,15 +83,13 @@ function startAcpServer() {
     process.stdin.on("close", () => {
         // Ends the stdin of the app-server, sends SIGTERM if it is still running 2 s later, and never restarts it.
         supervisor.shutdown();
-        void mcpEndpoint.close();
     });
 
     const acpJsonStream = createJsonStream(process.stdin, process.stdout);
 
-    function createAgent(connection: AcpClientConnection | AcpV2Connection, transport: AcpTransport): CodexAcpServer {
+    function createAgent(connection: AcpClientConnection | AcpV2Connection, toHttp: McpOverAcpToHttp): CodexAcpServer {
         const appServerClient = new CodexAppServerClient(codexProcessState.connection.connection);
-        const codexClient = new CodexAcpClient(appServerClient, hookConfig.sessionConfig, modelProvider);
-        codexClient.acpMcpServers = mcpEndpoint.attach(transport.context, transport.signal);
+        const codexClient = new CodexAcpClient(appServerClient, hookConfig.sessionConfig, modelProvider, toHttp);
         process.stdin.once("close", () => codexClient.closeTransports());
         return new CodexAcpServer(
             connection,

@@ -13,5 +13,11 @@
       },
       "sessionUpdate": "subagent_update"
     }
+  },
+  {
+    "sessionId": "thread-1:subagent:worker",
+    "update": {
+      "sessionUpdate": "replay_complete"
+    }
   }
 ]

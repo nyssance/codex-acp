@@ -45,6 +45,12 @@
   {
     "sessionId": "thread-1:subagent:worker",
     "update": {
+      "sessionUpdate": "replay_complete"
+    }
+  },
+  {
+    "sessionId": "thread-1:subagent:worker",
+    "update": {
       "terminalId": "command",
       "data": "QWZ0ZXI=",
       "sessionUpdate": "terminal_output_chunk"

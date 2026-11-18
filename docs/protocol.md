@@ -99,13 +99,10 @@ Applications provide their own tools as MCP servers over ACP (the MCP-over-ACP d
 they declare `{type: "acp", name, serverId}` in `mcpServers` on `session/new`,
 `session/resume` and `session/fork`, and answer `mcp/message` on the same ACP
 connection. The adapter advertises v1 `mcpCapabilities.acp` and v2
-`session.mcp.acp`. Codex reaches these servers like any other HTTP MCP server: the
-adapter serves each one on a loopback endpoint, authenticated by a per-process bearer
-token that the app-server reads from `CODEX_ACP_MCP_TOKEN` and that never appears in
-thread config or URLs. The endpoint answers Codex's 2025 stateless handshake and MCP
-2026-07-28, and forwards `tools/list` and `tools/call` as `mcp/message` requests with
-the 2026-07-28 metadata; Codex's own request `_meta` (`callId`, `threadId`,
-`x-codex-turn-metadata`) is passed through. Codex owns these tool calls: approvals
+`session.mcp.acp` only when the running Codex binary implements `mcp_2026_07_28`.
+Codex reaches these servers like any other HTTP MCP server, through the ACP SDK's
+authenticated loopback bridge; the adapter enables `mcp_2026_07_28` for threads that
+use one. See [MCP-over-ACP](mcp-over-acp.md). Codex owns these tool calls: approvals
 follow its MCP policy and tool annotations, and dropping the HTTP request cancels the
 ACP request. The host may expose image generation this way; Codex retains
 conversation and media history, and the extension creates no image store.
