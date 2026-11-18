@@ -81,8 +81,9 @@ function wireError(error: unknown): {code: number; message: string; data?: unkno
  * connection, so a failed request settles only that request.
  *
  * Notifications other than `$/cancel_request` reach the app straight from the port, in the order they arrive. The SDK
- * has nothing to do for them, and it dispatches each message on its own promise chain and drops the ones it has not
- * dispatched when the connection ends: the last frames before a process exits would be lost.
+ * has nothing to do for them, and it dispatches each message asynchronously on its own promise chain, while the exit
+ * event is handled synchronously: through the SDK, the last frames before a process exits would reach the app after it
+ * learned the process is gone.
  */
 export class Agent {
     readonly agentId: string;
