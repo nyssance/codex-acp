@@ -231,7 +231,6 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             userId: null,
             workspaceRouting: null,
             account: null,
-            userId: null,
             requiresOpenaiAuth: true,
         });
         vi.spyOn(codexAppServerClient, "accountLogin").mockResolvedValue({
@@ -1034,7 +1033,6 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             userId: null,
             workspaceRouting: null,
             account: null,
-            userId: null,
             requiresOpenaiAuth: true,
         });
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
@@ -4045,28 +4043,24 @@ describe('ACP server test', { timeout: 40_000 }, () => {
                 userId: null,
                 workspaceRouting: null,
                 account: { type: "apiKey" },
-                userId: null,
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({
                 userId: null,
                 workspaceRouting: null,
                 account: { type: "apiKey" },
-                userId: null,
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({
                 userId: null,
                 workspaceRouting: null,
                 account: null,
-                userId: null,
                 requiresOpenaiAuth: true,
             })
             .mockResolvedValueOnce({
                 userId: null,
                 workspaceRouting: null,
                 account: { type: "apiKey" },
-                userId: null,
                 requiresOpenaiAuth: false,
             });
         vi.spyOn(codexAcpClient, "newSession")

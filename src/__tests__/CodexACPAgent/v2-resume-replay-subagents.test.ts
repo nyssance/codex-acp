@@ -122,7 +122,6 @@ const childTurns: Thread["turns"] = [
                 durationMs: null,
             },
             {
-                moderation: null,
                 type: "agentMessage",
                 id: "child-reply",
                 text: "Investigating the flaky test.",
@@ -349,7 +348,6 @@ describe('ACP v2 resume replay: native subagent history (nativeSubagentSessions 
         });
         const reply = (id: string, text: string) => ({
             type: "agentMessage" as const,
-            moderation: null,
             id,
             text,
             phase: null,

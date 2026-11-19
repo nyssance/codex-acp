@@ -59,40 +59,27 @@ describe("ACP v2 keyed prompts", () => {
         await h.promptRunFinished();
     });
 
-    it.each(["$/cancel_request", "session/cancel", "session/close"])(
-        "answers both attempts when %s drops a held prompt", async method => {
-            h = await connectSession();
-            const blocker = h.sendPrompt([{type: "text", text: "Block the queue"}]);
-            await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(1));
-            h.emit(turnStarted());
-            h.emit(itemCompleted(userMessageItem(h.turnStartParams[0]!["clientUserMessageId"] as string)));
-            await blocker;
+    // Upstream holds a prompt behind a running turn and has cases for dropping it while it is held.
+    // This adapter does not hold an ordinary prompt: it steers it into the running turn (see
+    // steering-v2.test.ts), so a keyed prompt there has no held state to drop.
+    it("steers a keyed prompt into the running turn once and answers every attempt with its receipt", async () => {
+        h = await connectSession();
+        const blocker = h.sendPrompt([{type: "text", text: "Block the queue"}]);
+        await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(1));
+        h.emit(turnStarted());
+        h.emit(itemCompleted(userMessageItem(h.turnStartParams[0]!["clientUserMessageId"] as string)));
+        await blocker;
 
-            const seen = vi.spyOn(h.agent, "promptV2");
-            const abort = new AbortController();
-            const first = expect(h.request("session/prompt", params)).rejects.toMatchObject({code: -32800});
-            const retry = expect(h.request("session/prompt", params, abort.signal)).rejects.toMatchObject({code: -32800});
-            await vi.waitFor(() => expect(seen).toHaveBeenCalledTimes(2));
-            if (method === "$/cancel_request") abort.abort();
-            else if (method === "session/cancel") await h.cancel();
-            else await h.request("session/close", {sessionId});
-            await Promise.all([first, retry]);
-            expect(h.turnStartParams).toHaveLength(1);
-            if (method === "$/cancel_request") expect(h.turnInterruptCalls()).toEqual([]);
-            if (method === "session/close") return;
-
-            h.emit(turnCompleted());
-            await h.promptRunFinished();
-            const reinsert = h.request("session/prompt", params);
-            await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(2));
-            const messageId = h.turnStartParams[1]!["clientUserMessageId"] as string;
-            h.emit(turnStarted("turn-2"));
-            h.emit(itemCompleted(userMessageItem(messageId), "turn-2"));
-            await expect(reinsert).resolves.toEqual({messageId});
-            h.emit(turnCompleted("turn-2"));
-            await h.promptRunFinished(1);
-        },
-    );
+        const steered = vi.spyOn(h.agent as unknown as {executeOrQueueSteeringRequest: () => Promise<unknown>}, "executeOrQueueSteeringRequest");
+        const messageId = keyedPromptId(sessionId, key);
+        const attempts = await Promise.all([h.request("session/prompt", params), h.request("session/prompt", params)]);
+        expect(attempts).toEqual([{messageId}, {messageId}]);
+        expect(steered).toHaveBeenCalledTimes(1);
+        expect(h.turnStartParams).toHaveLength(1);
+        expect(JSON.stringify(h.wireMessages)).not.toContain(key);
+        h.emit(turnCompleted());
+        await h.promptRunFinished();
+    });
 
     it("keeps the key unused on a pre-insertion failure and rejects malformed keys before starting work", async () => {
         h = await connectSession();

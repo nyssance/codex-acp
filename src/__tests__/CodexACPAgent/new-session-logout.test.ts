@@ -81,14 +81,12 @@ describe("New session logout handling", () => {
                 userId: null,
                 workspaceRouting: null,
                 account: { type: "apiKey" },
-                userId: null,
                 requiresOpenaiAuth: false,
             })
             .mockResolvedValueOnce({
                 userId: null,
                 workspaceRouting: null,
                 account: null,
-                userId: null,
                 requiresOpenaiAuth: true,
             });
 

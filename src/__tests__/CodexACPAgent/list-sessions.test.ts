@@ -288,7 +288,6 @@ describe("CodexACPAgent - list sessions", () => {
             userId: null,
             workspaceRouting: null,
             account: null,
-            userId: null,
             requiresOpenaiAuth: false,
         });
         vi.spyOn(codexAcpClient, "newSession").mockResolvedValue({

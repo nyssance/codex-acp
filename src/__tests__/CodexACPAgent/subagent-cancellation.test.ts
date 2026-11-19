@@ -55,6 +55,14 @@ describe.each([1, 2] as const)("ACP v%s direct child cancellation", version => {
             return {};
         });
         await h.cancel(target === "child" ? id("worker") : sessionId);
+        if (target === "parent" && version === 2) {
+            // ACP v2: `session/cancel` stops the session's foreground. A detached child is listed as
+            // background work and keeps running until it is cancelled itself or the session closes.
+            await h.waitForNotifications();
+            expect(attempts).toBe(0);
+            expect(cancellable()).toBe(true);
+            return;
+        }
         await vi.waitFor(() => expect(attempts).toBe(2));
         expect(cancellable()).toBe(true);
         expect(roster().some(update => update.state != null

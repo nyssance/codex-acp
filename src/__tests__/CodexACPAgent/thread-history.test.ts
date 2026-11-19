@@ -7,7 +7,7 @@ function messageTurn(id: string): Turn {
     return {
         rootTurnId: null,
         id,
-        items: [{type: "userMessage", id: `${id}-input`, clientId: null, content: [{type: "text", text: `Question ${id}`, text_elements: []}]}, {moderation: null, type: "agentMessage", id: `${id}-message`, text: `Answer ${id}`, phase: "final_answer", memoryCitation: null, delivery: null, questions: null}],
+        items: [{type: "userMessage", id: `${id}-input`, clientId: null, content: [{type: "text", text: `Question ${id}`, text_elements: []}]}, {type: "agentMessage", id: `${id}-message`, text: `Answer ${id}`, phase: "final_answer", moderation: null, memoryCitation: null, delivery: null, questions: null}],
         itemsView: "full",
         status: "completed",
         error: null,

@@ -674,7 +674,6 @@ export class CodexAcpServer {
         const sessionIsClosing = (id: string) => this.sessionIsClosing(this.subagentAssociations.get(id)?.rootSessionId ?? id);
         if (connection instanceof AcpV2Connection) {
             this.protocolVersion = 2;
-            this.v2Connection = connection.client;
             this.clientDelivery = new AcpClientDelivery(connection.extensionOnlyV1View(), sessionIsClosing, 2);
             this.connection = this.clientDelivery.asClientConnection();
             connection.registerView(this.connection);
@@ -6579,8 +6578,9 @@ export class CodexAcpServer {
             const parent = this.sessions.get(child.rootSessionId);
             const router = parent?.subagents;
             if (parent && router instanceof StandardSubagentEventRouter) {
-                await router.cancelChild(params.sessionId, (threadId, turnId, isCurrent) =>
-                    this.requestTurnInterrupt(parent, threadId, turnId, "Cancel", isCurrent));
+                await router.cancelChild(params.sessionId, async (threadId, turnId, isCurrent) => {
+                    await this.requestTurnInterrupt(parent, threadId, turnId, "Cancel", isCurrent);
+                });
             }
             return;
         }

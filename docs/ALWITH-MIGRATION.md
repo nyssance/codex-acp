@@ -77,6 +77,7 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 **Prompts and turns**
 
 - **Running v2 prompts steer.** An ordinary v2 `session/prompt` during a running turn is steered into it through upstream's `SteeringQueue` with `idleBehavior: "promptRequired"`; commands and idle sessions take the turn-start FIFO. Upstream queues every v2 prompt for a new turn.
+- **Keyed v2 prompts steer too.** A v2 `session/prompt` with an `idempotencyKey` uses upstream's derived message ID and shared receipt. During a running turn it is steered once and every attempt gets that receipt; upstream's held-prompt state does not exist for an ordinary prompt here. A prompt cannot set both `idempotencyKey` and `_meta.alwith.messageId`.
 - **Turn ids on v2 updates.** v2 updates that carry content get `_meta.codex.turnId` of their turn.
 - **v2 assistant messages.** A native assistant item's start sends an `agent_message` upsert, and its completion sends the final chunk and the complete `agent_message` with `messageCompleted`, `phase`, `delivery` and `questions`. Every v2 `agent_message_chunk` carries `_meta.codex.phase` (upstream: AIR only). See [protocol.md](protocol.md).
 - **Turn timing.** A completed v2 turn re-sends its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and `workDurationMs`. A turn without Codex's start or completion time carries none.

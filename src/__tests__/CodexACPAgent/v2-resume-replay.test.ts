@@ -101,7 +101,6 @@ const reviewReplayTurns: Thread["turns"] = [
             {type: "enteredReviewMode", id: "review-entered", review: "Review the diff"},
             {type: "exitedReviewMode", id: "review-exited", review: "Looks good"},
             {
-                moderation: null,
                 type: "agentMessage",
                 id: "review-summary",
                 text: "Review complete.",
@@ -130,7 +129,6 @@ const reviewReplayTurns: Thread["turns"] = [
                 content: [{type: "text", text: "Reply with just OK.", text_elements: []}],
             },
             {
-                moderation: null,
                 type: "agentMessage",
                 id: "ordinary-reply",
                 text: "OK",
@@ -155,7 +153,6 @@ const reviewReplayTurns: Thread["turns"] = [
             {type: "enteredReviewMode", id: "review2-entered", review: "Second review"},
             {type: "exitedReviewMode", id: "review2-exited", review: "All good"},
             {
-                moderation: null,
                 type: "agentMessage",
                 id: "review2-summary",
                 text: "Second review complete.",
@@ -604,7 +601,6 @@ describe('resume replay of Codex file citations', () => {
         completedAt: null,
         durationMs: null,
         items: [{
-            moderation: null,
             type: "agentMessage",
             id: "cited-reply",
             text: 'The limit is 12.\n\n:codex-file-citation{path="policy.txt" purpose="source"}',

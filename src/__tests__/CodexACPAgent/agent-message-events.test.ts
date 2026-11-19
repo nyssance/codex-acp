@@ -34,7 +34,6 @@ describe("CodexEventHandler - agent message events", () => {
                     startedAtMs: 0,
                     item: {
                         type: "agentMessage",
-                        moderation: null,
                         id: "commentary-message",
                         text: "",
                         phase: "commentary",
@@ -62,7 +61,6 @@ describe("CodexEventHandler - agent message events", () => {
                     startedAtMs: 10,
                     item: {
                         type: "agentMessage",
-                        moderation: null,
                         id: "final-message",
                         text: "",
                         phase: "final_answer",
@@ -110,7 +108,6 @@ describe("CodexEventHandler - agent message events", () => {
                     completedAtMs: 10,
                     item: {
                         type: "agentMessage",
-                        moderation: null,
                         id: "final-message",
                         text: "",
                         phase: "final_answer",
@@ -133,7 +130,6 @@ describe("CodexEventHandler - agent message events", () => {
     it("sends an agent message that arrives whole, without deltas", async () => {
         const item = {
             type: "agentMessage" as const,
-            moderation: null,
             id: "call-question",
             text: "Which environment? See :codex-file-citation{path=\"docs/envs.md\"}\n- Staging\n- Production",
             phase: "final_answer" as const,

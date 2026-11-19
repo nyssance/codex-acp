@@ -152,7 +152,11 @@ describe('Plans, compaction, notices and commands over ACP v2', () => {
             planUpdated([]),
         ]);
         await vi.waitFor(() => expect(updates).toHaveLength(4));
-        expect(updates.map(({update}) => update)).toEqual([
+        // This adapter also tags updates with their turn (`_meta.codex.turnId`); that has its own tests.
+        expect(updates.map(({update}) => {
+            const {_meta: _turn, ...plan} = update as typeof update & {_meta?: unknown};
+            return plan;
+        })).toEqual([
             {sessionUpdate: "plan_update", plan: {type: "items", planId: "codex-structured-plan",
                 entries: [{content: "Done", priority: "medium", status: "completed"}]}},
             {sessionUpdate: "plan_update", plan: {type: "markdown", planId: "markdown", content: "A different plan"}},

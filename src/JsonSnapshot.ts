@@ -181,8 +181,11 @@ function containerFrame(value: object, previous: JsonTree | undefined): Containe
 /** A plain array or object that the walk is in, with the snapshot of its items so far. */
 abstract class ContainerFrame {
     protected index = 0;
+    readonly value: object;
 
-    constructor(readonly value: object) {}
+    constructor(value: object) {
+        this.value = value;
+    }
 
     abstract get done(): boolean;
 
@@ -200,8 +203,12 @@ class ArrayFrame extends ContainerFrame {
     private before: JsonTree | undefined;
     private tree: JsonTree[] | undefined;
 
-    constructor(override readonly value: readonly unknown[], private readonly previous: readonly JsonTree[] | undefined) {
+    declare readonly value: readonly unknown[];
+    private readonly previous: readonly JsonTree[] | undefined;
+
+    constructor(value: readonly unknown[], previous: readonly JsonTree[] | undefined) {
         super(value);
+        this.previous = previous;
         this.length = value.length;
         // While every item equals the item of `previous`, the array is not copied.
         this.tree = previous?.length === this.length ? undefined : new Array<JsonTree>(this.length);
@@ -238,8 +245,12 @@ class ObjectFrame extends ContainerFrame {
     private values: JsonTree[] | undefined;
     private count = 0;
 
-    constructor(override readonly value: Record<string, unknown>, private readonly previous: JsonObject | undefined) {
+    declare readonly value: Record<string, unknown>;
+    private readonly previous: JsonObject | undefined;
+
+    constructor(value: Record<string, unknown>, previous: JsonObject | undefined) {
         super(value);
+        this.previous = previous;
         this.keys = Object.keys(value);
         // While every member equals the member of `previous`, the values are not copied.
         this.values = previous === undefined ? new Array<JsonTree>(this.keys.length) : undefined;

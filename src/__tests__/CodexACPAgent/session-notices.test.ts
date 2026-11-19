@@ -362,9 +362,9 @@ function createThread(): Thread {
         gitInfo: null,
         name: null,
         turns: [{...createTurn("completed"), items: [
-            {moderation: null, type: "agentMessage", id: "before-compaction", text: "Before compaction.", phase: null, memoryCitation: null, delivery: null, questions: null},
+            {type: "agentMessage", id: "before-compaction", text: "Before compaction.", phase: null, moderation: null, memoryCitation: null, delivery: null, questions: null},
             {type: "contextCompaction", id: "history-compaction"},
-            {moderation: null, type: "agentMessage", id: "after-compaction", text: "After compaction.", phase: null, memoryCitation: null, delivery: null, questions: null},
+            {type: "agentMessage", id: "after-compaction", text: "After compaction.", phase: null, moderation: null, memoryCitation: null, delivery: null, questions: null},
         ]}],
     };
 }

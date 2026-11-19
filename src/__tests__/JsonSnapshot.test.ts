@@ -140,7 +140,8 @@ describe("jsonSnapshot", () => {
         expect(text(snapshot)).toBe(expected);
         expect(jsonSnapshot(nested(depth, 1), snapshot)).toBe(snapshot);
         expect(sameJson(jsonSnapshot(nested(depth, 2), snapshot), snapshot)).toBe(false);
-    });
+    // Bun serializes values about ten times deeper than Node before its stack runs out, so the case is larger here.
+    }, 60_000);
 
     it("reuses the text of a value that JSON.stringify serialized", () => {
         const previous = jsonSnapshot([new Box(1), {at: new Date(0)}]);

@@ -130,7 +130,12 @@
         "description": "How Codex collaborates for subsequent turns",
         "category": "collaboration_mode"
       }
-    ]
+    ],
+    "_meta": {
+      "alwith": {
+        "configRevision": 0
+      }
+    }
   },
   "modeResponse": {
     "configOptions": [
@@ -181,16 +186,7 @@
         "name": "Fast mode",
         "description": "1.5x speed, increased usage",
         "category": "speed"
-      }
-    ],
-    "_meta": {
-      "alwith": {
-        "configRevision": 0
-      }
-    }
-  },
-  "modeResponse": {
-    "configOptions": [
+      },
       {
         "currentValue": "read-only",
         "options": [

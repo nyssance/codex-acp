@@ -151,7 +151,8 @@ describe("native capabilities through ACP", () => {
                 permissions: "work",
             });
             expect(settings).not.toHaveProperty("sandboxPolicy");
-            expect(response.configOptions[0].currentValue).toBe("permission-profile:work");
+            expect(response.configOptions.find((option: {configId: string}) => option.configId === "mode").currentValue)
+                .toBe("permission-profile:work");
             const accepted = client.sendPrompt([{type: "text", text: "hello"}]);
             await settle();
             expect(client.turnStartParams[0]).toMatchObject({

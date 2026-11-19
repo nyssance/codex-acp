@@ -17,11 +17,11 @@ afterEach(() => {
     for (const client of clients.splice(0)) client.connection.close();
 });
 const question: Extract<ThreadItem, {type: "agentMessage"}> = {
-    moderation: null,
     type: "agentMessage",
     id: "async-question",
     text: "",
     phase: "final_answer",
+    moderation: null,
     memoryCitation: null,
     delivery: "async",
     questions: [{title: "Which environment?", options: ["Local", "Remote"]}],

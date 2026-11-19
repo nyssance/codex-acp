@@ -660,11 +660,11 @@ describe('Session lifecycle over ACP v2', () => {
                     content: [{type: "text", text: "A legacy message with no clientId", text_elements: []}],
                 },
                 {
-                    moderation: null,
                     type: "agentMessage",
                     id: "item-agent-1",
                     text: "Hello!",
                     phase: null,
+                    moderation: null,
                     memoryCitation: null,
                     delivery: null,
                     questions: null,

@@ -608,7 +608,7 @@ function createTurn(status: Turn["status"]): Turn {
 }
 
 function agentMessage(id: string, text: string): ThreadItem {
-    return {moderation: null, type: "agentMessage", id, text, phase: null, memoryCitation: null, delivery: null, questions: null};
+    return {type: "agentMessage", id, text, phase: null, moderation: null, memoryCitation: null, delivery: null, questions: null};
 }
 
 function createThread(items: ThreadItem[]): Thread {

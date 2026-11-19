@@ -31,7 +31,11 @@ export class ToolCallReports {
     private readonly openToolCalls = new Map<string, Map<string, Snapshot>>();
     private readonly finishedToolCalls = new Map<string, Map<string, Snapshot>>();
 
-    constructor(private readonly enforceV2Status = false) {}
+    private readonly enforceV2Status: boolean;
+
+    constructor(enforceV2Status = false) {
+        this.enforceV2Status = enforceV2Status;
+    }
 
     /**
      * Also drop the unchanged `_meta` keys. The adapter sets it for AIR in `initialize`.
