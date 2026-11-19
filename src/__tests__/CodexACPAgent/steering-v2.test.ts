@@ -198,7 +198,7 @@ describe('_session/steering over ACP v2', () => {
         await expect(dump(client.transcript, clientUserMessageId)).toMatchFileSnapshot('data/steering-v2-fallback-new-turn.json');
     });
 
-    it("steers a v2 prompt into the steering fallback turn", async () => {
+    it.each(["turn-1", "actual-turn"])("uses the steering insertion event turn %s", async (landingTurn) => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
         const steerPromise = client.request(SESSION_STEERING_METHOD, {
@@ -211,7 +211,14 @@ describe('_session/steering over ACP v2', () => {
         const steerClientId = captureSteerClientId(client);
         const {messageId} = await client.sendPrompt([{type: "text", text: "B"}]);
         expect(messageId).toBe(steerClientId.captured());
-        client.emit(itemCompleted(userMessageItem(messageId, "B")));
+        client.emit(itemCompleted(userMessageItem(messageId, "B"), landingTurn));
+        await settle();
+        expect(userMessageChunks(client.transcript)).toContainEqual({
+            sessionUpdate: "user_message_chunk",
+            messageId,
+            content: {type: "text", text: "B"},
+            _meta: {codex: {turnId: landingTurn}},
+        });
         client.emit(turnCompleted());
         await client.promptRunFinished(0);
         await settle();

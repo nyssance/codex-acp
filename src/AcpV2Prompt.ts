@@ -12,14 +12,14 @@ import {ResponseError} from "vscode-jsonrpc";
 export type UserMessageInsertion = {
     /** Sent as `clientUserMessageId` on `turn/start`; Codex echoes it as `userMessage.clientId`. */
     clientUserMessageId: string;
-    onInserted: () => Promise<void>;
+    onInserted: (turnId?: string) => Promise<void>;
     /**
      * Shows a synthetic prompt codex-acp starts itself (the plan-implementation follow-up turn,
      * a `/goal` continuation) as a live `user_message`, once its own minted `clientUserMessageId`
      * is echoed back. These turns run inside the original prompt's running…idle pair, so this
      * only emits the chunks: no response is resolved and no `state_update` is sent.
      */
-    onSyntheticInserted: (clientUserMessageId: string, prompt: acp.ContentBlock[]) => Promise<void>;
+    onSyntheticInserted: (clientUserMessageId: string, prompt: acp.ContentBlock[], turnId: string) => Promise<void>;
     /**
      * Fired synchronously once, from the turn-start response, when Codex steers this prompt into
      * a turn that was already running and unowned (its `running` went out before this prompt
@@ -46,7 +46,7 @@ export function isInsertedUserMessage(
     event: ServerNotification,
     threadId: string,
     clientUserMessageId: string,
-): boolean {
+): event is Extract<ServerNotification, {method: "item/started" | "item/completed"}> {
     return (event.method === "item/started" || event.method === "item/completed")
         && event.params.threadId === threadId
         && event.params.item.type === "userMessage"

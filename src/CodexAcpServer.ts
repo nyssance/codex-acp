@@ -2052,30 +2052,24 @@ export class CodexAcpServer {
             if (entry.sessionId === sessionState.sessionId
                 && isInsertedUserMessage(event, sessionState.sessionId, clientUserMessageId)) {
                 this.pendingSteerLandings.delete(clientUserMessageId);
-                await this.emitLiveSteerUserMessage(sessionState.sessionId, clientUserMessageId, entry.prompt);
+                await this.emitLiveSteerUserMessage(sessionState.sessionId, clientUserMessageId, entry.prompt, event.params.turnId);
                 return;
             }
         }
-    }
-
-    /** The `_meta.codex.turnId` of the turn Codex reports running, for a live user message. */
-    private liveTurnMeta(sessionId: string) {
-        const turnId = this.getSessionState(sessionId).codexReportedRunningTurnId;
-        return turnId === null ? undefined : {codex: {turnId}};
     }
 
     /**
      * Shows a landed steer as a live-only `user_message` (v2 only; the steering response itself
      * carries no `messageId`, per user decision).
      */
-    private async emitLiveSteerUserMessage(sessionId: string, messageId: string, prompt: acp.ContentBlock[]): Promise<void> {
+    private async emitLiveSteerUserMessage(sessionId: string, messageId: string, prompt: acp.ContentBlock[], turnId: string | undefined): Promise<void> {
         const session = new ACPSessionConnection(this.connection, sessionId);
         if (session.protocolVersion !== 2) {
             return;
         }
         try {
             for (const block of prompt) {
-                await session.update(createUserMessageChunk(block, messageId, this.liveTurnMeta(sessionId)));
+                await session.update(createUserMessageChunk(block, messageId, turnId === undefined ? undefined : {codex: {turnId}}));
             }
         } catch (error) {
             logger.error(`Failed to send the steered user message for session ${sessionId}`, error);
@@ -3721,8 +3715,8 @@ export class CodexAcpServer {
     ): Promise<SessionSteeringResponse> {
         await this.startNewTurnFromExternalPrompt(params, "Steering", undefined, {
             clientUserMessageId,
-            onInserted: async () => {
-                await this.emitLiveSteerUserMessage(params.sessionId, clientUserMessageId, params.prompt);
+            onInserted: async (turnId) => {
+                await this.emitLiveSteerUserMessage(params.sessionId, clientUserMessageId, params.prompt, turnId);
             },
             onSyntheticInserted: async () => {},
         });
@@ -5453,11 +5447,11 @@ export class CodexAcpServer {
                     signal.addEventListener("abort", dropPendingRequest, {once: true});
                 }
             }
-            const onInserted = async () => {
+            const onInserted = async (turnId?: string) => {
                 inserted = true;
                 try {
                     for (const block of request.prompt) {
-                        await session.update(createUserMessageChunk(block, messageId, this.liveTurnMeta(sessionId)));
+                        await session.update(createUserMessageChunk(block, messageId, turnId === undefined ? undefined : {codex: {turnId}}));
                     }
                 } catch (error) {
                     logger.error(`Failed to send the user message for session ${sessionId}`, error);
@@ -5481,10 +5475,10 @@ export class CodexAcpServer {
                     {
                         clientUserMessageId: messageId,
                         onInserted,
-                        onSyntheticInserted: async (syntheticId, prompt) => {
+                        onSyntheticInserted: async (syntheticId, prompt, turnId) => {
                             try {
                                 for (const block of prompt) {
-                                    await session.update(createUserMessageChunk(block, syntheticId, this.liveTurnMeta(sessionId)));
+                                    await session.update(createUserMessageChunk(block, syntheticId, {codex: {turnId}}));
                                 }
                             } catch (error) {
                                 logger.error(`Failed to send the synthetic user message for session ${sessionId}`, error);
@@ -5666,12 +5660,12 @@ export class CodexAcpServer {
         // Synthetic turns codex-acp starts itself inside this same prompt (the plan-implementation
         // follow-up, a `/goal` continuation) each mint their own id and register here, so their
         // userMessage can be told apart from the original prompt's once it lands.
-        const pendingSyntheticInsertions = new Map<string, () => Promise<void>>();
+        const pendingSyntheticInsertions = new Map<string, (turnId: string) => Promise<void>>();
         const registerSyntheticInsertion = (clientUserMessageId: string, prompt: acp.ContentBlock[]): void => {
             if (insertion === undefined) {
                 return;
             }
-            pendingSyntheticInsertions.set(clientUserMessageId, () => insertion.onSyntheticInserted(clientUserMessageId, prompt));
+            pendingSyntheticInsertions.set(clientUserMessageId, turnId => insertion.onSyntheticInserted(clientUserMessageId, prompt, turnId));
         };
         const clearRecoveredSessionFailure = async (handler: CodexEventHandler): Promise<void> => {
             await handler.completeSuccessfulTurn(sessionState.currentTurnId);
@@ -5752,13 +5746,13 @@ export class CodexAcpServer {
                 permissionContext.handleNotification(event);
                 await elicitationHandler.handleNotification(event);
             };
-            const resolvePendingInsertion = async (): Promise<void> => {
+            const resolvePendingInsertion = async (turnId?: string): Promise<void> => {
                 if (pendingInsertion === undefined) {
                     return;
                 }
                 const {onInserted} = pendingInsertion;
                 pendingInsertion = undefined;
-                await onInserted();
+                await onInserted(turnId);
             };
             await promptClient.subscribeToSessionEvents(params.sessionId,
                 async (event) => {
@@ -5770,12 +5764,12 @@ export class CodexAcpServer {
                     this.handleSkillsChanged(sessionState, event);
                     if (pendingInsertion !== undefined
                         && isInsertedUserMessage(event, params.sessionId, pendingInsertion.clientUserMessageId)) {
-                        await resolvePendingInsertion();
+                        await resolvePendingInsertion(event.params.turnId);
                     } else {
                         for (const [clientUserMessageId, resolveSynthetic] of pendingSyntheticInsertions) {
                             if (isInsertedUserMessage(event, params.sessionId, clientUserMessageId)) {
                                 pendingSyntheticInsertions.delete(clientUserMessageId);
-                                await resolveSynthetic();
+                                await resolveSynthetic(event.params.turnId);
                                 break;
                             }
                         }
