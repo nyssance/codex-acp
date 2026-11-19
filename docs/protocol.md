@@ -200,3 +200,7 @@ switches and application context without understanding input modes.
 ## Plugin-service authentication for hosts
 
 `_codex/plugin_service_auth({refreshToken?: boolean | null})` returns `{backendOrigin, accountId, accessToken}` for the current ChatGPT account, or `null` for a non-ChatGPT account. `refreshToken: true` requests refreshed credentials after HTTP 401. Missing workspace routing, missing credentials, cancellation and account changes reject the request. The account is checked again before returning credentials. This is a host authentication method, not a model tool: never log, persist or add its result to conversation projections. Hosts own HTTP catalog and search requests; this method reads no plugin catalog and issues no plugin search.
+
+## Local image attachments
+
+On a prompt or steer request, an ACP image block with `_meta["alwith.localImage"] = true` and an absolute `file:` URI selects the Codex app server's `localImage` input. The path must be readable on the Codex host. The block's MIME type and data describe its conversation preview. Image input capability checks apply as they do for inline images. An invalid file URI returns invalid parameters. Image blocks without this marker retain their existing URL or inline data behavior.

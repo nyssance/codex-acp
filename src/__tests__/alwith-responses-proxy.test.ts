@@ -54,6 +54,20 @@ function rawText(data: RawData): string {
 }
 
 describe("Responses compatibility transport", () => {
+    it("preserves the upstream Responses image-size error status and body", async () => {
+        const error = '{"request_id":"image-limit","code":"BadRequest.TooLarge","message":"Exceeded limit on max bytes per data-uri item : 20971520"}';
+        const upstream = createServer((_request, response) =>
+            response.writeHead(400, {"content-type": "application/json"}).end(error),
+        );
+        const external = new ResponsesProxy("external");
+        cleanup.push(() => external.close());
+        const route = await external.route(await listen(upstream));
+        const response = await fetch(`${route}/responses`, {method: "POST", body});
+        expect(response.status).toBe(400);
+        expect(response.headers.get("content-type")).toBe("application/json");
+        expect(await response.text()).toBe(error);
+    });
+
     it.each(["/images/generations", "/alpha/search"])("forwards %s JSON unchanged with auth, query and upstream errors", async path => {
         let received: unknown;
         const upstream = createServer(async (request, response) => {

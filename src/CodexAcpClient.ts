@@ -38,6 +38,7 @@ import type {JsonValue} from "./app-server/serde_json/JsonValue";
 import {ModelId} from "./ModelId";
 import {AgentMode} from "./AgentMode";
 import path from "node:path";
+import {fileURLToPath} from "node:url";
 import {isDeepStrictEqual} from "node:util";
 import {logger} from "./Logger";
 import {isModelProviderRouteError, isAccountReadAuthFailureError, isAccountReadUnavailableError, isThreadClosingError} from "./CodexThreadErrors";
@@ -2064,6 +2065,15 @@ export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
             case "text":
                 return {type: "text", text: block.text, text_elements: []};
             case "image": {
+                if (block._meta?.["alwith.localImage"] === true) {
+                    try {
+                        const uri = block.uri;
+                        if (!uri || !/^file:\//i.test(uri)) throw new TypeError("Expected an absolute file URL");
+                        return {type: "localImage", path: fileURLToPath(uri)};
+                    } catch {
+                        throw RequestError.invalidParams(undefined, "Local image requires an absolute file URL");
+                    }
+                }
                 const url = isSupportedImageUrl(block.uri) ? block.uri : imageDataUrl(block);
                 return {type: "image", url};
             }
