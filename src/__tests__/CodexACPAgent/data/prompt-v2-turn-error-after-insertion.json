@@ -34,6 +34,7 @@
       },
       {
         "sessionUpdate": {
+          "background": [],
           "state": "running",
           "sessionUpdate": "state_update"
         }
@@ -103,6 +104,7 @@
             "message": "You've hit your usage limit."
           },
           "stopReason": "error",
+          "background": [],
           "_meta": {
             "quota": {
               "token_count": null,
@@ -150,6 +152,7 @@
       },
       {
         "sessionUpdate": {
+          "background": [],
           "state": "running",
           "sessionUpdate": "state_update"
         }
@@ -203,6 +206,7 @@
             "message": "Authentication required"
           },
           "stopReason": "error",
+          "background": [],
           "_meta": {
             "quota": {
               "token_count": null,

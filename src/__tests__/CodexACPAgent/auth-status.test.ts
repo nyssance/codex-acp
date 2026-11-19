@@ -37,6 +37,7 @@ function mockAccount(fixture: CodexMockTestFixture, account: Account | null) {
         userId: null,
         workspaceRouting: null,
         account,
+        userId: null,
         requiresOpenaiAuth: account === null,
     });
 }

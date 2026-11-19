@@ -187,7 +187,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
         if (version === 1) methods.push(["session/load", {cwd, mcpServers: []}], ["session/set_mode", {modeId: "agent"}],
             [LEGACY_SET_SESSION_MODEL_METHOD, {modelId: "gpt-5"}]);
         for (const id of [childId, worker]) for (const [method, params] of methods) {
-            await expect(h.request(method, {sessionId: id, ...params}), `${method}: ${id}`).rejects.toMatchObject({code: -32600});
+            await expect(h.request(method, {sessionId: id, ...params}), `${method}: ${id}`).rejects.toMatchObject({code: -32602});
         }
         await h.agent.cancel({sessionId: childId});
         expect(h.turnInterruptCalls()).toEqual([]);
@@ -349,7 +349,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
         const blocked = client.enqueueSessionTransition(sessionId, () => held);
         try {
             h.emit(itemStarted(activityItem()));
-            await expect(h.request("session/close", {sessionId: worker})).rejects.toMatchObject({code: -32600});
+            await expect(h.request("session/close", {sessionId: worker})).rejects.toMatchObject({code: -32602});
             expect(childUpdates()).toEqual([]);
         } finally { release(); }
         await blocked;
@@ -358,6 +358,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
 
     it("cascades parent cancellation without inventing a child ending", async () => {
         await connect();
+        h.emit(turnStarted());
         h.emit(itemStarted(activityItem()));
         h.emit(onWorker(turnStarted("child-turn")));
         await flush(h);
@@ -480,6 +481,7 @@ describe.each([1, 2] as const)("ACP v%s live standard subagents", version => {
 
     it.skipIf(version !== 2)("publishes snapshots after the setup response without waiting for unrelated requests", async () => {
         await connect();
+        h.emit(turnStarted());
         h.emit(itemStarted(activityItem()));
         h.emit(onWorker(turnStarted("child-turn")));
         await flush(h);

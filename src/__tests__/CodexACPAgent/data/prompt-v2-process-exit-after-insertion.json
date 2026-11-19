@@ -34,6 +34,7 @@
       },
       {
         "sessionUpdate": {
+          "background": [],
           "state": "running",
           "sessionUpdate": "state_update"
         }
@@ -81,6 +82,7 @@
             "message": "Connection to Codex was lost."
           },
           "stopReason": "error",
+          "background": [],
           "_meta": {
             "quota": {
               "token_count": null,
@@ -128,6 +130,7 @@
       },
       {
         "sessionUpdate": {
+          "background": [],
           "state": "running",
           "sessionUpdate": "state_update"
         }
@@ -165,6 +168,7 @@
             "message": "Connection to Codex was lost."
           },
           "stopReason": "error",
+          "background": [],
           "_meta": {
             "quota": {
               "token_count": null,

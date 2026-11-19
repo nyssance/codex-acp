@@ -21,7 +21,7 @@ Without either contract, a subagent stays an ordinary tool call on the root sess
 - A child keeps one session ID across assignments, idle periods, and replay.
 - `title` comes from the Codex agent path or thread name.
 - `description` is the role that Codex assigned to the child (`agentRole`). It is omitted when Codex reports no role. It never holds the task prompt.
-- `capabilities.cancel` is advertised only while the child's current turn can be interrupted. `session/cancel` with the child's ID interrupts that work and its observed descendants. Every other Client request for a child session is rejected.
+- `capabilities.cancel` is advertised only while the child's current turn can be interrupted. `session/cancel` with the child's ID interrupts that work. On v2 it skips listed [background work](background-work.md); a child terminal with its own `capabilities.cancel` can be stopped with `terminal/cancel` without interrupting the child turn. Other client-initiated requests for a child session are rejected.
 - `state` reports `running`, `requires_action`, `idle` with a `stopReason`, or `unknown` when observability is lost. A v2 Client also gets the same `state_update` on the child session. There is no terminal child state.
 - `cwd` is reported as described in [Directories](#directories).
 
@@ -43,9 +43,9 @@ The task a session gives a child is reported as `session_message`, not as a user
 
 ### Session load
 
-`session/load`, and v2 `session/resume` with `replayFrom`, replay each recorded child conversation once, before the response. Replay reports the same announcements, session messages, and session references as the live path. It reports the latest recorded turn outcome as an `idle` snapshot. Replay grants no cancel capability.
+`session/load`, and v2 `session/resume` with `replayFrom`, replay each recorded child conversation once, before the response. Replay reports the same announcements, session messages, and session references as the live path. The latest recorded turn outcome is historical state on the parent's `subagent_update`, not a live `state_update` for the child. Replay grants no cancel capability.
 
-On v2, the root and each announced child get exactly one `replay_complete`, including children with no retained content. Live updates, state snapshots, and requests follow the boundary for their session. The boundary does not activate an inactive root session. That happens with the successful resume response. A resume without `replayFrom` sends no replay boundary.
+On v2, the root and each announced child get exactly one `replay_complete`, including children with no retained content. A parent's marker separates historical child associations from current child state and capabilities reported on that parent. Live updates, state snapshots, and requests follow the boundary for their session. Root activation and child controls still wait for the successful resume response. A resume without `replayFrom` sends no replay boundary. V1 `session/load` uses the response as the freshness boundary.
 
 A missing or incomplete child transcript adds one advisory on the root session. On v1 this is a thought. On v2 it is a live notice after `replay_complete`, not retained history.
 

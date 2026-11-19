@@ -237,6 +237,7 @@ function createRouter(
         .onRequest(acpV2.methods.agent.session.resume, (ctx) => setup(ctx.params.sessionId, ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).resumeSessionV2(ctx.params, ctx.signal)), ctx.signal))
         .onRequest(acpV2.methods.agent.session.fork, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).forkSessionV2(ctx.params))))
         .onRequest(acpV2.methods.agent.session.close, (ctx) => getAgent(ctx.params).closeSession(ctx.params))
+        .onRequest(acpV2.methods.agent.terminal.cancel, (ctx) => getAgent().cancelTerminalV2(ctx.params))
         // No `session/set_mode`: v2 removed the modes API; modes are config options.
         .onRequest(acpV2.methods.agent.session.setConfigOption, (ctx) => getAgent(ctx.params).setSessionConfigOptionV2(ctx.params))
         .onRequest(acpV2.methods.agent.session.setTitle, (ctx) => getAgent(ctx.params).setSessionTitle(ctx.params))
@@ -260,7 +261,9 @@ function createRouter(
         .onRequest(SESSION_ARCHIVE_METHOD, sessionArchiveParamsParser, (ctx) => getAgent(ctx.params).sessionIndex.setArchived(ctx.params, true))
         .onRequest(SESSION_UNARCHIVE_METHOD, sessionArchiveParamsParser, (ctx) => getAgent(ctx.params).sessionIndex.setArchived(ctx.params, false))
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
-        .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
+        .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params))
+        // SDK 2.8.0 defaults unimplemented tool/terminal cancel methods to -32602.
+        .onRequest("*", ({method}) => { throw acpV2.RequestError.methodNotFound(method); });
 
     for (const method of Object.keys(CODEX_NATIVE_METHODS) as Array<keyof typeof CODEX_NATIVE_METHODS>) {
         v1Agent = v1Agent.onRequest(method, {parse: objectParams}, (ctx) => getAgent().nativeRequest(method, ctx.params));
