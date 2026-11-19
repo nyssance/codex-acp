@@ -421,7 +421,7 @@ persisted results, and never treat disconnect as successful completion.
 
 ### Test isolation
 
-`bun run test` runs mocks, including mock executable lifecycle tests. Tests that start the real Codex app-server are separate: after explicit authorization, use `RUN_APP_SERVER_TESTS=1 bun run test:app-server`. They retain their isolated temporary Codex homes. Live model E2E tests remain manual.
+`bun run test` supports Bun 1.4.5 stable. It runs native protocol tests with Bun and mocked behavior tests with Vitest on Bun using the threads pool, including mock executable lifecycle tests. `bun run test:canary` explicitly selects the experimental native runner and requires Canary; the default command never switches runners automatically. Tests that start the real Codex app-server are separate: after explicit authorization, use `RUN_APP_SERVER_TESTS=1 bun run test:app-server`. They retain their isolated temporary Codex homes. Live model E2E tests remain manual.
 
 ### Native network transport
 
