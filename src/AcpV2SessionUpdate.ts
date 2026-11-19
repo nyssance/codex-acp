@@ -92,10 +92,6 @@ export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate
                 undefined,
                 "'current_mode_update' session update does not exist in ACP v2",
             );
-        // Codex has no session cursors, so codex-acp never emits this; the v1 and v2 anchor shapes
-        // also differ, so there is nothing to pass through.
-        case "cursor_update":
-            throw acp.RequestError.internalError(undefined, "codex-acp does not emit 'cursor_update'");
         // v2 message chunks require `messageId`. A user message without one would not match the
         // `messageId` of its prompt response, so it is rejected rather than given a fresh id.
         case "user_message_chunk": {
