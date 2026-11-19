@@ -23,11 +23,7 @@ function connectRaw() {
             case "initialize":
                 return mockInitializeResponse();
             case "account/read":
-                return {
-                    workspaceRouting: null,
-                    account: {type: "apiKey"},
-                    requiresOpenaiAuth: true,
-                };
+                return {account: {type: "apiKey"}, requiresOpenaiAuth: true, workspaceRouting: null};
             case "thread/list":
                 return {data: [], nextCursor: null};
             case "account/logout":

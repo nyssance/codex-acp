@@ -262,12 +262,7 @@ describe("CodexACPAgent - an unavailable account read", () => {
             await initialize(fixture);
 
             await loadAfterGrace(fixture);
-            read.resolve({
-                userId: null,
-                workspaceRouting: null,
-                account: null,
-                requiresOpenaiAuth: true,
-            });
+            read.resolve({account: null, userId: null, requiresOpenaiAuth: true, workspaceRouting: null});
             await drainScheduledWork();
 
             expect(authStatusUpdates(fixture)).toEqual([NONE_STATUS]);
@@ -349,11 +344,7 @@ describe("CodexACPAgent - an unavailable account read", () => {
 
             secondRead.resolve(SIGNED_IN);
             await drainScheduledWork();
-            firstRead.resolve({
-                workspaceRouting: null,
-                account: {type: "apiKey"},
-                requiresOpenaiAuth: true,
-            } as GetAccountResponse);
+            firstRead.resolve({account: {type: "apiKey"}, requiresOpenaiAuth: true, workspaceRouting: null} as GetAccountResponse);
             await drainScheduledWork();
 
             expect(authStatusUpdates(fixture)).toEqual([SIGNED_IN_STATUS]);

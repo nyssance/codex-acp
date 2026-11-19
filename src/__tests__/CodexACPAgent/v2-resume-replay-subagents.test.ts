@@ -193,12 +193,7 @@ async function connectV2Client(
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
-        userId: null,
-        workspaceRouting: null,
-        account: null,
-        requiresOpenaiAuth: false,
-    });
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();

@@ -245,12 +245,7 @@ async function connectV2Client(options?: {
     const codexAcpClient = new CodexAcpClient(new CodexAppServerClient(mocks.mockCodexConnection as any));
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
-        userId: null,
-        workspaceRouting: null,
-        account: null,
-        requiresOpenaiAuth: false,
-    });
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue({ready: [], failed: [], cancelled: []});
     const router = createAcpAgentRouter((connection) => new CodexAcpServer(connection, codexAcpClient));
     const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
@@ -484,11 +479,7 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
         const codexAcpClient = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         codexAcpClient.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        codexAcpClient.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        codexAcpClient.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         codexAcpClient.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});

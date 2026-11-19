@@ -77,11 +77,7 @@ describe("CodexACPAgent - loadSession auth", () => {
         const fixture = loadFixture();
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
-        appServer.accountRead = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: true,
-        });
+        appServer.accountRead = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: true, workspaceRouting: null});
         const closeSpy = vi.spyOn(client, "closeSession").mockResolvedValue(undefined as never);
         await initialize(fixture);
 
@@ -96,11 +92,7 @@ describe("CodexACPAgent - loadSession auth", () => {
     it("fails with auth_required when the resume also fails", async () => {
         const fixture = loadFixture();
         const appServer = fixture.getCodexAppServerClient();
-        appServer.accountRead = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: true,
-        });
+        appServer.accountRead = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: true, workspaceRouting: null});
         appServer.threadResume = vi.fn().mockRejectedValue(new Error("no rollout found for thread id session-1"));
         await initialize(fixture);
 

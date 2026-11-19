@@ -29,11 +29,7 @@ describe("CodexACPAgent - loadSession", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        client.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        client.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
@@ -87,11 +83,7 @@ describe("CodexACPAgent - loadSession", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        client.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        client.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
@@ -167,11 +159,7 @@ describe("CodexACPAgent - loadSession", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        client.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        client.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
@@ -386,11 +374,7 @@ describe("CodexACPAgent - loadSession", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        client.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        client.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
@@ -933,11 +917,7 @@ describe("CodexACPAgent - loadSession", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        client.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        client.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
@@ -977,11 +957,7 @@ describe("CodexACPAgent - loadSession", () => {
         const client = fixture.getCodexAcpClient();
         const appServer = fixture.getCodexAppServerClient();
         client.readAuthRequirement = vi.fn().mockResolvedValue({required: false, account: null});
-        client.getAccount = vi.fn().mockResolvedValue({
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        client.getAccount = vi.fn().mockResolvedValue({account: null, requiresOpenaiAuth: false, workspaceRouting: null});
         client.listSkills = vi.fn().mockResolvedValue({data: []});
         const model = createTestModel();
         appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});

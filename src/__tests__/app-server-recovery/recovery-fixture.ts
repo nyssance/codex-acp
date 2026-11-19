@@ -64,12 +64,7 @@ export function defaultAnswer(method: string, params: unknown): unknown {
             return { project: { id: "test-project" } };
         case "initialize": return {userAgent: "codex-test", codexHome: "/codex-home"};
         case "model/list": return {data: [MODEL], nextCursor: null};
-        case "account/read":
-            return {
-                workspaceRouting: null,
-                account: null,
-                requiresOpenaiAuth: false,
-            };
+        case "account/read": return {account: null, requiresOpenaiAuth: false, workspaceRouting: null};
         case "config/read": return {config: {}, origins: {}, layers: null};
         case "skills/list": return {data: []};
         case "thread/start":

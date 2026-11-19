@@ -50,12 +50,7 @@ async function connectV2Client() {
     const appServer = new CodexAppServerClient(mocks.mockCodexConnection as any);
     const codexAcpClient = new CodexAcpClient(appServer);
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
-        userId: null,
-        workspaceRouting: null,
-        account: null,
-        requiresOpenaiAuth: true,
-    });
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: true, workspaceRouting: null});
     vi.spyOn(appServer, "turnStart").mockResolvedValue({turn: createTurn("inProgress")});
     vi.spyOn(appServer, "awaitTurnCompleted").mockResolvedValue({threadId: sessionId, turn: createTurn("completed")});
     let agent: CodexAcpServer | null = null;

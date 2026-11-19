@@ -349,11 +349,7 @@ describe('elicitation/create over ACP v2', () => {
         mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string) => {
             switch (method) {
                 case "account/read":
-                    return {
-                        workspaceRouting: null,
-                        account: null,
-                        requiresOpenaiAuth: true,
-                    };
+                    return {account: null, requiresOpenaiAuth: true, workspaceRouting: null};
                 case "account/login/start":
                     return {
                         type: "chatgptDeviceCode",

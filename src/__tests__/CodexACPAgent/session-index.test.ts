@@ -85,12 +85,7 @@ async function createAgent(kind: ClientKind, threads: Thread[] = [createThread()
 
 async function openLocalSession(fixture: CodexMockTestFixture, sessionId: string, additionalDirectories: string[] = []): Promise<void> {
     const client = fixture.getCodexAcpClient();
-    vi.spyOn(client, "getAccount").mockResolvedValue({
-        userId: null,
-        workspaceRouting: null,
-        account: null,
-        requiresOpenaiAuth: false,
-    });
+    vi.spyOn(client, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
     vi.spyOn(client, "newSession").mockResolvedValue({
         sessionId,
         currentModelId: "model-id[medium]",

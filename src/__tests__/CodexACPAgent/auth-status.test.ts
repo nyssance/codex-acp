@@ -402,12 +402,7 @@ describe("authStatus extension", () => {
             });
 
             await agent.authenticate({methodId: "chat-gpt"});
-            accountSpy.mockResolvedValue({
-                userId: null,
-                workspaceRouting: null,
-                account: null,
-                requiresOpenaiAuth: true,
-            });
+            accountSpy.mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: true, workspaceRouting: null});
             await agent.logout({});
 
             expect(authStatusUpdates(fixture)).toEqual([

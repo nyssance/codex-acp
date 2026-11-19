@@ -221,12 +221,7 @@ export async function connectSession(
     const codexAcpClient = new CodexAcpClient(appServer);
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
-        userId: null,
-        workspaceRouting: null,
-        account: null,
-        requiresOpenaiAuth: false,
-    });
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
     vi.spyOn(codexAcpClient, "awaitMcpServerStartup").mockResolvedValue(options.mcpStartup ?? {ready: [], failed: [], cancelled: []});
     let agent: CodexAcpServer | null = null;
     const router = createAcpAgentRouter((connection) => {
@@ -451,12 +446,7 @@ export function createReplacementCodexAcpClient(): {
     const codexAcpClient = new CodexAcpClient(appServer);
     vi.spyOn(codexAcpClient, "readAuthRequirement").mockResolvedValue({required: false, account: null});
     vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
-    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({
-        userId: null,
-        workspaceRouting: null,
-        account: null,
-        requiresOpenaiAuth: false,
-    });
+    vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
     return {
         codexAcpClient,
         appServer,

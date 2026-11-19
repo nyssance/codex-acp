@@ -11,12 +11,7 @@ describe("ACP session fork", () => {
         const model = createTestModel({id: "gpt-5"});
 
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({
-            userId: null,
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        vi.spyOn(client, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         const forkSpy = vi.spyOn(client, "forkSession").mockResolvedValue({
             sessionId: "fork-id",
@@ -60,12 +55,7 @@ describe("ACP session fork", () => {
         const mcpStartup = deferred<McpStartupResult>();
 
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({
-            userId: null,
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        vi.spyOn(client, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(client, "forkSession").mockResolvedValue({
             sessionId: "fork-id",
@@ -105,12 +95,7 @@ describe("ACP session fork", () => {
         const client = fixture.getCodexAcpClient();
 
         vi.spyOn(client, "readAuthRequirement").mockResolvedValue({required: false, account: null});
-        vi.spyOn(client, "getAccount").mockResolvedValue({
-            userId: null,
-            workspaceRouting: null,
-            account: null,
-            requiresOpenaiAuth: false,
-        });
+        vi.spyOn(client, "getAccount").mockResolvedValue({account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null});
         vi.spyOn(client, "listSkills").mockResolvedValue({data: []});
         vi.spyOn(client, "forkSession").mockResolvedValue({
             sessionId: "fork-id",
