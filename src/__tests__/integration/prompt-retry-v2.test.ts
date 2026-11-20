@@ -27,7 +27,7 @@ describeIntegration("integration: ACP v2 prompt retries", () => {
         });
         const methods = acp.methods.agent;
         const withAgent = async <T>(run: (agent: acp.ClientContext, updates: acp.UpdateSessionNotification[]) => Promise<T>): Promise<T> => {
-            const child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
+            const child = spawn(process.execPath, ["src/index.ts"], {
                 cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome},
                 stdio: ["pipe", "pipe", "pipe"],
             });
