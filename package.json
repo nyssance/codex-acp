@@ -22,8 +22,8 @@
         "docs/session-state.md"
     ],
     "scripts": {
-    "test:watch:unit": "bun --bun vitest watch --project=unit",
-    "test:watch:native": "bun test --watch ./src/client/protocol",
+        "test:watch:unit": "bun --bun vitest watch --project=unit",
+        "test:watch:native": "bun test --watch ./src/client/protocol",
         "test:canary": "bun test --preload ./src/__tests__/native-catalog-setup.ts --parallel --path-ignore-patterns='src/__tests__/integration/**' --path-ignore-patterns='src/__tests__/CodexACPAgent/e2e/**' --path-ignore-patterns='src/__tests__/CodexACPAgent/CodexAcpClient.test.ts' --path-ignore-patterns='src/__tests__/CodexACPAgent/mcp-session.test.ts' --path-ignore-patterns='src/__tests__/CodexACPAgent/mcp-config-merge.test.ts' src/__tests__ scripts src/client/protocol",
         "test:native": "bun test --parallel ./src/client/protocol",
         "prepublishOnly": "bun run build",
@@ -78,7 +78,7 @@
     },
     "dependencies": {
         "@agentclientprotocol/sdk": "^2.8.0",
-        "@openai/codex": "^0.170.0",
+        "@openai/codex": "^0.171.0",
         "cross-spawn": "^7.0.6",
         "diff": "^9.0.0",
         "effect": "^4.1.4",

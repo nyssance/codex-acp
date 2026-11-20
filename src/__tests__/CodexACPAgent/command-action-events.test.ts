@@ -300,7 +300,7 @@ describe('CodexEventHandler - command action events', () => {
                 item: {
                     type: "mcpToolCall",
                     id: "call-id",
-                    server: "server-name",
+                    server: "server-name", environmentId: null,
                     tool: "tool-name",
                     status: "inProgress",
                     arguments: { argument: "example"},
@@ -333,7 +333,7 @@ describe('CodexEventHandler - command action events', () => {
                     item: {
                         type: "mcpToolCall",
                         id: "call-id",
-                        server: "ijproxy",
+                        server: "ijproxy", environmentId: null,
                         tool: "read_file",
                         status: "inProgress",
                         arguments: { file_path: ".ai/local.md", mode: "slice", start_line: 1, max_lines: 200 },
@@ -365,7 +365,7 @@ describe('CodexEventHandler - command action events', () => {
                     item: {
                         type: "mcpToolCall",
                         id: "call-id",
-                        server: "ijproxy",
+                        server: "ijproxy", environmentId: null,
                         tool: "read_file",
                         status: "failed",
                         arguments: { file_path: ".ai/local.md", mode: "slice", start_line: 1, max_lines: 200 },
@@ -402,7 +402,7 @@ describe('CodexEventHandler - command action events', () => {
                     item: {
                         type: "mcpToolCall",
                         id: "call-id",
-                        server: "server-name",
+                        server: "server-name", environmentId: null,
                         tool: "tool-name",
                         status: "inProgress",
                         arguments: { argument: "example" },
@@ -443,7 +443,7 @@ describe('CodexEventHandler - command action events', () => {
                     item: {
                         type: "mcpToolCall",
                         id: "call-id",
-                        server: "server-name",
+                        server: "server-name", environmentId: null,
                         tool: "tool-name",
                         status: "failed",
                         arguments: { argument: "example" },

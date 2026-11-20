@@ -73,6 +73,7 @@ function oauthReauthParams(overrides: Partial<McpServerElicitationRequestParams 
         threadId: sessionId,
         turnId,
         serverName: "auth-server",
+        environmentId: null,
         mode: "url",
         _meta: null,
         message: "Please authorize access",

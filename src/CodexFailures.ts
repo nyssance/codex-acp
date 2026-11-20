@@ -89,6 +89,7 @@ const STRING_CODEX_ERROR_CATEGORIES: Partial<Record<string, CodexFailureKind>> =
     flexUnavailable: "provider_error",
     serverOverloaded: "overloaded",
     cyberPolicy: "policy_denied",
+    bioPolicy: "policy_denied",
     misalignmentPolicyViolation: "policy_denied",
     tooManyDenials: "provider_error",
     internalServerError: "internal_error",

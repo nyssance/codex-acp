@@ -792,6 +792,9 @@ export class CodexEventHandler {
             case "thread/attachment/updated":
                 // Persisted attachment metadata has no ACP session update counterpart.
                 return null;
+            case "thread/search/partial":
+                // Provisional rows of a streamed thread search; the adapter does not start one.
+                return null;
             case "account/gatewayOAuth/changed":
                 // Gateway login state is account-scoped and has no ACP session update counterpart.
                 return null;
