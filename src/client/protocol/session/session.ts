@@ -26,6 +26,8 @@ type ItemBase = {
 export type MessageItem = ItemBase & {
     kind: "user" | "assistant" | "thought";
     content: acp.ContentBlock[];
+    /** Local submission time for an optimistic user message, retained after its echo. */
+    sentAt?: number;
     /**
      * Reconciliation between a locally pre-displayed user message and what the agent reports back. The protocol requires the agent to report user messages at their
      * position in history (`user_message` + messageId). When the local one is already there,
@@ -422,10 +424,12 @@ export function markInterrupted(session: Session, policy: FoldPolicy = {}): Sess
  * we first record a local `echo: "pending"`, precisely claimed by the prompt receipt (see `MessageItem.echo`).
  */
 export function addPrompt(session: Session, content: acp.ContentBlock[], id: string = crypto.randomUUID()): Session {
-    const at = nextStamp(session);
+    const sentAt = Date.now();
+    const at = Math.max(sentAt, session.clock + 1);
     const item: MessageItem = {
         id,
         at,
+        sentAt,
         replayed: false,
         _meta: null,
         kind: "user",
@@ -447,6 +451,7 @@ export function acknowledgePrompt(session: Session, localId: string, messageId: 
     }
     const adopted: MessageItem = {
         ...local,
+        at: remote?.at ?? local.at,
         id: messageId,
         echo: remote === undefined ? "acknowledged" : "adopted",
         _meta: patchMeta(local._meta, remote === undefined ? undefined : remote._meta),
@@ -564,13 +569,17 @@ function fold(session: Session, update: acp.SessionUpdate, options: ApplyOptions
         if (messageKind === "user") {
             const acknowledged = session.items.find(item => item.kind === "user" && item.id === messageId && item.echo === "acknowledged");
             if (acknowledged?.kind === "user") {
+                const at = nextStamp(session);
+                const adopted: MessageItem = {
+                    ...acknowledged,
+                    at,
+                    echo: "adopted",
+                    _meta: isChunk ? patchChunkMeta(acknowledged._meta, frame._meta) : patchMeta(acknowledged._meta, frame._meta),
+                };
                 return {
                     ...session,
-                    items: session.items.map(item => item === acknowledged ? {
-                        ...acknowledged,
-                        echo: "adopted",
-                        _meta: isChunk ? patchChunkMeta(acknowledged._meta, frame._meta) : patchMeta(acknowledged._meta, frame._meta),
-                    } : item),
+                    clock: at,
+                    items: [...session.items.filter(item => item !== acknowledged), adopted],
                 };
             }
         }

@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {keyedPromptId} from "../../AcpV2Prompt";
 import {
-    connectSession, createThread, createTurn, cwd, itemCompleted, sessionId, turnCompleted, turnStarted, userMessageItem,
+    connectSession, createThread, createTurn, cwd, itemCompleted, sessionId, settle, turnCompleted, turnFinished, turnStarted, userMessageItem,
     type PromptSession,
 } from "./v2-prompt-harness";
 import {expectConformingV2SessionUpdates} from "./v2-session-update-guard";
@@ -59,10 +59,7 @@ describe("ACP v2 keyed prompts", () => {
         await h.promptRunFinished();
     });
 
-    // Upstream holds a prompt behind a running turn and has cases for dropping it while it is held.
-    // This adapter does not hold an ordinary prompt: it steers it into the running turn (see
-    // steering-v2.test.ts), so a keyed prompt there has no held state to drop.
-    it("steers a keyed prompt into the running turn once and answers every attempt with its receipt", async () => {
+    it("retries a hook-blocked steer and shares the receipt only after native insertion", async () => {
         h = await connectSession();
         const blocker = h.sendPrompt([{type: "text", text: "Block the queue"}]);
         await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(1));
@@ -70,15 +67,75 @@ describe("ACP v2 keyed prompts", () => {
         h.emit(itemCompleted(userMessageItem(h.turnStartParams[0]!["clientUserMessageId"] as string)));
         await blocker;
 
-        const steered = vi.spyOn(h.agent as unknown as {executeOrQueueSteeringRequest: () => Promise<unknown>}, "executeOrQueueSteeringRequest");
+        const steer = vi.fn(async () => ({}));
+        h.setCodexResponse("turn/steer", steer);
         const messageId = keyedPromptId(sessionId, key);
-        const attempts = await Promise.all([h.request("session/prompt", params), h.request("session/prompt", params)]);
-        expect(attempts).toEqual([{messageId}, {messageId}]);
-        expect(steered).toHaveBeenCalledTimes(1);
-        expect(h.turnStartParams).toHaveLength(1);
-        expect(JSON.stringify(h.wireMessages)).not.toContain(key);
-        h.emit(turnCompleted());
+        const blocked = h.request("session/prompt", params);
+        const concurrent = h.request("session/prompt", params);
+        const rejected = Promise.allSettled([blocked, concurrent]);
+        await vi.waitFor(() => expect(steer).toHaveBeenCalledTimes(1));
+
+        // A blocked submit hook can skip the user item and leave Codex to complete the active turn.
+        h.emit({method: "turn/completed", params: {threadId: sessionId, turn: createTurn("completed")}});
+        expect(await rejected).toEqual([
+            {status: "rejected", reason: expect.objectContaining({code: -32603})},
+            {status: "rejected", reason: expect.objectContaining({code: -32603})},
+        ]);
         await h.promptRunFinished();
+        expect(h.scopedUpdates.some(({update}) => update.sessionUpdate === "user_message_chunk" && update.messageId === messageId)).toBe(false);
+
+        // The same key can be sent into a later running turn, and matches one Codex insertion.
+        const next = h.sendPrompt([{type: "text", text: "Next turn"}]);
+        await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(2));
+        h.emit(turnStarted("turn-2"));
+        h.emit(itemCompleted(userMessageItem(h.turnStartParams[1]!.clientUserMessageId as string), "turn-2"));
+        await next;
+
+        const nativeReply = Promise.withResolvers<object>();
+        steer.mockImplementationOnce(() => nativeReply.promise);
+        const firstRetry = h.request("session/prompt", params);
+        const secondRetry = h.request("session/prompt", params);
+        await vi.waitFor(() => expect(steer).toHaveBeenCalledTimes(2));
+        expect(steer).toHaveBeenLastCalledWith(expect.objectContaining({clientUserMessageId: messageId, expectedTurnId: "turn-2"}));
+        h.emit(itemCompleted(userMessageItem(messageId, "Hello"), "turn-2"));
+        try {
+            expect(await Promise.all([firstRetry, secondRetry])).toEqual([{messageId}, {messageId}]);
+        } finally {
+            nativeReply.resolve({});
+        }
+        await expect(h.request("session/prompt", params)).resolves.toEqual({messageId});
+        expect(steer).toHaveBeenCalledTimes(2);
+        expect(h.scopedUpdates.filter(({update}) => update.sessionUpdate === "user_message_chunk" && update.messageId === messageId)).toHaveLength(1);
+        expect(JSON.stringify(h.wireMessages)).not.toContain(key);
+        h.emit(turnCompleted("turn-2"));
+        await h.promptRunFinished(1);
+        await settle();
+    });
+
+    it("cancels a keyed steer still checking retained history without dispatching it", async () => {
+        h = await connectSession();
+        await h.request("session/resume", {sessionId, cwd});
+        h.emit(turnStarted());
+        await h.waitForNotifications();
+
+        const history = Promise.withResolvers<{thread: ReturnType<typeof createThread>}>();
+        const read = vi.fn(async (request: unknown) => (request as {includeTurns?: boolean}).includeTurns
+            ? await history.promise : {thread: createThread()});
+        const steer = vi.fn(async () => ({}));
+        h.setCodexResponse("thread/read", read);
+        h.setCodexResponse("turn/steer", steer);
+        const response = h.request("session/prompt", params);
+        try {
+            await vi.waitFor(() => expect(read).toHaveBeenCalledWith(expect.objectContaining({includeTurns: true})));
+            await h.cancel();
+            await expect(response).rejects.toMatchObject({code: -32800});
+        } finally {
+            history.resolve({thread: createThread()});
+        }
+        h.emit(turnFinished("interrupted"));
+        await settle();
+        expect(steer).not.toHaveBeenCalled();
+        expect(h.turnStartParams).toHaveLength(0);
     });
 
     it("keeps the key unused on a pre-insertion failure and rejects malformed keys before starting work", async () => {

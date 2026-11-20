@@ -449,13 +449,34 @@ test("usage cost persists when omitted, replaces when present, and clears on nul
     expect(session.usage?.cost).toBeNull();
 });
 
-test.each(["user_message", "user_message_chunk"] as const)("a late %s adopts an acknowledged command without moving it past newer messages", sessionUpdate => {
+test.each(["user_message", "user_message_chunk"] as const)("a late %s places an acknowledged command at its echo", sessionUpdate => {
     let session = acknowledgePrompt(addPrompt(createSession("late-echo", "/tmp"), [{type: "text", text: "/compact"}], "local"), "local", "command");
     session = applyUpdate(session, {sessionUpdate: "user_message", messageId: "later", content: [{type: "text", text: "Next question"}]});
     session = applyUpdate(session, sessionUpdate === "user_message"
         ? {sessionUpdate, messageId: "command", content: [{type: "text", text: "/compact"}]}
         : {sessionUpdate, messageId: "command", content: {type: "text", text: "/compact"}});
-    expect(session.items.map(item => item.id)).toEqual(["command", "later"]);
-    expect((session.items[0] as MessageItem).content).toEqual([{type: "text", text: "/compact"}]);
-    expect((session.items[0] as MessageItem).echo).toBe("adopted");
+    expect(session.items.map(item => item.id)).toEqual(["later", "command"]);
+    expect(item<MessageItem>(session, "command").content).toEqual([{type: "text", text: "/compact"}]);
+    expect(item<MessageItem>(session, "command").echo).toBe("adopted");
+});
+
+test.each([false, true])("a steer takes its native position with either receipt order (receipt first: %s)", receiptFirst => {
+    const turn = {codex: {turnId: "native"}};
+    const text = (value: string) => ({type: "text" as const, text: value});
+    let session = addPrompt(createSession("steer-order", "/tmp"), [text("Stop")], "local");
+    const sentAt = item<MessageItem>(session, "local").sentAt;
+    expect(sentAt).toEqual(expect.any(Number));
+    if (receiptFirst) session = acknowledgePrompt(session, "local", "steer");
+    session = applyUpdate(session, {sessionUpdate: "agent_message", messageId: "before", content: [text("Old work")], _meta: turn});
+    session = applyUpdate(session, {sessionUpdate: "user_message_chunk", messageId: "steer", content: text("Stop"), _meta: turn});
+    const echo = item<MessageItem>(session, "steer");
+    if (!receiptFirst) session = acknowledgePrompt(session, "local", "steer");
+    session = applyUpdate(session, {sessionUpdate: "agent_message", messageId: "after", content: [text("New work")], _meta: turn});
+    session = applyUpdate(session, {sessionUpdate: "user_message_chunk", messageId: "steer", content: text("Stop"), _meta: turn});
+
+    expect(session.items.map(item => item.id)).toEqual(["before", "steer", "after"]);
+    expect(item<MessageItem>(session, "steer")).toMatchObject({at: echo.at, sentAt, echo: "adopted", content: [text("Stop")]});
+    expect(echo.at).toBeGreaterThan(sentAt!);
+    expect(echo.at).toBeGreaterThan(item<MessageItem>(session, "before").at);
+    expect(echo.at).toBeLessThan(item<MessageItem>(session, "after").at);
 });
