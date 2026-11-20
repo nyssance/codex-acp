@@ -70,15 +70,19 @@ it("keeps application context on a message steered into an active v2 turn", asyn
             steered = params as Record<string, unknown>;
             return {turnId};
         });
-        await session.request("session/prompt", {
+        const response = session.request("session/prompt", {
             sessionId,
             prompt: [{type: "text", text: "Make it blue"}],
             _meta: {alwith: {applicationContext: {task: "replacement"}}},
         });
+        await vi.waitFor(() => expect(steered).not.toBeNull());
         expect(steered).toMatchObject({
             input: [{type: "text", text: "Make it blue", text_elements: []}],
             additionalContext: applicationContextOf({alwith: {applicationContext: {task: "replacement"}}}),
         });
+        const messageId = (steered! as Record<string, unknown>).clientUserMessageId as string;
+        session.emit(itemCompleted(userMessageItem(messageId, "Make it blue"), turnId));
+        await expect(response).resolves.toEqual({messageId});
         session.emit(turnCompleted(turnId));
     } finally {
         session.connection.close();

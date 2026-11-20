@@ -514,6 +514,29 @@ type SessionOpenScope = {
     finished: boolean;
 };
 
+// Native echoes are rendered in the notification handler. Only an owned prompt has a receipt.
+type LivePromptInsertion = Omit<UserMessageInsertion, "onInserted" | "onSyntheticInserted"> & {
+    /** Mark the native insertion before sending updates, which can yield to request cancellation. */
+    onBeforeEcho?: () => void;
+    onInserted?: UserMessageInsertion["onInserted"];
+};
+
+type SteeredPromptReceipt = {
+    messageId: string;
+    beforeDispatch: AbortSignal;
+    dispatched: boolean;
+    inserted: boolean;
+    sessionCancelled: boolean;
+    finish: (error: RequestError | null) => void;
+};
+
+type PendingSteerLanding = {
+    sessionId: string;
+    turnId: string;
+    prompt: acp.ContentBlock[];
+    receipt?: SteeredPromptReceipt;
+};
+
 export class CodexAcpServer {
     private readonly sessionOpenScope = new AsyncLocalStorage<SessionOpenScope>();
     private readonly sessionOpenOwners = new Map<string, SessionOpenScope>();
@@ -596,8 +619,8 @@ export class CodexAcpServer {
     /** Tail of the per-session turn-start FIFO; see `acquireTurnStartReservation`. */
     private readonly turnStartQueueTail: Map<string, {promise: Promise<void>; settled: boolean}>;
     private readonly steeringQueues: Map<string, SteeringQueue>;
-    /** The client's message id for a v2 prompt that goes through the steering queue. */
-    private readonly steeringMessageIds = new WeakMap<SessionSteerRequest, string>();
+    /** ACP v2 prompt receipts for requests submitted through the steering queue. */
+    private readonly steeredPromptReceipts = new WeakMap<SessionSteerRequest, SteeredPromptReceipt>();
     /** The async questions of each session, shown while the turn that asked them runs. */
     private readonly asyncQuestions = new Map<string, AsyncQuestionElicitations>();
     /**
@@ -607,7 +630,7 @@ export class CodexAcpServer {
      * path); v1 has nothing to emit. A steer that starts a new turn instead goes through
      * `prompt()`'s own `UserMessageInsertion` tracking and never enters this map.
      */
-    private readonly pendingSteerLandings: Map<string, {sessionId: string; prompt: acp.ContentBlock[]}>;
+    private readonly pendingSteerLandings: Map<string, PendingSteerLanding>;
     /** Sessions with a v2 prompt that has not finished yet, including before its turn starts. */
     private readonly v2PromptsInFlight = new Set<string>();
     private readonly v2CommandSessions = new Set<string>();
@@ -1917,7 +1940,7 @@ export class CodexAcpServer {
                     clientSupportsNotices(this.clientCapabilities),
                 );
                 await this.trackCodexForegroundWork(sessionState, event);
-                await this.trackSteerLanding(sessionState, event);
+                await this.trackSteerLanding(sessionState, event, baselineEventHandler);
                 this.handleSkillsChanged(sessionState, event);
                 // Codex-started turns carry no `userMessage` item; `handleSessionScopedNotification`
                 // already drops that item type, so nothing is synthesized here.
@@ -2059,47 +2082,63 @@ export class CodexAcpServer {
         }
     }
 
-    /**
-     * Matches an injected steer's `userMessage` landing against `pendingSteerLandings`, and
-     * drops any entries a completed turn never delivered (Codex dropped the steered input
-     * silently, so nothing is shown for it). Called from every session-scoped subscription
-     * (the baseline one and each prompt's own), so it works whether the steer lands inside a
-     * v2-prompt-owned turn or an unowned one.
-     */
-    private async trackSteerLanding(sessionState: SessionState, event: ServerNotification): Promise<void> {
+    private async trackSteerLanding(
+        sessionState: SessionState,
+        event: ServerNotification,
+        eventHandler: CodexEventHandler,
+    ): Promise<void> {
         if (event.method === "turn/completed" && event.params.threadId === sessionState.sessionId) {
-            for (const [clientUserMessageId, entry] of this.pendingSteerLandings) {
-                if (entry.sessionId === sessionState.sessionId) {
-                    this.pendingSteerLandings.delete(clientUserMessageId);
+            const {turn} = event.params;
+            for (const [key, entry] of this.pendingSteerLandings) {
+                if (entry.sessionId !== sessionState.sessionId) continue;
+                if (entry.receipt !== undefined) {
+                    if (entry.turnId !== turn.id) continue;
+                    const failure = eventHandler.getTurnFailure(turn);
+                    const message = "The turn ended before Codex recorded the steered prompt";
+                    entry.receipt.finish(entry.receipt.sessionCancelled || turn.status === "interrupted"
+                        ? RequestError.requestCancelled(undefined, message)
+                        : failure === null ? RequestError.internalError(undefined, message) : new RequestError(failure.code, failure.message));
                 }
+                this.pendingSteerLandings.delete(key);
             }
             return;
         }
-        for (const [clientUserMessageId, entry] of this.pendingSteerLandings) {
-            if (entry.sessionId === sessionState.sessionId
-                && isInsertedUserMessage(event, sessionState.sessionId, clientUserMessageId)) {
-                this.pendingSteerLandings.delete(clientUserMessageId);
-                await this.emitLiveSteerUserMessage(sessionState.sessionId, clientUserMessageId, entry.prompt, event.params.turnId);
-                return;
-            }
-        }
+        await this.trackSteerInsertion(sessionState.sessionId, event);
     }
 
-    /**
-     * Shows a landed steer as a live-only `user_message` (v2 only; the steering response itself
-     * carries no `messageId`, per user decision).
-     */
-    private async emitLiveSteerUserMessage(sessionId: string, messageId: string, prompt: acp.ContentBlock[], turnId: string | undefined): Promise<void> {
+    private async trackSteerInsertion(sessionId: string, event: ServerNotification, standardOnly = false): Promise<void> {
+        if ((event.method !== "item/started" && event.method !== "item/completed")
+            || event.params.item.type !== "userMessage" || event.params.item.clientId === null) return;
+
+        const messageId = event.params.item.clientId;
+        const key = JSON.stringify([sessionId, messageId]);
+        const entry = this.pendingSteerLandings.get(key);
+        if (entry === undefined || (standardOnly && entry.receipt === undefined)
+            || !isInsertedUserMessage(event, sessionId, messageId)) return;
+
+        this.pendingSteerLandings.delete(key);
+        if (entry.receipt !== undefined) entry.receipt.inserted = true;
+        await this.emitLiveUserMessage(sessionId, messageId, entry.prompt, event.params.turnId);
+        entry.receipt?.finish(null);
+    }
+
+    private async emitLiveUserMessage(
+        sessionId: string,
+        messageId: string,
+        prompt: acp.ContentBlock[],
+        turnId: string | undefined,
+    ): Promise<void> {
         const session = new ACPSessionConnection(this.connection, sessionId);
         if (session.protocolVersion !== 2) {
             return;
         }
+        const meta = turnId === undefined ? undefined : {codex: {turnId}};
         try {
             for (const block of prompt) {
-                await session.update(createUserMessageChunk(block, messageId, turnId === undefined ? undefined : {codex: {turnId}}));
+                await session.update(createUserMessageChunk(block, messageId, meta));
             }
         } catch (error) {
-            logger.error(`Failed to send the steered user message for session ${sessionId}`, error);
+            logger.error(`Failed to send the user message for session ${sessionId}`, error);
         }
     }
 
@@ -2393,6 +2432,17 @@ export class CodexAcpServer {
             ...this.codexAcpClient.subagentThreadIds(params.sessionId),
         ];
         this.beginSessionCloseFence(params.sessionId);
+        const client = this.codexAcpClient;
+        const hasSteeredPrompt = [...this.pendingSteerLandings.values()].some(entry => entry.sessionId === params.sessionId && entry.receipt !== undefined);
+        // Closing marks the turn stale for normal delivery. Keep observing native insertions
+        // until unsubscribe so an input recorded concurrently with the interrupt gets its receipt.
+        const stopObserving = hasSteeredPrompt ? client.appServerClient.onClientTransportEvent(event => {
+            if (event.eventType === "notification"
+                && (event.method === "item/started" || event.method === "item/completed")
+                && event.params.threadId === params.sessionId && event.params.item.type === "userMessage") {
+                void client.enqueueSessionTransition(params.sessionId, () => this.trackSteerInsertion(params.sessionId, event, true));
+            }
+        }) : undefined;
 
         try {
             this.clientDelivery.cancelSessionRequests(params.sessionId);
@@ -2420,6 +2470,16 @@ export class CodexAcpServer {
                 // The thread is not loaded in a running app-server: nothing to close there, and no restart for it.
                 logger.log("Session closed without an app-server call: its app-server is gone", {sessionId: params.sessionId});
             }
+            // Unsubscribing can prevent the final turn notification from reaching this session.
+            if (hasSteeredPrompt) {
+                stopObserving?.();
+                await client.waitForSessionNotifications(params.sessionId);
+                for (const [key, entry] of this.pendingSteerLandings) {
+                    if (entry.sessionId !== params.sessionId || entry.receipt === undefined) continue;
+                    this.pendingSteerLandings.delete(key);
+                    entry.receipt.finish(RequestError.requestCancelled());
+                }
+            }
             closeGeneration = this.bumpSessionGeneration(params.sessionId);
             if (sessionState) {
                 if (sessionState.subagents instanceof StandardSubagentEventRouter) await sessionState.subagents.finishOutstanding("disconnected");
@@ -2428,6 +2488,7 @@ export class CodexAcpServer {
             await this.reportCodexTurnState(params.sessionId, {state: "idle", stopReason: "cancelled"});
             logger.log("Session closed", {sessionId: params.sessionId});
         } finally {
+            stopObserving?.();
             if (closeGeneration !== null && this.getSessionGeneration(params.sessionId) === closeGeneration) {
                 this.sessions.delete(params.sessionId);
                 if (this.sessionOpenOwners.get(params.sessionId)?.finished) this.sessionOpenOwners.delete(params.sessionId);
@@ -3674,7 +3735,7 @@ export class CodexAcpServer {
     private getSteeringQueue(sessionId: string): SteeringQueue {
         let queue = this.steeringQueues.get(sessionId);
         if (!queue) {
-            queue = new SteeringQueue((params) => this.performSteeringRequest(params, this.steeringMessageIds.get(params)));
+            queue = new SteeringQueue((params) => this.performSteeringRequest(params, this.steeredPromptReceipts.get(params)));
             this.steeringQueues.set(sessionId, queue);
         }
         return queue;
@@ -3690,7 +3751,7 @@ export class CodexAcpServer {
      *     "promptRequired" when the host requested an owned idle fallback, or
      *     the outcome of starting a legacy fallback turn.
      */
-    private async performSteeringRequest(params: SessionSteerRequest, clientUserMessageId: string = randomUUID()): Promise<SessionSteeringResponse> {
+    private async performSteeringRequest(params: SessionSteerRequest, receipt?: SteeredPromptReceipt): Promise<SessionSteeringResponse> {
         assertPromptContentSupported(params);
         logger.log("Steering session requested", {
             sessionId: params.sessionId,
@@ -3703,9 +3764,11 @@ export class CodexAcpServer {
         // Codex as `TurnSteerParams.clientUserMessageId`/`TurnStartParams.clientUserMessageId`. It is a
         // Codex-side param only; on v2 it doubles as the `messageId` of the live `user_message`
         // shown once the steer lands (the steering response itself carries no id).
+        const clientUserMessageId = receipt?.messageId ?? randomUUID();
         const turnId = await this.getSteerableTurnId(sessionState);
+        throwIfRequestCancelled(receipt?.beforeDispatch);
         if (turnId) {
-            const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState, clientUserMessageId);
+            const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState, clientUserMessageId, receipt);
             if (injected) {
                 logger.log("Steering session injected", {sessionId: params.sessionId, turnId});
                 return {outcome: "injected"};
@@ -3744,10 +3807,16 @@ export class CodexAcpServer {
         turnId: string,
         sessionState: SessionState,
         clientUserMessageId: string,
+        receipt?: SteeredPromptReceipt,
     ): Promise<boolean> {
         // Registered before the call goes out (not after `steerTurn` resolves), so the landing
         // matcher catches a userMessage that arrives immediately after acceptance.
-        this.pendingSteerLandings.set(clientUserMessageId, {sessionId: params.sessionId, prompt: params.prompt});
+        const key = JSON.stringify([params.sessionId, clientUserMessageId]);
+        if (receipt !== undefined) {
+            if (this.pendingSteerLandings.has(key)) throw RequestError.invalidParams(undefined, "A steer already uses this messageId");
+            receipt.dispatched = true;
+        }
+        this.pendingSteerLandings.set(key, {sessionId: params.sessionId, turnId, prompt: params.prompt, receipt});
         try {
             await this.runWithProcessCheck(() => this.codexAcpClient.steerTurn({
                 threadId: params.sessionId,
@@ -3758,8 +3827,10 @@ export class CodexAcpServer {
             }));
             return true;
         } catch (err) {
-            this.pendingSteerLandings.delete(clientUserMessageId);
+            if (receipt === undefined) this.pendingSteerLandings.delete(key);
             await this.codexAcpClient.waitForSessionNotifications(params.sessionId);
+            if (receipt?.inserted) return true;
+            if (this.pendingSteerLandings.get(key)?.receipt === receipt) this.pendingSteerLandings.delete(key);
             const turnStillActive = sessionState.currentTurnId !== null
                 && codexRunningTurnId(sessionState, sessionState.currentTurnId) === turnId;
             if (turnStillActive && !this.isNoActiveTurnToSteerError(err)) {
@@ -3785,13 +3856,7 @@ export class CodexAcpServer {
         params: SessionSteerRequest,
         clientUserMessageId: string,
     ): Promise<SessionSteeringResponse> {
-        await this.startNewTurnFromExternalPrompt(params, "Steering", undefined, {
-            clientUserMessageId,
-            onInserted: async (turnId) => {
-                await this.emitLiveSteerUserMessage(params.sessionId, clientUserMessageId, params.prompt, turnId);
-            },
-            onSyntheticInserted: async () => {},
-        });
+        await this.startNewTurnFromExternalPrompt(params, "Steering", undefined, {clientUserMessageId});
         return {outcome: "startedNewTurn"};
     }
 
@@ -3799,7 +3864,7 @@ export class CodexAcpServer {
         params: acp.PromptRequest,
         source: string,
         canStart: () => Promise<boolean> = async () => true,
-        insertion?: UserMessageInsertion,
+        insertion?: LivePromptInsertion,
     ): Promise<boolean> {
         // Takes this session's place in the shared turn-start FIFO before anything else runs, so
         // no other starter can begin between this check and the turn actually starting. This
@@ -5422,6 +5487,82 @@ export class CodexAcpServer {
         }
     }
 
+    /** The steering queue serializes native requests. The ACP receipt waits for insertion outside it. */
+    private async insertSteeredPrompt(
+        steer: SessionSteerRequest,
+        messageId: string,
+        signal?: AbortSignal,
+        findRetained?: () => Promise<boolean>,
+    ): Promise<boolean> {
+        const {sessionId} = steer;
+        const client = this.codexAcpClient;
+        const waiting = new AbortController();
+        const landing = Promise.withResolvers<RequestError | null>();
+        const receipt: SteeredPromptReceipt = {
+            messageId,
+            beforeDispatch: waiting.signal,
+            dispatched: false,
+            inserted: false,
+            sessionCancelled: false,
+            finish: landing.resolve,
+        };
+        const withdrawBeforeDispatch = () => {
+            // Codex cannot withdraw a single steer after dispatch. Its native outcome is authoritative.
+            if (!receipt.dispatched) waiting.abort();
+        };
+        const unregister = this.registerQueuedV2PromptCanceller(sessionId, () => {
+            receipt.sessionCancelled = true;
+            withdrawBeforeDispatch();
+        });
+        if (signal?.aborted) waiting.abort();
+        else signal?.addEventListener("abort", withdrawBeforeDispatch, {once: true});
+        this.steeredPromptReceipts.set(steer, receipt);
+        try {
+            throwIfRequestCancelled(waiting.signal);
+            if (findRetained && await withRequestCancellation(findRetained(), waiting.signal)) return true;
+            throwIfRequestCancelled(waiting.signal);
+            const dispatch = this.executeOrQueueSteeringRequest(steer);
+            // A user item can arrive before the native RPC response. Session cancellation also
+            // rules out fallback. Otherwise a rejected injection may still start a new turn.
+            const steered = await withRequestCancellation(Promise.race([
+                dispatch,
+                landing.promise.then(error => {
+                    if (error === null) return null;
+                    if (receipt.sessionCancelled) throw error;
+                    return dispatch;
+                }),
+            ]), waiting.signal);
+            if (steered === null) return true;
+            if (steered.outcome === "promptRequired") {
+                if (receipt.sessionCancelled) throw RequestError.requestCancelled();
+                throwIfRequestCancelled(signal);
+                return false;
+            }
+            if (steered.outcome !== "injected") {
+                throw RequestError.internalError(undefined, `Steering the running turn of session ${sessionId} failed`);
+            }
+            let failure: RequestError | null;
+            try {
+                failure = await this.runWithProcessCheck(
+                    () => client.appServerClient.waitWhileConnected("the steered user message", landing.promise),
+                    client,
+                );
+            } catch (error) {
+                // Notifications already received still count when the native connection closes.
+                await client.waitForSessionNotifications(sessionId);
+                if (!receipt.inserted) throw error;
+                failure = await landing.promise;
+            }
+            if (failure !== null) throw failure;
+            return true;
+        } finally {
+            const key = JSON.stringify([sessionId, messageId]);
+            if (this.pendingSteerLandings.get(key)?.receipt === receipt) this.pendingSteerLandings.delete(key);
+            unregister();
+            signal?.removeEventListener("abort", withdrawBeforeDispatch);
+        }
+    }
+
     /**
      * `keyedMessageId` is the ID derived from the prompt's idempotency key, when it has one;
      * otherwise the ID is the client's `_meta.alwith.messageId` or a new one.
@@ -5443,19 +5584,12 @@ export class CodexAcpServer {
             (sessionState.codexReportedRunningTurnId !== null || this.pendingTurnStarts.has(sessionId))
         ) {
             const messageId = this.promptMessageId(params, sessionState, keyedMessageId);
-            // A retry of a keyed prompt that Codex already holds is answered, not steered in again.
-            if (findRetained && await withRequestCancellation(findRetained(), signal)) return {messageId};
             const steer: SessionSteerRequest = {
                 sessionId,
                 prompt: request.prompt,
                 _meta: {...params._meta, steering: {idleBehavior: "promptRequired"}},
             };
-            this.steeringMessageIds.set(steer, messageId);
-            const steered = await this.executeOrQueueSteeringRequest(steer);
-            if (steered.outcome === "injected") return {messageId};
-            if (steered.outcome !== "promptRequired") {
-                throw RequestError.internalError(undefined, `Steering the running turn of session ${sessionId} failed`);
-            }
+            if (await this.insertSteeredPrompt(steer, messageId, signal, findRetained)) return {messageId};
         }
         // A prompt overlapping a running one is queued behind it rather than rejected: take this
         // session's place in the shared turn-start FIFO now (before any await), then wait. Nothing
@@ -5559,15 +5693,7 @@ export class CodexAcpServer {
                     inFlightSignal.addEventListener("abort", dropPendingRequest, {once: true});
                 }
             }
-            const onInserted = async (turnId?: string) => {
-                inserted = true;
-                try {
-                    for (const block of request.prompt) {
-                        await session.update(createUserMessageChunk(block, messageId, turnId === undefined ? undefined : {codex: {turnId}}));
-                    }
-                } catch (error) {
-                    logger.error(`Failed to send the user message for session ${sessionId}`, error);
-                }
+            const onInserted = async () => {
                 resolve({messageId});
                 if (turnWasAdopted) {
                     return;
@@ -5576,38 +5702,27 @@ export class CodexAcpServer {
                 running ??= startWork();
                 await running;
             };
+            const insertion: LivePromptInsertion = {
+                clientUserMessageId: messageId,
+                onBeforeEcho: () => { inserted = true; },
+                onInserted,
+                onTurnAdopted: () => {
+                    turnWasAdopted = true;
+                },
+                onTurnStarted: (turn) => {
+                    startedTurn = turn;
+                    // An accepted Codex turn can run hooks before inserting user input.
+                    running = startWork();
+                },
+                onFailure: (error) => { failure ??= error; },
+            };
             const run = async () => {
                 if (promptKind.kind === "localCommand") {
+                    inserted = true;
+                    await this.emitLiveUserMessage(sessionId, messageId, request.prompt, undefined);
                     await onInserted();
                 }
-                return await this.prompt(
-                    request,
-                    undefined,
-                    undefined,
-                    {
-                        clientUserMessageId: messageId,
-                        onInserted,
-                        onSyntheticInserted: async (syntheticId, prompt, turnId) => {
-                            try {
-                                for (const block of prompt) {
-                                    await session.update(createUserMessageChunk(block, syntheticId, {codex: {turnId}}));
-                                }
-                            } catch (error) {
-                                logger.error(`Failed to send the synthetic user message for session ${sessionId}`, error);
-                            }
-                        },
-                        onTurnAdopted: () => {
-                            turnWasAdopted = true;
-                        },
-                        onTurnStarted: (turn) => {
-                            startedTurn = turn;
-                            // An accepted Codex turn can run hooks before inserting user input.
-                            running = startWork();
-                        },
-                        onFailure: (error) => { failure ??= error; },
-                    },
-                    reservation,
-                );
+                return await this.prompt(request, undefined, undefined, insertion, reservation);
             };
             run().then(
                     async response => {
@@ -5686,7 +5801,7 @@ export class CodexAcpServer {
         params: acp.PromptRequest,
         signal?: AbortSignal,
         onTurnStarted?: () => void,
-        insertion?: UserMessageInsertion,
+        insertion?: LivePromptInsertion,
         reservation?: TurnStartReservation,
     ): Promise<acp.PromptResponse> {
         assertPromptContentSupported(params);
@@ -5712,7 +5827,7 @@ export class CodexAcpServer {
         params: acp.PromptRequest,
         signal?: AbortSignal,
         onTurnStarted?: () => void,
-        insertion?: UserMessageInsertion,
+        insertion?: LivePromptInsertion,
     ): Promise<acp.PromptResponse> {
         if (this.providerUpdate !== null) {
             await this.waitForProviderUpdate();
@@ -5772,13 +5887,7 @@ export class CodexAcpServer {
         // Synthetic turns codex-acp starts itself inside this same prompt (the plan-implementation
         // follow-up, a `/goal` continuation) each mint their own id and register here, so their
         // userMessage can be told apart from the original prompt's once it lands.
-        const pendingSyntheticInsertions = new Map<string, (turnId: string) => Promise<void>>();
-        const registerSyntheticInsertion = (clientUserMessageId: string, prompt: acp.ContentBlock[]): void => {
-            if (insertion === undefined) {
-                return;
-            }
-            pendingSyntheticInsertions.set(clientUserMessageId, turnId => insertion.onSyntheticInserted(clientUserMessageId, prompt, turnId));
-        };
+        const pendingSyntheticInsertions = new Map<string, acp.ContentBlock[]>();
         const clearRecoveredSessionFailure = async (handler: CodexEventHandler): Promise<void> => {
             await handler.completeSuccessfulTurn(sessionState.currentTurnId);
             const current = sessionState.sessionFailure;
@@ -5862,9 +5971,11 @@ export class CodexAcpServer {
                 if (pendingInsertion === undefined) {
                     return;
                 }
-                const {onInserted} = pendingInsertion;
+                const matched = pendingInsertion;
                 pendingInsertion = undefined;
-                await onInserted(turnId);
+                matched.onBeforeEcho?.();
+                await this.emitLiveUserMessage(params.sessionId, matched.clientUserMessageId, params.prompt, turnId);
+                await matched.onInserted?.();
             };
             await promptClient.subscribeToSessionEvents(params.sessionId,
                 async (event) => {
@@ -5872,16 +5983,16 @@ export class CodexAcpServer {
                     // prompt's own turn already went idle): the same subscription keeps receiving
                     // notifications for as long as no later prompt replaces it.
                     await this.trackCodexForegroundWork(sessionState, event);
-                    await this.trackSteerLanding(sessionState, event);
+                    await this.trackSteerLanding(sessionState, event, promptEventHandler);
                     this.handleSkillsChanged(sessionState, event);
                     if (pendingInsertion !== undefined
                         && isInsertedUserMessage(event, params.sessionId, pendingInsertion.clientUserMessageId)) {
                         await resolvePendingInsertion(event.params.turnId);
                     } else {
-                        for (const [clientUserMessageId, resolveSynthetic] of pendingSyntheticInsertions) {
+                        for (const [clientUserMessageId, prompt] of pendingSyntheticInsertions) {
                             if (isInsertedUserMessage(event, params.sessionId, clientUserMessageId)) {
                                 pendingSyntheticInsertions.delete(clientUserMessageId);
-                                await resolveSynthetic(event.params.turnId);
+                                await this.emitLiveUserMessage(params.sessionId, clientUserMessageId, prompt, event.params.turnId);
                                 break;
                             }
                         }
@@ -6151,8 +6262,9 @@ export class CodexAcpServer {
                     // This second turn stays inside the original prompt's running…idle pair, so it
                     // gets its own minted id rather than reusing the first turn's.
                     const implementationClientUserMessageId = insertion !== undefined ? randomUUID() : undefined;
-                    if (implementationClientUserMessageId !== undefined) {
-                        registerSyntheticInsertion(implementationClientUserMessageId, implementationRequest.prompt);
+                    // Standalone steering only echoes its opening message.
+                    if (implementationClientUserMessageId !== undefined && this.v2PromptsInFlight.has(params.sessionId)) {
+                        pendingSyntheticInsertions.set(implementationClientUserMessageId, implementationRequest.prompt);
                     }
                     const implementationPromise = this.runOnAppServer(promptGeneration, promptClient,
                         () => promptClient.sendPrompt(

@@ -209,10 +209,10 @@ describe('_session/steering over ACP v2', () => {
         client.emit(turnStarted());
         await steerPromise;
         const steerClientId = captureSteerClientId(client);
-        const {messageId} = await client.sendPrompt([{type: "text", text: "B"}]);
-        expect(messageId).toBe(steerClientId.captured());
+        const receipt = client.sendPrompt([{type: "text", text: "B"}]);
+        const messageId = await vi.waitFor(() => steerClientId.captured());
         client.emit(itemCompleted(userMessageItem(messageId, "B"), landingTurn));
-        await settle();
+        await expect(receipt).resolves.toEqual({messageId});
         expect(userMessageChunks(client.transcript)).toContainEqual({
             sessionUpdate: "user_message_chunk",
             messageId,
