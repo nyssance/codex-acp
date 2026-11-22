@@ -78,7 +78,7 @@ describeIntegration("integration: session close background cleanup", () => {
         writeCodexHomeConfig(codexHome, {
             model: INTEGRATION_MODEL_ID.model, model_reasoning_effort: INTEGRATION_MODEL_ID.effort, web_search: "disabled",
         });
-        const child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
+        const child = spawn(process.execPath, ["src/index.ts"], {
             cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome, INITIAL_AGENT_MODE: AgentMode.AgentFullAccess.id},
             stdio: ["pipe", "pipe", "pipe"],
         });

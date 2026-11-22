@@ -1,3 +1,13 @@
+## 0.7.84 (2026-11-22)
+
+- Merge upstream 2.9.0 and move to ACP SDK 2.9.1 (v2 schema `2.0.0-beta.3`).
+- `auth/status` is served on ACP v1 and v2, and `auth/status_update` reports changes next to `_auth/status_update`.
+- V2 `session/new`, `session/resume` and `session/fork` reject MCP declarations the connection did not advertise, duplicate names and relative stdio commands with `-32602`.
+- A cancelled prompt that Codex still inserts answers with its `messageId`; one that never lands answers `-32800`. `session/cancel` stops Codex-initiated foreground work, and later prompts wait for its idle.
+- Lost root observability is reported as `unknown`. V2 replay no longer carries historical child configuration.
+- Permission descriptions and subagent roles keep indentation and line breaks.
+- `session/delete` right after `session/close` waits for Codex to finish unloading the thread instead of failing.
+
 ## 0.7.81 (2026-11-18)
 
 - Register selected folders by exact project root and keep unassigned nested folders separate in project lists.

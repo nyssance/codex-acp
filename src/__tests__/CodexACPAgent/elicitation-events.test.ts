@@ -301,6 +301,7 @@ describe('Elicitation Events', () => {
                     startedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
+                        environmentId: null,
                         id: "call-id",
                         server: "tool-server",
                         tool: "tool-name",
@@ -595,8 +596,9 @@ describe('Elicitation Events', () => {
                     startedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
+                        environmentId: null,
                         id: "completed-call-id",
-                        server: "tool-server", environmentId: null,
+                        server: "tool-server",
                         tool: "tool-name",
                         status: "inProgress",
                         arguments: { argument: "example" },
@@ -618,8 +620,9 @@ describe('Elicitation Events', () => {
                     completedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
+                        environmentId: null,
                         id: "completed-call-id",
-                        server: "tool-server", environmentId: null,
+                        server: "tool-server",
                         tool: "tool-name",
                         status: "completed",
                         arguments: { argument: "example" },
@@ -669,8 +672,9 @@ describe('Elicitation Events', () => {
                     startedAtMs: 0,
                     item: {
                         type: "mcpToolCall",
+                        environmentId: null,
                         id: "interrupted-call-id",
-                        server: "tool-server", environmentId: null,
+                        server: "tool-server",
                         tool: "tool-name",
                         status: "inProgress",
                         arguments: { argument: "example" },
@@ -727,6 +731,7 @@ describe('Elicitation Events', () => {
             fixture.setElicitationResponse({action: 'accept'});
             const oauthLogin = vi.spyOn(codexClient, 'mcpServerOauthLogin').mockResolvedValue({
                 authorizationUrl: 'https://example.com/oauth/authorize',
+                loginId: 'login',
             });
             vi.spyOn(codexClient, 'awaitMcpServerOauthLoginCompleted').mockResolvedValue({
                 name: 'linear',
@@ -790,11 +795,7 @@ describe('Elicitation Events', () => {
             });
             await fixture.getCodexAcpClient().waitForSessionNotifications(sessionId);
 
-            const [, completeElicitationEvent] = fixture.getAcpConnectionEvents([]);
-            expect(completeElicitationEvent).toEqual({
-                method: 'completeElicitation',
-                args: [{ elicitationId: 'elicit-123' }],
-            });
+            expect(fixture.getAcpConnectionEvents([]).some(event => event.method === "completeElicitation")).toBe(false);
 
             completeTurn();
             await promptPromise;

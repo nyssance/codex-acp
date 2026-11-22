@@ -62,6 +62,7 @@ Only these differences are allowed:
   no output after a tool call ended, a terminal status for a replayed image generation,
   and the command as the title of a command approval.
 - Feature changes for every client: the `/mcp` command has a new description and an input hint.
+  The adapter advertises [`auth.status`](auth-status.md) and sends `auth/status_update` alongside the legacy `_auth/status_update`.
   Session `configOptions` list model, reasoning effort, fast mode, permissions mode, and collaboration mode
   in that order, omitting unavailable options.
 - The client gets no AIR-only key.
@@ -1200,10 +1201,11 @@ A thread that is not loaded here has no `state`. A change of `state` is a row ch
 - Errors:
   - A thread that another Codex process holds fails with the `thread_active_writer` reason in `data.reason`.
   - A thread that Codex does not have, or has deleted, fails with `-32002`, as does a thread that `thread/read`
-    shows without a rollout. Unarchive never brings back a deleted thread.
+    shows without a rollout. V2 `session/delete` succeeds if the thread is already gone. Unarchive never brings back a deleted thread.
 - Without `sessionIndex` the three `_session/*` methods answer method-not-found, and `session/delete` keeps
   archiving the thread: old AIR builds send `session/delete` for "Done". Threads they closed that way show as
-  archived to a `sessionIndex` client.
+  archived to a `sessionIndex` client. For a v2 client without the separate archive operation, resume, fork
+  and set-title on a soft-deleted session return `-32002` with `data.sessionId`.
 
 ### Batch get
 

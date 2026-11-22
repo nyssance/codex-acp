@@ -24,8 +24,9 @@ function mcpStarted(id: string, turnId: string, threadId = "thread"): ServerNoti
             startedAtMs: 0,
             item: {
                 type: "mcpToolCall",
+                environmentId: null,
                 id,
-                server: "server", environmentId: null,
+                server: "server",
                 tool: "tool",
                 status: "inProgress",
                 arguments: {},
@@ -206,7 +207,8 @@ describe("PermissionLifecycleContext", () => {
         await handler.handleElicitation({
             threadId: "thread",
             turnId: "turn-1",
-            serverName: "server", environmentId: null,
+            serverName: "server",
+            environmentId: null,
             mode: "form",
             _meta: null,
             message: "Collect a value",

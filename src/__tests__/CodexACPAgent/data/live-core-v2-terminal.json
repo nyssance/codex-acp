@@ -121,6 +121,14 @@
     }
   },
   {
+    "sessionId": "thread-1",
+    "update": {
+      "sessionId": "thread-1:subagent:worker",
+      "cwd": "/workspace",
+      "sessionUpdate": "subagent_update"
+    }
+  },
+  {
     "sessionId": "thread-1:subagent:worker",
     "update": {
       "terminalId": "terminal",
@@ -153,14 +161,6 @@
         }
       },
       "sessionUpdate": "tool_call_update"
-    }
-  },
-  {
-    "sessionId": "thread-1",
-    "update": {
-      "sessionId": "thread-1:subagent:worker",
-      "cwd": "/workspace",
-      "sessionUpdate": "subagent_update"
     }
   }
 ]

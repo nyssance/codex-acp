@@ -69,7 +69,7 @@ import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {toV1ClientCapabilitiesView} from "./AcpV2ClientCapabilities";
 import {toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
 import { toV2AvailableCommands, toV2SessionUpdates } from "./AcpV2SessionUpdate";
-import { toV2ReplayUpdates } from "./AcpV2Replay";
+import { toV2ReplayUpdates, type ReplayedEntities } from "./AcpV2Replay";
 import {changesSystemPrompt, clientSystemPromptText, toV1SystemPrompt, type SessionInstructions} from "./ClientSystemPrompt";
 import {
     AcpV2PromptKeys,
@@ -214,6 +214,7 @@ import {
     fromAccountUpdated,
     gatewayStatus,
     sameAuthStatus,
+    toAcpAuthStatus,
 } from "./AuthStatusMeta";
 import {randomUUID} from "node:crypto";
 import {TitleGenerator} from "./TitleGenerator";
@@ -576,14 +577,17 @@ export class CodexAcpServer {
     private booleanConfigOptionsSupported: boolean;
     /** Last `authStatus` pushed to the client; used to suppress duplicates. */
     private currentAuthStatus: AuthStatus | null;
+    private acpAuthStatus: acp.AuthStatusResponse = {state: "unknown"};
+    private authStatusRead: {version: number; done: Promise<void>} | null = null;
+    private authObserver: {client: CodexAcpClient; stop: () => void} | null = null;
     /**
      * The last known account of the agent. Every successful account read and every `account/updated` sets it,
      * and a logout clears it. A session open takes it when the account read is unavailable.
      */
-    private lastReadAccount: Account | null = null;
+    private lastAccountRead: Pick<GetAccountResponse, "account" | "requiresOpenaiAuth"> = {account: null, requiresOpenaiAuth: true};
     /**
-     * Counts the calls of {@link setAuthStatus}, also the calls that push nothing. A late account read
-     * compares it with the value at the start of the read: a change means a newer status.
+     * A session/auth operation or an account/updated event supersedes a pending read,
+     * even if the displayed fields don't change. Asking for status does not.
      */
     private authStatusVersion = 0;
 
@@ -612,6 +616,8 @@ export class CodexAcpServer {
     private readonly v2PromptsInFlight = new Set<string>();
     private readonly v2CommandSessions = new Set<string>();
     private readonly v2PromptKeys = new Map<string, AcpV2PromptKeys>();
+    /** A cancelled Codex-initiated turn has no prompt reservation to keep later prompts behind its idle. */
+    private readonly stoppingRuntimeTurns = new Map<string, {turnId: string; release(): void}>();
     private readonly instructionUpdates = new Set<string>();
     /**
      * Per-session callbacks that abort a v2 `session/prompt` still waiting in the turn-start FIFO
@@ -832,6 +838,9 @@ export class CodexAcpServer {
     observeSessionSetupResponses(): () => void {
         this.setupResponseOrdering = true;
         return () => {
+            this.authObserver?.stop();
+            this.authObserver = null;
+            this.authStatusVersion++;
             this.mcpSessionStartup.dispose();
             this.clientDelivery.disposeSessionSetups();
             for (const session of this.sessions.values()) session.asyncTasks.clear();
@@ -871,7 +880,7 @@ export class CodexAcpServer {
         const includeBackground = this.protocolVersion === 1 || this.sessionIsClosing(session.sessionId);
         let failed = false;
         await session.subagents.cancelAll(async (threadId, turnId, isCurrent) => {
-            if (!await this.requestTurnInterrupt(session, threadId, turnId, "Cancel", isCurrent)) failed = true;
+            if (await this.requestTurnInterrupt(session, threadId, turnId, "Cancel", isCurrent) === "failed") failed = true;
         }, includeBackground);
         if (requireStopped && failed) {
             throw RequestError.internalError(undefined, "Codex could not stop child work; retry closing the session");
@@ -897,7 +906,7 @@ export class CodexAcpServer {
         this.clientDelivery.reports.compareMeta = this.capabilities.airToolCallContract;
         this.booleanConfigOptionsSupported = clientSupportsBooleanConfigOptions(_params.clientCapabilities);
         this.sessionIndex.configure(_params.clientCapabilities);
-        this.sessionIndex.observe(this.codexAcpClient);
+        this.observeAppServer(this.codexAcpClient);
         this.publishFirstAuthStatusAfterResponse();
         const sessionCapabilities: SubagentAwareSessionCapabilities = {
             resume: { },
@@ -921,6 +930,7 @@ export class CodexAcpServer {
             agentCapabilities: {
                 auth: {
                     logout: {},
+                    status: {},
                 },
                 providers: {},
                 loadSession: true,
@@ -962,7 +972,7 @@ export class CodexAcpServer {
         // Boolean config options are baseline on v2, so there is nothing to probe.
         this.booleanConfigOptionsSupported = true;
         this.sessionIndex.configure(clientCapabilities);
-        this.sessionIndex.observe(this.codexAcpClient);
+        this.observeAppServer(this.codexAcpClient);
         this.alwith.observe();
         this.publishFirstAuthStatusAfterResponse();
         return {
@@ -996,6 +1006,7 @@ export class CodexAcpServer {
                     },
                 },
                 auth: {
+                    status: {},
                     _meta: {
                         // Presence means "this agent pushes `_auth/status_update`".
                         [AUTH_STATUS_META_KEY]: authStatusCapability(),
@@ -1265,7 +1276,7 @@ export class CodexAcpServer {
         } catch (error) {
             if (isAccountReadUnavailableError(error)) {
                 logger.log("Account read unavailable, so the authentication status uses the last known account", {error: String(error)});
-                const account = this.lastReadAccount;
+                const {account} = this.lastAccountRead;
                 return {type: "chat-gpt", email: account?.type === "chatgpt" ? account.email ?? "" : ""};
             }
             if (isAccountReadAuthFailureError(error)) {
@@ -1666,7 +1677,6 @@ export class CodexAcpServer {
         );
         sessionState.promptSuggestions = this.createPromptSuggestions(sessionState);
         this.installSessionState(sessionState, sessionMetadata.threadStatus);
-        AcpV2Connection.of(this.connection)?.restoreForegroundState(sessionId, sessionMetadata.threadStatus?.type === "active");
         this.recovery?.markLoaded(sessionState, openGeneration);
         if (settleTrackerReady) {
             settleTrackerReady(sessionState);
@@ -1677,11 +1687,11 @@ export class CodexAcpServer {
 
         const canPublishSessionUpdates = operation !== "fork";
         if (requestedMcpServers.length > 0 && mcpServerStartupVersion !== null) {
-            // A fork publishes no startup report, so nothing waits for the rest of the startup.
             const startupWait = this.mcpSessionStartup.begin(sessionId, requestedMcpServers, mcpServerStartupVersion, {
-                publish: canPublishSessionUpdates,
+                publish: canPublishSessionUpdates || this.protocolVersion === 2 || !!sessionMetadata.mcpStartupFailures?.length,
                 awaitTimeoutMs: parseMcpStartupAwaitTimeoutMs(request._meta),
                 skippedServers: sessionMetadata.skippedMcpServers,
+                failures: sessionMetadata.mcpStartupFailures,
             });
             if (startupWait !== null) {
                 try {
@@ -1740,11 +1750,11 @@ export class CodexAcpServer {
         if (accountResponse === null) {
             logger.log("No account read, so the auth status stays as it was");
             return {
-                account: this.lastReadAccount,
+                account: this.lastAccountRead.account,
                 authConfigured: true,
             };
         }
-        this.lastReadAccount = accountResponse.account;
+        this.lastAccountRead = accountResponse;
         await this.publishAuthStatus(authProvider, accountResponse.account);
         return {
             account: accountResponse.account,
@@ -1818,7 +1828,7 @@ export class CodexAcpServer {
                 if (!answerIsCurrent()) return;
                 if (isAuthRequiredError(error) || isAccountReadAuthFailureError(error)) {
                     logger.log("A late account read found that the agent needs a login", {error: String(error)});
-                    this.lastReadAccount = null;
+                    this.lastAccountRead = {account: null, requiresOpenaiAuth: true};
                     sessionState.account = null;
                     sessionState.authConfigured = false;
                     await this.publishAuthStatus(sessionState.authProvider, null);
@@ -1867,6 +1877,7 @@ export class CodexAcpServer {
         this.clientDelivery.openSession(sessionState.sessionId);
         const v2 = AcpV2Connection.of(this.connection);
         if (v2) {
+            v2.restoreForegroundState(sessionState.sessionId, threadStatus?.type === "notLoaded" ? "unknown" : threadStatus?.type === "active");
             const metadata = threadStatus ? {codex: {threadStatus}} : null;
             // Seeding is queued before new live events; metadata belongs to the active session lifetime.
             if (previous) {
@@ -1911,7 +1922,6 @@ export class CodexAcpServer {
                     clientSupportsTypedSessionFailures(this.clientCapabilities),
                     this.sessionFailureIds,
                     sessionState.subagents,
-                    (accountUpdated) => this.handleAccountUpdated(accountUpdated),
                     false,
                     clientSupportsCompaction(this.clientCapabilities),
                     clientSupportsNotices(this.clientCapabilities),
@@ -1968,6 +1978,13 @@ export class CodexAcpServer {
         }
 
         const v2 = AcpV2Connection.of(this.connection);
+        if (v2 && (event.method === "thread/closed" || event.method === "thread/archived"
+            || event.method === "thread/status/changed" && event.params.status.type === "notLoaded")
+            && event.params.threadId === sessionState.sessionId && !this.sessionIsClosing(sessionState.sessionId)) {
+            sessionState.codexReportedRunningTurnId = null;
+            await this.reportCodexTurnState(sessionState.sessionId, {state: "unknown"});
+            this.releaseRuntimeTurn(sessionState.sessionId);
+        }
         // Active with no waits means Codex is running, even when no item is currently streaming.
         // Nonempty flags only count pending requests; they do not prove aggregate blocking.
         if (event.method === "thread/status/changed" && event.params.threadId === sessionState.sessionId
@@ -2020,6 +2037,14 @@ export class CodexAcpServer {
         await this.reportCodexTurnState(sessionState.sessionId, toV2IdleState({
             stopReason: stopReasonForUnownedTurn(event.params.turn.status),
         }, failure));
+        this.releaseRuntimeTurn(sessionState.sessionId, event.params.turn.id);
+    }
+
+    private releaseRuntimeTurn(sessionId: string, turnId?: string): void {
+        const stopping = this.stoppingRuntimeTurns.get(sessionId);
+        if (!stopping || (turnId !== undefined && stopping.turnId !== turnId)) return;
+        this.stoppingRuntimeTurns.delete(sessionId);
+        stopping.release();
     }
 
     /**
@@ -2246,10 +2271,11 @@ export class CodexAcpServer {
         try {
             if (replayFrom == null) {
                 await this.resumeSession(request);
+                await this.snapshotSessionStateV2(sessionId);
             } else {
-                await v2.replay.run(sessionId, () => this.loadSessionAndReplayHistory(request), signal);
+                await v2.replay.run(sessionId, () => this.loadSessionAndReplayHistory(request), signal,
+                    scopes(), () => this.snapshotSessionStateV2(sessionId));
             }
-            await this.snapshotSessionStateV2(sessionId);
             return this.createSessionSetupResponseV2(this.getSessionState(sessionId));
         } finally {
             v2.setBackgroundSync(scopes(), false);
@@ -2439,6 +2465,7 @@ export class CodexAcpServer {
                 this.pendingTurnStarts.delete(params.sessionId);
                 this.activePrompts.delete(params.sessionId);
                 this.turnStartQueueTail.delete(params.sessionId);
+                this.releaseRuntimeTurn(params.sessionId);
                 this.queuedV2PromptCancellers.delete(params.sessionId);
                 this.v2PromptKeys.delete(params.sessionId);
                 this.steeringQueues.delete(params.sessionId);
@@ -2474,7 +2501,7 @@ export class CodexAcpServer {
             }
 
             if (this.sessionIndex.enabled) {
-                await this.sessionIndex.deleteThread(sessionId, shouldCloseLocalSession);
+                await this.sessionIndex.deleteThread(sessionId, this.protocolVersion === 2 || shouldCloseLocalSession);
             } else {
                 await this.runWithProcessCheck(() => this.codexAcpClient.deleteSession(sessionId));
             }
@@ -2574,13 +2601,18 @@ export class CodexAcpServer {
         return {
             elicitUrl: async (request) => {
                 elicitationId = request.elicitationId;
-                const response = await this.connection.request(acp.methods.client.elicitation.create, {
-                    mode: "url",
-                    requestId,
-                    ...request,
-                }, {cancellationSignal});
-                if (!acp.CreateElicitationResponse.isAccept(response)) elicitationId = null;
-                return response;
+                try {
+                    const response = await this.connection.request(acp.methods.client.elicitation.create, {
+                        mode: "url",
+                        requestId,
+                        ...request,
+                    }, {cancellationSignal});
+                    if (!acp.CreateElicitationResponse.isAccept(response)) elicitationId = null;
+                    return response;
+                } catch (error) {
+                    elicitationId = null;
+                    throw error;
+                }
             },
             completeElicitation: async () => {
                 if (elicitationId === null) {
@@ -2946,7 +2978,7 @@ export class CodexAcpServer {
         }
         await replacement.initialize(this.initializeRequest);
         this.codexAcpClient = replacement;
-        this.sessionIndex.observe(replacement);
+        this.observeAppServer(replacement);
         if (this.protocolVersion === 2) this.alwith.observe();
         this.availableCommands = this.createAvailableCommands(replacement);
 
@@ -2975,6 +3007,7 @@ export class CodexAcpServer {
                 // idle/cancelled close-out below.
                 await this.finishOutstandingToolCalls(session);
                 await this.reportCodexTurnState(session.sessionId, {state: "idle", stopReason: "cancelled"});
+                this.releaseRuntimeTurn(session.sessionId);
             }
 
             session.asyncTasks.setAppServer(replacement.appServerClient);
@@ -3132,6 +3165,12 @@ export class CodexAcpServer {
                     // Every session takes its tasks now, before any await, so a task that a restarted app-server starts
                     // meanwhile is not failed with the old ones.
                     for (const session of this.sessions.values()) {
+                        if (this.protocolVersion === 2 && !this.v2PromptsInFlight.has(session.sessionId)) {
+                            session.codexReportedRunningTurnId = null;
+                            const stoppedId = this.stoppingRuntimeTurns.get(session.sessionId)?.turnId;
+                            void this.reportCodexTurnState(session.sessionId, {state: "unknown"})
+                                .then(() => { if (stoppedId !== undefined) this.releaseRuntimeTurn(session.sessionId, stoppedId); });
+                        }
                         if (session.subagents instanceof StandardSubagentEventRouter) {
                             session.subagentTransition = session.subagents.finishOutstanding("disconnected")
                                 .catch(error => logger.error("Failed to report child observability loss", error));
@@ -3181,8 +3220,7 @@ export class CodexAcpServer {
         // A `providers/set` can have changed the routing of the old client while the restart ran.
         client.adoptRoutingFrom(this.codexAcpClient);
         this.codexAcpClient = client;
-        // The session index watches the thread notifications of the app-server that runs now.
-        this.sessionIndex.observe(client);
+        this.observeAppServer(client);
         if (this.protocolVersion === 2) this.alwith.observe();
         this.availableCommands = this.createAvailableCommands(client);
         for (const session of this.sessions.values()) {
@@ -3190,6 +3228,20 @@ export class CodexAcpServer {
             session.titleGen?.rebindAppServer(client.appServerClient);
             session.promptSuggestions?.rebindAppServer(client.appServerClient);
         }
+    }
+
+    /** Observe account changes once per connection, also before the first session. */
+    private observeAppServer(client: CodexAcpClient): void {
+        this.sessionIndex.observe(client);
+        if (this.authObserver?.client === client) return;
+        this.authObserver?.stop();
+        this.authStatusVersion++;
+        const stop = client.appServerClient.onClientTransportEvent(event => {
+            if (event.eventType === "notification" && event.method === "account/updated") {
+                this.handleAccountUpdated(event.params);
+            }
+        });
+        this.authObserver = {client, stop};
     }
 
     /** Returns whether the auth state was read (and thus the auth status pushed). */
@@ -3249,6 +3301,22 @@ export class CodexAcpServer {
         void this.publishAuthStatusRead();
     }
 
+    /** Don't wait for config/read or account/read; the client gets a notification when the read finds a change. */
+    authStatus(): acp.AuthStatusResponse {
+        void this.publishAuthStatusRead();
+        return this.acpAuthStatus;
+    }
+
+    private publishAuthStatusRead(): Promise<void> {
+        const version = this.authStatusVersion;
+        if (this.authStatusRead?.version === version) return this.authStatusRead.done;
+        const done = this.readAndReportAuthStatus(version).finally(() => {
+            if (this.authStatusRead?.done === done) this.authStatusRead = null;
+        });
+        this.authStatusRead = {version, done};
+        return done;
+    }
+
     /**
      * Reads the agent-owned identity and pushes it.
      *
@@ -3260,42 +3328,35 @@ export class CodexAcpServer {
      * token, is an answer: it pushes the `none` status, see
      * {@link isAccountReadAuthFailureError}.
      */
-    private async publishAuthStatusRead(): Promise<void> {
-        let authStatus: AuthStatus;
+    private async readAndReportAuthStatus(version: number): Promise<void> {
+        let identity: AuthStatus;
         try {
-            authStatus = await this.readAgentAuthIdentity();
+            const gateway = this.codexAcpClient.getAuthGatewayProviderName();
+            if (gateway !== null) {
+                identity = gatewayStatus(gateway);
+            } else {
+                // Unlike session routing, this provider excludes anything supplied through providers/set.
+                const provider = await this.runWithProcessCheck(() => this.codexAcpClient.getAgentConfiguredModelProvider());
+                if (version !== this.authStatusVersion) return;
+                if (this.authProviderUsesOpenAiAccount(provider)) {
+                    const read = await this.runWithProcessCheck(() => this.codexAcpClient.getAccount());
+                    if (version !== this.authStatusVersion) return;
+                    this.lastAccountRead = read;
+                    identity = fromAccount(read.account);
+                } else {
+                    identity = agentConfiguredProviderStatus(provider);
+                }
+            }
         } catch (error) {
-            if (isAccountReadAuthFailureError(error)) {
-                logger.log("The account read found that the agent needs a login", {error: String(error)});
-                this.lastReadAccount = null;
-                await this.setAuthStatus(fromAccount(null));
+            if (version !== this.authStatusVersion) return;
+            if (!isAuthRequiredError(error) && !isAccountReadAuthFailureError(error)) {
+                logger.log("Cannot determine auth status", {error: String(error)});
                 return;
             }
-            logger.log("Cannot determine auth status", {error: String(error)});
-            return;
+            this.lastAccountRead = {account: null, requiresOpenaiAuth: true};
+            identity = fromAccount(null);
         }
-        await this.setAuthStatus(authStatus);
-    }
-
-    /**
-     * Builds the agent-owned auth identity. Routing the client configured
-     * through the ACP `providers/*` API is invisible here: the reported state
-     * is what the agent itself is logged in with. `gateway` stays reserved for
-     * agent-owned gateway state — the `gateway` auth method, or a provider the
-     * user configured in Codex's own config.
-     */
-    private async readAgentAuthIdentity(): Promise<AuthStatus> {
-        const authGatewayName = this.codexAcpClient.getAuthGatewayProviderName();
-        if (authGatewayName !== null) {
-            return gatewayStatus(authGatewayName);
-        }
-        const modelProvider = await this.runWithProcessCheck(() => this.codexAcpClient.getAgentConfiguredModelProvider());
-        if (!this.authProviderUsesOpenAiAccount(modelProvider)) {
-            return agentConfiguredProviderStatus(modelProvider);
-        }
-        const accountResponse = await this.runWithProcessCheck(() => this.codexAcpClient.getAccount());
-        this.lastReadAccount = accountResponse.account;
-        return fromAccount(accountResponse.account);
+        if (version === this.authStatusVersion) await this.setAuthStatus(identity);
     }
 
     /**
@@ -3307,6 +3368,7 @@ export class CodexAcpServer {
         authProvider: string | null,
         account: Account | null,
     ): Promise<void> {
+        this.authStatusVersion++;
         const authGatewayName = this.codexAcpClient.getAuthGatewayProviderName();
         if (authGatewayName !== null) {
             await this.setAuthStatus(gatewayStatus(authGatewayName));
@@ -3341,7 +3403,8 @@ export class CodexAcpServer {
      * invalidate; only a gateway logout or a provider change does.
      */
     private async applyAccountUpdated(notification: AccountUpdatedNotification): Promise<void> {
-        this.lastReadAccount = accountFromUpdated(notification, this.lastReadAccount);
+        this.authStatusVersion++;
+        this.lastAccountRead = {...this.lastAccountRead, account: accountFromUpdated(notification, this.lastAccountRead.account)};
         if (this.initializeResponseDelivery === "pending") return;
         try {
             if (this.codexAcpClient.getAuthGatewayProviderName() !== null) {
@@ -3356,14 +3419,19 @@ export class CodexAcpServer {
             if (this.currentAuthStatus.kind === "gateway") {
                 return;
             }
-            await this.setAuthStatus(fromAccountUpdated(notification, this.currentAuthStatus));
+            const next = fromAccountUpdated(notification, this.currentAuthStatus);
+            const published = this.setAuthStatus(next);
+            // The event has no email or workspace. Even an unchanged plan can be a different login.
+            if (next.kind === "account") void this.publishAuthStatusRead();
+            await published;
         } catch (error) {
             logger.log("Failed to apply account update to auth status", {error: String(error)});
         }
     }
 
     /**
-     * Stores `next` and pushes `_auth/status_update`.
+     * Stores the observation before sending notifications. The two formats can
+     * change independently: only ACP distinguishes `not_required` from signed out.
      *
      * A push goes out only when the payload changed. The identity is read on
      * many occasions — `initialize`, each session create, each `account/updated`
@@ -3375,14 +3443,18 @@ export class CodexAcpServer {
      * so no payload can equal it.
      */
     private async setAuthStatus(next: AuthStatus): Promise<void> {
-        this.authStatusVersion += 1;
         if (this.initializeResponseDelivery === "pending") return;
-        if (sameAuthStatus(this.currentAuthStatus, next)) {
-            return;
-        }
+        const legacyChanged = !sameAuthStatus(this.currentAuthStatus, next);
+        const status = toAcpAuthStatus(next, this.lastAccountRead);
+        const changed = !isDeepStrictEqual(status, this.acpAuthStatus);
         this.currentAuthStatus = next;
+        this.acpAuthStatus = status;
+        // Schedule both before yielding so concurrent observations stay in order on each wire.
         try {
-            await this.connection.notify(AUTH_STATUS_UPDATE_METHOD, {authStatus: next});
+            await Promise.all([
+                legacyChanged && this.connection.notify(AUTH_STATUS_UPDATE_METHOD, {authStatus: next}),
+                changed && (AcpV2Connection.of(this.connection)?.client ?? this.connection).notify(acp.methods.client.auth.statusUpdate, status),
+            ]);
         } catch (error) {
             logger.log("Failed to send auth status update", {error: String(error)});
         }
@@ -4322,8 +4394,7 @@ export class CodexAcpServer {
             this.sessionIndex.titleWriter(sessionId),
         );
         sessionState.promptSuggestions = this.createPromptSuggestions(sessionState);
-        this.installSessionState(sessionState, thread.status);
-        AcpV2Connection.of(this.connection)?.restoreForegroundState(sessionId, thread.status.type === "active");
+        this.installSessionState(sessionState, sessionMetadata.threadStatus ?? thread.status);
         this.recovery?.markLoaded(sessionState, openGeneration);
         if (knownAccount === "pending") {
             this.applyLateAccountRead(sessionState, authorization, authStatusVersionAtStart);
@@ -4334,6 +4405,7 @@ export class CodexAcpServer {
             this.mcpSessionStartup.begin(sessionId, requestedMcpServers, mcpServerStartupVersion, {
                 publish: true,
                 skippedServers: sessionMetadata.skippedMcpServers,
+                failures: sessionMetadata.mcpStartupFailures,
             });
         }
 
@@ -4397,7 +4469,7 @@ export class CodexAcpServer {
             );
             return;
         }
-        const replayedEntities = new Set<string>();
+        const replayedEntities: ReplayedEntities = new Map();
         for await (const items of itemPages) {
             for (const item of items) {
                 if (!isOpen()) throw new SessionClosedDuringLoadError();
@@ -4418,11 +4490,11 @@ export class CodexAcpServer {
     ): Promise<void> {
         const session = new ACPSessionConnection(this.connection, sessionId);
         const announced = new Map<string, {generation: number; sessionId: string; terminal: boolean; model?: string}>();
-        // Sends the model of a replayed child after its announcement, as the live session does. Replay sends only
-        // the resolved model that the activity items name for the child, so an older record gets no model option.
-        const reportModel = (childSessionId: string, model: string | undefined) =>
-            reportSubagentModel(session, childSessionId, this.subagentModels(sessionState), model);
-        const replayedEntities = new Set<string>();
+        // v1 load includes recorded model changes. v2 replay contains conversation history, not past settings.
+        const reportModel = async (childSessionId: string, model: string | undefined) => {
+            if (session.protocolVersion === 1) await reportSubagentModel(session, childSessionId, this.subagentModels(sessionState), model);
+        };
+        const replayedEntities: ReplayedEntities = new Map();
         for await (const items of itemPages) {
             for (const item of items) {
                 if (!isOpen()) throw new SessionClosedDuringLoadError();
@@ -4561,7 +4633,7 @@ export class CodexAcpServer {
         const router = state.subagents;
         if (!(router instanceof StandardSubagentEventRouter)) return;
         const session = new ACPSessionConnection(this.connection, sessionId);
-        const replayedEntities = new Set<string>();
+        const replayedEntities: ReplayedEntities = new Map();
         if (threadId === state.sessionId) router.beginHistoryReplay();
         const replayChild = async (childThreadId: string, childId: string | null) => {
             if (childId === null || replayed.has(childThreadId)) return;
@@ -4592,10 +4664,12 @@ export class CodexAcpServer {
         ): Promise<boolean> => {
             const childId = await router.announceHistory(item.agentThreadId, item.agentPath, parentTurnId);
             if (childId === null) return false;
-            const configOptions = subagentConfigurationOptions(this.subagentModels(state), {model: item.model, effort: item.reasoningEffort});
-            if (configOptions.length > 0) {
-                try { await session.update({sessionUpdate: "config_option_update", configOptions}, childId); }
-                catch (error) { logger.error(`Failed to replay child configuration ${item.agentThreadId}`, error); }
+            if (session.protocolVersion === 1) {
+                const configOptions = subagentConfigurationOptions(this.subagentModels(state), {model: item.model, effort: item.reasoningEffort});
+                if (configOptions.length > 0) {
+                    try { await session.update({sessionUpdate: "config_option_update", configOptions}, childId); }
+                    catch (error) { logger.error(`Failed to replay child configuration ${item.agentThreadId}`, error); }
+                }
             }
             await replayChild(item.agentThreadId, childId);
             return true;
@@ -4795,7 +4869,7 @@ export class CodexAcpServer {
 
     /** `_codex/session_history` renders an item exactly as `session/load` replays it. */
     private async historyItemUpdates(item: ThreadItem, cwd: string): Promise<acpV2.SessionUpdate[]> {
-        const initialized = new Set<string>();
+        const initialized: ReplayedEntities = new Map();
         // No session is attached here, so a collaboration call has no child sessions to reference.
         return (await this.renderHistoryItem(item, this.capabilities, cwd, collaboration => CollabAgentReporter.started(collaboration)))
             .flatMap(toV2SessionUpdates)
@@ -5232,6 +5306,7 @@ export class CodexAcpServer {
      * id <completionTurnId> but found <Y>". Both are retried, with the id recomputed on every
      * attempt so a `turn/started` that arrives between retries is picked up.
      * Retries belong to that prompt, not to a newer prompt that starts while a reply is pending.
+     * `gone` means there is no such turn to stop any more.
      */
     private async requestTurnInterrupt(
         sessionState: SessionState,
@@ -5239,11 +5314,11 @@ export class CodexAcpServer {
         completionTurnId: string,
         requestName: "Cancel" | "Close",
         ownsChildTurn?: () => boolean,
-    ): Promise<boolean> {
+    ): Promise<"accepted" | "gone" | "failed"> {
         if (this.recovery !== null && !this.turnAppServerIsLive(threadId)) {
             // The turn died with its app-server. A restarted app-server has no such turn.
             logger.log(`${requestName} - turnInterrupt skipped: the app-server of the turn is gone`, {sessionId: threadId});
-            return true;
+            return "gone";
         }
         const activePrompt = this.activePrompts.get(sessionState.sessionId);
         const ownsRegisteredTurn = activePrompt?.currentTurn?.threadId === threadId
@@ -5261,7 +5336,7 @@ export class CodexAcpServer {
                     sessionId: threadId,
                     currentTurnId: turnId,
                 });
-                return true;
+                return "accepted";
             } catch (err) {
                 const mismatch = parseExpectedActiveTurnMismatch(err);
                 const isMismatch = mismatch !== null
@@ -5272,9 +5347,9 @@ export class CodexAcpServer {
                     && attempt < NO_ACTIVE_TURN_RETRY_DELAYS_MS.length;
                 if (!retryable) {
                     // The turn can finish on its own while the interrupt is in flight.
-                    if (isNoActiveTurnError(err) || isThreadNotFoundError(err) || isThreadNotLoadedError(err)) return true;
+                    if (isNoActiveTurnError(err) || isThreadNotFoundError(err) || isThreadNotLoadedError(err)) return "gone";
                     logger.error(`${requestName} - turnInterrupt failed`, err);
-                    return false;
+                    return "failed";
                 }
                 // The interrupt raced the turn's registration in Codex: the prompt
                 // is still in flight, so the turn is about to become
@@ -5282,7 +5357,7 @@ export class CodexAcpServer {
                 // to completion and answer `end_turn`, which ACP forbids after a
                 // `session/cancel`.
                 await new Promise(resolve => setTimeout(resolve, NO_ACTIVE_TURN_RETRY_DELAYS_MS[attempt]!));
-                if (!stillOwnsPrompt()) return true;
+                if (!stillOwnsPrompt()) return "gone";
                 // Recompute after the wait: a `turn/started` may have landed in the meantime, and
                 // `interruptTurnId` always wins once it is set. Otherwise fall back to the id Codex
                 // just reported as active, or to the id we started with.
@@ -5317,9 +5392,17 @@ export class CodexAcpServer {
         resolveInterruptedTurn: boolean,
     ): Promise<void> {
         const activePrompt = this.activePrompts.get(sessionState.sessionId);
+        // Capture the target before waiting for descendants. A later turn must not inherit this cancel.
+        const {sessionId} = sessionState;
+        const runtimeTurn = this.protocolVersion === 2 && !activePrompt ? sessionState.codexReportedRunningTurnId : null;
+        if (runtimeTurn != null && requestName === "Cancel") {
+            if (this.stoppingRuntimeTurns.get(sessionId)?.turnId === runtimeTurn) return;
+            const slot = this.acquireTurnStartReservation(sessionId);
+            this.stoppingRuntimeTurns.set(sessionId, {turnId: runtimeTurn, release: () => { void slot.wait.then(slot.release); }});
+        }
         await this.interruptStandardChildren(sessionState, this.protocolVersion === 2 && requestName === "Close");
         if (this.activePrompts.get(sessionState.sessionId) !== activePrompt) return;
-        const turnId = await this.getInterruptibleTurnId(sessionState, requestName);
+        const turnId = runtimeTurn ?? await this.getInterruptibleTurnId(sessionState, requestName);
         if (!turnId || this.activePrompts.get(sessionState.sessionId) !== activePrompt) {
             return;
         }
@@ -5335,7 +5418,9 @@ export class CodexAcpServer {
             });
         }
         try {
-            await this.requestTurnInterrupt(sessionState, sessionState.sessionId, turnId, requestName);
+            const result = await this.requestTurnInterrupt(sessionState, sessionState.sessionId, turnId, requestName);
+            // Only an accepted interrupt is followed by the turn's own end.
+            if (result !== "accepted" && runtimeTurn != null) this.releaseRuntimeTurn(sessionId, runtimeTurn);
         } finally {
             if (resolveInterruptedTurn) {
                 this.codexAcpClient.resolveTurnInterrupted({
@@ -5530,27 +5615,21 @@ export class CodexAcpServer {
         return await new Promise<acpV2.PromptResponse>((resolve, reject) => {
             let running: Promise<void> | null = null;
             let inserted = false;
-            // Set from `onTurnAdopted` when `turn/start` steers this prompt into a turn that was
-            // already running unowned: that turn's `running` already went out before this
-            // prompt existed, so this prompt must not send a second one.
-            let turnWasAdopted = false;
-            let startedTurn: {threadId: string; turnId: string} | null = null;
+            let startedTurn: {threadId: string, turnId: string, adopted: boolean} | null = null;
             let requestCancelHandled = false;
-            // A `$/cancel_request` for a prompt whose `turn/start` was sent but has not landed
-            // yet still has a pending request to answer: interrupt the turn it started (like
-            // v1's `observePromptRequestCancellation`) and drop it with `-32800`. A turn this
-            // prompt only adopted belongs to someone else (e.g. a Codex goal turn) and must
-            // keep running -- only this request is dropped, still with `-32800`; whatever that
-            // turn actually finishes with is reported normally once `run()` settles below.
+            // Once dispatched, even an interrupted prompt can land. Only its insertion or
+            // a definitive end without insertion settles the request. Never interrupt an adopted turn.
+            const interruptPendingInsertion = () => {
+                if (requestCancelHandled && !inserted && startedTurn !== null && !startedTurn.adopted) {
+                    void this.requestTurnInterrupt(sessionState, startedTurn.threadId, startedTurn.turnId, "Cancel");
+                }
+            };
             const dropPendingRequest = () => {
                 if (inserted || requestCancelHandled) {
                     return;
                 }
                 requestCancelHandled = true;
-                if (!turnWasAdopted && startedTurn !== null) {
-                    void this.requestTurnInterrupt(sessionState, startedTurn.threadId, startedTurn.turnId, "Cancel");
-                }
-                reject(RequestError.requestCancelled(undefined, "The prompt request was cancelled before it was inserted"));
+                interruptPendingInsertion();
             };
             if (inFlightSignal) {
                 if (inFlightSignal.aborted) {
@@ -5569,7 +5648,7 @@ export class CodexAcpServer {
                     logger.error(`Failed to send the user message for session ${sessionId}`, error);
                 }
                 resolve({messageId});
-                if (turnWasAdopted) {
+                if (startedTurn?.adopted) {
                     return;
                 }
                 // Local commands have no runtime turn; insertion starts their foreground work.
@@ -5596,11 +5675,9 @@ export class CodexAcpServer {
                                 logger.error(`Failed to send the synthetic user message for session ${sessionId}`, error);
                             }
                         },
-                        onTurnAdopted: () => {
-                            turnWasAdopted = true;
-                        },
                         onTurnStarted: (turn) => {
                             startedTurn = turn;
+                            interruptPendingInsertion();
                             // An accepted Codex turn can run hooks before inserting user input.
                             running = startWork();
                         },
@@ -5618,7 +5695,7 @@ export class CodexAcpServer {
                             // A `cancelled` v1 stop reason means the adopted turn was interrupted
                             // (e.g. by `session/cancel`) before this prompt's input landed: it was
                             // never inserted, so it is dropped with `-32800` like a queued prompt.
-                            reject(response.stopReason === "cancelled"
+                            reject(requestCancelHandled || response.stopReason === "cancelled"
                                 ? RequestError.requestCancelled(undefined, notInsertedMessage)
                                 : failure !== null
                                     ? new RequestError(failure.code, failure.message)
@@ -5626,7 +5703,7 @@ export class CodexAcpServer {
                             // Codex dropped the steered input before the adopted turn ended: that
                             // turn's `running` still needs exactly one matching `idle`, and nothing
                             // else will send it now that this prompt is no longer in flight.
-                            if (turnWasAdopted || startedTurn !== null) {
+                            if (startedTurn !== null) {
                                 if (running !== null) await running;
                                 await sendIdle(response);
                             }
@@ -5645,9 +5722,9 @@ export class CodexAcpServer {
                         if (!inserted) {
                             this.v2PromptsInFlight.delete(sessionId);
                             this.v2CommandSessions.delete(sessionId);
-                            reject(error);
+                            reject(requestCancelHandled ? RequestError.requestCancelled() : error);
                             const runtimeLost = this.getExitCode() !== null || (this.recovery !== null && !this.recovery.isReady());
-                            if (turnWasAdopted || startedTurn !== null || runtimeLost) {
+                            if (startedTurn !== null || runtimeLost) {
                                 if (running !== null) await running;
                                 await sendIdle(this.failedPromptResponse(sessionId));
                             }
@@ -5761,7 +5838,6 @@ export class CodexAcpServer {
         let promptGeneration = this.recovery?.generation ?? 0;
         const appServerLost = new AbortController();
         let removeAppServerLossListener: () => void = () => {};
-        let promptElicitations: CodexElicitationHandler | null = null;
         const interactionConnection = this.recovery === null
             ? this.connection
             : lossAwareConnection(this.connection, appServerLost.signal);
@@ -5828,7 +5904,6 @@ export class CodexAcpServer {
                 clientSupportsTypedSessionFailures(this.clientCapabilities),
                 this.sessionFailureIds,
                 sessionState.subagents,
-                (accountUpdated) => this.handleAccountUpdated(accountUpdated),
                 agentFileChangeReportRequest !== null,
                 clientSupportsCompaction(this.clientCapabilities),
                 clientSupportsNotices(this.clientCapabilities),
@@ -5850,13 +5925,11 @@ export class CodexAcpServer {
                 activePrompt.interactionSignal,
                 toolCallRenderer,
             );
-            promptElicitations = elicitationHandler;
             const observeInteraction = async (event: ServerNotification): Promise<void> => {
                 const threadId = (event.params as {threadId?: unknown}).threadId;
                 if (sessionState.subagents instanceof StandardSubagentEventRouter
                     && typeof threadId === "string" && threadId !== sessionState.sessionId) return;
                 permissionContext.handleNotification(event);
-                await elicitationHandler.handleNotification(event);
             };
             const resolvePendingInsertion = async (turnId?: string): Promise<void> => {
                 if (pendingInsertion === undefined) {
@@ -5927,7 +6000,7 @@ export class CodexAcpServer {
                 onTurnStarted: (turnId, threadId) => {
                     const turn = {threadId, turnId};
                     activePrompt.currentTurn = turn;
-                    insertion?.onTurnStarted?.(turn);
+                    insertion?.onTurnStarted?.({...turn, adopted: false});
                     if (this.promptShouldStop(params.sessionId, activePrompt)) {
                         this.interruptLateStartedTurn(sessionState, turn);
                         return;
@@ -6046,16 +6119,13 @@ export class CodexAcpServer {
                     (turnId) => {
                         const turn = {threadId: params.sessionId, turnId};
                         activePrompt.currentTurn = turn;
-                        insertion?.onTurnStarted?.(turn);
+                        insertion?.onTurnStarted?.({...turn, adopted: turnId === priorRunningTurnId});
                         if (this.promptShouldStop(params.sessionId, activePrompt)) {
                             this.interruptLateStartedTurn(sessionState, turn);
                             return;
                         }
                         sessionState.currentTurnId = turnId;
                         pendingTurnStart?.resolve(turnId);
-                        if (priorRunningTurnId !== null && turnId === priorRunningTurnId) {
-                            insertion?.onTurnAdopted?.();
-                        }
                         onTurnStarted?.();
                     },
                     () => this.promptShouldStop(params.sessionId, activePrompt),
@@ -6284,7 +6354,7 @@ export class CodexAcpServer {
                 && err instanceof RequestError
                 && err.code === CODEX_PROCESS_EXITED_ERROR_CODE;
             if (activePrompt.signal.aborted || this.sessionIsClosing(params.sessionId) || insertion && activePrompt.clientCancelled) {
-                if (lostAppServer) await this.finishPromptAfterAppServerLoss(sessionState, eventHandler, promptClient, promptElicitations, "cancelled");
+                if (lostAppServer) await this.finishPromptAfterAppServerLoss(sessionState, eventHandler, promptClient, "cancelled");
                 return cancelledPromptResponse();
             }
             agentFileChangeReportTurnId = null;
@@ -6294,10 +6364,10 @@ export class CodexAcpServer {
             if (lostAppServer) {
                 // ACP: a prompt that the client cancelled answers `cancelled`, also when the app-server died meanwhile.
                 if (activePrompt.clientCancelled) {
-                    await this.finishPromptAfterAppServerLoss(sessionState, eventHandler, promptClient, promptElicitations, "cancelled");
+                    await this.finishPromptAfterAppServerLoss(sessionState, eventHandler, promptClient, "cancelled");
                     return cancelledPromptResponse();
                 }
-                await this.finishPromptAfterAppServerLoss(sessionState, eventHandler, promptClient, promptElicitations, "failed");
+                await this.finishPromptAfterAppServerLoss(sessionState, eventHandler, promptClient, "failed");
                 // A cancel that came while the cleanup published still wins (ACP: a cancelled prompt answers `cancelled`).
                 if (activePrompt.clientCancelled || activePrompt.signal.aborted) {
                     return cancelledPromptResponse();
@@ -6429,12 +6499,10 @@ export class CodexAcpServer {
         sessionState: SessionState,
         eventHandler: CodexEventHandler | null,
         promptClient: CodexAcpClient,
-        elicitations: CodexElicitationHandler | null,
         state: "failed" | "cancelled",
     ): Promise<void> {
         try {
             this.asyncQuestions.get(sessionState.sessionId)?.dispose();
-            await elicitations?.completeAllUrlElicitations();
             const sessionIds = new Set([sessionState.sessionId, ...sessionState.subagents.childSessionIds()]);
             await this.failUnfinishedToolCalls(sessionIds);
             // Ending the subagent sessions also ends the waits of queued notifications for them. The dead app-server
@@ -6605,6 +6673,7 @@ export class CodexAcpServer {
         // Drop every v2 prompt still queued (not yet inserted) before interrupting the running
         // turn, so their `-32800` responses do not wait on the interrupt completing. No-op on v1.
         this.cancelQueuedV2Prompts(params.sessionId);
+        AcpV2Connection.of(this.connection)?.cancelForegroundActions(params.sessionId);
         // After turnInterrupt(), Codex will send turn/completed, which naturally completes awaitTurnCompleted().
         await this.interruptSessionTurn(sessionState, "Cancel", false);
     }

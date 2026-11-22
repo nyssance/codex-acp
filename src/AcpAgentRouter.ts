@@ -10,6 +10,7 @@ import type {McpOverAcpToHttp} from "./McpServerConfig";
 import packageJson from "../package.json";
 import {AcpResponseDelivery} from "./AcpResponseDelivery";
 import {isAbsoluteProtocolPath} from "./PathUtils";
+import {storedSessionError} from "./CodexThreadErrors";
 import {
     GOAL_CONTROL_METHOD, LEGACY_SET_SESSION_MODEL_METHOD,
     SESSION_STEERING_METHOD,
@@ -109,6 +110,14 @@ function createRouter(
         }
         return getAgent(params);
     };
+    const forStoredSessionV2 = async <T>(
+        params: {sessionId: string; cwd?: string | null; additionalDirectories?: string[] | null},
+        operation: (agent: CodexAcpServer) => Promise<T>,
+    ): Promise<T> => {
+        const agent = getAgentForPaths(params);
+        try { return await operation(agent); }
+        catch (error) { throw storedSessionError(params.sessionId, error, agent.sessionIndex.enabled); }
+    };
     type SetupState = {tail: Promise<void>; publication: Promise<void>; epoch: number; pending: number};
     const setups = new Map<string, SetupState>();
     const setup = <T>(sessionId: string, requestId: acpV2.JsonRpcId, operation: () => Promise<T>, signal: AbortSignal): Promise<T> => {
@@ -206,6 +215,7 @@ function createRouter(
         .onRequest(acp.methods.agent.session.setTitle, (ctx) => getAgent(ctx.params).sessionIndex.setTitle(ctx.params))
         .onRequest(acp.methods.agent.authenticate, (ctx) => getAgent().authenticate(ctx.params, ctx.requestId, ctx.signal))
         .onRequest(acp.methods.agent.logout, (ctx) => getAgent().logout(ctx.params))
+        .onRequest(acp.methods.agent.auth.status, () => getAgent().authStatus())
         .onRequest(acp.methods.agent.providers.list, (ctx) => getAgent().listProviders(ctx.params))
         .onRequest(acp.methods.agent.providers.set, (ctx) => getAgent().setProvider(ctx.params))
         .onRequest(acp.methods.agent.providers.disable, (ctx) => getAgent().disableProvider(ctx.params))
@@ -226,26 +236,43 @@ function createRouter(
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
         .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
 
+    let advertisedMcp: acpV2.McpCapabilities | null = null;
+    // Check the negotiated transports and v2 wire rules before setup can suspend child controls.
+    const withSupportedMcpServers = <P extends Pick<acpV2.NewSessionRequest, "mcpServers">, R>(
+        handle: acpV2.AgentRequestHandler<P, R>,
+    ): acpV2.AgentRequestHandler<P, R> => ctx => {
+        acpV2.assertSupportedMcpServers(ctx.params.mcpServers, advertisedMcp);
+        return handle(ctx);
+    };
+
     let v2Agent = acpV2.agent({name: packageJson.name})
         .onConnect(({client, signal}) => attachAgent(createAgent(new AcpV2Connection(client), server => bridge.toHttp(client, server)), signal))
         .onNotification(acpV2.methods.agent.mcp.message, mcp.handleNotification)
-        .onRequest(acpV2.methods.agent.initialize, (ctx) => initialize(ctx.requestId, () => getAgent().initializeV2(ctx.params)))
+        .onRequest(acpV2.methods.agent.initialize, (ctx) => initialize(ctx.requestId, async () => {
+            const response = await getAgent().initializeV2(ctx.params);
+            advertisedMcp = response.capabilities?.session?.mcp ?? null;
+            return response;
+        }))
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
-        .onRequest(acpV2.methods.agent.session.new, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).newSessionV2(ctx.params))))
+        .onRequest(acpV2.methods.agent.session.new, withSupportedMcpServers(ctx =>
+            createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).newSessionV2(ctx.params)))))
         .onRequest(acpV2.methods.agent.session.list, (ctx) => getAgentForPaths({cwd: ctx.params.cwd ?? null}).listSessions(ctx.params))
         .onRequest(acpV2.methods.agent.session.delete, (ctx) => getAgent(ctx.params).deleteSession(ctx.params))
-        .onRequest(acpV2.methods.agent.session.resume, (ctx) => setup(ctx.params.sessionId, ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).resumeSessionV2(ctx.params, ctx.signal)), ctx.signal))
-        .onRequest(acpV2.methods.agent.session.fork, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).runSessionOpen(ctx.signal, () => getAgentForPaths(ctx.params).forkSessionV2(ctx.params))))
+        .onRequest(acpV2.methods.agent.session.resume, withSupportedMcpServers(ctx =>
+            setup(ctx.params.sessionId, ctx.requestId, () => forStoredSessionV2(ctx.params, agent => agent.runSessionOpen(ctx.signal, () => agent.resumeSessionV2(ctx.params, ctx.signal))), ctx.signal)))
+        .onRequest(acpV2.methods.agent.session.fork, withSupportedMcpServers(ctx =>
+            createdSetup(ctx.requestId, () => forStoredSessionV2(ctx.params, agent => agent.runSessionOpen(ctx.signal, () => agent.forkSessionV2(ctx.params))))))
         .onRequest(acpV2.methods.agent.session.close, (ctx) => getAgent(ctx.params).closeSession(ctx.params))
         .onRequest(acpV2.methods.agent.terminal.cancel, (ctx) => getAgent().cancelTerminalV2(ctx.params))
         // No `session/set_mode`: v2 removed the modes API; modes are config options.
         .onRequest(acpV2.methods.agent.session.setConfigOption, (ctx) => getAgent(ctx.params).setSessionConfigOptionV2(ctx.params))
-        .onRequest(acpV2.methods.agent.session.setTitle, (ctx) => getAgent(ctx.params).setSessionTitle(ctx.params))
+        .onRequest(acpV2.methods.agent.session.setTitle, (ctx) => forStoredSessionV2(ctx.params, agent => agent.setSessionTitle(ctx.params)))
         .onRequest(acpV2.methods.agent.session.archive, (ctx) => getAgent(ctx.params).setSessionArchived(ctx.params, true))
         .onRequest(acpV2.methods.agent.session.unarchive, (ctx) => getAgent(ctx.params).setSessionArchived(ctx.params, false))
         // The v1-only `authentication/status|logout` extensions are not registered on v2.
         .onRequest(acpV2.methods.agent.auth.login, (ctx) => getAgent().authenticateV2(ctx.params, ctx.requestId, ctx.signal))
         .onRequest(acpV2.methods.agent.auth.logout, (ctx) => getAgent().logoutV2(ctx.params))
+        .onRequest(acpV2.methods.agent.auth.status, () => getAgent().authStatus())
         .onRequest(acpV2.methods.agent.session.prompt, (ctx) => getAgent(ctx.params).promptV2(ctx.params, ctx.signal))
         .onNotification(acpV2.methods.agent.session.cancel, (ctx) => getAgent().cancel(ctx.params))
         .onRequest(acpV2.methods.agent.providers.list, (ctx) => getAgent().listProviders(ctx.params))
@@ -261,9 +288,7 @@ function createRouter(
         .onRequest(SESSION_ARCHIVE_METHOD, sessionArchiveParamsParser, (ctx) => getAgent(ctx.params).sessionIndex.setArchived(ctx.params, true))
         .onRequest(SESSION_UNARCHIVE_METHOD, sessionArchiveParamsParser, (ctx) => getAgent(ctx.params).sessionIndex.setArchived(ctx.params, false))
         .onRequest(SESSION_LIST_SUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.subscribeList(ctx.params))
-        .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params))
-        // SDK 2.8.0 defaults unimplemented tool/terminal cancel methods to -32602.
-        .onRequest("*", ({method}) => { throw acpV2.RequestError.methodNotFound(method); });
+        .onRequest(SESSION_LIST_UNSUBSCRIBE_METHOD, sessionListSubscriptionParamsParser, (ctx) => getAgent().sessionIndex.unsubscribeList(ctx.params));
 
     for (const method of Object.keys(CODEX_NATIVE_METHODS) as Array<keyof typeof CODEX_NATIVE_METHODS>) {
         v1Agent = v1Agent.onRequest(method, {parse: objectParams}, (ctx) => getAgent().nativeRequest(method, ctx.params));

@@ -13,7 +13,6 @@ import {ACPSessionConnection, type AcpClientConnection, type UpdateSessionEvent}
 import {normalizeSessionTitle} from "./SessionTitle";
 import type {
     AccountRateLimitsUpdatedNotification,
-    AccountUpdatedNotification,
     AgentMessageDeltaNotification,
     CodexErrorInfo,
     ConfigWarningNotification,
@@ -191,8 +190,6 @@ export class CodexEventHandler {
     private latestRootTurnId: string | null = null;
     private readonly collectTurnDiffs: boolean;
     private readonly subagents: SubagentEventRouter;
-    /** Connection-level `authStatus` sink; the app-server account push feeds it. */
-    private readonly onAccountUpdated: ((notification: AccountUpdatedNotification) => void) | undefined;
 
     private readonly supportsCompaction: boolean;
     private readonly supportsNotices: boolean;
@@ -203,14 +200,12 @@ export class CodexEventHandler {
         supportsTypedSessionFailures: boolean,
         sessionFailureIds: SessionFailureIds,
         subagents: SubagentEventRouter,
-        onAccountUpdated: ((notification: AccountUpdatedNotification) => void) | undefined,
         collectTurnDiffs: boolean,
         supportsCompaction: boolean,
         supportsNotices: boolean,
     ) {
         this.supportsCompaction = supportsCompaction;
         this.supportsNotices = supportsNotices;
-        this.onAccountUpdated = onAccountUpdated;
         this.sessionState = sessionState;
         this.supportsTypedSessionFailures = supportsTypedSessionFailures;
         this.sessionFailureIds = sessionFailureIds;
@@ -592,8 +587,8 @@ export class CodexEventHandler {
             case "turn/plan/updated": {
                 this.completeRetryIncidentOnTurnProgress(notification.params.threadId);
                 const update = this.updatePlan(notification.params);
-                if (this.session.protocolVersion !== 2 || notification.params.plan.length !== 0 || update.sessionUpdate !== "plan_update") return update;
-                // Baseline v2 clients can clear the checklist even if they don't act on plan_removed.
+                if (notification.params.plan.length !== 0 || update.sessionUpdate !== "plan_update") return update;
+                // Older clients clear the checklist even if they don't act on plan_removed.
                 await this.publishUpdate(update, this.subagents.notificationSessionId(notification));
                 return {sessionUpdate: "plan_removed", planId: update.plan.planId};
             }
@@ -668,22 +663,21 @@ export class CodexEventHandler {
                 this.latestRootTurnId = this.sessionState.currentTurnId ?? this.latestRootTurnId;
                 this.sessionState.currentTurnId = null;
                 this.sessionState.interruptTurnId = null;
-                if (this.session.protocolVersion === 2 && notification.params.turn.status === "failed") {
-                    if (!this.supportsTypedSessionFailures) {
+                if (this.session.protocolVersion === 2) {
+                    if (notification.params.turn.status === "failed" && !this.supportsTypedSessionFailures) {
                         const turn = notification.params.turn;
                         const error = turn.error ?? (this.terminalTurnError?.turnId === turn.id ? this.terminalTurnError.error : null);
                         // The terminal `error` may already have reported it; Codex can also fail a turn without one.
                         if (error && !this.reportedTurnErrors.has(turn.id) && !this.isAuthenticationRequiredError(error.codexErrorInfo)) await this.session.updateV2(turnErrorUpdate(turn.id, error), this.subagents.notificationSessionId(notification));
                     }
-                    for (const update of this.sessionState.openToolCalls.finishOutstanding(undefined,
+                    for (const update of this.sessionState.openToolCalls.finishOutstanding(notification.params.turn.id,
                         id => this.session.hasBackgroundItem({type: "terminal", terminalId: id}))) {
                         await this.session.update(update, this.subagents.notificationSessionId(notification));
                     }
+                } else {
+                    this.sessionState.openToolCalls.clear();
                 }
                 this.sessionState.toolCallReports.releaseOpen(this.subagents.notificationSessionId(notification));
-                // An item that missed its item/completed (e.g. dropped by a provider restart
-                // mid-turn) must not linger past its own turn and get failed by a later restart.
-                this.sessionState.openToolCalls.clear();
                 return null;
             case "thread/tokenUsage/updated":
                 return this.createUsageUpdate(notification.params);
@@ -738,7 +732,7 @@ export class CodexEventHandler {
                 this.handleRateLimitsUpdated(notification.params);
                 return null;
             case "account/updated":
-                this.onAccountUpdated?.(notification.params);
+                // The connection observes this even when it has no sessions.
                 return null;
             case "configWarning":
                 return await this.createConfigWarningEvent(notification.params);
@@ -806,6 +800,7 @@ export class CodexEventHandler {
             case "thread/readState/changed":
             case "thread/prediction/updated":
             case "thread/deleted":
+            case "thread/search/partial": // ACP does not request streaming thread search.
             case "thread/reverted":
             case "thread/queue/changed":
             case "project/changed":

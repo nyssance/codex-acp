@@ -18,7 +18,6 @@ import {afterEach, beforeEach, expect, vi} from "vitest";
 import type {Model, ReasoningEffortOption} from "../app-server/v2";
 import {CodexSubagentEventRouter} from "../subagents/CodexSubagentEventRouter";
 import {CodexEventHandler, SessionFailureIds} from "../CodexEventHandler";
-import type {AccountUpdatedNotification} from "../app-server/v2";
 import {CodexBackgroundTerminalTasks} from "../async-tasks/CodexBackgroundTerminalTasks";
 import {CodexSessionCompactions} from "../CodexSessionCompactions";
 import {CodexSessionToolCalls} from "../CodexSessionToolCalls";
@@ -639,7 +638,6 @@ export function createTestEventHandler(
     options: {
         typedSessionFailures?: boolean;
         sessionFailureEpoch?: string;
-        onAccountUpdated?: (notification: AccountUpdatedNotification) => void;
         collectTurnDiffs?: boolean;
     } = {},
 ): CodexEventHandler {
@@ -649,7 +647,6 @@ export function createTestEventHandler(
         options.typedSessionFailures ?? false,
         new SessionFailureIds(options.sessionFailureEpoch ?? "test-epoch"),
         sessionState.subagents,
-        options.onAccountUpdated,
         options.collectTurnDiffs ?? false,
         false,
         false,

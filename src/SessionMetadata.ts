@@ -10,6 +10,7 @@ import type {
     ThreadStatus,
 } from "./app-server/v2";
 import type {SessionInstructions} from "./ClientSystemPrompt";
+import type {McpStartupFailure} from "./mcp/McpStartupTracker";
 
 export type SessionMetadata = {
     sessionId: string;
@@ -32,6 +33,7 @@ export type SessionMetadata = {
     threadStatus?: ThreadStatus;
     additionalDirectories: string[];
     skippedMcpServers?: string[];
+    mcpStartupFailures?: McpStartupFailure[];
     instructions?: SessionInstructions;
     sessionTitle?: string | null;
     activePermissionProfileId?: string | null;

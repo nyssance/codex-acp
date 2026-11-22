@@ -27,7 +27,7 @@ describeIntegration("integration: ACP v2 prompt retries", () => {
         });
         const methods = acp.methods.agent;
         const withAgent = async <T>(run: (agent: acp.ClientContext, updates: acp.UpdateSessionNotification[]) => Promise<T>): Promise<T> => {
-            const child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
+            const child = spawn(process.execPath, ["src/index.ts"], {
                 cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome},
                 stdio: ["pipe", "pipe", "pipe"],
             });
@@ -95,6 +95,12 @@ describeIntegration("integration: ACP v2 prompt retries", () => {
                 await waitForIdle(updates, fork.sessionId);
                 await agent.request(methods.session.close, {sessionId: fork.sessionId});
                 await agent.request(methods.session.close, {sessionId});
+                // Deleting the inactive session must also make its retained receipt unreachable.
+                await agent.request(methods.session.delete, {sessionId});
+                const missing = {code: -32002, data: {sessionId}};
+                await expect(agent.request(methods.session.resume, {cwd, sessionId})).rejects.toMatchObject(missing);
+                await expect(agent.request(methods.session.fork, {cwd, sessionId})).rejects.toMatchObject(missing);
+                await expect(agent.request(methods.session.setTitle, {sessionId, title: "Too late"})).rejects.toMatchObject(missing);
             });
             expect(mock.unexpectedRequests).toBe(0);
         } finally {

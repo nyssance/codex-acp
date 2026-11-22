@@ -804,8 +804,9 @@ describe("CodexACPAgent - loadSession", () => {
                         },
                         {
                             type: "mcpToolCall",
+                            environmentId: null,
                             id: "item-mcp-1",
-                            server: "github", environmentId: null,
+                            server: "github",
                             tool: "search",
                             status: "completed",
                             arguments: {},

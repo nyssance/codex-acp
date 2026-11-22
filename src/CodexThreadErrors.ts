@@ -36,6 +36,15 @@ export function isThreadClosingError(err: unknown): boolean {
     return errorText(err).includes("is closing; retry thread/resume");
 }
 
+/**
+ * `thread/archive` answers this for a thread Codex is still unloading after its last subscriber
+ * left. `thread/closed` follows, and the archive succeeds after it.
+ */
+export function isThreadArchiveWhileClosingError(err: unknown): boolean {
+    const text = errorText(err);
+    return text.includes("failed to archive session: thread ") && text.includes(" not found");
+}
+
 /** History paging rejects a live thread whose rollout has not been written yet. */
 export function isThreadNotMaterializedError(err: unknown): boolean {
     return errorText(err).includes("not materialized");
@@ -137,6 +146,18 @@ export function sessionNotFoundRequestError(sessionId: string): RequestError {
 
 /** The `data.reason` of the error for a request that an archived session does not take. */
 export const SESSION_ARCHIVED_REASON = "archived";
+
+/** Without a separate archive operation, an archived thread is a soft-deleted ACP session. */
+export function storedSessionError(sessionId: string, err: unknown, separateArchive: boolean): unknown {
+    const data = err instanceof RequestError ? err.data : null;
+    const archived = errorText(err).startsWith(`session ${sessionId} is archived.`)
+        || data !== null && typeof data === "object" && "reason" in data && data.reason === SESSION_ARCHIVED_REASON;
+    if (archived) return separateArchive ? sessionArchivedRequestError(sessionId) : sessionNotFoundRequestError(sessionId);
+    if (!(err instanceof RequestError) && (isUnknownThreadError(err) || isThreadNotFoundError(err))) {
+        return sessionNotFoundRequestError(sessionId);
+    }
+    return err;
+}
 
 /** The ACP error for a request that Codex refuses because the thread is archived. */
 export function sessionArchivedRequestError(sessionId: string): RequestError {
