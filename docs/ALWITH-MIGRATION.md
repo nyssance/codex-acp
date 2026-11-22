@@ -72,7 +72,6 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 - **v2 fork replays history.** v2 `session/fork` replays the child's history before its response; upstream replays nothing.
 - **Cancelled session open.** Cancelling a v2 `session/new`, `session/resume` or `session/fork` (`-32800`) closes the session it already created (`runSessionOpen`). Upstream only stops waiting.
 - **Immediate thread unload.** Every app-server starts with `thread_unload_delay_secs=0`, so a provider change can release every detached writer. Upstream keeps Codex's default delay.
-- **Provider child processes.** Gateways run in their own Codex app-servers; when one dies unexpectedly, the primary is ended too and upstream's recovery reconnects every session ([fallbacks.md](fallbacks.md)).
 
 **Prompts and turns**
 

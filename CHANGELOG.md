@@ -1,3 +1,8 @@
+## 0.7.86 (2026-11-22)
+
+- Every session runs in one Codex app-server, whatever its provider. The adapter no longer starts a separate app-server per gateway; Codex 0.168 and later keep each thread on its own provider in one process.
+- A chat still moves between the native provider and gateways turn by turn, with its history.
+
 ## 0.7.85 (2026-11-22)
 
 - A v2 `session/prompt` sent while a turn runs is queued for a new turn, as upstream does. It is no longer turned into a steer. Input for the running turn goes through upstream's `_session/steering`.

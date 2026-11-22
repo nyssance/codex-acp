@@ -7,8 +7,6 @@ import crossSpawn from "cross-spawn";
 
 import {createJSONRPCReader, createJSONRPCWriter} from "./StdUtils";
 import {logger} from "./Logger";
-import {providerConnections} from "./ProviderConnections";
-import {CodexAppServerSupervisor} from "./app-server-recovery/CodexAppServerSupervisor";
 
 const require = createRequire(import.meta.url);
 
@@ -33,56 +31,12 @@ export interface StartCodexConnectionOptions {
     disposeOnExit?: boolean;
 }
 
-export function startCodexConnection(codexPath?: string, env?: NodeJS.ProcessEnv, appServerStartupArgs: string[] = ["app-server"], options: StartCodexConnectionOptions = {}): CodexConnection {
-    const primary = startRawCodexConnection(codexPath, env, appServerStartupArgs, {disposeOnExit: false});
-    const children = new Map<NativeConnection, () => Promise<void>>();
-    let closing = false;
-    primary.connection.onDispose(() => {
-        closing = true;
-        for (const child of children.keys()) child.connection.dispose();
-    });
-    const connection = providerConnections(primary.connection, (provider, catalog, defined) => {
-        // Only the provider identity is process-wide. Credentials and endpoints stay in thread config.
-        const args = [...appServerStartupArgs, "-c", `model_provider=${JSON.stringify(provider)}`];
-        if (provider !== "openai" && defined) args.push("-c", `model_providers={${JSON.stringify(provider)}={name=${JSON.stringify(provider)},base_url="http://127.0.0.1",wire_api="responses",requires_openai_auth=false}}`);
-        if (catalog !== undefined) args.push("-c", `model_catalog_json=${JSON.stringify(catalog)}`);
-        const child = startRawCodexConnection(codexPath, env, args, {
-            disposeOnExit: false,
-        });
-        // Upstream's supervisor stops the child and reads its last output before disposing the connection.
-        const supervisor = new CodexAppServerSupervisor(
-            {connection: child, codexPath, appServerStartupArgs: args, stderr: ""},
-            () => {
-                throw new Error("A provider app-server is never restarted in place");
-            },
-        );
-        children.set(child, async () => {
-            await supervisor.stop();
-        });
-        supervisor.onExit((exit) => {
-            children.delete(child);
-            // Deliver the final child frames before the primary exit triggers upstream recovery.
-            if (!exit.intentional && !closing) primary.process.stdin.end();
-        });
-        child.connection.onDispose(() => {
-            void supervisor.stop();
-        });
-        return child.connection;
-    });
-    const drained = primary.drained.then(async () => {
-        closing = true;
-        await Promise.all([...children.values()].map((stop) => stop()));
-    });
-    if (options.disposeOnExit ?? true)
-        primary.process.once("exit", () => {
-            void drained.then(() => connection.dispose());
-        });
-    return {...primary, connection, drained};
-}
-
-type NativeConnection = CodexConnection & {drained: Promise<void>};
-
-function startRawCodexConnection(codexPath: string | undefined, env: NodeJS.ProcessEnv | undefined, appServerStartupArgs: string[], options: StartCodexConnectionOptions): NativeConnection {
+export function startCodexConnection(
+    codexPath?: string,
+    env?: NodeJS.ProcessEnv,
+    appServerStartupArgs: string[] = ["app-server"],
+    options: StartCodexConnectionOptions = {},
+): CodexConnection {
     const spawnEnv = env ?? process.env;
     const startupArgs = [
         ...appServerStartupArgs,

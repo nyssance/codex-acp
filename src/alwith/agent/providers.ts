@@ -68,7 +68,7 @@ export interface Gateway {
  * Client-configured routing for Codex's OpenAI slot (ACP `providers/*`).
  *
  * Gateway credentials are applied per thread through `model_providers` and `modelProvider`.
- * The native connection layer keeps a separate app-server for each provider identity.
+ * Every thread runs in the one app-server, whatever its provider (Codex 0.168 and later).
  * Nothing is re-routed: each gateway's models are offered next to Codex's in every
  * session's `model` option, and a session moves to a gateway only when one of them is
  * selected. Global routing of Codex's OpenAI slot is upstream's `providers/set`.
