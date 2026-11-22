@@ -1,8 +1,9 @@
-## Unreleased
+## 0.7.85 (2026-11-22)
 
 - A v2 `session/prompt` sent while a turn runs is queued for a new turn, as upstream does. It is no longer turned into a steer. Input for the running turn goes through upstream's `_session/steering`.
 - The client package has `steer(sessionId, prompt)`, which calls `_session/steering` and reports `injected` or `promptRequired`.
 - `_meta.alwith.applicationContext` applies to prompts only.
+- Upstream-owned files are back to upstream's code wherever the fork differed only in style.
 
 ## 0.7.84 (2026-11-22)
 
