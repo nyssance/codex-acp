@@ -600,8 +600,6 @@ export class CodexAcpServer {
     /** Tail of the per-session turn-start FIFO; see `acquireTurnStartReservation`. */
     private readonly turnStartQueueTail: Map<string, {promise: Promise<void>; settled: boolean}>;
     private readonly steeringQueues: Map<string, SteeringQueue>;
-    /** The client's message id for a v2 prompt that goes through the steering queue. */
-    private readonly steeringMessageIds = new WeakMap<SessionSteerRequest, string>();
     /** The async questions of each session, shown while the turn that asked them runs. */
     private readonly asyncQuestions = new Map<string, AsyncQuestionElicitations>();
     /**
@@ -614,7 +612,6 @@ export class CodexAcpServer {
     private readonly pendingSteerLandings: Map<string, {sessionId: string; prompt: acp.ContentBlock[]}>;
     /** Sessions with a v2 prompt that has not finished yet, including before its turn starts. */
     private readonly v2PromptsInFlight = new Set<string>();
-    private readonly v2CommandSessions = new Set<string>();
     private readonly v2PromptKeys = new Map<string, AcpV2PromptKeys>();
     /** A cancelled Codex-initiated turn has no prompt reservation to keep later prompts behind its idle. */
     private readonly stoppingRuntimeTurns = new Map<string, {turnId: string; release(): void}>();
@@ -3743,7 +3740,7 @@ export class CodexAcpServer {
     private getSteeringQueue(sessionId: string): SteeringQueue {
         let queue = this.steeringQueues.get(sessionId);
         if (!queue) {
-            queue = new SteeringQueue((params) => this.performSteeringRequest(params, this.steeringMessageIds.get(params)));
+            queue = new SteeringQueue((params) => this.performSteeringRequest(params));
             this.steeringQueues.set(sessionId, queue);
         }
         return queue;
@@ -3759,7 +3756,7 @@ export class CodexAcpServer {
      *     "promptRequired" when the host requested an owned idle fallback, or
      *     the outcome of starting a legacy fallback turn.
      */
-    private async performSteeringRequest(params: SessionSteerRequest, clientUserMessageId: string = randomUUID()): Promise<SessionSteeringResponse> {
+    private async performSteeringRequest(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
         assertPromptContentSupported(params);
         logger.log("Steering session requested", {
             sessionId: params.sessionId,
@@ -3768,10 +3765,11 @@ export class CodexAcpServer {
         const sessionState = this.getSessionState(params.sessionId);
         this.assertSteerInputSupported(params, sessionState);
 
-        // Minted fresh for every steer (both protocol versions) unless a v2 prompt brings its own, passed to
-        // Codex as `TurnSteerParams.clientUserMessageId`/`TurnStartParams.clientUserMessageId`. It is a
+        // Minted fresh for every steer (both protocol versions), passed to Codex as
+        // `TurnSteerParams.clientUserMessageId`/`TurnStartParams.clientUserMessageId`. It is a
         // Codex-side param only; on v2 it doubles as the `messageId` of the live `user_message`
         // shown once the steer lands (the steering response itself carries no id).
+        const clientUserMessageId = randomUUID();
         const turnId = await this.getSteerableTurnId(sessionState);
         if (turnId) {
             const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState, clientUserMessageId);
@@ -5518,27 +5516,6 @@ export class CodexAcpServer {
         throwIfRequestCancelled(signal);
         const {sessionId} = request;
         const sessionState = this.getSessionState(sessionId);
-        // Ordinary prompts amend the active native turn; commands retain their turn-start FIFO.
-        if (
-            this.availableCommands.classifyPrompt(request.prompt).kind === "prompt" &&
-            !this.v2CommandSessions.has(sessionId) &&
-            (sessionState.codexReportedRunningTurnId !== null || this.pendingTurnStarts.has(sessionId))
-        ) {
-            const messageId = this.promptMessageId(params, sessionState, keyedMessageId);
-            // A retry of a keyed prompt that Codex already holds is answered, not steered in again.
-            if (findRetained && await withRequestCancellation(findRetained(), signal)) return {messageId};
-            const steer: SessionSteerRequest = {
-                sessionId,
-                prompt: request.prompt,
-                _meta: {...params._meta, steering: {idleBehavior: "promptRequired"}},
-            };
-            this.steeringMessageIds.set(steer, messageId);
-            const steered = await this.executeOrQueueSteeringRequest(steer);
-            if (steered.outcome === "injected") return {messageId};
-            if (steered.outcome !== "promptRequired") {
-                throw RequestError.internalError(undefined, `Steering the running turn of session ${sessionId} failed`);
-            }
-        }
         // A prompt overlapping a running one is queued behind it rather than rejected: take this
         // session's place in the shared turn-start FIFO now (before any await), then wait. Nothing
         // observable happens until it reaches the front, unless the ID already exists in history.
@@ -5581,7 +5558,6 @@ export class CodexAcpServer {
         let failure: acpV2.Error | null = null;
         const generation = this.getSessionGeneration(sessionId);
         this.v2PromptsInFlight.add(sessionId);
-        if (promptKind.kind !== "prompt") this.v2CommandSessions.add(sessionId);
         const sendState = async (state: acpV2.StateUpdate) => {
             if (this.getSessionGeneration(sessionId) !== generation) return;
             try {
@@ -5686,7 +5662,6 @@ export class CodexAcpServer {
             run().then(
                     async response => {
                         this.v2PromptsInFlight.delete(sessionId);
-                        this.v2CommandSessions.delete(sessionId);
                         if (!inserted) {
                             const notInsertedMessage = "The prompt ended before Codex recorded the user message";
                             // A `cancelled` v1 stop reason means the adopted turn was interrupted
@@ -5718,7 +5693,6 @@ export class CodexAcpServer {
                         failure ??= toV2Failure(error);
                         if (!inserted) {
                             this.v2PromptsInFlight.delete(sessionId);
-                            this.v2CommandSessions.delete(sessionId);
                             reject(requestCancelHandled ? RequestError.requestCancelled() : error);
                             const runtimeLost = this.getExitCode() !== null || (this.recovery !== null && !this.recovery.isReady());
                             if (startedTurn !== null || runtimeLost) {
@@ -5744,7 +5718,6 @@ export class CodexAcpServer {
                             }
                         }
                         this.v2PromptsInFlight.delete(sessionId);
-                        this.v2CommandSessions.delete(sessionId);
                         await sendIdle(this.failedPromptResponse(sessionId));
                     },
                 )

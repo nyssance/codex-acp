@@ -35,6 +35,7 @@ export type FakeAgent = {
     replayUpdates: acp.SessionUpdate[];
     forkFrames: {sessionId: string | null; update: acp.SessionUpdate}[];
     cancelled: string[];
+    steered: unknown[];
 };
 
 function modelOption(current: string): acp.SessionConfigOption {
@@ -75,6 +76,7 @@ export function createFakeAgent(): FakeAgent {
     const replayUpdates: acp.SessionUpdate[] = [];
     const forkFrames: FakeAgent["forkFrames"] = [];
     const cancelled: string[] = [];
+    const steered: unknown[] = [];
     let link: acp.AgentContext | null = null;
     const optionsFor = (meta?: acp.NewSessionRequest["_meta"], current = "default-model"): acp.SessionConfigOption[] =>
         sessionOptions.current?.(meta) ?? [modelOption(current)];
@@ -306,6 +308,15 @@ export function createFakeAgent(): FakeAgent {
         })();
         return {messageId};
     });
+    // Upstream's steering extension: a running turn takes the input and echoes it with an agent-minted id.
+    app.onRequest("_session/steering", {parse: value => value as {sessionId: string; prompt: acp.ContentBlock[]}}, async ({params, client}) => {
+        steered.push(params);
+        if (!active.has(params.sessionId)) return {outcome: "promptRequired", reason: "noRunningTurn"};
+        for (const content of params.prompt) {
+            await client.notify("session/update", {sessionId: params.sessionId, update: {sessionUpdate: "user_message_chunk", messageId: `steer-${steered.length}`, content}});
+        }
+        return {outcome: "injected"};
+    });
     app.onNotification("session/cancel", ({params}) => {
         cancelled.push(params.sessionId);
         active.get(params.sessionId)?.abort();
@@ -329,6 +340,7 @@ export function createFakeAgent(): FakeAgent {
         listRequests,
         configChanges,
         rejectPrompt,
+        steered,
         replayUpdates,
         forkFrames,
         cancelled,

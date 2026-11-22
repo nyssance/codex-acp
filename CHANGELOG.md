@@ -1,3 +1,9 @@
+## Unreleased
+
+- A v2 `session/prompt` sent while a turn runs is queued for a new turn, as upstream does. It is no longer turned into a steer. Input for the running turn goes through upstream's `_session/steering`.
+- The client package has `steer(sessionId, prompt)`, which calls `_session/steering` and reports `injected` or `promptRequired`.
+- `_meta.alwith.applicationContext` applies to prompts only.
+
 ## 0.7.84 (2026-11-22)
 
 - Merge upstream 2.9.0 and move to ACP SDK 2.9.1 (v2 schema `2.0.0-beta.3`).

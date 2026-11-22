@@ -53,38 +53,6 @@ describe.each([2] as const)("ACP v%s application context", version => {
     });
 });
 
-it("keeps application context on a message steered into an active v2 turn", async () => {
-    const session = await connectSession(2);
-    try {
-        const first = session.request("session/prompt", {
-            sessionId,
-            prompt: [{type: "text", text: "A tree"}],
-            _meta: {alwith: {applicationContext: {task: "first"}}},
-        });
-        await vi.waitFor(() => expect(session.turnStartParams).toHaveLength(1));
-        session.emit(turnStarted(turnId));
-        session.emit(itemCompleted(userMessageItem(session.turnStartParams[0]!["clientUserMessageId"] as string), turnId));
-        await first;
-        let steered: Record<string, unknown> | null = null;
-        session.setCodexResponse("turn/steer", async params => {
-            steered = params as Record<string, unknown>;
-            return {turnId};
-        });
-        await session.request("session/prompt", {
-            sessionId,
-            prompt: [{type: "text", text: "Make it blue"}],
-            _meta: {alwith: {applicationContext: {task: "replacement"}}},
-        });
-        expect(steered).toMatchObject({
-            input: [{type: "text", text: "Make it blue", text_elements: []}],
-            additionalContext: applicationContextOf({alwith: {applicationContext: {task: "replacement"}}}),
-        });
-        session.emit(turnCompleted(turnId));
-    } finally {
-        session.connection.close();
-    }
-});
-
 describe.each([2] as const)("ACP v%s native tool capabilities", version => {
     it.each([{}, {imageGeneration: false}] as const)("keeps %s routing across creation, resume and fork", async nativeTools => {
         const starts: Record<string, unknown>[] = [];

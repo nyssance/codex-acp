@@ -43,7 +43,7 @@ Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/sess
 | Existing Claude OAuth (local candidate) | `providers/set` with `apiType: "anthropic"`, `headers: {"X-Alwith-Anthropic-Auth-Mode": "oauth"}` and an access token in `_meta.codex.bearerToken`; only the official Anthropic origin is accepted | The existing translator keeps opencodex's OAuth framing. No OAuth login, token renewal, or credential storage is added to the adapter. The caller owns credential lifetime; an unchanged header/default selects API-key mode. | Local mock tests and one real minimal inference passed; no UI integration or release. |
 | Native network transport | `CODEX_ACP_NATIVE_NETWORK_ENDPOINT` routes the adapter's own HTTP through the host, with `x-alwith-native-*` headers (`src/alwith/codex/nativeNetworkTransport.ts`, `nativeFetch.ts`; see `readme-dev.md`) | none | U `src-tauri/src/runtime.rs` |
 | Application tools over ACP | MCP-over-ACP (`type: "acp"` servers, `mcp/message`), served to Codex through the ACP SDK's loopback HTTP bridge (upstream #771) | MCP servers; the bridge is needed only while Codex cannot take an ACP-provided server directly | U, TV |
-| Host execution parameters | `_meta.alwith.nativeTools` and `_meta.alwith.applicationContext` on prompts and steers (`src/alwith/codex/hostExecution.ts`) | tool settings, turn input | module-chat |
+| Host execution parameters | `_meta.alwith.nativeTools` and `_meta.alwith.applicationContext` on prompts (`src/alwith/codex/hostExecution.ts`) | tool settings, turn input | module-chat |
 | Session input configuration | `_codex/session_input_config_get`, `_codex/session_input_config_set`, stored as a thread attachment of type `alwith.session-input.v2` (`src/alwith/codex/sessionInputConfig.ts`) | thread attachments | module-chat `agent/client.ts` |
 | Configuration revisions | `_meta.alwith.configRevision`, `expectedConfigRevision` | none | module-chat, TV |
 | Client message IDs | `_meta.alwith.messageId` on v2 `session/prompt`, validated | `clientUserMessageId` | module-chat |
@@ -76,8 +76,6 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 
 **Prompts and turns**
 
-- **Running v2 prompts steer.** An ordinary v2 `session/prompt` during a running turn is steered into it through upstream's `SteeringQueue` with `idleBehavior: "promptRequired"`; commands and idle sessions take the turn-start FIFO. Upstream queues every v2 prompt for a new turn.
-- **Keyed v2 prompts steer too.** A v2 `session/prompt` with an `idempotencyKey` uses upstream's derived message ID and shared receipt. During a running turn it is steered once and every attempt gets that receipt; upstream's held-prompt state does not exist for an ordinary prompt here. A prompt cannot set both `idempotencyKey` and `_meta.alwith.messageId`.
 - **Turn ids on v2 updates.** v2 updates that carry content get `_meta.codex.turnId` of their turn.
 - **v2 assistant messages.** A native assistant item's start sends an `agent_message` upsert, and its completion sends the final chunk and the complete `agent_message` with `messageCompleted`, `phase`, `delivery` and `questions`. Every v2 `agent_message_chunk` carries `_meta.codex.phase` (upstream: AIR only). See [protocol.md](protocol.md).
 - **Turn timing.** A completed v2 turn re-sends its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and `workDurationMs`. A turn without Codex's start or completion time carries none.

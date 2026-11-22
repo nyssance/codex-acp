@@ -414,89 +414,6 @@ describe('session/prompt over ACP v2', () => {
         await expect(dump(client.transcript, clientUserMessageId)).toMatchFileSnapshot('data/prompt-v2-not-inserted.json');
     });
 
-    it("accepts a running prompt as native steering without waiting for completion", async () => {
-        const client = await connectSession();
-        closeClient = () => client.connection.close();
-        await insertPrompt(client, 0);
-        const steers: Record<string, unknown>[] = [];
-        client.setCodexResponse("turn/steer", async (params) => {
-            steers.push(params as Record<string, unknown>);
-            return {};
-        });
-        const {messageId} = await client.sendPrompt([{type: "text", text: "Again"}]);
-        expect(steers).toEqual([
-            expect.objectContaining({
-                threadId: sessionId,
-                expectedTurnId: turnId,
-                clientUserMessageId: messageId,
-            }),
-        ]);
-        expect(client.turnStartParams).toHaveLength(1);
-        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
-        expect(sessionUpdates(client.transcript).some((update) => update.sessionUpdate === "user_message_chunk" && update.messageId === messageId)).toBe(false);
-        client.emit(itemCompleted(userMessageItem(messageId, "Again")));
-        await settle();
-        expect(sessionUpdates(client.transcript)).toContainEqual({
-            sessionUpdate: "user_message_chunk",
-            messageId,
-            content: {type: "text", text: "Again"},
-            _meta: {codex: {turnId}},
-        });
-        client.emit(turnCompleted());
-        await client.promptRunFinished();
-        await settle();
-        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
-    });
-
-    it("accepts repeated running prompts in the same native turn", async () => {
-        const client = await connectSession();
-        closeClient = () => client.connection.close();
-        await insertPrompt(client, 0);
-        const steers: Record<string, unknown>[] = [];
-        client.setCodexResponse("turn/steer", async (params) => {
-            steers.push(params as Record<string, unknown>);
-            return {};
-        });
-        const ids: string[] = [];
-        for (const text of ["Two", "Three"]) {
-            const {messageId} = await client.sendPrompt([{type: "text", text}]);
-            ids.push(messageId);
-            client.emit(itemStarted(userMessageItem(messageId, text)));
-        }
-        await settle();
-        expect(new Set(ids).size).toBe(2);
-        expect(steers.map((params) => params["expectedTurnId"])).toEqual([turnId, turnId]);
-        expect(client.turnStartParams).toHaveLength(1);
-        client.emit(turnCompleted());
-        await client.promptRunFinished();
-        await settle();
-        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}, {state: "idle", stopReason: "end_turn"}]);
-    });
-
-    it("steers concurrent running prompts one at a time, in arrival order", async () => {
-        const client = await connectSession();
-        closeClient = () => client.connection.close();
-        await insertPrompt(client, 0);
-        const started: string[] = [];
-        let releaseFirst: () => void = () => {};
-        client.setCodexResponse("turn/steer", async (params) => {
-            const text = ((params as {input: {text: string}[]}).input[0]!).text;
-            started.push(text);
-            if (text === "Two") await new Promise<void>(resolve => { releaseFirst = resolve; });
-            return {};
-        });
-
-        const second = client.sendPrompt([{type: "text", text: "Two"}]);
-        const third = client.sendPrompt([{type: "text", text: "Three"}]);
-        await vi.waitFor(() => expect(started).toEqual(["Two"]));
-        await settle();
-        expect(started).toEqual(["Two"]);
-        releaseFirst();
-        await Promise.all([second, third]);
-        expect(started).toEqual(["Two", "Three"]);
-        expect(client.turnStartParams).toHaveLength(1);
-    });
-
     it('queues a local slash command behind a running prompt', async () => {
         const client = await connectSession();
         closeClient = () => client.connection.close();
@@ -526,51 +443,6 @@ describe('session/prompt over ACP v2', () => {
             {state: "running"}, {state: "idle", stopReason: "end_turn"},
             {state: "running"}, {state: "idle", stopReason: "end_turn"},
         ]);
-    });
-
-    it("starts a new turn if the active turn ends before steering lands", async () => {
-        const client = await connectSession();
-        closeClient = () => client.connection.close();
-        await insertPrompt(client, 0);
-        client.setCodexResponse("turn/steer", async () => {
-            client.emit(turnFinished("failed"));
-            await settle();
-            throw new Error("no active turn to steer");
-        });
-        const response = client.sendPrompt([{type: "text", text: "Again"}]);
-        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
-        const messageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
-        client.emit(turnStarted("turn-2"));
-        client.emit(itemCompleted(userMessageItem(messageId, "Again"), "turn-2"));
-        expect(await response).toEqual({messageId});
-        client.emit(turnCompleted("turn-2"));
-        await client.promptRunFinished(1);
-    });
-
-    it("steers a back-to-back prompt after the pending native turn starts", async () => {
-        const client = await connectSession();
-        closeClient = () => client.connection.close();
-        const steers: Record<string, unknown>[] = [];
-        client.setCodexResponse("turn/steer", async (params) => {
-            steers.push(params as Record<string, unknown>);
-            return {};
-        });
-        const first = client.sendPrompt([{type: "text", text: "One"}]);
-        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
-        const second = client.sendPrompt([{type: "text", text: "Two"}]);
-        client.emit(turnStarted());
-        client.emit(itemCompleted(userMessageItem(client.turnStartParams[0]!["clientUserMessageId"] as string)));
-        await first;
-        const {messageId} = await second;
-        expect(steers).toEqual([
-            expect.objectContaining({
-                expectedTurnId: turnId,
-                clientUserMessageId: messageId,
-            }),
-        ]);
-        expect(client.turnStartParams).toHaveLength(1);
-        client.emit(turnCompleted());
-        await client.promptRunFinished();
     });
 
     it('keeps the turn going across a rendered tool call', async () => {
@@ -957,66 +829,26 @@ describe('session/prompt over ACP v2', () => {
         expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
 
         const start = client.transcript.length;
-        let steeredId = "";
-        client.setCodexResponse("turn/steer", async (params) => {
-            steeredId = (params as {clientUserMessageId: string}).clientUserMessageId;
-            return {};
-        });
+        client.setTurnStart(async () => ({turn: createTurn("inProgress", "goal-turn")}));
         const response = client.sendPrompt([{type: "text", text: "Hello"}]);
-        await vi.waitFor(() => expect(steeredId).not.toBe(""));
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
 
-        const clientUserMessageId = steeredId;
+        const clientUserMessageId = client.turnStartParams[0]!["clientUserMessageId"] as string;
         client.emit(itemCompleted(userMessageItem(clientUserMessageId), "goal-turn"));
         const {messageId} = await response;
         expect(messageId).toBe(clientUserMessageId);
 
         client.emit(turnCompleted("goal-turn"));
+        await client.promptRunFinished();
         await settle();
 
         const transcript = client.transcript.slice(start);
         // No second `running`: the goal turn's own `running` already covers this prompt. Exactly
         // one `idle`, sent by this prompt once the adopted turn ends.
         expect(stateUpdates(transcript)).toEqual([{state: "idle", stopReason: "end_turn"}]);
-        const userMessages = transcript.flatMap((entry) => ("sessionUpdate" in entry ? [entry.sessionUpdate] : [])).filter((update) => update.sessionUpdate === "user_message_chunk");
-        expect(userMessages).toEqual([
-            {
-                sessionUpdate: "user_message_chunk",
-                messageId,
-                content: {type: "text", text: "Hello"},
-                _meta: {codex: {turnId: "goal-turn"}},
-            },
-        ]);
-    });
-
-    it("retains one idle when an accepted steer never lands before interruption", async () => {
-        const client = await connectSession();
-        closeClient = () => client.connection.close();
-
-        client.emit(turnStarted("goal-turn"));
-        await settle();
-        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
-
-        const start = client.transcript.length;
-        let steeredId = "";
-        client.setCodexResponse("turn/steer", async (params) => {
-            steeredId = (params as {clientUserMessageId: string}).clientUserMessageId;
-            return {};
-        });
-        const response = client.sendPrompt([{type: "text", text: "Hello"}]);
-        await vi.waitFor(() => expect(steeredId).not.toBe(""));
-
-        // Codex drops the steered input: the adopted turn is interrupted before it lands.
-        client.emit(turnFinished("interrupted", "goal-turn"));
-        await settle();
-
-        // Acceptance is independent of insertion and native turn completion.
-        await expect(response).resolves.toEqual({messageId: steeredId});
-        const transcript = client.transcript.slice(start);
-        expect(transcript.some(entry => "sessionUpdate" in entry && entry.sessionUpdate.sessionUpdate === "user_message_chunk"))
-            .toBe(false);
-        // Exactly one `idle` for the adopted turn: nothing else will send it, since this prompt
-        // is the one that claimed ownership (and suppressed the baseline unowned-turn tracker).
-        expect(stateUpdates(transcript)).toEqual([{state: "idle", stopReason: "cancelled"}]);
+        const userMessages = transcript.flatMap(entry => "sessionUpdate" in entry ? [entry.sessionUpdate] : [])
+            .filter(update => update.sessionUpdate === "user_message_chunk");
+        expect(userMessages).toEqual([{sessionUpdate: "user_message_chunk", messageId, content: {type: "text", text: "Hello"}, _meta: {codex: {turnId: "goal-turn"}}}]);
     });
 
     it('adopts a foreign turn id returned right after session/resume, with no unowned turn known yet (J10)', async () => {
@@ -1059,32 +891,210 @@ describe('session/prompt over ACP v2', () => {
         expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
 
         const start = client.transcript.length;
-        let steeredId = "";
-        client.setCodexResponse("turn/steer", async (params) => {
-            steeredId = (params as {clientUserMessageId: string}).clientUserMessageId;
-            return {};
+        client.setTurnStart(async () => {
+            // More goal-turn activity arrives while `turn/start` is still pending.
+            client.emit(itemCompleted(userMessageItem(null, "More"), "goal-turn"));
+            return {turn: createTurn("inProgress", "goal-turn")};
         });
         const response = client.sendPrompt([{type: "text", text: "Hello"}]);
-        await vi.waitFor(() => expect(steeredId).not.toBe(""));
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
 
-        const clientUserMessageId = steeredId;
+        const clientUserMessageId = client.turnStartParams[0]!["clientUserMessageId"] as string;
         client.emit(itemCompleted(userMessageItem(clientUserMessageId), "goal-turn"));
         const {messageId} = await response;
         expect(messageId).toBe(clientUserMessageId);
 
         client.emit(turnCompleted("goal-turn"));
+        await client.promptRunFinished();
         await settle();
 
         const transcript = client.transcript.slice(start);
         expect(stateUpdates(transcript)).toEqual([{state: "idle", stopReason: "end_turn"}]);
-        const userMessages = transcript.flatMap((entry) => ("sessionUpdate" in entry ? [entry.sessionUpdate] : [])).filter((update) => update.sessionUpdate === "user_message_chunk");
-        expect(userMessages).toEqual([
-            {
-                sessionUpdate: "user_message_chunk",
-                messageId,
-                content: {type: "text", text: "Hello"},
-                _meta: {codex: {turnId: "goal-turn"}},
-            },
+        const userMessages = transcript.flatMap(entry => "sessionUpdate" in entry ? [entry.sessionUpdate] : [])
+            .filter(update => update.sessionUpdate === "user_message_chunk");
+        expect(userMessages).toEqual([{sessionUpdate: "user_message_chunk", messageId, content: {type: "text", text: "Hello"}, _meta: {codex: {turnId: "goal-turn"}}}]);
+    });
+
+    it('queues a prompt that overlaps a running one instead of rejecting it', async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+
+        const first = client.sendPrompt([{type: "text", text: "Hello"}]);
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+        client.emit(turnStarted());
+        client.emit(itemCompleted(userMessageItem(client.turnStartParams[0]!["clientUserMessageId"] as string)));
+        await first;
+
+        // B overlaps A: it is queued, not rejected. Nothing about it is observable yet.
+        const second = client.sendPrompt([{type: "text", text: "Again"}]);
+        await settle();
+        expect(client.turnStartParams).toHaveLength(1);
+        expect(client.transcript.filter(entry => "promptResponse" in entry || "promptError" in entry)).toHaveLength(1);
+        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
+
+        // A ends: idle(A) goes out, then B's turn starts.
+        client.emit(turnCompleted());
+        await client.promptRunFinished();
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"}, {state: "idle", stopReason: "end_turn"}, {state: "running"},
         ]);
+
+        const secondClientUserMessageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
+        client.emit(turnStarted("turn-2"));
+        client.emit(itemCompleted(userMessageItem(secondClientUserMessageId, "Again"), "turn-2"));
+        const {messageId} = await second;
+        expect(messageId).toBe(secondClientUserMessageId);
+
+        client.emit(turnCompleted("turn-2"));
+        await client.promptRunFinished(1);
+        await settle();
+
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+        ]);
+    });
+
+    it('queues multiple overlapping prompts and runs them in FIFO order', async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+
+        const first = client.sendPrompt([{type: "text", text: "One"}]);
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+        client.emit(turnStarted());
+        client.emit(itemCompleted(userMessageItem(client.turnStartParams[0]!["clientUserMessageId"] as string)));
+        await first;
+
+        const second = client.sendPrompt([{type: "text", text: "Two"}]);
+        const third = client.sendPrompt([{type: "text", text: "Three"}]);
+        await settle();
+        expect(client.turnStartParams).toHaveLength(1);
+
+        client.emit(turnCompleted());
+        await client.promptRunFinished();
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
+        // C stays queued behind B; it must not start alongside or ahead of it.
+        await settle();
+        expect(client.turnStartParams).toHaveLength(2);
+
+        const secondClientUserMessageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
+        client.emit(turnStarted("turn-2"));
+        client.emit(itemCompleted(userMessageItem(secondClientUserMessageId, "Two"), "turn-2"));
+        await second;
+        client.emit(turnCompleted("turn-2"));
+        await client.promptRunFinished(1);
+
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(3));
+        const thirdClientUserMessageId = client.turnStartParams[2]!["clientUserMessageId"] as string;
+        client.emit(turnStarted("turn-3"));
+        client.emit(itemCompleted(userMessageItem(thirdClientUserMessageId, "Three"), "turn-3"));
+        await third;
+        client.emit(turnCompleted("turn-3"));
+        await client.promptRunFinished(2);
+        await settle();
+
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+        ]);
+    });
+
+    it('runs a queued prompt after the one ahead of it fails', async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+
+        await insertPrompt(client, 0);
+        const second = client.sendPrompt([{type: "text", text: "Again"}]);
+        await settle();
+        expect(client.turnStartParams).toHaveLength(1);
+
+        client.emit(turnError("usageLimitExceeded", "You've hit your usage limit."));
+        client.emit(turnFinished("failed"));
+        await client.promptRunFinished();
+        await settle();
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"}, {state: "idle", stopReason: "error"}, {state: "running"},
+        ]);
+
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
+        const secondClientUserMessageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
+        client.emit(turnStarted("turn-2"));
+        client.emit(itemCompleted(userMessageItem(secondClientUserMessageId, "Again"), "turn-2"));
+        await second;
+        client.emit(turnCompleted("turn-2"));
+        await client.promptRunFinished(1);
+        await settle();
+
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"}, {state: "idle", stopReason: "error"},
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+        ]);
+    });
+
+    it('takes the turn-start reservation synchronously, so two prompts sent back-to-back never race', async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+
+        // Neither request is awaited before the next is sent: this exercises the reservation
+        // being taken before either prompt's handler has had a chance to run any async work.
+        const first = client.sendPrompt([{type: "text", text: "One"}]);
+        const second = client.sendPrompt([{type: "text", text: "Two"}]);
+
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+        await settle();
+        expect(client.turnStartParams).toHaveLength(1);
+
+        client.emit(turnStarted());
+        client.emit(itemCompleted(userMessageItem(client.turnStartParams[0]!["clientUserMessageId"] as string)));
+        await first;
+        client.emit(turnCompleted());
+        await client.promptRunFinished();
+
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
+        const secondClientUserMessageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
+        client.emit(turnStarted("turn-2"));
+        client.emit(itemCompleted(userMessageItem(secondClientUserMessageId, "Two"), "turn-2"));
+        await second;
+        client.emit(turnCompleted("turn-2"));
+        await client.promptRunFinished(1);
+        await settle();
+
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+            {state: "running"}, {state: "idle", stopReason: "end_turn"},
+        ]);
+    });
+
+    it('fails with a -32800 JSON-RPC error, and still sends exactly one idle, when the adopted turn ends before the steered input lands (M2)', async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+
+        client.emit(turnStarted("goal-turn"));
+        await settle();
+        expect(stateUpdates(client.transcript)).toEqual([{state: "running"}]);
+
+        const start = client.transcript.length;
+        client.setTurnStart(async () => ({turn: createTurn("inProgress", "goal-turn")}));
+        const response = client.sendPrompt([{type: "text", text: "Hello"}]);
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+
+        // Codex drops the steered input: the adopted turn is interrupted before it lands.
+        client.emit(turnFinished("interrupted", "goal-turn"));
+        await client.promptRunFinished();
+        await settle();
+
+        // Never inserted, and the turn ended cancelled: same `-32800` a dropped queued prompt gets.
+        await expect(response).rejects.toMatchObject({
+            code: -32800,
+            message: "Request cancelled: The prompt ended before Codex recorded the user message",
+        });
+        const transcript = client.transcript.slice(start);
+        expect(transcript.some(entry => "sessionUpdate" in entry && entry.sessionUpdate.sessionUpdate === "user_message_chunk"))
+            .toBe(false);
+        // Exactly one `idle` for the adopted turn: nothing else will send it, since this prompt
+        // is the one that claimed ownership (and suppressed the baseline unowned-turn tracker).
+        expect(stateUpdates(transcript)).toEqual([{state: "idle", stopReason: "cancelled"}]);
     });
 });

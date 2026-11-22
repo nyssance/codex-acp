@@ -62,25 +62,6 @@ describe("ACP v2 keyed prompts", () => {
     // Upstream holds a prompt behind a running turn and has cases for dropping it while it is held.
     // This adapter does not hold an ordinary prompt: it steers it into the running turn (see
     // steering-v2.test.ts), so a keyed prompt there has no held state to drop.
-    it("steers a keyed prompt into the running turn once and answers every attempt with its receipt", async () => {
-        h = await connectSession();
-        const blocker = h.sendPrompt([{type: "text", text: "Block the queue"}]);
-        await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(1));
-        h.emit(turnStarted());
-        h.emit(itemCompleted(userMessageItem(h.turnStartParams[0]!["clientUserMessageId"] as string)));
-        await blocker;
-
-        const steered = vi.spyOn(h.agent as unknown as {executeOrQueueSteeringRequest: () => Promise<unknown>}, "executeOrQueueSteeringRequest");
-        const messageId = keyedPromptId(sessionId, key);
-        const attempts = await Promise.all([h.request("session/prompt", params), h.request("session/prompt", params)]);
-        expect(attempts).toEqual([{messageId}, {messageId}]);
-        expect(steered).toHaveBeenCalledTimes(1);
-        expect(h.turnStartParams).toHaveLength(1);
-        expect(JSON.stringify(h.wireMessages)).not.toContain(key);
-        h.emit(turnCompleted());
-        await h.promptRunFinished();
-    });
-
     it("keeps the key unused on a pre-insertion failure and rejects malformed keys before starting work", async () => {
         h = await connectSession();
         for (const idempotencyKey of ["", "x".repeat(256), 7]) {

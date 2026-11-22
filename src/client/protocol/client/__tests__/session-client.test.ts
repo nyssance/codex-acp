@@ -129,6 +129,20 @@ test("a refused prompt takes the local copy off screen again", async () => {
     expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(1);
 });
 
+test("steer delivers input into the running turn through the agent's steering method; idle sessions ask for a prompt", async () => {
+    const {client, fake} = await make();
+    const id = await client.newSession("/tmp/a");
+    expect(await client.steer(id, [{type: "text", text: "too early"}])).toBe("promptRequired");
+    expect(client.session(id).items).toHaveLength(0);
+    await client.prompt(id, [{type: "text", text: "start"}]);
+    expect(client.session(id).state).toBe("running");
+    expect(await client.steer(id, [{type: "text", text: "turn left"}])).toBe("injected");
+    expect(fake.steered.at(-1)).toEqual({sessionId: id, prompt: [{type: "text", text: "turn left"}], _meta: {steering: {idleBehavior: "promptRequired"}}});
+    // The steered message is on screen only as the agent's own record of it.
+    const users = client.session(id).items.filter(item => item.kind === "user");
+    expect(users.map(item => [item.id, item.kind === "user" ? item.echo : null])).toEqual([["u", "adopted"], ["steer-2", null]]);
+});
+
 test("prompt acknowledgement is not completion; cancelling one session leaves the other running", async () => {
     const {client} = await make();
     const [a, b] = await Promise.all([client.newSession("/tmp/a"), client.newSession("/tmp/b")]);

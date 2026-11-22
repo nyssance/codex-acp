@@ -209,8 +209,8 @@ describe('_session/steering over ACP v2', () => {
         client.emit(turnStarted());
         await steerPromise;
         const steerClientId = captureSteerClientId(client);
-        const {messageId} = await client.sendPrompt([{type: "text", text: "B"}]);
-        expect(messageId).toBe(steerClientId.captured());
+        expect(await client.request(SESSION_STEERING_METHOD, {sessionId, prompt: [{type: "text", text: "B"}]})).toEqual({outcome: "injected"});
+        const messageId = steerClientId.captured();
         client.emit(itemCompleted(userMessageItem(messageId, "B"), landingTurn));
         await settle();
         expect(userMessageChunks(client.transcript)).toContainEqual({
@@ -224,6 +224,47 @@ describe('_session/steering over ACP v2', () => {
         await settle();
         expect(client.turnStartParams).toHaveLength(1);
         expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"},
+            {state: "idle", stopReason: "end_turn"},
+        ]);
+    });
+
+    it('queues a v2 prompt behind the steering fallback\'s new turn', async () => {
+        const client = await connectSession();
+        closeClient = () => client.connection.close();
+
+        const steerPromise = client.request(SESSION_STEERING_METHOD, {
+            sessionId,
+            prompt: [{type: "text", text: "start fresh"}],
+        });
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(1));
+        const steerClientUserMessageId = client.turnStartParams[0]!["clientUserMessageId"] as string;
+        client.emit(turnStarted());
+        await steerPromise;
+
+        // A v2 prompt arriving while the fallback turn runs must queue, not start its own turn/start.
+        const bResponse = client.sendPrompt([{type: "text", text: "B"}]);
+        await settle();
+        expect(client.turnStartParams).toHaveLength(1);
+
+        client.emit(itemCompleted(userMessageItem(steerClientUserMessageId, "start fresh")));
+        client.emit(turnCompleted());
+        await client.promptRunFinished(0);
+        await settle();
+
+        await vi.waitFor(() => expect(client.turnStartParams).toHaveLength(2));
+        const bClientUserMessageId = client.turnStartParams[1]!["clientUserMessageId"] as string;
+        client.emit(turnStarted("turn-2"));
+        client.emit(itemCompleted(userMessageItem(bClientUserMessageId, "B"), "turn-2"));
+        const {messageId: bMessageId} = await bResponse;
+        expect(bMessageId).toBe(bClientUserMessageId);
+        client.emit(turnCompleted("turn-2"));
+        await client.promptRunFinished(1);
+        await settle();
+
+        expect(stateUpdates(client.transcript)).toEqual([
+            {state: "running"},
+            {state: "idle", stopReason: "end_turn"},
             {state: "running"},
             {state: "idle", stopReason: "end_turn"},
         ]);

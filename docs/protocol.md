@@ -8,7 +8,7 @@ These ACP v2 additions preserve the existing client exports and request methods.
 - Runtime `state_update` remains authoritative for whether the session is working or idle. Prompt responses acknowledge acceptance only.
 - Live native turn completion upserts its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and, when a final answer began, `workDurationMs`. They come from Codex's own turn timestamps; a turn without them carries no timing. These transient measurements are discarded when the turn ends. Terminal exit sends the full aggregate output snapshot so streamed chunks cannot be lost.
 
-Running ACP v2 prompts use native turn steering and return an acceptance receipt without waiting for the foreground turn to finish. Native user-message insertion supplies the original turn identity; commands retain their separate turn lifecycle.
+A v2 `session/prompt` sent while a turn runs is queued for a new turn, as upstream does. Input for the running turn goes through upstream's [`_session/steering`](steering.md); the steered message is shown as a live `user_message` once Codex records it.
 
 ## User shell commands
 
@@ -147,7 +147,7 @@ An omitted `nativeTools` field preserves in-memory settings during internal
 connection/provider repairs; an explicit object replaces those cached settings.
 Hosts resend settings when reopening a session after an adapter restart.
 
-Prompt and steering requests accept `_meta.alwith.applicationContext`, an object
+Prompt requests accept `_meta.alwith.applicationContext`, an object
 of application-owned keys to strings or null. The adapter converts each entry to
 Codex `additionalContext` with kind `application`; null writes an empty value for
 that key. Omission leaves context untouched; an empty object does not clear prior
