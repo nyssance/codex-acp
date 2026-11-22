@@ -8,12 +8,12 @@ Everything the fork does differently from upstream falls into one of three group
 2. [Behavior that differs from upstream](#behavior-that-differs-from-upstream): upstream features that behave differently in the fork.
 3. [Registered workarounds](fallbacks.md): code that works around a gap in Codex, a backend or the protocol.
 
-A change in an upstream-owned file that fits none of them is either mechanical (TS7 `erasableSyntaxOnly`, `bun ts7-lint` rewrites such as `replaceAll` or `at(-1)`, `import type`) or a defect. When upstream fixes something the fork patched, adopt upstream's implementation and drop the local one (see `AGENTS.md`).
+A change in an upstream-owned file that fits none of them is a defect: upstream-owned files keep upstream's syntax and style, and the agent `tsconfig.json` turns `erasableSyntaxOnly` off for that reason. When upstream fixes something the fork patched, adopt upstream's implementation and drop the local one (see `AGENTS.md`).
 
 ## Base and tooling
 
-- Upstream base: 2.7.0 (`7c98a16`).
-- Dependencies: ACP SDK 2.7.0 and Codex 0.169.0, both ahead of upstream (SDK `~2.6.0`, Codex `^0.166.0`). `src/app-server` is generated from Codex 0.169.0 with `bun run generate-types` and not edited by hand.
+- Upstream base: 2.9.0 (`e3a679f1`).
+- Dependencies: ACP SDK 2.9.1 and Codex 0.171.0, the same as upstream. `src/app-server` is generated from Codex 0.171.0 with `bun run generate-types` (experimental API included) and not edited by hand.
 - Bun is the package manager; `bun.lock` is the lockfile. The package version, name and release workflow are the fork's own; upstream's release-please files are not kept.
 - Formatting matches upstream. No formatter runs on this repository (see `AGENTS.md`).
 - Upstream merges land on `main` through reviewed merges that keep upstream ancestry.
