@@ -130,7 +130,10 @@ test("a refused prompt takes the local copy off screen again", async () => {
 });
 
 test("steer delivers input into the running turn through the agent's steering method; idle sessions ask for a prompt", async () => {
-    const {client, fake} = await make();
+    const turn = Promise.withResolvers<void>();
+    const {client, fake} = await make(fake => {
+        fake.turnGate.current = turn.promise;
+    });
     const id = await client.newSession("/tmp/a");
     expect(await client.steer(id, [{type: "text", text: "too early"}])).toBe("promptRequired");
     expect(client.session(id).items).toHaveLength(0);
@@ -141,15 +144,24 @@ test("steer delivers input into the running turn through the agent's steering me
     // The steered message is on screen only as the agent's own record of it.
     const users = client.session(id).items.filter(item => item.kind === "user");
     expect(users.map(item => [item.id, item.kind === "user" ? item.echo : null])).toEqual([["u", "adopted"], ["steer-2", null]]);
+    turn.resolve();
+    await until(() => client.session(id).state === "idle");
 });
 
 test("prompt acknowledgement is not completion; cancelling one session leaves the other running", async () => {
-    const {client} = await make();
+    const turns = Promise.withResolvers<void>();
+    const {client} = await make(fake => {
+        fake.turnGate.current = turns.promise;
+    });
     const [a, b] = await Promise.all([client.newSession("/tmp/a"), client.newSession("/tmp/b")]);
     await Promise.all([client.prompt(a, [{type: "text", text: "one"}]), client.prompt(b, [{type: "text", text: "two"}])]);
     expect(client.session(a).state).toBe("running");
     expect(client.session(b).state).toBe("running");
     await client.cancel(a);
+    // The cancelled turn ends first; only then is the other one let through.
+    await until(() => client.session(a).state === "idle");
+    expect(client.session(b).state).toBe("running");
+    turns.resolve();
     await until(() => client.session(a).state === "idle" && client.session(b).state === "idle");
     expect(client.session(a).items.some(item => item.kind === "assistant")).toBe(false);
     expect(replyText(client, b)).toBe(`reply:${b}`);

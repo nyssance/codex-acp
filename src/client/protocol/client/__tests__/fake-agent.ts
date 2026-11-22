@@ -36,6 +36,8 @@ export type FakeAgent = {
     forkFrames: {sessionId: string | null; update: acp.SessionUpdate}[];
     cancelled: string[];
     steered: unknown[];
+    /** A turn waits for this before it answers and goes idle; cancelling the turn ends the wait. */
+    turnGate: {current: Promise<void> | null};
 };
 
 function modelOption(current: string): acp.SessionConfigOption {
@@ -77,6 +79,7 @@ export function createFakeAgent(): FakeAgent {
     const forkFrames: FakeAgent["forkFrames"] = [];
     const cancelled: string[] = [];
     const steered: unknown[] = [];
+    const turnGate: FakeAgent["turnGate"] = {current: null};
     let link: acp.AgentContext | null = null;
     const optionsFor = (meta?: acp.NewSessionRequest["_meta"], current = "default-model"): acp.SessionConfigOption[] =>
         sessionOptions.current?.(meta) ?? [modelOption(current)];
@@ -287,7 +290,12 @@ export function createFakeAgent(): FakeAgent {
                         status: "completed",
                     });
                 } else {
-                    await new Promise(resolve => setTimeout(resolve, 80));
+                    if (turnGate.current !== null) {
+                        const cancelled = Promise.withResolvers<void>();
+                        controller.signal.addEventListener("abort", () => cancelled.resolve(), {once: true});
+                        if (controller.signal.aborted) cancelled.resolve();
+                        await Promise.race([turnGate.current, cancelled.promise]);
+                    }
                     if (!controller.signal.aborted)
                         await emit({
                             sessionUpdate: "agent_message_chunk",
@@ -341,6 +349,7 @@ export function createFakeAgent(): FakeAgent {
         configChanges,
         rejectPrompt,
         steered,
+        turnGate,
         replayUpdates,
         forkFrames,
         cancelled,
