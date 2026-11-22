@@ -121,7 +121,9 @@ test("a refused prompt takes the local copy off screen again", async () => {
         fake.rejectPrompt.current = text => (text === "refuse" ? new Error("not now") : null);
     });
     const id = await client.newSession("/tmp/a");
-    await expect(client.prompt(id, [{type: "text", text: "refuse"}])).rejects.toThrow("not now");
+    // Awaited here: Bun 1.4.5 cannot settle this rejection from inside `expect().rejects`.
+    const refusal = await client.prompt(id, [{type: "text", text: "refuse"}]).then(() => null, (error: unknown) => error);
+    expect(String(refusal)).toContain("not now");
     expect(client.session(id).items).toHaveLength(0);
     await client.prompt(id, [{type: "text", text: "fine"}]);
     expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(1);
