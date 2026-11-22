@@ -9,11 +9,7 @@ type FileChangeItem = ThreadItem & {type: "fileChange"};
 export class PermissionLifecycleContext {
     private permissionRequestSequence = 0;
 
-    private readonly session: Pick<SessionState, "sessionId">;
-
-    constructor(session: Pick<SessionState, "sessionId">) {
-        this.session = session;
-    }
+    constructor(private readonly session: Pick<SessionState, "sessionId">) {}
 
     beginPrompt(): PermissionPromptContext {
         return new PermissionPromptContext(serverName => this.nextStandaloneMcpToolCallId(serverName));
@@ -32,11 +28,7 @@ export class PermissionPromptContext {
     private readonly fileChanges = new Map<string, Map<string, FileChangeItem>>();
     private readonly pendingMcpApprovals = new Map<string, Map<string, string[]>>();
 
-    private readonly nextStandaloneId: (serverName: string) => string;
-
-    constructor(nextStandaloneId: (serverName: string) => string) {
-        this.nextStandaloneId = nextStandaloneId;
-    }
+    constructor(private readonly nextStandaloneId: (serverName: string) => string) {}
 
     handleNotification(notification: ServerNotification): void {
         switch (notification.method) {
@@ -134,7 +126,7 @@ export class PermissionPromptContext {
         const pending = byServer.get(item.server);
         if (!pending) return;
         const index = pending.indexOf(item.id);
-        if (index !== -1) pending.splice(index, 1);
+        if (index >= 0) pending.splice(index, 1);
         if (pending.length === 0) byServer.delete(item.server);
         if (byServer.size === 0) this.pendingMcpApprovals.delete(threadId);
     }

@@ -201,19 +201,14 @@ export class CodexAcpClient {
     private skillExtraRoots: string[] = [];
     private configPath: string | null = null;
     private verifiedMcpBridge?: McpOverAcpToHttp;
-    private readonly mcpOverAcpToHttp?: McpOverAcpToHttp;
-
-    private responsesRoutes: ResponsesRoutes;
 
     constructor(
         codexClient: CodexAppServerClient,
         codexConfig?: JsonObject,
         modelProvider?: string,
-        mcpOverAcpToHttp?: McpOverAcpToHttp,
-        responsesRoutes = new ResponsesRoutes(),
+        private readonly mcpOverAcpToHttp?: McpOverAcpToHttp,
+        private responsesRoutes = new ResponsesRoutes(),
     ) {
-        this.mcpOverAcpToHttp = mcpOverAcpToHttp;
-        this.responsesRoutes = responsesRoutes;
         this.codexClient = codexClient;
         this.config = codexConfig ?? {};
         this.modelProvider = modelProvider ?? null;
@@ -261,9 +256,7 @@ export class CodexAcpClient {
     }
 
     private readonly defaultClientInfo: ClientInfo = {
-        name: packageJson.name,
-        title: "Codex ACP",
-        version: packageJson.version,
+        name: `${packageJson.name}`, title: "Codex ACP", version: `${packageJson.version}`
     };
 
     async initialize(request: Pick<acp.InitializeRequest, "clientInfo">): Promise<void> {
@@ -853,9 +846,9 @@ export class CodexAcpClient {
             additionalDirectories,
             skippedMcpServers,
             ...(instructions ? {instructions} : {}),
-            activePermissionProfileId: response.materialized ? response.activePermissionProfileId : (defaultPermissionProfileId ?? null),
+            activePermissionProfileId: response.materialized ? response.activePermissionProfileId : defaultPermissionProfileId ?? null,
             ...permissionProfileMetadata,
-        };
+        }
     }
 
     async forkSession(
@@ -1036,7 +1029,7 @@ export class CodexAcpClient {
             additionalDirectories,
             skippedMcpServers,
             ...(instructions ? {instructions} : {}),
-            activePermissionProfileId: response.materialized ? response.activePermissionProfileId : (defaultPermissionProfileId ?? null),
+            activePermissionProfileId: response.materialized ? response.activePermissionProfileId : defaultPermissionProfileId ?? null,
             ...permissionProfileMetadata,
         };
     }

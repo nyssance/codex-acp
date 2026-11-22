@@ -192,10 +192,7 @@ export class SessionListSubscriptions {
     private readonly forking = new Map<string, {count: number, forks: Set<string>}>();
     private disposed = false;
 
-    private readonly deps: SessionListSubscriptionDeps;
-
-    constructor(deps: SessionListSubscriptionDeps) {
-        this.deps = deps;
+    constructor(private readonly deps: SessionListSubscriptionDeps) {
         this.timings = deps.timings ?? DEFAULT_SESSION_LIST_SUBSCRIPTION_TIMINGS;
         this.now = deps.now ?? Date.now;
     }

@@ -141,5 +141,5 @@ function shellQuote(arg: string): string {
     if (/^[A-Za-z0-9_/:=+.,@%-]+$/.test(arg)) {
         return arg;
     }
-    return `'${arg.replaceAll("'", `'\\''`)}'`;
+    return `'${arg.replace(/'/g, `'\\''`)}'`;
 }

@@ -40,6 +40,6 @@ export function listedSessionTitle(thread: ListedThreadTitleFields): string | nu
 
 /** Collapses the whitespace of [title] to single spaces and trims it; `null` for a blank title. */
 function collapseSessionTitle(title: string | null | undefined): string | null {
-    const collapsed = title?.replaceAll(/\s+/g, " ").trim() ?? "";
+    const collapsed = title?.replace(/\s+/g, " ").trim() ?? "";
     return collapsed.length === 0 ? null : collapsed;
 }

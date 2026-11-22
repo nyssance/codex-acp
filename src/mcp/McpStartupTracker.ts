@@ -84,7 +84,7 @@ export class McpStartupTracker {
         afterVersion: number,
         options: McpServerStartupWaitOptions,
     ): Promise<McpStartupResult> {
-        const uniqueServerNames = [...new Set(serverNames.map(name => name.trim()).filter(name => name.length > 0))];
+        const uniqueServerNames = Array.from(new Set(serverNames.map(name => name.trim()).filter(name => name.length > 0)));
         if (uniqueServerNames.length === 0) {
             return {ready: [], failed: [], cancelled: []};
         }
@@ -102,7 +102,7 @@ export class McpStartupTracker {
             const onAbort = () => waiter.reject(signal?.reason);
             const release = () => {
                 const index = this.waiters.indexOf(waiter);
-                if (index !== -1) {
+                if (index >= 0) {
                     this.waiters.splice(index, 1);
                 }
                 signal?.removeEventListener("abort", onAbort);

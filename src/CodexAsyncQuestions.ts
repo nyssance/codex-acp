@@ -44,8 +44,7 @@ export function asyncQuestionItemId(messageId: string, index: number): string {
 export function formatAsyncQuestionReply(replies: readonly AsyncQuestionReply[]): string {
     const bounded = replies.map(reply => ({
         ...reply,
-        question: [...reply.question].slice(0, MAX_REPLY_FIELD_LENGTH).join("")
-            .replaceAll(/[\r\n]/g, " "),
+        question: [...reply.question].slice(0, MAX_REPLY_FIELD_LENGTH).join("").replace(/[\r\n]/g, " "),
     }));
     if (bounded.some(reply => reply.questionItemId.length > MAX_REPLY_FIELD_LENGTH)) {
         return displayReplies(bounded);
@@ -99,22 +98,12 @@ export class AsyncQuestionClient {
      * @param clientCapabilities The capabilities that the ACP client declared.
      * @param codexAcpClient Returns the current Codex client, which changes when the app-server restarts.
      */
-    private readonly sessionId: string;
-    private readonly connection: AcpClientConnection;
-    private readonly clientCapabilities: acp.ClientCapabilities | null;
-    private readonly codexAcpClient: () => CodexAcpClient;
-
     constructor(
-        sessionId: string,
-        connection: AcpClientConnection,
-        clientCapabilities: acp.ClientCapabilities | null,
-        codexAcpClient: () => CodexAcpClient,
-    ) {
-        this.sessionId = sessionId;
-        this.connection = connection;
-        this.clientCapabilities = clientCapabilities;
-        this.codexAcpClient = codexAcpClient;
-    }
+        private readonly sessionId: string,
+        private readonly connection: AcpClientConnection,
+        private readonly clientCapabilities: acp.ClientCapabilities | null,
+        private readonly codexAcpClient: () => CodexAcpClient,
+    ) {}
 
     /** Sends the elicitation without marking the session as waiting for the user. */
     createElicitation(request: acp.CreateElicitationRequest, signal: AbortSignal): Promise<acp.CreateElicitationResponse> {
@@ -153,19 +142,11 @@ export class AsyncQuestionElicitations {
     // The running turns that asked a question, each with the signal that cancels its questions.
     private readonly turns = new Map<string, AbortController>();
 
-    private readonly sessionId: string;
-    private readonly clientCapabilities: acp.ClientCapabilities | null;
-    private readonly client: AsyncQuestionClient;
-
     constructor(
-        sessionId: string,
-        clientCapabilities: acp.ClientCapabilities | null,
-        client: AsyncQuestionClient,
-    ) {
-        this.sessionId = sessionId;
-        this.clientCapabilities = clientCapabilities;
-        this.client = client;
-    }
+        private readonly sessionId: string,
+        private readonly clientCapabilities: acp.ClientCapabilities | null,
+        private readonly client: AsyncQuestionClient,
+    ) {}
 
     /** Asks the questions of a completed async message and cancels them when their turn ends; never waits. */
     handleNotification(notification: ServerNotification): void {

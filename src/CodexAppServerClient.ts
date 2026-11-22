@@ -769,7 +769,7 @@ export class CodexAppServerClient {
         }), page => page.some(entry => entry.item.id === lastItemId));
         for await (const page of pages) {
             const lastIndex = page.findIndex(entry => entry.item.id === lastItemId);
-            if (lastIndex !== -1) {
+            if (lastIndex >= 0) {
                 yield page.slice(0, lastIndex + 1);
                 return;
             }
@@ -841,7 +841,7 @@ export class CodexAppServerClient {
         const pages = this.threadTurnPages({threadId, limit: HISTORY_PAGE_TURNS, sortDirection: "asc", itemsView: "full"});
         for await (const page of pages) {
             const lastIndex = page.findIndex(turn => turn.id === lastTurnId);
-            if (lastIndex !== -1) {
+            if (lastIndex >= 0) {
                 yield page.slice(0, lastIndex + 1);
                 return;
             }

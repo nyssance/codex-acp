@@ -46,11 +46,7 @@ export class SessionForkOrigins {
     private running = false;
     private disposed = false;
 
-    private readonly deps: SessionForkOriginsDeps;
-
-    constructor(deps: SessionForkOriginsDeps) {
-        this.deps = deps;
-    }
+    constructor(private readonly deps: SessionForkOriginsDeps) {}
 
     /**
      * The fork parent of a thread: `Thread.forkedFromId` when Codex gives it, else the one `thread/read` gave,
@@ -62,7 +58,7 @@ export class SessionForkOrigins {
         if (typeof known === "string") return known;
         // A thread without a rollout is not listed, and Codex has nothing to read for it yet.
         if (thread.path === null) return null;
-        if (known?.updatedAt !== thread.updatedAt) this.schedule(thread);
+        if (known === undefined || known.updatedAt !== thread.updatedAt) this.schedule(thread);
         return null;
     }
 
@@ -85,7 +81,7 @@ export class SessionForkOrigins {
             return;
         }
         const pending = this.pending.get(thread.id);
-        if (pending?.updatedAt === thread.updatedAt) this.pending.delete(thread.id);
+        if (pending !== undefined && pending.updatedAt === thread.updatedAt) this.pending.delete(thread.id);
         this.keepNoParent(thread);
     }
 

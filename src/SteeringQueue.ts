@@ -15,13 +15,9 @@ export class SteeringQueue {
     private readonly pending: QueuedSteering[] = [];
     private processing = false;
 
-    private readonly handle: (params: SessionSteerRequest) => Promise<SessionSteeringResponse>;
-
     constructor(
-        handle: (params: SessionSteerRequest) => Promise<SessionSteeringResponse>,
-    ) {
-        this.handle = handle;
-    }
+        private readonly handle: (params: SessionSteerRequest) => Promise<SessionSteeringResponse>,
+    ) {}
 
     enqueue(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
         return new Promise<SessionSteeringResponse>((resolve, reject) => {

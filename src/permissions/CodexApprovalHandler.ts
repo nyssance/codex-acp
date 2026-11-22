@@ -28,29 +28,19 @@ import {
     requestPermissionMeta,
 } from "./metadata";
 import type {PermissionPromptContext} from "./lifecycle";
-import type {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
+import {AcpToolCallRenderer} from "../tool-calls/AcpToolCallRenderer";
 import {subagentInteractionSignal, withSubagentUserAction} from "../subagents/SubagentInteraction";
 import {CommandReporter} from "../tool-calls/reporters/CommandReporter";
 import {FileChangeReporter} from "../tool-calls/reporters/FileChangeReporter";
 import {SandboxPermissionReporter} from "../tool-calls/reporters/SandboxPermissionReporter";
 
 export class CodexApprovalHandler implements ApprovalHandler {
-    private readonly connection: AcpClientConnection;
-    private readonly permissionContext: PermissionPromptContext;
-    private readonly cancellationSignal: AbortSignal | undefined;
-    private readonly renderer: AcpToolCallRenderer;
-
     constructor(
-        connection: AcpClientConnection,
-        permissionContext: PermissionPromptContext,
-        cancellationSignal: AbortSignal | undefined,
-        renderer: AcpToolCallRenderer,
-    ) {
-        this.connection = connection;
-        this.permissionContext = permissionContext;
-        this.cancellationSignal = cancellationSignal;
-        this.renderer = renderer;
-    }
+        private readonly connection: AcpClientConnection,
+        private readonly permissionContext: PermissionPromptContext,
+        private readonly cancellationSignal: AbortSignal | undefined,
+        private readonly renderer: AcpToolCallRenderer,
+    ) {}
 
     async handleCommandExecution(
         params: CommandExecutionRequestApprovalParams,

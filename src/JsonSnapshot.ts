@@ -19,22 +19,12 @@ export type JsonTree = null | boolean | number | string | readonly JsonTree[] | 
 
 /** The serialized members of a plain object, in the order of the text. */
 export class JsonObject {
-    readonly keys: readonly string[];
-    readonly values: readonly JsonTree[];
-
-    constructor(keys: readonly string[], values: readonly JsonTree[]) {
-        this.keys = keys;
-        this.values = values;
-    }
+    constructor(readonly keys: readonly string[], readonly values: readonly JsonTree[]) {}
 }
 
 /** The serialized text of a value that `JSON.stringify` serialized. */
 export class JsonText {
-    readonly text: string;
-
-    constructor(text: string) {
-        this.text = text;
-    }
+    constructor(readonly text: string) {}
 }
 
 /** Deeper values go to `JSON.stringify`, because `sameJson` and `jsonText` recurse over the tree. */
@@ -181,11 +171,8 @@ function containerFrame(value: object, previous: JsonTree | undefined): Containe
 /** A plain array or object that the walk is in, with the snapshot of its items so far. */
 abstract class ContainerFrame {
     protected index = 0;
-    readonly value: object;
 
-    constructor(value: object) {
-        this.value = value;
-    }
+    constructor(readonly value: object) {}
 
     abstract get done(): boolean;
 
@@ -203,12 +190,8 @@ class ArrayFrame extends ContainerFrame {
     private before: JsonTree | undefined;
     private tree: JsonTree[] | undefined;
 
-    declare readonly value: readonly unknown[];
-    private readonly previous: readonly JsonTree[] | undefined;
-
-    constructor(value: readonly unknown[], previous: readonly JsonTree[] | undefined) {
+    constructor(override readonly value: readonly unknown[], private readonly previous: readonly JsonTree[] | undefined) {
         super(value);
-        this.previous = previous;
         this.length = value.length;
         // While every item equals the item of `previous`, the array is not copied.
         this.tree = previous?.length === this.length ? undefined : new Array<JsonTree>(this.length);
@@ -245,12 +228,8 @@ class ObjectFrame extends ContainerFrame {
     private values: JsonTree[] | undefined;
     private count = 0;
 
-    declare readonly value: Record<string, unknown>;
-    private readonly previous: JsonObject | undefined;
-
-    constructor(value: Record<string, unknown>, previous: JsonObject | undefined) {
+    constructor(override readonly value: Record<string, unknown>, private readonly previous: JsonObject | undefined) {
         super(value);
-        this.previous = previous;
         this.keys = Object.keys(value);
         // While every member equals the member of `previous`, the values are not copied.
         this.values = previous === undefined ? new Array<JsonTree>(this.keys.length) : undefined;

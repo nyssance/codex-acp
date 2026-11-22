@@ -1556,11 +1556,8 @@ export class CodexAcpServer {
                     );
                 });
             } catch (err) {
-                settleTrackerReady?.(
-                    !resumeSubscribed && this.instructionUpdates.has(resumeRequest.sessionId)
-                        ? (this.sessions.get(resumeRequest.sessionId) ?? null)
-                        : null,
-                );
+                settleTrackerReady?.(!resumeSubscribed && this.instructionUpdates.has(resumeRequest.sessionId)
+                    ? this.sessions.get(resumeRequest.sessionId) ?? null : null);
                 if (resumeSubscribed && requestedSessionGeneration !== null) {
                     await this.cleanupStaleSessionOpen(resumeRequest.sessionId, requestedSessionGeneration);
                 } else {
@@ -1606,7 +1603,7 @@ export class CodexAcpServer {
             }
             throw err;
         }
-        const sessionGeneration = requestedSessionGeneration ?? (await this.beginSessionOpen(sessionId));
+        const sessionGeneration = requestedSessionGeneration ?? await this.beginSessionOpen(sessionId);
         if (!this.sessionOpenCanInstall(sessionId, sessionGeneration)) {
             settleTrackerReady?.(null);
             resumeSubscribed = false;
@@ -2440,7 +2437,7 @@ export class CodexAcpServer {
                 await activePrompt.completion;
             }
 
-            if (this.recovery === null || (this.recovery.isReady() && (!sessionState || this.recovery.sessionIsLive(sessionState)))) {
+            if (this.recovery === null || this.recovery.isReady() && (!sessionState || this.recovery.sessionIsLive(sessionState))) {
                 await this.runWithProcessCheck(() => this.codexAcpClient.closeSession(params.sessionId));
             } else {
                 // The thread is not loaded in a running app-server: nothing to close there, and no restart for it.
@@ -2650,7 +2647,7 @@ export class CodexAcpServer {
     /** v2 `auth/logout`: same params as v1 `logout`, only the method name changed. */
     async logoutV2(params: acpV2.LogoutAuthRequest): Promise<acpV2.LogoutAuthResponse> {
         await this.logout(params);
-        return {};
+        return { };
     }
 
     listProviders(_params: acp.ListProvidersRequest): acp.ListProvidersResponse {
@@ -2685,7 +2682,7 @@ export class CodexAcpServer {
         this.codexAcpClient.setProvider(gatewayConfig);
         // The restarted app-server takes the listing too and does not list the models again.
         await this.enqueueProviderUpdate((client) => client.setProvider(gatewayConfig));
-        return {};
+        return { };
     }
 
     async disableProvider(params: acp.DisableProviderRequest): Promise<acp.DisableProviderResponse> {
@@ -4234,7 +4231,9 @@ export class CodexAcpServer {
         }
     }
 
-    private async getOrCreateSessionWithHistory(request: WithAcpMcpServers<acp.LoadSessionRequest>): Promise<{
+    private async getOrCreateSessionWithHistory(
+        request: WithAcpMcpServers<acp.LoadSessionRequest>
+    ): Promise<{
         sessionId: SessionId;
         modelState: LegacySessionModelState;
         modeState: SessionModeState;
@@ -4303,9 +4302,8 @@ export class CodexAcpServer {
             }
             knownAccount = await settledWithin(authorization, graceLeftMs());
         } catch (err) {
-            settleTrackerReady(
-                !subscribed && this.instructionUpdates.has(request.sessionId) ? (this.sessions.get(request.sessionId) ?? null) : null,
-            );
+            settleTrackerReady(!subscribed && this.instructionUpdates.has(request.sessionId)
+                ? this.sessions.get(request.sessionId) ?? null : null);
             if (subscribed) {
                 await this.cleanupStaleSessionOpen(request.sessionId, requestedSessionGeneration);
             } else {
@@ -4437,7 +4435,11 @@ export class CodexAcpServer {
      * Sends the history of a loaded session one page of items at a time. The
      * adapter keeps only the current page, not the whole history.
      */
-    private async streamThreadHistory(sessionId: string, thread: Thread, history: AsyncIterable<ThreadItemEntry[]>): Promise<void> {
+    private async streamThreadHistory(
+        sessionId: string,
+        thread: Thread,
+        history: AsyncIterable<ThreadItemEntry[]>,
+    ): Promise<void> {
         const session = new ACPSessionConnection(this.connection, sessionId);
         const sessionState = this.getSessionState(sessionId);
         const generation = this.getSessionGeneration(sessionId);
@@ -4571,7 +4573,8 @@ export class CodexAcpServer {
                                 logger.error(`Failed to restore background terminals for ${item.agentThreadId}`, error);
                             }
                         }
-                    } else if (activityKind === "completed" || activityKind === "interrupted") {
+                    }
+                    else if (activityKind === "completed" || activityKind === "interrupted") {
                         const child = announced.get(item.agentThreadId);
                         if (!child) {
                             const name = nameFromAgentPath(item.agentPath, `Agent ${item.agentThreadId.slice(-8)}`);
@@ -4621,14 +4624,8 @@ export class CodexAcpServer {
 
     /** Recorded conversation data is independent of verified runtime ownership and current work. */
     private async streamStandardHistory(
-        sessionId: string,
-        pages: AsyncIterable<RecordedSubagentEntry[]>,
-        state: SessionState,
-        isOpen: () => boolean,
-        threadId = sessionId,
-        ancestry = new Set([threadId]),
-        replayed = new Set<string>(),
-        gaps = new Set<string>(),
+        sessionId: string, pages: AsyncIterable<RecordedSubagentEntry[]>, state: SessionState, isOpen: () => boolean,
+        threadId = sessionId, ancestry = new Set([threadId]), replayed = new Set<string>(), gaps = new Set<string>(),
     ): Promise<void> {
         const router = state.subagents;
         if (!(router instanceof StandardSubagentEventRouter)) return;

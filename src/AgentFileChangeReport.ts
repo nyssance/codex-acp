@@ -241,16 +241,13 @@ function normalizeFileChangeReport(
     }
     const cwd = canonicalizeWorkspaceRoot(lexicalCwd);
     const diffRoot = parseWorkspaceRoot(workspace.diffRoot);
-    if (diffRoot?.flavor !== cwd.flavor) {
+    if (diffRoot === null || diffRoot.flavor !== cwd.flavor) {
         throw new AgentFileChangeReportError("providerError", "The captured turn-diff root is invalid");
     }
-    const roots = [
-        cwd,
-        ...workspace.additionalDirectories.flatMap((directory) => {
-            const root = normalizeWorkspaceRoot(directory);
-            return root?.flavor !== cwd.flavor ? [] : [root];
-        }),
-    ];
+    const roots = [cwd, ...workspace.additionalDirectories.flatMap(directory => {
+        const root = normalizeWorkspaceRoot(directory);
+        return root === null || root.flavor !== cwd.flavor ? [] : [root];
+    })];
     const paths: string[] = [];
     const seen = new Set<string>();
     let totalBytes = 0;
@@ -310,13 +307,13 @@ function parseWorkspaceRoot(value: string): NormalizedPath | null {
     }
     if (isWindowsAbsolutePath(trimmed)) {
         return {
-            value: path.win32.normalize(trimmed.replaceAll("/", "\\")),
+            value: path.win32.normalize(trimmed.replace(/\//g, "\\")),
             flavor: "windows",
         };
     }
     if (path.posix.isAbsolute(trimmed)) {
         return {
-            value: path.posix.normalize(trimmed.replaceAll("\\", "/")),
+            value: path.posix.normalize(trimmed.replace(/\\/g, "/")),
             flavor: "posix",
         };
     }
@@ -339,23 +336,17 @@ function normalizeReportedPath(
 
     let candidate: NormalizedPath;
     if (isWindowsAbsolutePath(value)) {
-        candidate = {
-            value: path.win32.normalize(value.replaceAll("/", "\\")),
-            flavor: "windows",
-        };
+        candidate = {value: path.win32.normalize(value.replace(/\//g, "\\")), flavor: "windows"};
     } else if (path.posix.isAbsolute(value)) {
-        candidate = {
-            value: path.posix.normalize(value.replaceAll("\\", "/")),
-            flavor: "posix",
-        };
+        candidate = {value: path.posix.normalize(value.replace(/\\/g, "/")), flavor: "posix"};
     } else if (relativeRoot.flavor === "windows") {
         candidate = {
-            value: path.win32.resolve(relativeRoot.value, value.replaceAll("/", "\\")),
+            value: path.win32.resolve(relativeRoot.value, value.replace(/\//g, "\\")),
             flavor: "windows",
         };
     } else {
         candidate = {
-            value: path.posix.resolve(relativeRoot.value, value.replaceAll("\\", "/")),
+            value: path.posix.resolve(relativeRoot.value, value.replace(/\\/g, "/")),
             flavor: "posix",
         };
     }
@@ -409,7 +400,7 @@ function canonicalizeFromExistingAncestor(value: string): string {
     while (true) {
         try {
             const canonical = fs.realpathSync.native(current);
-            return path.resolve(canonical, ...missingSegments.toReversed());
+            return path.resolve(canonical, ...missingSegments.reverse());
         } catch (error) {
             if (!isMissingPathError(error)) return original;
         }
@@ -443,7 +434,7 @@ function pathIsStrictlyInside(root: NormalizedPath, candidate: NormalizedPath): 
 }
 
 function isWindowsAbsolutePath(value: string): boolean {
-    const portable = value.replaceAll("\\", "/");
+    const portable = value.replace(/\\/g, "/");
     return /^[A-Za-z]:\//.test(portable) || /^\/\/[^/]+\/[^/]+(?:\/|$)/.test(portable);
 }
 

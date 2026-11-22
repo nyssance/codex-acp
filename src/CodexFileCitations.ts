@@ -21,11 +21,7 @@ export class FileCitationStream {
     // Length of the backtick run that opened the current code span or fence; 0 outside code.
     private codeRun = 0;
 
-    private readonly cwd: string;
-
-    constructor(cwd: string) {
-        this.cwd = cwd;
-    }
+    constructor(private readonly cwd: string) {}
 
     /**
      * Returns the text of `delta` that is safe to send now, with complete citations replaced by links.

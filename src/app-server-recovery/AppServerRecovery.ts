@@ -142,21 +142,12 @@ export class AppServerRecovery<S extends RecoverableSession> {
         timedOut: boolean,
     } | null = null;
 
-    private readonly host: RecoveryHost<S>;
-    private readonly limits: RecoveryLimits;
-    private readonly now: () => number;
-    private readonly sleep: (ms: number) => Promise<void>;
-
     constructor(
-        host: RecoveryHost<S>,
-        limits: RecoveryLimits = DEFAULT_RECOVERY_LIMITS,
-        now: () => number = Date.now,
-        sleep: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
+        private readonly host: RecoveryHost<S>,
+        private readonly limits: RecoveryLimits = DEFAULT_RECOVERY_LIMITS,
+        private readonly now: () => number = Date.now,
+        private readonly sleep: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
     ) {
-        this.host = host;
-        this.limits = limits;
-        this.now = now;
-        this.sleep = sleep;
         this.crashGuard = new CrashLoopGuard(limits.crashLimit, limits.crashWindowMs, now);
         this.threadGuard = new CrashLoopGuard(limits.threadCrashLimit, limits.threadWindowMs, now);
         this.readyGeneration = host.supervisor.generation;

@@ -216,7 +216,7 @@ export class CodexCommands {
                 });
             }
         }
-        return [...commands.values()];
+        return Array.from(commands.values());
     }
 
     /**
@@ -300,7 +300,7 @@ export class CodexCommands {
 
     private parseCommand(prompt: acp.ContentBlock[]): ParsedSlashCommand | null {
         const firstBlock = prompt[0];
-        if (firstBlock?.type !== "text") return null;
+        if (!firstBlock || firstBlock.type != "text") return null;
 
         const text = firstBlock.text.trim();
         if (!text.startsWith("/")) return null;

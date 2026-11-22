@@ -20,11 +20,7 @@ export class AcpV2Replay {
     private readonly replays = new Map<string, Replay>();
     private readonly history = new AsyncLocalStorage<Replay>();
 
-    private readonly send: (params: acp.UpdateSessionNotification) => Promise<void>;
-
-    constructor(send: (params: acp.UpdateSessionNotification) => Promise<void>) {
-        this.send = send;
-    }
+    constructor(private readonly send: (params: acp.UpdateSessionNotification) => Promise<void>) {}
 
     async run<T>(
         sessionId: string, operation: () => Promise<T>, signal?: AbortSignal,

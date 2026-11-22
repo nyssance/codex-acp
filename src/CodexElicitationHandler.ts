@@ -24,7 +24,7 @@ import {
     type McpElicitationContext,
 } from "./permissions/mcp";
 import type {PermissionPromptContext} from "./permissions/lifecycle";
-import type {AcpToolCallRenderer} from "./tool-calls/AcpToolCallRenderer";
+import {AcpToolCallRenderer} from "./tool-calls/AcpToolCallRenderer";
 import {subagentInteractionSignal, subagentToolCallId, withSubagentUserAction} from "./subagents/SubagentInteraction";
 import {ElicitationReporter} from "./tool-calls/reporters/ElicitationReporter";
 import {isRecord, normalizeJsonObject, normalizeJsonValue, recordOrNull} from "./permissions/json";

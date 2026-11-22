@@ -56,7 +56,7 @@ export class SessionNameLog {
         }
         // A line that Codex is still writing is read again next time.
         const end = text.lastIndexOf("\n");
-        if (end === -1) return [];
+        if (end < 0) return [];
         this.offset += Buffer.byteLength(text.slice(0, end + 1), "utf8");
         const ids = new Set<string>();
         for (const line of text.slice(0, end).split("\n")) {

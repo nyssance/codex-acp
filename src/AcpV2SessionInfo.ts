@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/prefer-structured-clone -- Normalize to JSON wire values, including undefined omission and toJSON, before retaining metadata. */
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {isRecord} from "./permissions/json";
 
@@ -13,13 +12,10 @@ export class AcpV2SessionInfo {
     private tail = Promise.resolve();
     private disposed = false;
 
-    private readonly send: (update: Update, notificationMetadata?: NotificationMetadata) => Promise<void>;
-
     constructor(
-        send: (update: Update, notificationMetadata?: NotificationMetadata) => Promise<void>,
+        private readonly send: (update: Update, notificationMetadata?: NotificationMetadata) => Promise<void>,
         initialMetadata: Record<string, unknown> | null = null,
     ) {
-        this.send = send;
         this.applyMetadata(JSON.parse(JSON.stringify({_meta: initialMetadata}))._meta);
     }
 

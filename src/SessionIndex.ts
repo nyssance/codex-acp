@@ -370,12 +370,9 @@ export async function readSessionIndexPage(
             }
         }
         // Sides in their own order, not in the order their responses arrived, so ties come out the same way.
-        const candidates = [...pages]
-            .toSorted(([left], [right]) => left - right)
-            .flatMap(([index, page]) => page.rows
-                .filter(row => recencyOf(row) >= bound)
-                .map(thread => ({thread, archived: sideArchived(index), index})),
-            );
+        const candidates = [...pages].sort(([left], [right]) => left - right).flatMap(([index, page]) => page.rows
+            .filter(row => recencyOf(row) >= bound)
+            .map(thread => ({thread, archived: sideArchived(index), index})));
         // A stable sort: rows as recent as each other keep the Codex order, unarchived first.
         candidates.sort((left, right) => recencyOf(right.thread) - recencyOf(left.thread));
         const taken = candidates.slice(0, options.limit - collected.length);
@@ -389,7 +386,7 @@ export async function readSessionIndexPage(
             advanceSide(index, page.nextCursor);
         }
         if (taken.length > 0) {
-            const last = recencyOf(taken.at(-1)!.thread);
+            const last = recencyOf(taken[taken.length - 1]!.thread);
             const ids = taken.filter(row => recencyOf(row.thread) === last).map(row => row.thread.id);
             state.after = {
                 recency: last,
@@ -541,11 +538,7 @@ export class SessionIndexActivity {
      * @param isSession true for a thread that is a session of this connection. Only those are recorded: the
      *   ephemeral threads of the title generation and other helper threads never show in the list.
      */
-    private readonly isSession: (threadId: string) => boolean;
-
-    constructor(isSession: (threadId: string) => boolean = () => true) {
-        this.isSession = isSession;
-    }
+    constructor(private readonly isSession: (threadId: string) => boolean = () => true) {}
 
     observe(notification: ServerNotification): void {
         if (notification.method === "thread/deleted") {

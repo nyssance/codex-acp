@@ -29,17 +29,19 @@ export function normalizePathForComparison(value: string): string {
     }
 
     if (isWindowsAbsolutePath(trimmed)) {
-        const normalized = path.win32.normalize(trimmed).replaceAll("\\", "/");
+        const normalized = path.win32.normalize(trimmed).replace(/\\/g, "/");
         return trimTrailingPathSeparators(normalized).toLowerCase();
     }
 
-    const pathForComparison = path.isAbsolute(trimmed) ? trimmed : trimmed.replaceAll("\\", "/");
+    const pathForComparison = path.isAbsolute(trimmed)
+        ? trimmed
+        : trimmed.replace(/\\/g, "/");
     const normalized = path.posix.normalize(pathForComparison);
     return trimTrailingPathSeparators(normalized);
 }
 
 function isWindowsAbsolutePath(value: string): boolean {
-    const portableValue = value.replaceAll("\\", "/");
+    const portableValue = value.replace(/\\/g, "/");
     return /^[A-Za-z]:\//.test(portableValue) || /^\/\/[^/]+\/[^/]+/.test(portableValue);
 }
 

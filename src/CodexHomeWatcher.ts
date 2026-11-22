@@ -63,16 +63,11 @@ export class CodexHomeWatcher {
      *
      * @param fallbackIntervalMs how often the WAL size and time are checked without an event.
      */
-    private readonly home: string;
-    private readonly listener: CodexHomeWatcherListener;
-
     constructor(
-        home: string,
-        listener: CodexHomeWatcherListener,
+        private readonly home: string,
+        private readonly listener: CodexHomeWatcherListener,
         fallbackIntervalMs: number,
     ) {
-        this.home = home;
-        this.listener = listener;
         this.walSnapshot = readWalSnapshot(home);
         // What is archived when the watching starts is no change.
         this.archived = listArchivedThreadIds(path.join(home, ARCHIVED_SESSIONS_DIR));
@@ -310,8 +305,7 @@ function listArchivedThreadIds(dir: string): Set<string> {
 
 function listWalFiles(home: string): string[] {
     try {
-        return fs.readdirSync(home).filter((name) => STATE_DB_WAL_PATTERN.test(name))
-            .toSorted();
+        return fs.readdirSync(home).filter(name => STATE_DB_WAL_PATTERN.test(name)).sort();
     } catch {
         return [];
     }

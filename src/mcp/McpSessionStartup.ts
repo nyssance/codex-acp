@@ -46,8 +46,6 @@ export class McpSessionStartup {
     private readonly isSessionOpen: (sessionId: string) => boolean;
     private readonly pendingSessions = new Map<string, PendingMcpStartupSession>();
 
-    private readonly waitForSessionSetup: (sessionId: string, signal: AbortSignal) => Promise<void> | null;
-
     constructor(
         connection: AcpClientConnection,
         codexAcpClient: () => CodexAcpClient,
@@ -55,9 +53,8 @@ export class McpSessionStartup {
         signIn: McpServerSignIn,
         capabilities: () => ClientCapabilities,
         isSessionOpen: (sessionId: string) => boolean,
-        waitForSessionSetup: (sessionId: string, signal: AbortSignal) => Promise<void> | null = () => null,
+        private readonly waitForSessionSetup: (sessionId: string, signal: AbortSignal) => Promise<void> | null = () => null,
     ) {
-        this.waitForSessionSetup = waitForSessionSetup;
         this.connection = connection;
         this.codexAcpClient = codexAcpClient;
         this.runWithProcessCheck = runWithProcessCheck;
@@ -218,7 +215,7 @@ export class McpSessionStartup {
 }
 
 export function getRequestedMcpServerNames(mcpServers: Array<AcpMcpServer>): Array<string> {
-    return [...new Set(mcpServers.map(server => sanitizeMcpServerName(getMcpServerName(server))))];
+    return Array.from(new Set(mcpServers.map(server => sanitizeMcpServerName(getMcpServerName(server)))));
 }
 
 const MCP_STARTUP_AWAIT_TIMEOUT_META_KEY = "mcpStartupAwaitTimeoutMs";

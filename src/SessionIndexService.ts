@@ -86,10 +86,7 @@ export class SessionIndexService {
     /** Whether a cwd lies in a worktree that Codex made, read from the disk at most once a minute per cwd. */
     private readonly codexWorktrees = new CodexWorktreeMarks();
 
-    private readonly host: SessionIndexHost;
-
-    constructor(host: SessionIndexHost, subscriptionTimings?: SessionListSubscriptionTimings) {
-        this.host = host;
+    constructor(private readonly host: SessionIndexHost, subscriptionTimings?: SessionListSubscriptionTimings) {
         this.activity = new SessionIndexActivity(threadId => host.session(threadId) !== undefined);
         this.titles = new SessionIndexTitles(host, this.writes);
         const reader = () => {

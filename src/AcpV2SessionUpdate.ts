@@ -117,11 +117,7 @@ export function toV2SessionUpdate(update: AcpSessionUpdate): acpV2.SessionUpdate
             return {
                 ...rest,
                 sessionUpdate: "tool_call_update",
-                ...(content !== undefined
-                    ? {
-                          content: content === null ? null : content.map(toV2ToolCallContent),
-                      }
-                    : {}),
+                ...(content !== undefined ? {content: content && content.map(toV2ToolCallContent)} : {}),
             };
         }
         case "subagent_update":

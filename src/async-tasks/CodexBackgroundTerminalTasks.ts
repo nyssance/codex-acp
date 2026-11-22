@@ -63,28 +63,14 @@ export class CodexBackgroundTerminalTasks {
     private disposed = false;
     private poll: ReturnType<typeof setTimeout> | undefined;
 
-    readonly enabled: boolean;
-    private readonly rootSessionId: string;
-    private appServer: CodexAppServerClient;
-    private readonly session: ACPSessionConnection;
-    private readonly standard: boolean;
-    private readonly standardChildren: boolean;
-
     constructor(
-        enabled: boolean,
-        rootSessionId: string,
-        appServer: CodexAppServerClient,
-        session: ACPSessionConnection,
-        standard = false,
-        standardChildren = false,
-    ) {
-        this.enabled = enabled;
-        this.rootSessionId = rootSessionId;
-        this.appServer = appServer;
-        this.session = session;
-        this.standard = standard;
-        this.standardChildren = standardChildren;
-    }
+        readonly enabled: boolean,
+        private readonly rootSessionId: string,
+        private appServer: CodexAppServerClient,
+        private readonly session: ACPSessionConnection,
+        private readonly standard = false,
+        private readonly standardChildren = false,
+    ) {}
 
     async handleNotification(
         notification: ServerNotification,

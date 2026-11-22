@@ -27,11 +27,7 @@ export function toV2RequestPermissionRequest(request: acp.RequestPermissionReque
     const {content, ...toolCallFields} = meta ? request.toolCall : toolCallWithoutTitle;
     const toolCall: acpV2.ToolCallUpdate = {
         ...toolCallFields,
-        ...(content !== undefined
-            ? {
-                  content: content === null ? null : content.map(toV2ToolCallContent),
-              }
-            : {}),
+        ...(content !== undefined ? {content: content && content.map(toV2ToolCallContent)} : {}),
     };
     const {[PERMISSION_PROMPT_META_KEY]: _prompt, ...otherMeta} = request._meta ?? {};
     return {

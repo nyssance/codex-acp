@@ -11,7 +11,7 @@ export const DIFF_PATCH_MAX_BYTES = 1024 * 1024;
 
 /** Git reads a file as binary when its first 8000 bytes contain a NUL byte. */
 const BINARY_PROBE_LENGTH = 8000;
-const NO_NEWLINE_MARKER = String.raw`\ No newline at end of file`;
+const NO_NEWLINE_MARKER = "\\ No newline at end of file";
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 const REGULAR_FILE_MODE = "100644";
 
@@ -108,7 +108,7 @@ function hunkText(diff: string): string | null {
     const lines = diff.split("\n");
     if (lines.at(-1) === "") lines.pop();
     const first = lines.findIndex(line => line.startsWith("@@"));
-    if (first === -1) return null;
+    if (first < 0) return null;
     const leading = lines.slice(0, first);
     if (!leading.every(isFileHeaderLine)) return null;
     const hunks = lines.slice(first);
@@ -194,7 +194,7 @@ function limited(patch: string): string | null {
  */
 function gitPath(filePath: string, style: PatchPathStyle): string {
     if (style === "absolute") return filePath;
-    const slashed = /^[A-Za-z]:\\/.test(filePath) ? filePath.replaceAll("\\", "/") : filePath;
+    const slashed = /^[A-Za-z]:\\/.test(filePath) ? filePath.replace(/\\/g, "/") : filePath;
     return slashed.replace(/^\/+/, "");
 }
 
@@ -214,15 +214,15 @@ function quotedGitName(prefix: string, name: string): string {
     let quoted = "";
     for (const char of full) {
         switch (char) {
-            case "\"": quoted += String.raw`\"`; break;
-            case "\\": quoted += String.raw`\\`; break;
-            case "\x07": quoted += String.raw`\a`; break;
-            case "\b": quoted += String.raw`\b`; break;
-            case "\t": quoted += String.raw`\t`; break;
-            case "\n": quoted += String.raw`\n`; break;
-            case "\v": quoted += String.raw`\v`; break;
-            case "\f": quoted += String.raw`\f`; break;
-            case "\r": quoted += String.raw`\r`; break;
+            case "\"": quoted += "\\\""; break;
+            case "\\": quoted += "\\\\"; break;
+            case "\x07": quoted += "\\a"; break;
+            case "\b": quoted += "\\b"; break;
+            case "\t": quoted += "\\t"; break;
+            case "\n": quoted += "\\n"; break;
+            case "\v": quoted += "\\v"; break;
+            case "\f": quoted += "\\f"; break;
+            case "\r": quoted += "\\r"; break;
             default: {
                 const code = char.codePointAt(0)!;
                 quoted += code < 0x20 || code === 0x7f ? `\\${code.toString(8).padStart(3, "0")}` : char;

@@ -45,16 +45,10 @@ export class CodexPlanStream {
     private chain: Promise<void> = Promise.resolve();
     private disposed = false;
 
-    private readonly session: ACPSessionConnection;
-    private readonly capabilities: ClientCapabilities;
-
     constructor(
-        session: ACPSessionConnection,
-        capabilities: ClientCapabilities,
-    ) {
-        this.session = session;
-        this.capabilities = capabilities;
-    }
+        private readonly session: ACPSessionConnection,
+        private readonly capabilities: ClientCapabilities,
+    ) {}
 
     /** Returns the update to send now, or `null` when the update waits for the throttle. */
     delta(itemId: string, delta: string): UpdateSessionEvent | null {

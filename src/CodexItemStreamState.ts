@@ -1,4 +1,4 @@
-import type {FileCitationStream} from "./CodexFileCitations";
+import {FileCitationStream} from "./CodexFileCitations";
 import {CommandReporter} from "./tool-calls/reporters/CommandReporter";
 import {FuzzySearchReporter} from "./tool-calls/reporters/FuzzySearchReporter";
 import {GuardianReporter} from "./tool-calls/reporters/GuardianReporter";

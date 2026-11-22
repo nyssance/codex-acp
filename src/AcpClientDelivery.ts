@@ -18,18 +18,11 @@ export class AcpClientDelivery {
     private readonly sessionSetups = new Map<string, {ready: Promise<void>; release: () => void}>();
     private sendElicitationCompletion: (params: unknown) => Promise<void>;
 
-    private readonly client: AcpClientConnection;
-    private readonly sessionIsClosing: (sessionId: string) => boolean;
-    private readonly protocolVersion: 1 | 2;
-
     constructor(
-        client: AcpClientConnection,
-        sessionIsClosing: (sessionId: string) => boolean = () => false,
-        protocolVersion: 1 | 2 = 1,
+        private readonly client: AcpClientConnection,
+        private readonly sessionIsClosing: (sessionId: string) => boolean = () => false,
+        private readonly protocolVersion: 1 | 2 = 1,
     ) {
-        this.client = client;
-        this.sessionIsClosing = sessionIsClosing;
-        this.protocolVersion = protocolVersion;
         this.reports = new ToolCallReports(protocolVersion === 2);
         this.sendElicitationCompletion = params => client.notify(acp.methods.client.elicitation.complete, params as acp.CompleteElicitationNotification);
     }

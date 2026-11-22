@@ -159,9 +159,9 @@ const TYPE_PATH = /\S*\w::\w+::\S*/g;
  * When nothing remains, it returns the shortened raw text.
  */
 export function cleanErrorMessage(text: string): string {
-    const oneLine = text.slice(0, MAX_INPUT_LENGTH).replaceAll(/\s+/g, " ").trim();
+    const oneLine = text.slice(0, MAX_INPUT_LENGTH).replace(/\s+/g, " ").trim();
     const message = oneLine.split(": ")
-        .map(segment => segment.replace(TYPE_PATH, "").replaceAll(/\s+/g, " ").trim())
+        .map(segment => segment.replace(TYPE_PATH, "").replace(/\s+/g, " ").trim())
         .filter(segment => segment.length > 0 && !WRAPPER_SEGMENT.test(segment))
         .join(": ");
     if (message.length === 0) {
@@ -172,7 +172,7 @@ export function cleanErrorMessage(text: string): string {
 
 /** Shortens the text by code points, so that the cut never splits a surrogate pair. */
 function shorten(text: string): string {
-    const codePoints = [...text];
+    const codePoints = Array.from(text);
     return codePoints.length > MAX_ERROR_LENGTH ? `${codePoints.slice(0, MAX_ERROR_LENGTH).join("").trimEnd()}…` : text;
 }
 
@@ -182,7 +182,7 @@ export function formatNoteDetail(text: string): string {
 }
 
 function escapeMarkdown(text: string): string {
-    return text.replaceAll(/[\\`*_[\]<>~]/g, character => `\\${character}`);
+    return text.replace(/[\\`*_[\]<>~]/g, character => `\\${character}`);
 }
 
 export const UNNAMED_SERVER = "(unnamed)";
@@ -194,7 +194,7 @@ export const UNNAMED_SERVER = "(unnamed)";
  * An empty name shows as `(unnamed)`.
  */
 export function inlineCode(name: string): string {
-    const text = name.replaceAll(/\s+/g, " ");
+    const text = name.replace(/\s+/g, " ");
     if (text.length === 0) {
         return UNNAMED_SERVER;
     }

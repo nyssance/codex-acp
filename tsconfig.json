@@ -1,4 +1,8 @@
 {
   "extends": "@nyssance/tsconfig/bun.json",
+  // Upstream's agent code uses constructor parameter properties; keeping its files unchanged keeps merges clean.
+  "compilerOptions": {
+    "erasableSyntaxOnly": false
+  },
   "exclude": [".claude", "examples", "src/client", "src/__tests__/client"]
 }

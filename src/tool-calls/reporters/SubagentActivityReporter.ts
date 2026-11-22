@@ -10,7 +10,7 @@ export class SubagentActivityReporter {
         status: "in_progress" | "completed",
         report: ToolFacts["report"],
     ): ToolFacts {
-        const name = item.agentPath.split("/").findLast(Boolean) ?? "subagent";
+        const name = item.agentPath.split("/").filter(Boolean).at(-1) ?? "subagent";
         return {
             toolCallId: item.id,
             report,

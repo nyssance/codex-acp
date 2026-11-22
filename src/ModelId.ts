@@ -7,16 +7,10 @@ import type {Model} from "./app-server/v2";
  * const id = ModelId.fromString("gpt-5.2[high]");
  */
 export class ModelId {
-    public readonly model: string;
-    public readonly effort: string;
-
     private constructor(
-        model: string,
-        effort: string
-    ) {
-        this.model = model;
-        this.effort = effort;
-    }
+        public readonly model: string,
+        public readonly effort: string
+    ) {}
 
     static fromComponents(model: Model, effort: ReasoningEffort): ModelId {
         return new ModelId(model.id, effort);

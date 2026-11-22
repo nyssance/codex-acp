@@ -11,16 +11,11 @@ export class AcpV2ForegroundState {
     private sending: Promise<void> = Promise.resolve();
     private disposed = false;
 
-    private readonly notify: (state: acpV2.StateUpdate) => Promise<void>;
-    private readonly background: (() => acpV2.BackgroundWork[] | null) | undefined;
-
     constructor(
-        notify: (state: acpV2.StateUpdate) => Promise<void>,
+        private readonly notify: (state: acpV2.StateUpdate) => Promise<void>,
         running: boolean | "unknown" = false,
-        background?: () => acpV2.BackgroundWork[] | null,
+        private readonly background?: () => acpV2.BackgroundWork[] | null,
     ) {
-        this.notify = notify;
-        this.background = background;
         this.activity = running === "unknown" ? "unknown" : running ? "running" : "idle";
     }
 

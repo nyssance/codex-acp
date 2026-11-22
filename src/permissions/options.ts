@@ -76,7 +76,7 @@ export function commandDecisionOptions(
         }
     }
 
-    const orderedOptions = [...options].toSorted(
+    const orderedOptions = [...options].sort(
         (left, right) => permissionOptionOrder(left.option) - permissionOptionOrder(right.option),
     );
     const hasAllow = orderedOptions.some(({option}) => option.kind === "allow_once" || option.kind === "allow_always");
@@ -216,7 +216,7 @@ function shlexQuote(value: string): string {
         const chunk = value.slice(start, offset);
         if ((allowed & UNQUOTED) !== 0) result += chunk;
         else if ((allowed & SINGLE_QUOTED) !== 0) result += `'${chunk}'`;
-        else result += `"${chunk.replaceAll(/["\\]/g, String.raw`\$&`)}"`;
+        else result += `"${chunk.replace(/["\\]/g, "\\$&")}"`;
     }
     return result;
 }

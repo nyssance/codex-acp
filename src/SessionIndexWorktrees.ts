@@ -68,7 +68,7 @@ function linkedWorktreeCwdsOrNull(cwd: string): string[] | null {
     const registered = fs.readdirSync(worktrees, {withFileTypes: true})
         .filter(entry => entry.isDirectory())
         .map(entry => entry.name)
-        .toSorted();
+        .sort();
     for (const name of registered) {
         const gitDir = canonicalize(path.join(worktrees, name));
         if (gitDir === null || path.dirname(gitDir) !== worktrees) continue;
@@ -162,7 +162,7 @@ function findGitRepoRoot(dir: string): string | null {
 /** Reads a one-line Git path file, as `.git`, `commondir` or `gitdir`, and resolves it against `relativeTo`. */
 function readGitPath(file: string, relativeTo: string, prefix: string): string | null {
     const stats = lstat(file);
-    if (!stats?.isFile()) return null;
+    if (stats === null || !stats.isFile()) return null;
     let contents: string;
     try {
         contents = fs.readFileSync(file, "utf8").trim();
@@ -235,7 +235,7 @@ export function isCodexWorktreeCwd(cwd: string): boolean {
 
 /** Whether `cwd` is a Windows UNC path, as `\\server\share\…` or `\\wsl.localhost\…`, whose reads can be slow. */
 export function isUncPath(cwd: string): boolean {
-    return cwd.startsWith(String.raw`\\`) || (process.platform === "win32" && cwd.startsWith("//"));
+    return cwd.startsWith("\\\\") || (process.platform === "win32" && cwd.startsWith("//"));
 }
 
 /**
@@ -316,7 +316,7 @@ function mainWorktreeRootOrNull(directory: string): string | null {
  */
 function mainRootOfDotGitFile(dotGit: string, worktree: string): string | null {
     const line = readFirstLine(dotGit);
-    if (!line?.startsWith(GITDIR_PREFIX)) return null;
+    if (line === null || !line.startsWith(GITDIR_PREFIX)) return null;
     const gitDir = resolveAgainst(worktree, kotlinTrim(line.slice(GITDIR_PREFIX.length)));
     if (gitDir === null || !namesEqual(parentName(gitDir), "worktrees")) return null;
     const commonDir = commonDirOf(gitDir);
@@ -350,7 +350,7 @@ function codexMadeWorktreesOrEmpty(mainRoot: string): string[] {
             const worktree = parentOrNull(dotGit);
             if (worktree !== null && isDirectory(worktree)) worktrees.add(worktree);
         }
-        return [...worktrees].toSorted();
+        return [...worktrees].sort();
     } catch {
         return [];
     }
@@ -382,7 +382,7 @@ function readFirstLine(file: string): string | null {
     }
 }
 
-const KOTLIN_WHITESPACE = String.raw`[\t\n\v\f\r\u001c-\u001f\p{Zs}\p{Zl}\p{Zp}]`;
+const KOTLIN_WHITESPACE = "[\\t\\n\\v\\f\\r\\u001c-\\u001f\\p{Zs}\\p{Zl}\\p{Zp}]";
 const KOTLIN_TRIM = new RegExp(`^${KOTLIN_WHITESPACE}+|${KOTLIN_WHITESPACE}+$`, "gu");
 
 /** Kotlin's `String.trim()`: Java whitespace and Unicode space separators, but not a byte order mark as in JavaScript. */

@@ -138,11 +138,8 @@ function hookBlockTarget(eventName: HookEventName): string {
  */
 export class SessionFailureIds {
     private next = 1;
-    private readonly epoch: string;
 
-    constructor(epoch: string) {
-        this.epoch = epoch;
-    }
+    constructor(private readonly epoch: string) {}
 
     allocate(): string {
         return `${this.epoch}:${this.next++}`;
@@ -191,9 +188,6 @@ export class CodexEventHandler {
     private readonly collectTurnDiffs: boolean;
     private readonly subagents: SubagentEventRouter;
 
-    private readonly supportsCompaction: boolean;
-    private readonly supportsNotices: boolean;
-
     constructor(
         connection: AcpClientConnection,
         sessionState: SessionState,
@@ -201,11 +195,9 @@ export class CodexEventHandler {
         sessionFailureIds: SessionFailureIds,
         subagents: SubagentEventRouter,
         collectTurnDiffs: boolean,
-        supportsCompaction: boolean,
-        supportsNotices: boolean,
+        private readonly supportsCompaction: boolean,
+        private readonly supportsNotices: boolean,
     ) {
-        this.supportsCompaction = supportsCompaction;
-        this.supportsNotices = supportsNotices;
         this.sessionState = sessionState;
         this.supportsTypedSessionFailures = supportsTypedSessionFailures;
         this.sessionFailureIds = sessionFailureIds;
