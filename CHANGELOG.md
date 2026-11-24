@@ -10,6 +10,7 @@
 - The browser client's `steer()` is removed. A message sent while a turn runs is an ordinary `session/prompt`, which the adapter steers into that turn; the pre-standard `_session/steering` method is still served.
 - A session's provider is chosen by the standard initial `model` entry of `configOptions` on session setup; `_meta.alwith.model` is removed. An initial gateway model that is no longer configured is skipped, as the standard says for a stale value. The browser client takes `configOptions` on `newSession`, `open` and `fork`.
 - A `session/options` preview lists the skills Codex finds in the directory among its commands, and a client that declares the ALwith capability `modelReasoningEfforts` gets each model's reasoning efforts in `_meta.codex.reasoningEfforts` on the `model` option's entries. The browser client declares it.
+- A disabled skill is no longer offered as a `$name` command.
 - Removed with no client using them: the hook methods on v2, the goal data on v2 session info, and the full terminal output re-sent on exit.
 
 ## 0.7.86 (2026-11-22)

@@ -78,10 +78,15 @@ describe.each([1, 2] as const)("ACP v%s session options", version => {
         const listed: unknown[] = [];
         h.setCodexResponse("skills/list", async (params: unknown) => {
             listed.push(params);
-            return {data: [{cwd, skills: [{name: "deploy", description: "Deploy the project", shortDescription: null, path: "/skills/deploy/SKILL.md", scope: "repo", enabled: true}], errors: []}]};
+            const skill = (name: string, enabled: boolean) => ({
+                name, description: "Deploy the project", shortDescription: null, path: `/skills/${name}/SKILL.md`, scope: "repo", enabled,
+            });
+            return {data: [{cwd, skills: [skill("deploy", true), skill("retired", false)], errors: []}]};
         });
         const fresh = await h.request("session/options", {cwd, additionalDirectories: ["/extra"]});
         expect(fresh.availableCommands).toContainEqual(expect.objectContaining({name: "$deploy", description: "Deploy the project"}));
+        // A disabled skill is not offered as a command.
+        expect(fresh.availableCommands.map((command: {name: string}) => command.name)).not.toContain("$retired");
         expect(listed.at(-1)).toEqual({cwds: [cwd, "/extra"]});
         expect(start).not.toHaveBeenCalled();
     });

@@ -92,6 +92,7 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 
 **Tools**
 
+- A disabled skill is not offered as a command; upstream lists every skill Codex returns, whatever its `enabled` state.
 - `commandSource: "userShell"` commands always render as terminals and carry `_meta.codex` for every client.
 - MCP elicitations with `openai/form` or `openaiForm` are handled as forms; upstream cancels them.
 - A correlated MCP approval over v2 carries the prompt's correlation fields in `_meta.permission_prompt` (`requestPermissionMeta`).

@@ -209,6 +209,8 @@ export class CodexCommands {
 
         for (const entry of skillsEntries) {
             for (const skill of entry.skills) {
+                // Codex lists disabled skills too and has no parameter to leave them out.
+                if (!skill.enabled) continue;
                 const name = `$${skill.name}`;
                 if (commands.has(name)) continue;
                 const description = skill.shortDescription ?? skill.description ?? skill.name;
