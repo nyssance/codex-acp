@@ -1,14 +1,13 @@
-import {stopBackgroundTerminals} from "./BackgroundTerminals";
 import {applicationContextOf, nativeToolsOf, nativeToolsConfig, type NativeToolSettings} from "./alwith/codex/hostExecution";
 import {AppServerClient} from "./alwith/codex/AppServerClient";
 import {readSessionInputConfig, writeSessionInputConfig} from "./alwith/codex/sessionInputConfig";
-import { projectsFor } from "./projects/registry";
-import { readSessionLineage } from "./alwith/sessionLineage";
-import { replayEntriesOfTurn, withReplayTurnMetadata } from "./ReplayHistory";
-import { hostThreadOptions } from "./alwith/hostSession";
-import { ResponsesRoutes } from "./alwith/codex/responsesRoutes";
-import { ProviderRouting } from "./alwith/agent/providers";
-import { isRecord } from "./permissions/json";
+import {projectsFor} from "./projects/registry";
+import {readSessionLineage} from "./alwith/sessionLineage";
+import {replayEntriesOfTurn, withReplayTurnMetadata} from "./ReplayHistory";
+import {hostThreadOptions} from "./alwith/hostSession";
+import {ResponsesRoutes} from "./alwith/codex/responsesRoutes";
+import {ProviderRouting} from "./alwith/agent/providers";
+import {isRecord} from "./permissions/json";
 import {
     type ApiKeyAuthRequest,
     CODEX_API_KEY_ENV_VAR,
@@ -94,6 +93,7 @@ import {
     isThreadNotMaterializedError,
     isThreadActiveWriterError,
     isThreadNotFoundError,
+    isThreadNotLoadedError,
     isUnknownThreadError,
     sessionArchivedRequestError,
     sessionNotFoundRequestError,
@@ -1014,7 +1014,7 @@ export class CodexAcpClient {
             sessionId: request.sessionId,
             readOnly: response.readOnly,
             agentMode: response.agentMode,
-            currentModelId,
+            currentModelId: currentModelId,
             models: codexModels,
             lineage: await readSessionLineage(this.codexClient, response.thread),
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
@@ -1389,8 +1389,25 @@ export class CodexAcpClient {
     }
 
     private async stopBackgroundTerminals(threadId: string): Promise<void> {
-        const result = await stopBackgroundTerminals(this.codexClient, threadId, false);
-        if (result.failures.length) throw new Error(result.failures.map(failure => failure.message).join("; "));
+        try {
+            // Read all pages before removing processes so cleanup cannot disturb pagination.
+            const terminals = [];
+            for await (const page of this.codexClient.backgroundTerminalPages(threadId)) terminals.push(...page);
+            for (const terminal of terminals) {
+                const result = await this.codexClient.threadBackgroundTerminalsTerminate({threadId, processId: terminal.processId});
+                if (!result.terminated) {
+                    // False can mean either "already gone" or a failed stop. Verify which before closing.
+                    for await (const page of this.codexClient.backgroundTerminalPages(threadId)) {
+                        if (page.some(current => current.processId === terminal.processId)) {
+                            throw new Error(`Codex could not stop background terminal ${terminal.processId}`);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // An already-unloaded runtime has no processes left to stop.
+            if (!isThreadNotFoundError(error) && !isThreadNotLoadedError(error)) throw error;
+        }
     }
 
     /**

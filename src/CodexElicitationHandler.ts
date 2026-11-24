@@ -1,6 +1,6 @@
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import type { ElicitationHandler } from "./CodexAppServerClient";
+import type {ElicitationHandler} from "./CodexAppServerClient";
 import type {JsonValue} from "./app-server/serde_json/JsonValue";
 import type {
     McpServerElicitationRequestParams,
@@ -8,7 +8,7 @@ import type {
     ToolRequestUserInputParams,
     ToolRequestUserInputResponse,
 } from "./app-server/v2";
-import { logger } from "./Logger";
+import {logger} from "./Logger";
 import {type AcpClientConnection, AcpV2Connection} from "./ACPSessionConnection";
 import {toV2CreateElicitationResponse} from "./AcpV2Elicitation";
 import {

@@ -549,7 +549,7 @@ describe('Session lifecycle over ACP v2', () => {
         });
         expect(updates.at(-1)?.update).toEqual({sessionUpdate: "state_update", state: "idle", background: []});
         // Commands are in the response; current info and foreground state are notified.
-        const sessionUpdates = await waitForSessionUpdates(updates, ["session_info_update", "session_info_update", "session_info_update", "state_update"]);
+        const sessionUpdates = await waitForSessionUpdates(updates, ["session_info_update", "session_info_update", "state_update"]);
 
         await expect(dump({response, codexRequests, updates: sessionUpdates}))
             .toMatchFileSnapshot(snapshot);
@@ -607,7 +607,7 @@ describe('Session lifecycle over ACP v2', () => {
         }
         // Both kinds of active resume retain current metadata despite state reinstallation.
         expect(stored).toEqual({
-            codex: {threadStatus: {type: "idle"}, goal: null},
+            codex: {threadStatus: {type: "idle"}},
             shared: {nested: null},
             direct: true,
             ns: {literal: null},
@@ -629,7 +629,7 @@ describe('Session lifecycle over ACP v2', () => {
         updates.splice(0);
         await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd});
         const info = updates.filter(({update}) => update.sessionUpdate === "session_info_update");
-        expect(info.map(({update}) => update._meta)).toEqual([{codex: {threadStatus: {type: "idle"}, goal: null}}, null, {codex: {threadStatus: {type: "idle"}, goal: null}}]);
+        expect(info.map(({update}) => update._meta)).toEqual([null, {codex: {threadStatus: {type: "idle"}}}]);
     });
 
     it('rejects resume with an unknown replayFrom type', async () => {
@@ -817,7 +817,7 @@ describe('Session lifecycle over ACP v2', () => {
         closeClient = () => connection.close();
 
         await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd});
-        await waitForSessionUpdates(updates, ["session_info_update", "session_info_update", "session_info_update", "state_update"]);
+        await waitForSessionUpdates(updates, ["session_info_update", "session_info_update", "state_update"]);
 
         expect(updates.some(({update}) => update.sessionUpdate.endsWith("_message_chunk")
             || update.sessionUpdate.endsWith("_message")

@@ -35,15 +35,11 @@
   },
   {
     "terminalId": "item-shell",
-    "output": {
-      "data": "bnBtIEVSUiEgVGVzdCBmYWlsZWQuDQo="
-    },
     "exitStatus": {
       "exitCode": 1,
       "signal": null
     },
-    "sessionUpdate": "terminal_update",
-    "decodedOutput": "npm ERR! Test failed.\r\n"
+    "sessionUpdate": "terminal_update"
   },
   {
     "toolCallId": "item-shell",

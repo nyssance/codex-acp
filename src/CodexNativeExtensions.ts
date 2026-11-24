@@ -1,12 +1,9 @@
-import {listBackgroundTerminals, stopBackgroundTerminals} from "./BackgroundTerminals";
 import {RequestError} from "@agentclientprotocol/sdk/unstable";
 import type {ClientRequest, ServerNotification} from "./app-server";
 import type {CodexAppServerClient} from "./CodexAppServerClient";
 
 /** Non-standard capabilities remain ACP extensions on the existing agent connection. */
 export const CODEX_NATIVE_METHODS = {
-    "_codex/terminals/list": "thread/backgroundTerminals/list",
-    "_codex/terminals/stopAll": "thread/backgroundTerminals/terminate",
     "_codex/shell/execute": "thread/shellCommand",
     "_codex/realtime/start": "thread/realtime/start",
     "_codex/realtime/stop": "thread/realtime/stop",
@@ -46,12 +43,6 @@ export async function requestCodexNative(
     params: Record<string, unknown>,
     prepareSession: (id: string, writable: boolean) => Promise<void>,
 ): Promise<unknown> {
-    if (method === "_codex/terminals/list" || method === "_codex/terminals/stopAll") {
-        const {sessionId, ...other} = params;
-        if (typeof sessionId !== "string" || !sessionId.trim() || Object.keys(other).length) throw RequestError.invalidParams(undefined, "Expected only sessionId");
-        await prepareSession(sessionId, method === "_codex/terminals/stopAll");
-        return method === "_codex/terminals/list" ? listBackgroundTerminals(client, sessionId) : stopBackgroundTerminals(client, sessionId);
-    }
     const target = CODEX_NATIVE_METHODS[method];
     const {sessionId, threadId, ...data} = params;
     if (typeof sessionId !== "string" || sessionId.trim().length === 0 || threadId !== undefined) {

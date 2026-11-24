@@ -8,35 +8,9 @@ import {
     userMessageItem,
     itemCompleted,
 } from "./v2-prompt-harness";
-import {goalSessionInfoUpdate, sameThreadGoalSnapshot, toThreadGoalSnapshot} from "../../ThreadGoalSnapshot";
 import {realtimeUpdate} from "../../CodexNativeExtensions";
 
 describe("native capabilities through ACP", () => {
-    it("registers hook reads and trust for both protocol versions", async () => {
-        for (const version of [1, 2] as const) {
-            const client = await connectSession(version);
-            try {
-                client.setCodexResponse("hooks/list", async () => ({
-                    data: [{cwd: "/work", hooks: [], warnings: [], errors: []}],
-                }));
-                await expect(client.request("_codex/hooks/list", {cwd: "/work"})).resolves.toEqual({
-                    cwd: "/work",
-                    hooks: [],
-                    warnings: [],
-                    errors: [],
-                });
-                await expect(
-                    client.request("_codex/hooks/trust", {
-                        cwd: "/work",
-                        hooks: [],
-                    }),
-                ).rejects.toMatchObject({code: -32602});
-            } finally {
-                client.connection.close();
-            }
-        }
-    });
-
     it("executes user shell commands on the owning writable session without starting a prompt", async () => {
         for (const version of [1, 2] as const) {
             const client = await connectSession(version);
@@ -197,28 +171,6 @@ describe("native capabilities through ACP", () => {
         } finally {
             client.connection.close();
         }
-    });
-
-    it("publishes goal progress to ordinary v2 clients and distinguishes usage-only changes", () => {
-        const goal = toThreadGoalSnapshot({
-            threadId: sessionId,
-            objective: "Test",
-            status: "paused",
-            tokenBudget: 100,
-            tokensUsed: 5,
-            timeUsedSeconds: 2,
-            createdAt: 1,
-            updatedAt: 2,
-        });
-        expect(goalSessionInfoUpdate(goal, false, true)).toEqual({
-            sessionUpdate: "session_info_update",
-            _meta: {codex: {goal}},
-        });
-        expect(goalSessionInfoUpdate(null, false, true)).toEqual({
-            sessionUpdate: "session_info_update",
-            _meta: {codex: {goal: null}},
-        });
-        expect(sameThreadGoalSnapshot(goal, {...goal, tokensUsed: 6})).toBe(false);
     });
 
     it("routes realtime events by explicit session and preserves audio metadata", () => {

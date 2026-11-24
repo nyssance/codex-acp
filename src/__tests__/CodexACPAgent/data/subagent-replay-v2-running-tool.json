@@ -68,9 +68,6 @@
     "sessionId": "thread-1:subagent:worker",
     "update": {
       "terminalId": "command",
-      "output": {
-        "data": "QmVmb3JlQWZ0ZXI="
-      },
       "exitStatus": {
         "exitCode": 0,
         "signal": null

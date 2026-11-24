@@ -140,10 +140,10 @@ export class AcpToolCallRenderer {
 
     /**
      * The end of a command for a client that is not AIR.
-     * V2 terminals reconcile the full output snapshot on exit; v1 chunk channels only receive unstreamed output.
+     * The output that did not stream goes to the chunk channel once, also for a replayed command.
      */
     private commandEndMeta(terminalId: string, end: CommandEnd): Record<string, unknown> {
-        const sendOutput = (end.terminal && this.capabilities.terminalOutputSnapshot) || (end.output.length > 0 && !end.streamed);
+        const sendOutput = end.output.length > 0 && !end.streamed;
         return {
             ...(sendOutput ? this.outputChunk(terminalId, end.output, end.terminal) : {}),
             ...(end.terminal ? terminalExit(terminalId, end.exitCode) : {}),

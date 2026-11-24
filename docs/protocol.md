@@ -191,11 +191,9 @@ Host input-mode definitions own configuration validation, tool selection and pro
 routing. The adapter validates generic protocol values and translates native tool
 switches and application context without understanding input modes.
 
-### Background terminal controls
+### Background work
 
-- `_codex/terminals/list({sessionId})` returns the current background processes as `{itemId, processId, command}[]`. Foreground commands are excluded.
-- `_codex/terminals/stopAll({sessionId})` snapshots all pages before stopping, then verifies removal of every target. It returns `{stopped: string[], failures: {processId, message}[]}` and continues after individual failures. New processes outside the initial snapshot are left running.
-- Both ACP versions use the same adapter implementation. Application clients consume `listBackgroundTerminals` and `stopBackgroundTerminals` through the shared chat client. Terminal logs remain in the existing session projection; neither method creates a second log store.
+Background work is upstream's: every v2 `state_update` carries the `background` snapshot, and `terminal/cancel` stops one listed terminal. The browser client does not use either yet.
 
 ## Plugin-service authentication for hosts
 

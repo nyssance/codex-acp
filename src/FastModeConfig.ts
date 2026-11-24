@@ -10,7 +10,7 @@ export const FAST_MODE_OFF = "off";
 const FAST_MODE_DESCRIPTION = "1.5x speed, increased usage";
 
 export function modelSupportsFast(model: Model | undefined): boolean {
-    return model?.additionalSpeedTiers?.some((tier) => tier === "fast" || tier === "priority") ?? false;
+    return model?.additionalSpeedTiers?.includes("fast") ?? false;
 }
 
 export function serviceTierEnablesFast(serviceTier: string | null | undefined): boolean {

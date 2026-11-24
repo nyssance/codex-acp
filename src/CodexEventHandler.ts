@@ -36,7 +36,7 @@ import type {
     WarningNotification
 } from "./app-server/v2";
 import {toTokenCount} from "./TokenCount";
-import { stripShellPrefix } from "./CommandUtils";
+import {stripShellPrefix} from "./CommandUtils";
 import {AcpToolCallRenderer} from "./tool-calls/AcpToolCallRenderer";
 import {commandUsesTerminal} from "./tool-calls/reporters/CommandReporter";
 import {CompactionReporter} from "./tool-calls/reporters/CompactionReporter";
@@ -780,14 +780,8 @@ export class CodexEventHandler {
                 }
                 return this.renderer.render(commands.terminalInput(notification.params.itemId, notification.params.stdin));
             }
-            case "thread/section/changed":
-                // Thread sections have no ACP session update counterpart.
-                return null;
             case "thread/attachment/updated":
                 // Persisted attachment metadata has no ACP session update counterpart.
-                return null;
-            case "thread/search/partial":
-                // Provisional rows of a streamed thread search; the adapter does not start one.
                 return null;
             case "account/gatewayOAuth/changed":
                 // Gateway login state is account-scoped and has no ACP session update counterpart.
@@ -977,7 +971,7 @@ export class CodexEventHandler {
         }
         this.sessionState.currentGoal = goalSnapshot;
 
-        return goalSessionInfoUpdate(goalSnapshot, this.sessionState.clientCapabilities.airClient, this.session.protocolVersion === 2);
+        return goalSessionInfoUpdate(goalSnapshot, this.sessionState.clientCapabilities.airClient);
     }
 
     private createThreadGoalClearedEvent(_event: ThreadGoalClearedNotification): UpdateSessionEvent | null {
@@ -987,7 +981,7 @@ export class CodexEventHandler {
         }
         this.sessionState.currentGoal = null;
 
-        return goalSessionInfoUpdate(null, this.sessionState.clientCapabilities.airClient, this.session.protocolVersion === 2);
+        return goalSessionInfoUpdate(null, this.sessionState.clientCapabilities.airClient);
     }
 
     private createReasoningDeltaEvent(

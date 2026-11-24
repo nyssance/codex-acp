@@ -1,4 +1,4 @@
-import { nativeFetch } from "./alwith/codex/nativeFetch";
+import {nativeFetch} from "./alwith/codex/nativeFetch";
 import type {Model} from "./app-server/v2";
 import {logger} from "./Logger";
 

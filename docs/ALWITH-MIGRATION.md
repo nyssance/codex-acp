@@ -55,7 +55,6 @@ Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/sess
 | Realtime voice | `_codex/realtime/start`, `_codex/realtime/stop` and the `_codex/realtime/update` notification | `thread/realtime/*` | module-chat voice, TV |
 | Account, rate limits, file search | `_codex/account_read`, `_codex/rate_limits`, `_codex/rate_limits_updated`, `_codex/fuzzy_file_search` | `account/read`, `account/rateLimits/read`, `fuzzyFileSearch` | module-chat |
 | Shell | `_codex/shell/execute` | `thread/shellCommand` | module-chat composer |
-| Background terminals | `_codex/terminals/list`, `_codex/terminals/stopAll` (`src/BackgroundTerminals.ts`) | `thread/backgroundTerminals/list`, `thread/backgroundTerminals/terminate` | U terminal workspace |
 | Projects | `_codex/project_context`, `_meta.codex.projectId`, `_codex/projects_changed`, `_codex/thread_project_updated` (`src/projects`) | `project/*` | module-chat, U |
 | Browser client | `@nyssance/codex-acp-v2/client` (`src/client`) | none | module-chat re-exports it to U, TV, Desktop |
 
@@ -79,13 +78,12 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 - **Turn timing.** A completed v2 turn re-sends its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and `workDurationMs`. A turn without Codex's start or completion time carries none.
 - **Failed turn message.** A failed v2 turn sends one `codex-error:<turnId>` `agent_message` with `_meta.codex.error.{kind,category,actions}` from upstream's own classification (`src/CodexFailures.ts`, moved out of `CodexEventHandler.ts` so the exported client can import it), live and on replay. Upstream sends the error as an `agent_message_chunk`.
 - **Guardian warnings.** Failures and interruptions of automatic approval review are shown as warnings; upstream drops every `guardianWarning` ([fallbacks.md](fallbacks.md) has the text match).
-- **Fast mode.** A model offers fast mode when its `additionalSpeedTiers` include `priority` as well as `fast`.
+- **Prompt input.** An `image` block with `_meta["alwith.localImage"]` and a `file:` URI is sent as Codex `localImage`; an `app://<id>` resource link is sent as a mention; `_meta.alwith.retryTrigger` marks a capacity retry (`buildPromptItems`, `src/CodexAcpClient.ts`).
 
 **Subagents**
 
 - `subagent_update` carries `_meta.codex.threadId` and `parentTurnId` ([protocol.md](protocol.md) "Subagent turn origins").
 - Root cancellation interrupts every child turn through the router's `cancelAll`, retrying while Codex has not registered the turn yet ([subagent-sessions.md](subagent-sessions.md)). Upstream interrupts each running child turn once.
-- Children that are not live get no foreground state snapshot during setup.
 
 **Goals and hooks**
 
@@ -95,8 +93,8 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 **Tools**
 
 - `commandSource: "userShell"` commands always render as terminals and carry `_meta.codex` for every client.
-- v2 terminals send the full output snapshot on exit (`terminalOutputSnapshot`).
 - MCP elicitations with `openai/form` or `openaiForm` are handled as forms; upstream cancels them.
+- A correlated MCP approval over v2 carries the prompt's correlation fields in `_meta.permission_prompt` (`requestPermissionMeta`).
 - Image generation tool calls carry `name: "image_generation"`; a `fileId` result is shown as `Generated image attachment: <id>`.
 
 ## Pending
@@ -108,7 +106,7 @@ The open items of this repository. Each names what unblocks it.
 | Session index for non-AIR v2 clients | [agentclientprotocol/codex-acp#736](https://github.com/agentclientprotocol/codex-acp/issues/736) open. The fork enables upstream's `SessionIndexService` for a client that declares `_meta.alwith.capabilities: ["sessionIndex"]` (`src/alwith/agent/sessionList.ts`). | Upstream serves the index to v2 connections; the ALwith gate goes. |
 | Provider HTTP 402 | Codex treats an unknown status as a retried connection failure and drops the provider text on `QuotaExceeded`; the fork's proxy rewrites a 402 to 429 `usage_limit_reached` with the provider's message (`docs/fallbacks.md`). DeepSeek answers 402 `insufficient_balance_error` (observed 2026-11-05). | Codex recognizes 402, or DeepSeek answers OpenAI's 429 `insufficient_quota`. |
 | Title generation on gateway sessions | `TitleGenerator` starts the title thread on the default model; whether it succeeds for a gateway-only login is unverified. Upstream PR #595 (skip AI titles on other providers) is open. Until then the history title repairs envelope previews (`src/alwith/agent/historyTitle.ts`). | Verified, or #595 decides it. |
-| Standard ACP methods | The spec has `session/set_title`, `session/archive`, `session/unarchive`, `session/status`, `auth/status` + `auth/status_update`, `proxy/initialize` / `proxy/successor`, and v2 background work (`ToolCallStatus` `paused`, `tool_call/cancel`, `terminal/cancel`, `background` on state snapshots). SDK 2.7.0 ships them all; upstream 2.7.0 adopts `session/set_title` only (#727). The fork serves `session/archive`, `session/unarchive` and the `session/list` `archived` filter over v2 (advertised as `session.archive`); AIR keeps `_session/*`. Auth status still goes out as the interim `_auth/status_update` with `_meta.authStatus` (`src/AuthStatusMeta.ts`), not `auth/status`. `session/status`, background work and the proxy methods are not served; no consumer asks for them. | Upstream adopts them; the fork's routes become upstream's. Background work and `session/status` are picked up only when a consumer needs them. |
-| `session/options` | SDK 2.6.0 added it (unstable); upstream 2.7.0 does not implement it. | Upstream implements it; then module-chat drafts use it instead of creating a session. |
+| Standard ACP methods | Upstream serves `session/set_title` (#727), `auth/status` (#782, next to the interim `_auth/status_update`, which no ALwith client reads), v2 background work on state snapshots with `terminal/cancel` (#777), and `session/options` (#797); the fork inherits all of them. Upstream does not serve `session/archive`, `session/unarchive` or the `session/list` `archived` filter over v2; the fork does (advertised as `session.archive`), and AIR keeps `_session/*`. `session/status` and the proxy methods are not served; no consumer asks for them. | Upstream adopts standard archive; the fork's routes become upstream's. |
+| `session/options` | Upstream serves it (#797) and the fork inherits it. The preview knows nothing about gateway providers, and a thread's provider is fixed when it is created, so module-chat drafts still create a session and pass `_meta.alwith.model`. | The preview and the setup request carry the provider choice; then drafts stop creating a session. |
 | Surface without a consumer | The browser client's `CodexCapabilitiesClient.generateImage` has no caller (module-chat sends `_codex/images/generate` itself); kept until the image client is wired (`docs/plans/index.md` in Desktop). The rest of the unused surface was removed on 2026-11-17 after a check of alwith-modules, U, TV and Desktop. | It gets a caller, or is removed. |
 | Upstream candidates | Fixes upstream would take: the `openai/form` elicitation, subagent cancellation retries, closing the session of a cancelled open, and waiting for `thread/closed` before a resume (Codex 0.167 race, see fallbacks.md). | Offered upstream; on merge the local copy goes. |

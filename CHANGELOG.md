@@ -5,6 +5,8 @@
 - The internal "Implement the approved plan." prompt is no longer shown as a user message, as upstream does.
 - Asynchronous questions follow upstream: the question is a form elicitation, and an answer is replayed as a completed "Answered questions" tool call. The fork's `_meta.codex.questionReply` and `questionReplyParts` are gone.
 - Codex's three spend-limit errors are reported as `quota_exhausted`.
+- Background terminals follow upstream: `_codex/terminals/list` and `_codex/terminals/stopAll` are removed, with the client's `listBackgroundTerminals` and `stopBackgroundTerminals`. Upstream's `background` snapshot on state updates and `terminal/cancel` remain.
+- Removed with no client using them: the hook methods on v2, the goal data on v2 session info, and the full terminal output re-sent on exit.
 
 ## 0.7.86 (2026-11-22)
 

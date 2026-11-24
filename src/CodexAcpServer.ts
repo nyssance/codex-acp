@@ -1,10 +1,10 @@
 import {requestCodexNative, realtimeUpdate, CODEX_REALTIME_UPDATE, type CodexNativeMethod} from "./CodexNativeExtensions";
-import { AsyncLocalStorage } from "node:async_hooks";
-import type { ReplayEntry } from "./ReplayHistory";
-import { codexFailureKind, SESSION_FAILURE_POLICY } from "./CodexFailures";
-import { ConfigRevisions } from "./alwith/ConfigRevisions";
-import type { ProviderRouting } from "./alwith/agent/providers";
-import { AlwithExtensions } from "./alwith/Extensions";
+import {AsyncLocalStorage} from "node:async_hooks";
+import type {ReplayEntry} from "./ReplayHistory";
+import {codexFailureKind, SESSION_FAILURE_POLICY} from "./CodexFailures";
+import {ConfigRevisions} from "./alwith/ConfigRevisions";
+import type {ProviderRouting} from "./alwith/agent/providers";
+import {AlwithExtensions} from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {RequestError, type SessionId, type SessionModeState} from "@agentclientprotocol/sdk/unstable";
 import {CodexEventHandler, type CompletedPlan, failureWasShownAsMessage, SessionFailureIds} from "./CodexEventHandler";
@@ -21,7 +21,7 @@ import type {ProviderStartupConfig} from "./CodexConfigOverride";
 import {isDeepStrictEqual} from "node:util";
 import {createMcpServerSignIn, type McpServerSignIn} from "./mcp/McpServerSignIn";
 import {getRequestedMcpServerNames, McpSessionStartup, parseMcpStartupAwaitTimeoutMs} from "./mcp/McpSessionStartup";
-import type { CodexAcpClient } from "./CodexAcpClient";
+import type {CodexAcpClient} from "./CodexAcpClient";
 import {
     type JsonObject,
     OPENAI_PROVIDER_ID,
@@ -72,8 +72,8 @@ import {
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {toV1ClientCapabilitiesView} from "./AcpV2ClientCapabilities";
 import {toV1InitialConfigOptions, toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
-import { toV2AvailableCommands, toV2SessionUpdates } from "./AcpV2SessionUpdate";
-import { toV2ReplayUpdates, type ReplayedEntities } from "./AcpV2Replay";
+import {toV2AvailableCommands, toV2SessionUpdates} from "./AcpV2SessionUpdate";
+import {toV2ReplayUpdates, type ReplayedEntities} from "./AcpV2Replay";
 import {changesSystemPrompt, clientSystemPromptText, toV1SystemPrompt, type SessionInstructions} from "./ClientSystemPrompt";
 import {
     AcpV2PromptKeys,
@@ -1633,11 +1633,11 @@ export class CodexAcpServer {
             rateLimits: null,
             account: authState.account,
             authConfigured: authState.authConfigured,
-            authProvider,
+            authProvider: authProvider,
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            sessionMcpServers,
+            sessionMcpServers: sessionMcpServers,
             goalRevision: 0,
             sessionTitle: sessionMetadata.sessionTitle ?? null,
             sessionTitleSource: operation === "resume" ? "unknown" : "unset",
@@ -2473,7 +2473,7 @@ export class CodexAcpServer {
             this.endSessionCloseFence(params.sessionId);
         }
 
-        return {};
+        return { };
     }
 
     async deleteSession(params: acp.DeleteSessionRequest): Promise<acp.DeleteSessionResponse> {
@@ -2677,7 +2677,7 @@ export class CodexAcpServer {
     /** v2 `auth/logout`: same params as v1 `logout`, only the method name changed. */
     async logoutV2(params: acpV2.LogoutAuthRequest): Promise<acpV2.LogoutAuthResponse> {
         await this.logout(params);
-        return { };
+        return {};
     }
 
     listProviders(_params: acp.ListProvidersRequest): acp.ListProvidersResponse {
@@ -4527,11 +4527,11 @@ export class CodexAcpServer {
             rateLimits: null,
             account: authState.account,
             authConfigured: authState.authConfigured,
-            authProvider,
+            authProvider: authProvider,
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            sessionMcpServers,
+            sessionMcpServers: sessionMcpServers,
             goalRevision: 0,
             sessionTitle: null,
             sessionTitleSource: "unset",

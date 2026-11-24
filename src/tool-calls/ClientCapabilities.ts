@@ -35,7 +35,6 @@ type ClientCapabilityValues = {
     readonly air: AirCapabilities;
     readonly diffPatchFormat: DiffPatchFormat;
     readonly permissionPromptFields: boolean;
-    readonly terminalOutputSnapshot: boolean;
 };
 
 /**
@@ -55,7 +54,6 @@ export class ClientCapabilities {
         air: {rawInputRendering: false, planContentDelta: false, diffPatch: false},
         diffPatchFormat: "none",
         permissionPromptFields: false,
-        terminalOutputSnapshot: false,
     });
 
     /** The client declares `_meta.jetbrains.air`. */
@@ -72,8 +70,6 @@ export class ClientCapabilities {
     readonly diffPatchFormat: DiffPatchFormat;
     /** A permission request has its own `title` and `description` (ACP v2). */
     readonly permissionPromptFields: boolean;
-    /** Terminal updates replace their output snapshot on ACP v2. */
-    readonly terminalOutputSnapshot: boolean;
 
     private constructor(values: ClientCapabilityValues) {
         this.airClient = values.airClient;
@@ -84,7 +80,6 @@ export class ClientCapabilities {
         this.air = values.air;
         this.diffPatchFormat = values.diffPatchFormat;
         this.permissionPromptFields = values.permissionPromptFields;
-        this.terminalOutputSnapshot = values.terminalOutputSnapshot;
     }
 
     static from(capabilities: acp.ClientCapabilities | null | undefined): ClientCapabilities {
@@ -103,7 +98,6 @@ export class ClientCapabilities {
             },
             diffPatchFormat: diffPatch ? "air" : "none",
             permissionPromptFields: false,
-            terminalOutputSnapshot: false,
         });
     }
 
@@ -125,7 +119,6 @@ export class ClientCapabilities {
             air: {rawInputRendering: false, planContentDelta: false, diffPatch: false},
             diffPatchFormat: "acpV2",
             permissionPromptFields: true,
-            terminalOutputSnapshot: true,
         });
     }
 
