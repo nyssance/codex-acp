@@ -1,12 +1,5 @@
-import {type InitialSessionConfigOption, RequestError} from "@agentclientprotocol/sdk/unstable";
+import {RequestError} from "@agentclientprotocol/sdk/unstable";
 import {isRecord} from "./permissions/json";
-
-/** The choices a draft holds, sent with a `session/options` preview in `_meta.codex.configOptions`. */
-export function tentativeConfigOptions(meta: unknown): InitialSessionConfigOption[] {
-    const entries = isRecord(meta) && isRecord(meta["codex"]) ? meta["codex"]["configOptions"] : undefined;
-    validateInitialConfigOptions(entries);
-    return (entries ?? []) as InitialSessionConfigOption[];
-}
 
 /** Validate the whole list before opening a session or applying any values. */
 export function validateInitialConfigOptions(entries: unknown, protocolVersion: 1 | 2 = 1): void {

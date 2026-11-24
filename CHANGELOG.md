@@ -1,3 +1,10 @@
+## 0.7.88 (2026-11-24)
+
+- The browser client's draft sessions are back: `newSession` takes `draft`, `state.drafts`, `isDraft`, `discardDraft` and the `materializeDraft` / `onDraftMaterialized` hooks return, and a draft is listed with its first prompt. A draft stays a session created when a conversation opens.
+- Removed again, unused without session-less drafts: the browser client's `previewSession`, and the `_meta.codex.configOptions` choices on a `session/options` preview. The preview still lists the enabled skills of the directory among its commands.
+- A new chat is set to standard speed after it is created, as before 0.7.87.
+- Workflows run on macOS and no Linux binary is bundled.
+
 ## 0.7.87 (2026-11-24)
 
 - Merge upstream 2.10.0 and the three commits after it, and move to Codex 0.172.0.

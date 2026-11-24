@@ -1,5 +1,4 @@
 import {afterEach, expect, spyOn, test} from "bun:test";
-import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import {type ClientOptions, SessionClient} from "../session-client";
 import {createFakeAgent} from "./fake-agent";
@@ -265,36 +264,20 @@ test("a refresh replaces the list but keeps rows that changed while it was in fl
     expect(client.state.sessionList.map(item => item.sessionId)).toEqual(["h1"]);
 });
 
-test("a preview reads what a session would start with and creates nothing", async () => {
-    const commands: acp.AvailableCommand[] = [{type: "command", name: "status", description: "Show session status"}];
-    const {client, fake} = await make(fake => {
-        fake.sessionCommands.current = commands;
-    });
-    await client.listSessions();
-    const listed = client.state.sessionList;
-    const preview = await client.previewSession("/tmp/preview", {additionalDirectories: ["/tmp/shared"]});
-    expect(preview).toEqual({configOptions: [expect.objectContaining({configId: "model", currentValue: "default-model"})], commands});
-    expect(fake.previews).toEqual([{cwd: "/tmp/preview", additionalDirectories: ["/tmp/shared"]}]);
-    expect(fake.created).toEqual([]);
-    expect(client.state.sessions).toEqual({});
-    expect(client.state.sessionList).toBe(listed);
-    await client.previewSession("/tmp/preview", {sessionId: "h1"});
-    expect(fake.previews[1]).toEqual({cwd: "/tmp/preview", sessionId: "h1"});
-});
-
-test("a preview requires the agent to advertise session options", async () => {
-    const {client, fake} = await make(fake => {
-        fake.previewCapability.current = false;
-    });
-    await expect(client.previewSession("/tmp/preview")).rejects.toThrow("capabilities.session.options");
-    expect(fake.previews).toEqual([]);
-});
-
-test("a new session is listed as soon as the agent creates it", async () => {
+test("a draft stays out of the list until its first prompt is dispatched", async () => {
     const {client} = await make();
     await client.listSessions();
-    const id = await client.newSession("/tmp/new-listed");
+    const id = await client.newSession("/tmp/draft", {draft: true});
+    expect(client.isDraft(id)).toBe(true);
+    expect(client.state.sessionList.some(item => item.sessionId === id)).toBe(false);
+    await client.listSessions({reset: true});
+    expect(client.state.sessionList.some(item => item.sessionId === id)).toBe(false);
+    await client.prompt(id, [{type: "text", text: "first"}]);
+    expect(client.isDraft(id)).toBe(false);
     expect(client.state.sessionList[0]?.sessionId).toBe(id);
+    const abandoned = await client.newSession("/tmp/draft", {draft: true});
+    await client.discardDraft(abandoned);
+    expect(client.state.sessions[abandoned]).toBeUndefined();
 });
 
 test("a gap the client could not refill replays the whole session from the engine's record", async () => {
@@ -377,7 +360,7 @@ test("host context rides on session set-up: MCP servers, system prompt and bind"
     expect(bound).toEqual([id, id]);
 });
 
-test.each([true, false])("tool preparation failures preserve the attachment and allow an explicit retry (unsent: %s)", async unsent => {
+test.each([true, false])("tool preparation failures preserve the attachment and allow an explicit retry (draft: %s)", async draft => {
     const failure = new Error("Computer MCP initialization timed out");
     let unavailable = false;
     const {client, port} = await make(undefined, {
@@ -385,8 +368,8 @@ test.each([true, false])("tool preparation failures preserve the attachment and 
             if (unavailable) throw failure;
         },
     });
-    const id = await client.newSession("/tmp/tool-retry");
-    if (!unsent) {
+    const id = await client.newSession("/tmp/tool-retry", {draft});
+    if (!draft) {
         await client.prompt(id, [{type: "text", text: "existing history"}]);
         await until(() => client.session(id).state === "idle");
     }
@@ -404,10 +387,11 @@ test.each([true, false])("tool preparation failures preserve the attachment and 
         expect(client.session(sibling).attached).toBe(true);
     }
     expect(request.mock.calls).toHaveLength(0);
+    expect(Boolean(client.state.drafts[id])).toBe(draft);
     unavailable = false;
     await client.prompt(id, [{type: "text", text: "retry this message"}]);
     expect(request.mock.calls.map(call => call[1])).toEqual(["session/prompt"]);
-    expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(unsent ? 1 : 2);
+    expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(draft ? 1 : 2);
     expect(client.session(id).attached).toBe(true);
     request.mockRestore();
 });

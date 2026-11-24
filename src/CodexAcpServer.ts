@@ -11,7 +11,7 @@ import {CodexEventHandler, type CompletedPlan, failureWasShownAsMessage, Session
 import {attachmentFileUri, desktopAttachmentHistory} from "./DesktopAttachmentHistory";
 import {CodexApprovalHandler} from "./permissions/CodexApprovalHandler";
 import {isRecord} from "./permissions/json";
-import {tentativeConfigOptions, validateInitialConfigOptions} from "./SessionConfigOptions";
+import {validateInitialConfigOptions} from "./SessionConfigOptions";
 import {PermissionLifecycleContext} from "./permissions/lifecycle";
 import {CodexElicitationHandler} from "./CodexElicitationHandler";
 import {renderFileCitations} from "./CodexFileCitations";
@@ -2543,19 +2543,6 @@ export class CodexAcpServer {
             throw error;
         }
         const state = this.createSessionOptionState(metadata, previous);
-        // The standard preview takes no choices, so its options are those of the workspace defaults. A draft sends the
-        // values it holds in `_meta.codex.configOptions`; they are applied as initial options are, a stale one skipped.
-        for (const entry of tentativeConfigOptions(params._meta)) {
-            try {
-                if (entry.configId === COLLABORATION_MODE_CONFIG_ID) {
-                    const mode = parseCollaborationMode(this.stringConfigValue(entry));
-                    if (mode === null) throw RequestError.invalidParams();
-                    state.collaborationMode = mode;
-                } else this.changeLocalConfigOption(state, entry);
-            } catch (error) {
-                if (!(error instanceof RequestError && error.code === -32602)) throw error;
-            }
-        }
         return {
             modes: state.agentMode.toSessionModeState(state.clientCapabilities.airClient, state.availableAgentModes),
             ...this.createSessionConfigOptionsResponse(state),

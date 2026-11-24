@@ -164,12 +164,6 @@ setup failures and call `dispose()` when the connection owner is replaced or
 unmounted. Disposal also handles a subscription that finishes registering late.
 The helper only manages observation; Runtime still owns status and read acknowledgement.
 
-## Previewing and creating sessions
-
-`previewSession(cwd, {additionalDirectories?, sessionId?, configOptions?})` sends `session/options` and returns `{configOptions, commands}`; `configOptions` are the choices a draft holds, and the result has the options they lead to: what `session/new` (or, with `sessionId`, `session/resume`) would set up. It creates nothing, lists nothing and publishes no state; it throws when the agent does not advertise `session.options`. The client has no draft sessions: an application keeps an unsent conversation as its own data, built from a preview, and creates the session when the first message is sent. `newSession(cwd, {configOptions})` lists the session as soon as the agent answers, and its initial `configOptions` are applied by the agent in order.
-
-`CodexClient.newSession()` starts a session at standard speed: unless the caller's `configOptions` name `fast-mode`, the request ends with `fast-mode: false`, which a model without Fast skips. `CodexClient.previewSession()` shows that value for a new session; a resume preview keeps the stored one.
-
 ## Projects and conversations without a project
 
 `CodexClient.newSession()` asks the adapter for its remote `~/Documents/ALwith` directory, then sends ACP `session/new` with `_meta.codex.projectId: null`. Passing a directory registers or reuses a native Codex project; passing `options.meta.codex.projectId` selects an existing ID. Codex owns IDs and persistence. Registration errors abort creation.
