@@ -31,8 +31,10 @@ test("a new session starts at standard speed unless the caller chooses Fast", as
     expect(fake.created[1]?.configOptions).toEqual([{configId: "fast-mode", type: "boolean", value: true}]);
 });
 
-test("a preview of a new session shows the standard speed it starts with; a resume preview keeps the stored one", async () => {
+test("a preview of a new session asks for standard speed unless the draft chose Fast; a resume preview asks for nothing", async () => {
     const {client} = await make();
     expect((await client.previewSession("/work")).configOptions).toEqual([{...fast, currentValue: false}]);
+    const chosen: acp.InitialSessionConfigOption[] = [{configId: "fast-mode", type: "boolean", value: true}];
+    expect((await client.previewSession("/work", {configOptions: chosen})).configOptions).toEqual([fast]);
     expect((await client.previewSession("/work", {sessionId: "h1"})).configOptions).toEqual([fast]);
 });

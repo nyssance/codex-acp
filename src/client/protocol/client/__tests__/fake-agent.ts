@@ -111,7 +111,13 @@ export function createFakeAgent(): FakeAgent {
     });
     app.onRequest("session/options", ({params}) => {
         previews.push(params);
-        return {configOptions: optionsFor(params._meta), availableCommands: sessionCommands.current};
+        // The choices a draft holds arrive in `_meta.codex.configOptions`; a boolean one that names an option applies.
+        const chosen = (params._meta as {codex?: {configOptions?: acp.InitialSessionConfigOption[]}} | null | undefined)?.codex?.configOptions ?? [];
+        const configOptions = optionsFor(params._meta).map(option => {
+            const choice = chosen.find(entry => entry.configId === option.configId);
+            return choice?.type === "boolean" && option.type === "boolean" ? ({...option, currentValue: choice.value} as acp.SessionConfigOption) : option;
+        });
+        return {configOptions, availableCommands: sessionCommands.current};
     });
     app.onRequest("session/fork", async ({params, client}) => {
         forks.push(params);

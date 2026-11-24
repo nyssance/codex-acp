@@ -6,7 +6,7 @@ import {sessionGroup, type ProjectContext, type SessionGroup} from "../projects/
 // Moved out of ALwith U's `agent/client.ts` (2026-10-27 chat-layer extraction): the adapter owns
 // its extension protocol, so it ships the client that speaks it.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
-import {type Agent, isBooleanOption, isSelectOption, type Session} from "./protocol";
+import {type Agent, isSelectOption, type Session} from "./protocol";
 import {type StateSetter} from "@alwith/api/client";
 import {
     type ClientOptions,
@@ -89,7 +89,7 @@ const FAST_MODE_CONFIG_ID = "fast-mode";
  * New chats use standard speed even when Codex's global default is priority: the request starts the session with Fast off
  * unless the caller chose a value. A model without Fast skips the entry, as the standard says for one that does not apply.
  */
-function withStandardSpeed(options: SessionRequestOptions): SessionRequestOptions {
+function withStandardSpeed<T extends {configOptions?: acp.InitialSessionConfigOption[]}>(options: T): T {
     if (options.configOptions?.some(option => option.configId === FAST_MODE_CONFIG_ID)) return options;
     return {...options, configOptions: [...(options.configOptions ?? []), {configId: FAST_MODE_CONFIG_ID, type: "boolean", value: false}]};
 }
@@ -278,14 +278,7 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
 
     /** A new session's preview shows the speed it starts with: standard, unless the caller chooses Fast. */
     override async previewSession(cwd: string, options: SessionPreviewOptions = {}): Promise<SessionPreview> {
-        const preview = await super.previewSession(cwd, options);
-        if (options.sessionId !== undefined) return preview;
-        return {
-            ...preview,
-            configOptions: preview.configOptions.map(option =>
-                option.configId === FAST_MODE_CONFIG_ID && isBooleanOption(option) ? {...option, currentValue: false} : option,
-            ),
-        };
+        return super.previewSession(cwd, options.sessionId === undefined ? withStandardSpeed(options) : options);
     }
 
     // ── List dialect ──
