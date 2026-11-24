@@ -20,6 +20,7 @@ import {clientSupportsUrlElicitation} from "./ElicitationCapabilities";
 import type {ProviderStartupConfig} from "./CodexConfigOverride";
 import {isDeepStrictEqual} from "node:util";
 import {createMcpServerSignIn, type McpServerSignIn} from "./mcp/McpServerSignIn";
+import {attributeMcpRequest} from "./mcp/McpRequestAttribution";
 import {getRequestedMcpServerNames, McpSessionStartup, parseMcpStartupAwaitTimeoutMs} from "./mcp/McpSessionStartup";
 import type {CodexAcpClient} from "./CodexAcpClient";
 import {
@@ -70,6 +71,7 @@ import {
     type UpdateSessionEvent,
 } from "./ACPSessionConnection";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
+import type {McpHttpRequestAttribution} from "@agentclientprotocol/sdk/experimental/mcp-http";
 import {toV1ClientCapabilitiesView} from "./AcpV2ClientCapabilities";
 import {toV1InitialConfigOptions, toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
 import {toV2AvailableCommands, toV2SessionUpdates} from "./AcpV2SessionUpdate";
@@ -831,6 +833,18 @@ export class CodexAcpServer {
             handleElicitation: params => (this.childInteractions(params.threadId)?.elicitations ?? fallback).handleElicitation(params),
             handleUserInput: params => (this.childInteractions(params.threadId)?.elicitations ?? fallback).handleUserInput(params),
         };
+    }
+
+    /** Names the ACP session and tool call of an MCP request that Codex sent to a bridged server. */
+    mcpRequestAttribution(
+        params: Record<string, unknown> | undefined, signal: AbortSignal,
+    ): Promise<McpHttpRequestAttribution | undefined> {
+        return attributeMcpRequest(params, {
+            isOpenRootSession: sessionId => this.sessions.has(sessionId) && this.clientDelivery.canRequestSession(sessionId),
+            subagentSessionId: (rootSessionId, threadId) =>
+                this.sessions.get(rootSessionId)?.subagents.subagentSessionId(threadId) ?? null,
+            toolCallSent: (sessionId, toolCallId, wait) => this.clientDelivery.reports.whenSent(sessionId, toolCallId, wait),
+        }, signal);
     }
 
     assertSessionMutationAllowed(sessionId: string): void {

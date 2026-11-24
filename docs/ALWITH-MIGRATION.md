@@ -12,7 +12,7 @@ A change in an upstream-owned file that fits none of them is a defect: upstream-
 
 ## Base and tooling
 
-- Upstream base: 2.12.0 plus one commit (`db6a0d72`).
+- Upstream base: 2.12.0 plus one commit (`db6a0d72`), and upstream's open pull request #802 (`730444ac`, the session and tool call of an MCP-over-ACP request) taken ahead of its merge. When it merges, the next merge of upstream resolves to the same content; if upstream changes it before merging, take upstream's version.
 - Dependencies: ACP SDK 2.9.1, the same as upstream, and Codex 0.172.0 (upstream is on 0.171.0). `src/app-server` is generated from Codex 0.172.0 with `bun run generate-types` (experimental API included) and not edited by hand.
 - Bun is the package manager; `bun.lock` is the lockfile. The package version, name and release workflow are the fork's own; upstream's release-please files are not kept.
 - Formatting matches upstream. No formatter runs on this repository (see `AGENTS.md`).

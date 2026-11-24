@@ -1,5 +1,6 @@
 ## Unreleased
 
+- An `mcp/message` request for a `tools/call` names the ACP session and tool call it was sent for, in `sessionId` and `toolCallId`: the root session for the root agent, the child session for a subagent that has one. Taken from upstream's open pull request #802 ahead of its merge; `docs/mcp-over-acp.md` has the wire contract.
 - Merged upstream 2.11.0 and 2.12.0: session cursors (`cursor_update`, `cursorId = "before:<turnId>"`), `session/fork` with a `cursorId`, and `_session/rewind` for v1 clients that declare the AIR extension. A v2 client now receives `cursor_update` on live turns and on replay.
 - Replacing a sent message is refused while the session has background terminals: `thread/revert` reloads the thread, which ends them.
 
