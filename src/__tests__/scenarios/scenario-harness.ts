@@ -79,6 +79,7 @@ function thread(items: Record<string, unknown>[], cwd: string): Record<string, u
         extra: null,
         canAcceptDirectInput: null,
         daybreakEnabled: null,
+        daybreakProgramPropagationEnrolled: null,
         id: SESSION_ID,
         sessionId: SESSION_ID,
         parentThreadId: null,

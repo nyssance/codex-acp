@@ -12,8 +12,8 @@ A change in an upstream-owned file that fits none of them is a defect: upstream-
 
 ## Base and tooling
 
-- Upstream base: 2.9.0 (`e3a679f1`).
-- Dependencies: ACP SDK 2.9.1 and Codex 0.171.0, the same as upstream. `src/app-server` is generated from Codex 0.171.0 with `bun run generate-types` (experimental API included) and not edited by hand.
+- Upstream base: 2.10.0 plus three commits (`394f2fad`).
+- Dependencies: ACP SDK 2.9.1, the same as upstream, and Codex 0.172.0 (upstream is on 0.171.0). `src/app-server` is generated from Codex 0.172.0 with `bun run generate-types` (experimental API included) and not edited by hand.
 - Bun is the package manager; `bun.lock` is the lockfile. The package version, name and release workflow are the fork's own; upstream's release-please files are not kept.
 - Formatting matches upstream. No formatter runs on this repository (see `AGENTS.md`).
 - Upstream merges land on `main` through reviewed merges that keep upstream ancestry.
@@ -80,6 +80,7 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 - **Turn timing.** A completed v2 turn re-sends its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and `workDurationMs`. A turn without Codex's start or completion time carries none.
 - **Failed turn message.** A failed v2 turn sends one `codex-error:<turnId>` `agent_message` with `_meta.codex.error.{kind,category,actions}` from upstream's own classification (`src/CodexFailures.ts`, moved out of `CodexEventHandler.ts` so the exported client can import it), live and on replay. Upstream sends the error as an `agent_message_chunk`.
 - **Guardian warnings.** Failures and interruptions of automatic approval review are shown as warnings; upstream drops every `guardianWarning` ([fallbacks.md](fallbacks.md) has the text match).
+- **Question replies.** An answer to an asynchronous question is a `user_message` with its structured parts (`_meta.codex.questionReplyParts`), live and on replay. Since 2.10.0 upstream replays it as a completed tool call and does not show it live; the shared chat UI renders the user-message form.
 - **Fast mode.** A model offers fast mode when its `additionalSpeedTiers` include `priority` as well as `fast`.
 
 **Subagents**

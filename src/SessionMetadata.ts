@@ -12,35 +12,38 @@ import type {
 import type {SessionInstructions} from "./ClientSystemPrompt";
 import type {McpStartupFailure} from "./mcp/McpStartupTracker";
 
-export type SessionMetadata = {
-    sessionId: string;
-    agentMode?: AgentMode | undefined;
-    readOnly?: boolean;
-    lineage?: {
-        projectId?: string | null;
-        nativeSessionId: string | null;
-        forkedFromId: string | null;
-        forkedAtTurnId?: string | null;
-    };
-    permissionProfile?: string | null | undefined;
-    /** The thread's own reviewer; `approvalsReviewer` is the configured default for profile modes. */
-    threadApprovalsReviewer?: ApprovalsReviewer | undefined;
-    currentModelId: string;
-    models: Model[];
-    collaborationMode: ModeKind;
-    modelProvider?: string | null;
-    currentServiceTier?: string | null;
-    threadStatus?: ThreadStatus;
-    additionalDirectories: string[];
-    skippedMcpServers?: string[];
-    mcpStartupFailures?: McpStartupFailure[];
-    instructions?: SessionInstructions;
-    sessionTitle?: string | null;
-    activePermissionProfileId?: string | null;
-    approvalPolicy?: AskForApproval;
-    approvalsReviewer?: ApprovalsReviewer;
-    permissionProfiles?: PermissionProfileSummary[];
+export type SessionOptionMetadata = {
+    currentModelId: string,
+    models: Model[],
+    collaborationMode: ModeKind,
+    currentServiceTier?: string | null,
+    activePermissionProfileId?: string | null,
+    approvalPolicy?: AskForApproval,
+    approvalsReviewer?: ApprovalsReviewer,
+    permissionProfiles?: PermissionProfileSummary[],
 };
+
+export type SessionMetadata = SessionOptionMetadata & {
+    sessionId: string,
+    agentMode?: AgentMode | undefined,
+    readOnly?: boolean,
+    lineage?: {
+        projectId?: string | null,
+        nativeSessionId: string | null,
+        forkedFromId: string | null,
+        forkedAtTurnId?: string | null,
+    },
+    permissionProfile?: string | null | undefined,
+    /** The thread's own reviewer; `approvalsReviewer` is the configured default for profile modes. */
+    threadApprovalsReviewer?: ApprovalsReviewer | undefined,
+    modelProvider?: string | null,
+    threadStatus?: ThreadStatus,
+    additionalDirectories: string[],
+    skippedMcpServers?: string[],
+    mcpStartupFailures?: McpStartupFailure[],
+    instructions?: SessionInstructions,
+    sessionTitle?: string | null,
+}
 
 export type SessionMetadataWithThread = SessionMetadata & {
     /** The thread metadata. Its `turns` are empty: the items are in `history`. */

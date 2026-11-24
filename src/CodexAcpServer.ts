@@ -11,6 +11,7 @@ import {CodexEventHandler, type CompletedPlan, failureWasShownAsMessage, Session
 import {attachmentFileUri, desktopAttachmentHistory} from "./DesktopAttachmentHistory";
 import {CodexApprovalHandler} from "./permissions/CodexApprovalHandler";
 import {isRecord} from "./permissions/json";
+import {validateInitialConfigOptions} from "./SessionConfigOptions";
 import {PermissionLifecycleContext} from "./permissions/lifecycle";
 import {CodexElicitationHandler} from "./CodexElicitationHandler";
 import {renderFileCitations} from "./CodexFileCitations";
@@ -42,16 +43,19 @@ import {
     isMissingRolloutError,
     isThreadClosingError,
     isThreadNotMaterializedError,
+    isNonSteerableTurnError,
     isThreadNotFoundError,
     isThreadNotLoadedError,
     parseExpectedActiveTurnMismatch,
     sessionNotFoundRequestError,
+    storedSessionError,
 } from "./CodexThreadErrors";
 import {requiresLogout} from "./CodexErrorExplanations";
 import {type CodexConnection} from "./CodexJsonRpcConnection";
 import {AppServerRecovery, recoveryLimitsFromEnv} from "./app-server-recovery/AppServerRecovery";
 import {
     CODEX_PROCESS_EXITED_ERROR_CODE,
+    isAppServerUnavailableError,
     SessionReplacedError,
     ThreadRefusedError,
     UnpersistedSessionLostError,
@@ -67,7 +71,7 @@ import {
 } from "./ACPSessionConnection";
 import type * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {toV1ClientCapabilitiesView} from "./AcpV2ClientCapabilities";
-import {toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
+import {toV1InitialConfigOptions, toV1SetSessionConfigOptionRequest, toV2ConfigOptions} from "./AcpV2ConfigOptions";
 import { toV2AvailableCommands, toV2SessionUpdates } from "./AcpV2SessionUpdate";
 import { toV2ReplayUpdates, type ReplayedEntities } from "./AcpV2Replay";
 import {changesSystemPrompt, clientSystemPromptText, toV1SystemPrompt, type SessionInstructions} from "./ClientSystemPrompt";
@@ -81,6 +85,7 @@ import {
     toV2Failure,
     toV2IdleState,
     type UserMessageInsertion,
+    type V2SteeringPrompt,
 } from "./AcpV2Prompt";
 import type {InputModality, ReasoningEffort, ServerNotification} from "./app-server";
 import type {
@@ -119,8 +124,9 @@ import {
 } from "./ModelConfigOption";
 import type {TokenCount} from "./TokenCount";
 import {PromptTokenUsage, toPromptUsage, ZERO_TOKEN_COUNT} from "./TokenCount";
-import {CodexCommands} from "./CodexCommands";
+import {CodexCommands, type PromptKind} from "./CodexCommands";
 import {SteeringQueue} from "./SteeringQueue";
+import type {TurnStartReservation} from "./TurnStartReservation";
 import type {QuotaMeta} from "./QuotaMeta";
 import {logger} from "./Logger";
 import {settledWithin} from "./StdUtils";
@@ -175,6 +181,7 @@ import {
     serviceTierEnablesFast,
 } from "./FastModeConfig";
 import packageJson from "../package.json";
+import {SteerLanding} from "./SteerLanding";
 import {isJetBrains2026_1Client} from "./JBUtils";
 import {clientSupportsNotices, createSessionNotice} from "./SessionNotice";
 import {AsyncQuestionClient, AsyncQuestionElicitations, renderAsyncQuestionReply} from "./CodexAsyncQuestions";
@@ -241,10 +248,11 @@ import {
     JETBRAINS_META_KEY,
     publishAirSessionMetadata,
 } from "./AirExtension";
+import type {SessionOptionMetadata} from "./SessionMetadata";
 import {SessionIndexService} from "./SessionIndexService";
 import type {SessionIndexTitleState} from "./SessionIndexTitles";
 import {ASYNC_TASK_STOP_METHOD} from "./async-tasks/AsyncTaskExtension";
-import {CodexBackgroundTerminalTasks} from "./async-tasks/CodexBackgroundTerminalTasks";
+import {CodexBackgroundTasks} from "./async-tasks/CodexBackgroundTasks";
 import {clientSupportsCompaction, CodexSessionCompactions, createCompactionUpdate} from "./CodexSessionCompactions";
 import {CodexSessionToolCalls} from "./CodexSessionToolCalls";
 import {
@@ -260,11 +268,9 @@ import {
 } from "./AgentFileChangeReport";
 
 
-export interface SessionState extends SessionIndexTitleState {
-    readOnly?: boolean;
-    lineage?: SessionMetadata["lineage"];
-    sessionId: string;
-    instructions?: SessionInstructions;
+interface SessionOptionState {
+    /** Client selections that a Codex thread read or resume may not yet reflect. */
+    localConfigOverrides?: Set<string>;
     currentModelId: string,
     availableModels: Array<Model>,
     supportedReasoningEfforts: Array<ReasoningEffortOption>,
@@ -272,6 +278,16 @@ export interface SessionState extends SessionIndexTitleState {
     agentMode: AgentMode,
     availableAgentModes: AgentMode[],
     collaborationMode: ModeKind,
+    fastModeEnabled: boolean;
+    currentModelSupportsFast: boolean;
+    clientCapabilities: ClientCapabilities;
+}
+
+export interface SessionState extends SessionIndexTitleState, SessionOptionState {
+    sessionId: string,
+    readOnly?: boolean;
+    lineage?: SessionMetadata["lineage"];
+    instructions?: SessionInstructions;
     /** The active turn: its completion, errors and stop reason are matched against this id. */
     currentTurnId: string | null;
     /**
@@ -302,11 +318,7 @@ export interface SessionState extends SessionIndexTitleState {
     cwd: string;
     additionalDirectories: string[];
     mcpServers?: Array<AcpMcpServer>;
-    fastModeEnabled: boolean;
-    currentModelSupportsFast: boolean;
     sessionMcpServers?: Array<string>;
-    /** The capability choices of the client for tool call and plan reports. */
-    clientCapabilities: ClientCapabilities;
     currentGoal?: ThreadGoalSnapshot | null;
     goalRevision: number;
     sessionTitle: string | null;
@@ -317,7 +329,7 @@ export interface SessionState extends SessionIndexTitleState {
     promptSuggestions?: PromptSuggestionGenerator | undefined;
     subagents: SubagentEventRouter;
     subagentTransition?: Promise<void>;
-    asyncTasks: CodexBackgroundTerminalTasks;
+    asyncTasks: CodexBackgroundTasks;
     compactions: CodexSessionCompactions;
     toolCallReports: ToolCallReports;
     /**
@@ -353,6 +365,9 @@ export interface SessionFailure {
  * enough that a wedged generation cannot hold a load open.
  */
 const TITLE_GENERATION_SETTLE_TIMEOUT_MS = 10_000;
+
+// Codex persists this identity in userMessage.clientId, so history can omit the internal command.
+const PLAN_IMPLEMENTATION_MESSAGE_ID_PREFIX = "codex-acp:plan-implementation:";
 
 /**
  * Backoff for re-sending `turn/interrupt` when Codex reports the turn is not
@@ -452,31 +467,14 @@ interface PendingTurnStart {
     resolve: (turnId: string | null) => void;
 }
 
-/**
- * One session's place in the shared per-session turn-start FIFO (see
- * `CodexAcpServer.acquireTurnStartReservation`). `wait` resolves once every earlier reservation
- * on the session has released; `release` must be called exactly once, by whoever ends up owning
- * the turn this reservation was taken for, so the next queued starter can proceed.
- *
- * `needsWait` is false when there was nothing to wait for (a fresh session, or the previous
- * holder already released). Callers should skip `await wait` in that case: awaiting an
- * already-resolved promise still costs a microtask tick, which is enough to reorder synchronous
- * setup (event-subscription registration, etc.) against a caller that fires a prompt without
- * awaiting it and immediately does other synchronous work.
- */
-interface TurnStartReservation {
-    wait: Promise<void>;
-    needsWait: boolean;
-    release: () => void;
-}
-
 interface ActivePrompt {
+    inputKind: PromptKind;
     completion: Promise<void>;
     closeSignal: Promise<null>;
     cancelSignal: Promise<null>;
     signal: AbortSignal;
     /**
-     * Aborted for outbound permission/elicitation requests only (plain `session/cancel`,
+     * Aborted for outbound interactions and external-turn waits (plain `session/cancel`,
      * `requestCancel`, `requestClose`). Kept separate from `signal`, which also drives pre-turn
      * prompt flow (`cancelBeforeTurnStarted`, local commands, native-subagent waits,
      * `interruptLateStartedTurn`) and must keep its current behavior on plain `session/cancel`.
@@ -604,12 +602,10 @@ export class CodexAcpServer {
     private readonly asyncQuestions = new Map<string, AsyncQuestionElicitations>();
     /**
      * Steers awaiting their `userMessage` landing, keyed by the minted `clientUserMessageId`
-     * passed to `turn/steer`. Used only to show a v2 live `user_message` when a steer injected
-     * into an already-running turn lands (there is no `prompt()` call to hook into for that
-     * path); v1 has nothing to emit. A steer that starts a new turn instead goes through
-     * `prompt()`'s own `UserMessageInsertion` tracking and never enters this map.
+     * passed to `turn/steer`. Native v2 prompts also wait for this insertion before answering.
+     * A steer that starts a new turn uses `prompt()` insertion tracking instead.
      */
-    private readonly pendingSteerLandings: Map<string, {sessionId: string; prompt: acp.ContentBlock[]}>;
+    private readonly pendingSteerLandings: Map<string, SteerLanding>;
     /** Sessions with a v2 prompt that has not finished yet, including before its turn starts. */
     private readonly v2PromptsInFlight = new Set<string>();
     private readonly v2PromptKeys = new Map<string, AcpV2PromptKeys>();
@@ -911,6 +907,7 @@ export class CodexAcpServer {
             close: { },
             delete: { },
             fork: { },
+            ...(this.isSessionConfigEnabled() && {options: {}}),
             title: {},
             additionalDirectories: {},
             // Standard subagent sessions have no Agent-side capability. Only AIR's contract negotiates both sides.
@@ -1024,6 +1021,7 @@ export class CodexAcpServer {
                     archive: {},
                     additionalDirectories: {},
                     fork: {},
+                    ...(this.isSessionConfigEnabled() && {options: {}}),
                     title: {},
                     systemPrompt: {},
                 },
@@ -1057,8 +1055,6 @@ export class CodexAcpServer {
                 AIR_SESSION_FAILURE_KEY,
                 AIR_AGENT_FILE_CHANGE_REPORT_KEY,
                 AIR_CUSTOM_INSTRUCTIONS_KEY,
-                AIR_NATIVE_SUBAGENT_SESSIONS_KEY,
-                AIR_ASYNC_TASKS_KEY,
                 AIR_RECOMMENDED_CONFIG_VALUE_KEY,
                 ...this.sessionIndex.agentCapabilities(),
             ];
@@ -1504,6 +1500,7 @@ export class CodexAcpServer {
             | WithAcpMcpServers<acp.ForkSessionRequest>,
         operation: "new" | "resume" | "fork" = "sessionId" in request ? "resume" : "new",
     ): Promise<[SessionId, LegacySessionModelState, SessionModeState]> {
+        validateInitialConfigOptions(request.configOptions);
         clientSystemPromptText(request.systemPrompt);
         const modeHint = (request._meta?.["codex"] as {mode?: unknown} | undefined)?.mode;
         const usesInitialMode = modeHint === undefined || (modeHint === "custom" && "sessionId" in request);
@@ -1550,6 +1547,7 @@ export class CodexAcpServer {
                         },
                         previousInstructions,
                         this.protocolVersion === 2,
+                        this.liveSessionOptions(this.sessions.get(resumeRequest.sessionId)),
                     );
                 });
             } catch (err) {
@@ -1585,7 +1583,7 @@ export class CodexAcpServer {
             });
         }
 
-        const {sessionId, currentModelId, models} = sessionMetadata;
+        const {sessionId} = sessionMetadata;
         const authProvider = sessionMetadata.modelProvider ?? this.codexAcpClient.getModelProvider();
         let authState: ActiveAuthState;
         try {
@@ -1607,32 +1605,22 @@ export class CodexAcpServer {
             await this.closeStaleSessionOpen(sessionId, sessionGeneration);
         }
         const sessionMcpServers = this.resolveSessionMcpServers(requestedMcpServers, operation === "resume");
-        const currentModel = this.findCurrentModel(models, currentModelId);
-        const currentModelSupportsFast = modelSupportsFast(currentModel);
         // A resume, and a v2 fork that replays its history, send updates before their response; their
         // replayed subagents must not wait for that response.
         const replaysBeforeResponse = operation === "resume" || (operation === "fork" && this.protocolVersion === 2);
         if (this.setupResponseOrdering && !replaysBeforeResponse) this.clientDelivery.beginSessionSetup(sessionId);
-        const availableAgentModes = AgentMode.all(
-            sessionMetadata.permissionProfiles,
-            sessionMetadata.approvalPolicy,
-            sessionMetadata.approvalsReviewer,
-        );
-        const initialMode = hintedMode ?? AgentMode.getInitialAgentMode(
-            availableAgentModes,
-            sessionMetadata.activePermissionProfileId,
-        );
+        const previousState = operation === "resume" ? this.sessions.get(sessionId) : undefined;
+        const optionState = this.createSessionOptionState(sessionMetadata, previousState);
+        const initialMode = hintedMode ?? optionState.agentMode;
         const sessionState: SessionState = {
             sessionId,
             readOnly: sessionMetadata.readOnly ?? false,
             ...(sessionMetadata.lineage ? {lineage: sessionMetadata.lineage} : {}),
-            currentModelId,
-            availableModels: models,
-            supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
-            supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: operation !== "new" || modeHint === undefined ? this.restoredAgentMode(sessionMetadata, initialMode) : initialMode,
-            availableAgentModes,
-            collaborationMode: sessionMetadata.collaborationMode,
+            ...optionState,
+            // A mode the client picked locally before this resume outlives what the thread reports.
+            agentMode: previousState?.localConfigOverrides?.has(MODE_CONFIG_ID)
+                ? optionState.agentMode
+                : operation !== "new" || modeHint === undefined ? this.restoredAgentMode(sessionMetadata, initialMode) : initialMode,
             currentTurnId: null,
             interruptTurnId: null,
             codexReportedRunningTurnId: null,
@@ -1649,10 +1637,7 @@ export class CodexAcpServer {
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            fastModeEnabled: serviceTierEnablesFast(sessionMetadata.currentServiceTier),
-            currentModelSupportsFast,
             sessionMcpServers,
-            clientCapabilities: this.capabilities,
             goalRevision: 0,
             sessionTitle: sessionMetadata.sessionTitle ?? null,
             sessionTitleSource: operation === "resume" ? "unknown" : "unset",
@@ -1678,6 +1663,8 @@ export class CodexAcpServer {
             this.startCodexTurnTracker(sessionId, Promise.resolve(sessionState));
         }
         resumeSubscribed = false;
+
+        if (request.configOptions?.length) await this.applyInitialConfigOptions(sessionState, request.configOptions);
 
         const canPublishSessionUpdates = operation !== "fork";
         if (requestedMcpServers.length > 0 && mcpServerStartupVersion !== null) {
@@ -1709,7 +1696,7 @@ export class CodexAcpServer {
             this.publishCurrentGoalAsync(sessionState, sessionGeneration);
             this.publishAsyncTasksAsync(sessionState, sessionGeneration);
         }
-        const sessionModelState: LegacySessionModelState = this.createModelState(models, currentModelId);
+        const sessionModelState = this.createModelState(sessionState.availableModels, sessionState.currentModelId);
         const sessionModeState: SessionModeState =
             sessionState.agentMode.toSessionModeState(
                 sessionState.clientCapabilities.airClient,
@@ -1849,11 +1836,11 @@ export class CodexAcpServer {
         return a === b;
     }
 
-    private createAsyncTasks(sessionId: string): CodexBackgroundTerminalTasks {
+    private createAsyncTasks(sessionId: string): CodexBackgroundTasks {
         const existing = this.sessions.get(sessionId)?.asyncTasks;
         if (this.protocolVersion === 2 && existing) return existing;
-        return new CodexBackgroundTerminalTasks(
-            clientSupportsAirCapability(this.clientCapabilities, AIR_ASYNC_TASKS_KEY),
+        return new CodexBackgroundTasks(
+            this.protocolVersion === 1 && clientSupportsAirCapability(this.clientCapabilities, AIR_ASYNC_TASKS_KEY),
             sessionId,
             this.codexAcpClient.appServerClient,
             new ACPSessionConnection(this.connection, sessionId),
@@ -2049,6 +2036,7 @@ export class CodexAcpServer {
         if (this.v2PromptsInFlight.has(sessionId) && state.state === "idle" && !this.sessionIsClosing(sessionId)) {
             return;
         }
+        if (state.state === "idle") this.finishSteerLandings(sessionId, state.stopReason === "cancelled");
         const session = new ACPSessionConnection(this.connection, sessionId);
         if (session.protocolVersion !== 2) {
             return;
@@ -2087,11 +2075,7 @@ export class CodexAcpServer {
      */
     private async trackSteerLanding(sessionState: SessionState, event: ServerNotification): Promise<void> {
         if (event.method === "turn/completed" && event.params.threadId === sessionState.sessionId) {
-            for (const [clientUserMessageId, entry] of this.pendingSteerLandings) {
-                if (entry.sessionId === sessionState.sessionId) {
-                    this.pendingSteerLandings.delete(clientUserMessageId);
-                }
-            }
+            this.finishSteerLandings(sessionState.sessionId, event.params.turn.status === "interrupted", event.params.turn.id);
             return;
         }
         for (const [clientUserMessageId, entry] of this.pendingSteerLandings) {
@@ -2099,14 +2083,23 @@ export class CodexAcpServer {
                 && isInsertedUserMessage(event, sessionState.sessionId, clientUserMessageId)) {
                 this.pendingSteerLandings.delete(clientUserMessageId);
                 await this.emitLiveSteerUserMessage(sessionState.sessionId, clientUserMessageId, entry.prompt, event.params.turnId);
+                entry.inserted();
                 return;
             }
         }
     }
 
+    private finishSteerLandings(sessionId: string, cancelled: boolean, turnId?: string): void {
+        for (const [messageId, entry] of this.pendingSteerLandings) {
+            if (entry.sessionId === sessionId && (turnId === undefined || entry.turnId === turnId)) {
+                this.pendingSteerLandings.delete(messageId);
+                entry.ended(cancelled);
+            }
+        }
+    }
+
     /**
-     * Shows a landed steer as a live-only `user_message` (v2 only; the steering response itself
-     * carries no `messageId`, per user decision).
+     * Shows landed steering input on v2. An elicitation reply stays in its form summary.
      */
     private async emitLiveSteerUserMessage(sessionId: string, messageId: string, prompt: acp.ContentBlock[], turnId: string | undefined): Promise<void> {
         const session = new ACPSessionConnection(this.connection, sessionId);
@@ -2251,9 +2244,8 @@ export class CodexAcpServer {
     }
 
     async resumeSessionV2(params: acpV2.ResumeSessionRequest, signal?: AbortSignal): Promise<acpV2.ResumeSessionResponse> {
-        // session.options is not implemented, so initial config values are not applied.
-        const {replayFrom, systemPrompt, configOptions: _configOptions, ...rest} = params;
-        const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt)};
+        const {replayFrom, systemPrompt, configOptions, ...rest} = params;
+        const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt), ...toV1InitialConfigOptions(configOptions)};
         if (replayFrom != null && replayFrom.type !== "start") {
             throw RequestError.invalidParams(undefined, `Unsupported replayFrom type: ${replayFrom.type}`);
         }
@@ -2344,9 +2336,8 @@ export class CodexAcpServer {
     }
 
     async forkSessionV2(params: acpV2.ForkSessionRequest): Promise<acpV2.ForkSessionResponse> {
-        // session.options is not implemented, so initial config values are not applied.
-        const {systemPrompt, configOptions: _configOptions, ...rest} = params;
-        const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt)};
+        const {systemPrompt, configOptions, ...rest} = params;
+        const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt), ...toV1InitialConfigOptions(configOptions)};
         const {sessionId} = await this.forkSession(request);
         const generation = this.getSessionGeneration(sessionId);
         try {
@@ -2401,6 +2392,10 @@ export class CodexAcpServer {
     }
 
     async closeSession(params: acp.CloseSessionRequest): Promise<acp.CloseSessionResponse> {
+        return this.closeSessionOnce(params);
+    }
+
+    private async closeSessionOnce(params: acp.CloseSessionRequest, disconnected?: CodexAcpClient): Promise<acp.CloseSessionResponse> {
         logger.log("Closing session...", {sessionId: params.sessionId});
         if (!this.hasLocalSession(params.sessionId)) {
             this.finishSessionDelivery(params.sessionId, []);
@@ -2434,7 +2429,9 @@ export class CodexAcpServer {
                 await activePrompt.completion;
             }
 
-            if (this.recovery === null || this.recovery.isReady() && (!sessionState || this.recovery.sessionIsLive(sessionState))) {
+            if (disconnected) {
+                disconnected.discardSessionSubscription(params.sessionId);
+            } else if (this.recovery === null || this.recovery.isReady() && (!sessionState || this.recovery.sessionIsLive(sessionState))) {
                 await this.runWithProcessCheck(() => this.codexAcpClient.closeSession(params.sessionId));
             } else {
                 // The thread is not loaded in a running app-server: nothing to close there, and no restart for it.
@@ -2520,6 +2517,42 @@ export class CodexAcpServer {
         return this.sessionOpenGenerations.get(sessionId) === this.getSessionGeneration(sessionId);
     }
 
+    private liveSessionOptions(previous: SessionState | undefined) {
+        return previous && (this.recovery === null || this.recovery.sessionIsLive(previous)) ? {
+            collaborationMode: previous.collaborationMode,
+            currentServiceTier: previous.fastModeEnabled ? "fast" : null,
+            activePermissionProfileId: previous.agentMode.permissionProfileId,
+        } : undefined;
+    }
+
+    async sessionOptions(params: acp.SessionOptionsRequest): Promise<acp.SessionOptionsResponse> {
+        if (this.providerUpdate !== null) await this.waitForProviderUpdate();
+        const appServer = this.ensureAppServer();
+        if (appServer) await appServer;
+        const previous = params.sessionId == null ? undefined : this.sessions.get(params.sessionId);
+        const live = this.liveSessionOptions(previous);
+        let metadata: SessionOptionMetadata;
+        try {
+            metadata = await this.runWithProcessCheck(() => this.codexAcpClient.readSessionOptions(params, live));
+        } catch (error) {
+            if (params.sessionId != null) throw storedSessionError(params.sessionId, error, this.sessionIndex.enabled);
+            throw error;
+        }
+        const state = this.createSessionOptionState(metadata, previous);
+        return {
+            modes: state.agentMode.toSessionModeState(state.clientCapabilities.airClient, state.availableAgentModes),
+            ...this.createSessionConfigOptionsResponse(state),
+        };
+    }
+
+    async sessionOptionsV2(params: acpV2.SessionOptionsRequest): Promise<acpV2.SessionOptionsResponse> {
+        const {configOptions} = await this.sessionOptions(params);
+        return {
+            ...(configOptions && {configOptions: toV2ConfigOptions(configOptions)}),
+            availableCommands: toV2AvailableCommands(this.availableCommands.getBuiltinCommands(this.capabilities.airClient)),
+        };
+    }
+
     async newSession(
         params: WithAcpMcpServers<acp.NewSessionRequest>,
     ): Promise<LegacyNewSessionResponse> {
@@ -2546,9 +2579,8 @@ export class CodexAcpServer {
     }
 
     async newSessionV2(params: acpV2.NewSessionRequest): Promise<acpV2.NewSessionResponse> {
-        // session.options is not implemented, so initial config values are not applied.
-        const {systemPrompt, configOptions: _configOptions, ...rest} = params;
-        const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt)};
+        const {systemPrompt, configOptions, ...rest} = params;
+        const request = {...rest, systemPrompt: toV1SystemPrompt(systemPrompt), ...toV1InitialConfigOptions(configOptions)};
         const {sessionId} = await this.newSession(request);
         return {
             sessionId,
@@ -3508,27 +3540,76 @@ export class CodexAcpServer {
     }
 
     private async applySessionConfigOption(sessionState: SessionState, params: acp.SetSessionConfigOptionRequest): Promise<void> {
-        await this.updateSessionConfig(sessionState, async () => {
-            switch (params.configId) {
-                case FAST_MODE_CONFIG_ID:
-                    this.applyFastModeChange(sessionState, params);
-                    break;
-                case MODE_CONFIG_ID:
-                    await this.applyModeChange(sessionState, this.stringConfigValue(params));
-                    break;
-                case COLLABORATION_MODE_CONFIG_ID:
-                    await this.applyCollaborationModeChange(sessionState, this.stringConfigValue(params));
-                    break;
-                case MODEL_CONFIG_ID:
-                    await this.applyModelChange(sessionState, this.stringConfigValue(params));
-                    break;
-                case REASONING_EFFORT_CONFIG_ID:
-                    this.applyReasoningEffortChange(sessionState, this.stringConfigValue(params));
-                    break;
-                default:
-                    throw RequestError.invalidParams();
+        await this.updateSessionConfig(sessionState, () => this.changeConfigOption(sessionState, params));
+    }
+
+    private async applyInitialConfigOptions(
+        state: SessionState,
+        entries: acp.InitialSessionConfigOption[],
+        settleTrackerReady?: (state: null) => void,
+    ): Promise<void> {
+        if (!this.isSessionConfigEnabled()) return;
+        const client = this.codexAcpClient;
+        let options = this.createSessionConfigOptions(state);
+        for (const entry of entries) {
+            const option = options.find(option => option.id === entry.configId);
+            if (!option || typeof option.currentValue !== typeof entry.value) continue;
+            try {
+                await this.changeConfigOption(state, entry);
+            } catch (error) {
+                if (isAppServerUnavailableError(error)) {
+                    settleTrackerReady?.(null);
+                    if (this.sessions.get(state.sessionId) === state) {
+                        await this.closeSessionOnce({sessionId: state.sessionId}, client).catch(closeError => {
+                            logger.error(`Failed to close session ${state.sessionId} after its app-server exited during setup`, closeError);
+                        });
+                    }
+                    throw error;
+                }
+                // A stale choice or a runtime refusal leaves the resolved value in place.
+                logger.log("Ignoring unavailable initial config value", {configId: entry.configId, error: String(error)});
+                continue;
             }
-        });
+            // An applied entry can change the choices and even remove an option.
+            options = this.createSessionConfigOptions(state);
+        }
+    }
+
+    private async changeConfigOption(sessionState: SessionState, params: acp.InitialSessionConfigOption): Promise<void> {
+        if (params.configId === COLLABORATION_MODE_CONFIG_ID) {
+            return this.applyCollaborationModeChange(sessionState, this.stringConfigValue(params));
+        }
+        // A live session's permission and provider change in Codex before the local state follows.
+        if (params.configId === MODE_CONFIG_ID) {
+            const value = this.stringConfigValue(params);
+            if (value === "custom" && sessionState.agentMode.id === "custom") return;
+            await this.sendModeChange(sessionState, value);
+        }
+        if (params.configId === MODEL_CONFIG_ID) {
+            const value = this.stringConfigValue(params);
+            if (sessionState.availableModels.some(model => model.id === value)) await this.rebindSessionProvider(sessionState, value);
+        }
+        this.changeLocalConfigOption(sessionState, params);
+    }
+
+    private changeLocalConfigOption(state: SessionOptionState, params: acp.InitialSessionConfigOption, preferredEffort?: string): void {
+        switch (params.configId) {
+            case FAST_MODE_CONFIG_ID:
+                this.applyFastModeChange(state, params);
+                break;
+            case MODE_CONFIG_ID:
+                this.applyModeChange(state, this.stringConfigValue(params));
+                break;
+            case MODEL_CONFIG_ID:
+                this.applyModelChange(state, this.stringConfigValue(params), preferredEffort);
+                break;
+            case REASONING_EFFORT_CONFIG_ID:
+                this.applyReasoningEffortChange(state, this.stringConfigValue(params));
+                break;
+            default:
+                throw RequestError.invalidParams();
+        }
+        (state.localConfigOverrides ??= new Set()).add(params.configId);
     }
 
     private async updateSessionConfig(sessionState: SessionState, change: () => void | Promise<void>): Promise<void> {
@@ -3544,7 +3625,7 @@ export class CodexAcpServer {
         }
     }
 
-    private applyFastModeChange(sessionState: SessionState, params: acp.SetSessionConfigOptionRequest): void {
+    private applyFastModeChange(sessionState: SessionOptionState, params: acp.InitialSessionConfigOption): void {
         const value = params.value;
         if (typeof value === "boolean") {
             sessionState.fastModeEnabled = value;
@@ -3556,15 +3637,23 @@ export class CodexAcpServer {
         sessionState.fastModeEnabled = value === FAST_MODE_ON;
     }
 
-    private stringConfigValue(params: acp.SetSessionConfigOptionRequest): string {
+    private stringConfigValue(params: acp.InitialSessionConfigOption): string {
         if (typeof params.value !== "string") {
             throw RequestError.invalidParams();
         }
         return params.value;
     }
 
-    private async applyModeChange(sessionState: SessionState, value: string): Promise<void> {
-        if (value === "custom" && sessionState.agentMode.id === "custom") return;
+    private applyModeChange(sessionState: SessionOptionState, value: string): void {
+        const newMode = AgentMode.find(value, sessionState.availableAgentModes);
+        if (!newMode) {
+            throw RequestError.invalidParams();
+        }
+        sessionState.agentMode = newMode;
+    }
+
+    /** Sends a live session's permission selection to its Codex thread; the local state follows. */
+    private async sendModeChange(sessionState: SessionState, value: string): Promise<void> {
         const newMode = AgentMode.find(value, sessionState.availableAgentModes);
         if (!newMode) {
             throw RequestError.invalidParams();
@@ -3580,7 +3669,6 @@ export class CodexAcpServer {
         if (this.sessions.get(sessionState.sessionId) !== sessionState || this.sessionIsClosing(sessionState.sessionId)) {
             throw RequestError.invalidRequest(undefined, "Permission selection belongs to a closed session");
         }
-        sessionState.agentMode = newMode;
     }
 
     private async applyCollaborationModeChange(sessionState: SessionState, value: string): Promise<void> {
@@ -3597,7 +3685,7 @@ export class CodexAcpServer {
         sessionState.collaborationMode = mode;
     }
 
-    private async applyModelChange(sessionState: SessionState, value: string): Promise<void> {
+    private applyModelChange(sessionState: SessionOptionState, value: string, preferredEffort?: string): void {
         const model = sessionState.availableModels.find(m => m.id === value);
         if (!model) {
             const currentModel = ModelId.fromString(sessionState.currentModelId).model;
@@ -3606,14 +3694,13 @@ export class CodexAcpServer {
             }
             throw RequestError.invalidParams();
         }
-        const currentEffort = ModelId.fromString(sessionState.currentModelId).effort;
+        const currentEffort = preferredEffort ?? ModelId.fromString(sessionState.currentModelId).effort;
         const effort = findSupportedEffort(model.supportedReasoningEfforts, currentEffort)
             ?? model.defaultReasoningEffort;
-        await this.rebindSessionProvider(sessionState, value);
         this.applyModelAndEffort(sessionState, model, effort);
     }
 
-    private applyReasoningEffortChange(sessionState: SessionState, value: string): void {
+    private applyReasoningEffortChange(sessionState: SessionOptionState, value: string): void {
         const effort = findSupportedEffort(sessionState.supportedReasoningEfforts, value);
         if (!effort) {
             throw RequestError.invalidParams();
@@ -3638,7 +3725,7 @@ export class CodexAcpServer {
         });
     }
 
-    private applyModelAndEffort(sessionState: SessionState, model: Model, effort: ReasoningEffort): void {
+    private applyModelAndEffort(sessionState: SessionOptionState, model: Model, effort: ReasoningEffort): void {
         sessionState.currentModelId = ModelId.fromComponents(model, effort).toString();
         sessionState.supportedReasoningEfforts = model.supportedReasoningEfforts;
         sessionState.supportedInputModalities = model.inputModalities;
@@ -3676,6 +3763,7 @@ export class CodexAcpServer {
         await this.updateSessionConfig(sessionState, () => {
             sessionState.availableModels = models;
             this.applyModelAndEffort(sessionState, model, reasoningEffort);
+            (sessionState.localConfigOverrides ??= new Set()).add(MODEL_CONFIG_ID).add(REASONING_EFFORT_CONFIG_ID);
         });
 
         return {};
@@ -3711,15 +3799,19 @@ export class CodexAcpServer {
      *     ("startedNewTurn"), or could not be applied ("failed"); see
      *     {@link performSteeringRequest}.
      */
-    async executeOrQueueSteeringRequest(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
+    async executeOrQueueSteeringRequest(params: SessionSteerRequest, insertion?: V2SteeringPrompt): Promise<SessionSteeringResponse> {
         this.assertSessionWritable(params.sessionId);
         this.assertInstructionsReady(params.sessionId);
+        const reservation = insertion === undefined && params._meta?.steering?.idleBehavior !== "promptRequired"
+            ? this.acquireTurnStartReservation(params.sessionId) : undefined;
         const queue = this.getSteeringQueue(params.sessionId);
         try {
-            return await queue.enqueue(params);
+            return await queue.enqueue(params, insertion, reservation);
         } catch (error) {
-            if (error instanceof RequestError) {
-                throw error;
+            if (error instanceof RequestError) throw error;
+            if (insertion !== undefined) {
+                const failure = toV2Failure(error);
+                throw new RequestError(failure.code, failure.message);
             }
             logger.error(`Steering request for session ${params.sessionId} failed`, error);
             return {outcome: "failed"};
@@ -3740,7 +3832,7 @@ export class CodexAcpServer {
     private getSteeringQueue(sessionId: string): SteeringQueue {
         let queue = this.steeringQueues.get(sessionId);
         if (!queue) {
-            queue = new SteeringQueue((params) => this.performSteeringRequest(params));
+            queue = new SteeringQueue((params, insertion, reservation) => this.performSteeringRequest(params, insertion, reservation));
             this.steeringQueues.set(sessionId, queue);
         }
         return queue;
@@ -3756,32 +3848,50 @@ export class CodexAcpServer {
      *     "promptRequired" when the host requested an owned idle fallback, or
      *     the outcome of starting a legacy fallback turn.
      */
-    private async performSteeringRequest(params: SessionSteerRequest): Promise<SessionSteeringResponse> {
+    private async performSteeringRequest(
+        params: SessionSteerRequest,
+        insertion?: V2SteeringPrompt,
+        reservation?: TurnStartReservation,
+    ): Promise<SessionSteeringResponse> {
+        const clientUserMessageId = insertion?.messageId ?? randomUUID();
+        try {
+            const result = await this.tryInjectSteeringRequest(params, clientUserMessageId, insertion);
+            if (result !== null) return result;
+            const startReservation = reservation;
+            reservation = undefined;
+            return await this.startNewTurnFromSteering(params, clientUserMessageId, startReservation);
+        } finally {
+            const unusedReservation = reservation;
+            if (unusedReservation !== undefined) {
+                void unusedReservation.wait.then(() => unusedReservation.release());
+            }
+        }
+    }
+
+    private async tryInjectSteeringRequest(
+        params: SessionSteerRequest,
+        clientUserMessageId: string,
+        insertion?: V2SteeringPrompt,
+    ): Promise<SessionSteeringResponse | null> {
         assertPromptContentSupported(params);
-        logger.log("Steering session requested", {
-            sessionId: params.sessionId,
-            prompt: params.prompt,
-        });
+        logger.log("Steering session requested", {sessionId: params.sessionId, prompt: params.prompt});
         const sessionState = this.getSessionState(params.sessionId);
         this.assertSteerInputSupported(params, sessionState);
-
-        // Minted fresh for every steer (both protocol versions), passed to Codex as
-        // `TurnSteerParams.clientUserMessageId`/`TurnStartParams.clientUserMessageId`. It is a
-        // Codex-side param only; on v2 it doubles as the `messageId` of the live `user_message`
-        // shown once the steer lands (the steering response itself carries no id).
-        const clientUserMessageId = randomUUID();
-        const turnId = await this.getSteerableTurnId(sessionState);
+        const activePrompt = this.activePrompts.get(params.sessionId);
+        const mustWait = activePrompt !== undefined && (activePrompt.cancelRequested
+            || activePrompt.inputKind.kind === "codexTurnCommand"
+                && (activePrompt.inputKind.name === "compact" || activePrompt.inputKind.name === "review"));
+        const turnId = mustWait ? null : await this.getSteerableTurnId(sessionState);
+        if (insertion?.signal.aborted) throw RequestError.requestCancelled();
         if (turnId) {
-            const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState, clientUserMessageId);
+            const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState, clientUserMessageId, insertion !== undefined);
             if (injected) {
                 logger.log("Steering session injected", {sessionId: params.sessionId, turnId});
                 return {outcome: "injected"};
             }
         }
-        if (params._meta?.steering?.idleBehavior === "promptRequired") {
-            return {outcome: "promptRequired", reason: "noRunningTurn"};
-        }
-        return await this.startNewTurnFromSteering(params, clientUserMessageId);
+        return params._meta?.steering?.idleBehavior === "promptRequired"
+            ? {outcome: "promptRequired", reason: "noRunningTurn"} : null;
     }
 
     /**
@@ -3811,10 +3921,32 @@ export class CodexAcpServer {
         turnId: string,
         sessionState: SessionState,
         clientUserMessageId: string,
+        waitForInsertion = false,
     ): Promise<boolean> {
-        // Registered before the call goes out (not after `steerTurn` resolves), so the landing
-        // matcher catches a userMessage that arrives immediately after acceptance.
-        this.pendingSteerLandings.set(clientUserMessageId, {sessionId: params.sessionId, prompt: params.prompt});
+        const landing = new SteerLanding(params.sessionId, turnId, params.prompt);
+        this.pendingSteerLandings.set(clientUserMessageId, landing);
+        const delivery = this.sendSteerToActiveTurn(params, turnId, sessionState, clientUserMessageId, landing);
+        if (!waitForInsertion) return await delivery;
+        const first = await Promise.race([
+            landing.result,
+            delivery.then(delivered => ({kind: "delivery" as const, delivered})),
+        ]);
+        if (first.kind === "inserted") return true;
+        const delivered = first.kind === "delivery" ? first.delivered : await delivery;
+        if (!delivered) return false;
+        const result = first.kind === "ended" ? first : await landing.result;
+        if (result.kind === "inserted") return true;
+        if (result.cancelled) throw RequestError.requestCancelled();
+        throw RequestError.internalError(undefined, "The turn ended before Codex recorded the user message");
+    }
+
+    private async sendSteerToActiveTurn(
+        params: SessionSteerRequest,
+        turnId: string,
+        sessionState: SessionState,
+        clientUserMessageId: string,
+        landing: SteerLanding,
+    ): Promise<boolean> {
         try {
             await this.runWithProcessCheck(() => this.codexAcpClient.steerTurn({
                 threadId: params.sessionId,
@@ -3824,14 +3956,16 @@ export class CodexAcpServer {
                 _meta: params._meta,
             }));
             return true;
-        } catch (err) {
-            this.pendingSteerLandings.delete(clientUserMessageId);
+        } catch (error) {
             await this.codexAcpClient.waitForSessionNotifications(params.sessionId);
+            if (this.pendingSteerLandings.get(clientUserMessageId) !== landing) {
+                if ((await landing.result).kind === "inserted") return true;
+            }
+            this.pendingSteerLandings.delete(clientUserMessageId);
+            landing.ended(false);
             const turnStillActive = sessionState.currentTurnId !== null
                 && codexRunningTurnId(sessionState, sessionState.currentTurnId) === turnId;
-            if (turnStillActive && !this.isNoActiveTurnToSteerError(err)) {
-                throw err;
-            }
+            if (turnStillActive && !this.isNoActiveTurnToSteerError(error) && !isNonSteerableTurnError(error)) throw error;
             return false;
         }
     }
@@ -3851,14 +3985,14 @@ export class CodexAcpServer {
     private async startNewTurnFromSteering(
         params: SessionSteerRequest,
         clientUserMessageId: string,
+        reservation?: TurnStartReservation,
     ): Promise<SessionSteeringResponse> {
         await this.startNewTurnFromExternalPrompt(params, "Steering", undefined, {
             clientUserMessageId,
             onInserted: async (turnId) => {
                 await this.emitLiveSteerUserMessage(params.sessionId, clientUserMessageId, params.prompt, turnId);
             },
-            onSyntheticInserted: async () => {},
-        });
+        }, reservation);
         return {outcome: "startedNewTurn"};
     }
 
@@ -3867,13 +4001,14 @@ export class CodexAcpServer {
         source: string,
         canStart: () => Promise<boolean> = async () => true,
         insertion?: UserMessageInsertion,
+        turnReservation?: TurnStartReservation,
     ): Promise<boolean> {
         // Takes this session's place in the shared turn-start FIFO before anything else runs, so
         // no other starter can begin between this check and the turn actually starting. This
         // hands the reservation to `prompt()` below rather than letting it self-acquire one, so
         // it releases only once `prompt()` truly finishes (not when this function's own steer
         // promise resolves early, on the "a turn was started" success path).
-        const reservation = this.acquireTurnStartReservation(params.sessionId);
+        const reservation = turnReservation ?? this.acquireTurnStartReservation(params.sessionId);
         if (reservation.needsWait) {
             await reservation.wait;
         }
@@ -3900,8 +4035,7 @@ export class CodexAcpServer {
                 // steer immediately ("a turn was started") and let prompt() finish the
                 // turn in the background.
                 resolve(true);
-            }, insertion, reservation);
-            void promptDone.finally(() => reservation.release());
+            }, insertion, reservation).finally(() => reservation.release());
             promptDone.then(
                 (response) => {
                     if (!turnStarted && response.stopReason === "cancelled") {
@@ -4008,7 +4142,44 @@ export class CodexAcpServer {
         }
     }
 
-    private createSessionConfigOptions(sessionState: SessionState): Array<acp.SessionConfigOption> {
+    private createSessionOptionState(metadata: SessionOptionMetadata, previous?: SessionState): SessionOptionState {
+        const model = this.findCurrentModel(metadata.models, metadata.currentModelId);
+        const availableAgentModes = AgentMode.all(metadata.permissionProfiles, metadata.approvalPolicy, metadata.approvalsReviewer);
+        const state: SessionOptionState = {
+            currentModelId: metadata.currentModelId,
+            availableModels: metadata.models,
+            supportedReasoningEfforts: model?.supportedReasoningEfforts ?? [],
+            supportedInputModalities: model?.inputModalities ?? ["text", "image"],
+            agentMode: AgentMode.getInitialAgentMode(availableAgentModes, metadata.activePermissionProfileId),
+            availableAgentModes,
+            collaborationMode: metadata.collaborationMode,
+            fastModeEnabled: serviceTierEnablesFast(metadata.currentServiceTier),
+            currentModelSupportsFast: modelSupportsFast(model),
+            clientCapabilities: this.capabilities,
+        };
+        if (previous?.localConfigOverrides) {
+            const {model, effort} = ModelId.fromString(previous.currentModelId);
+            // Local selections survive while a model temporarily hides their picker.
+            const selections: acp.InitialSessionConfigOption[] = [
+                {configId: MODEL_CONFIG_ID, value: model},
+                {configId: REASONING_EFFORT_CONFIG_ID, value: effort},
+                {configId: FAST_MODE_CONFIG_ID, type: "boolean", value: previous.fastModeEnabled},
+                {configId: MODE_CONFIG_ID, value: previous.agentMode.id},
+            ];
+            for (const entry of selections) {
+                if (!previous.localConfigOverrides.has(entry.configId)) continue;
+                try {
+                    this.changeLocalConfigOption(state, entry, effort);
+                } catch (error) {
+                    // The new workspace or model catalog may no longer offer this choice.
+                    if (!(error instanceof RequestError && error.code === -32602)) throw error;
+                }
+            }
+        }
+        return state;
+    }
+
+    private createSessionConfigOptions(sessionState: SessionOptionState): Array<acp.SessionConfigOption> {
         const currentModelId = ModelId.fromString(sessionState.currentModelId);
         const useRecommendedValue = clientSupportsAirCapability(
             this.clientCapabilities,
@@ -4026,6 +4197,7 @@ export class CodexAcpServer {
                     sessionState.availableModels,
                     currentModelId.model,
                     recommendedModelId,
+                    isAirClient(this.clientCapabilities),
                     this.codexAcpClient.providerCatalog.gatewayGroups(),
                 ),
             );
@@ -4055,7 +4227,7 @@ export class CodexAcpServer {
         return configOptions;
     }
 
-    private createSessionConfigOptionsResponse(sessionState: SessionState): {
+    private createSessionConfigOptionsResponse(sessionState: SessionOptionState): {
         configOptions?: Array<acp.SessionConfigOption>;
     } {
         if (!this.isSessionConfigEnabled()) {
@@ -4242,6 +4414,7 @@ export class CodexAcpServer {
         // live goal-turn frame Codex fires right after resume/load never races ahead of replay.
         settleTrackerReady: (state: SessionState | null) => void;
     }> {
+        validateInitialConfigOptions(request.configOptions);
         clientSystemPromptText(request.systemPrompt);
         const previousInstructions = this.sessions.get(request.sessionId)?.instructions;
         const requestedSessionGeneration = await this.beginSessionOpen(request.sessionId);
@@ -4290,6 +4463,7 @@ export class CodexAcpServer {
                         },
                         previousInstructions,
                         this.protocolVersion === 2,
+                        this.liveSessionOptions(this.sessions.get(request.sessionId)),
                     );
                 });
             } catch (err) {
@@ -4311,7 +4485,7 @@ export class CodexAcpServer {
             throw err;
         }
 
-        const {sessionId, currentModelId, models, thread} = sessionMetadata;
+        const {sessionId, thread} = sessionMetadata;
         const authProvider = sessionMetadata.modelProvider ?? this.codexAcpClient.getModelProvider();
         let authState: ActiveAuthState;
         try {
@@ -4329,30 +4503,17 @@ export class CodexAcpServer {
             await this.closeStaleSessionOpen(sessionId, requestedSessionGeneration);
         }
         const sessionMcpServers = this.resolveSessionMcpServers(requestedMcpServers, true);
-        const currentModel = this.findCurrentModel(models, currentModelId);
-        const currentModelSupportsFast = modelSupportsFast(currentModel);
-        const availableAgentModes = AgentMode.all(
-            sessionMetadata.permissionProfiles,
-            sessionMetadata.approvalPolicy,
-            sessionMetadata.approvalsReviewer,
-        );
+        const previousState = this.sessions.get(sessionId);
+        const optionState = this.createSessionOptionState(sessionMetadata, previousState);
         const sessionState: SessionState = {
             sessionId,
             readOnly: sessionMetadata.readOnly ?? false,
             ...(sessionMetadata.lineage ? {lineage: sessionMetadata.lineage} : {}),
-            currentModelId,
-            availableModels: models,
-            supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
-            supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: this.restoredAgentMode(
-                sessionMetadata,
-                AgentMode.getInitialAgentMode(
-                    availableAgentModes,
-                    sessionMetadata.activePermissionProfileId,
-                ),
-            ),
-            availableAgentModes,
-            collaborationMode: sessionMetadata.collaborationMode,
+            ...optionState,
+            // A mode the client picked locally before this load outlives what the thread reports.
+            agentMode: previousState?.localConfigOverrides?.has(MODE_CONFIG_ID)
+                ? optionState.agentMode
+                : this.restoredAgentMode(sessionMetadata, optionState.agentMode),
             currentTurnId: null,
             interruptTurnId: null,
             codexReportedRunningTurnId: null,
@@ -4369,10 +4530,7 @@ export class CodexAcpServer {
             cwd: request.cwd,
             additionalDirectories: sessionMetadata.additionalDirectories,
             mcpServers: requestedMcpServers,
-            fastModeEnabled: serviceTierEnablesFast(sessionMetadata.currentServiceTier),
-            currentModelSupportsFast,
             sessionMcpServers,
-            clientCapabilities: this.capabilities,
             goalRevision: 0,
             sessionTitle: null,
             sessionTitleSource: "unset",
@@ -4397,6 +4555,8 @@ export class CodexAcpServer {
         }
         subscribed = false;
 
+        if (request.configOptions?.length) await this.applyInitialConfigOptions(sessionState, request.configOptions, settleTrackerReady);
+
         if (requestedMcpServers.length > 0 && mcpServerStartupVersion !== null) {
             this.mcpSessionStartup.begin(sessionId, requestedMcpServers, mcpServerStartupVersion, {
                 publish: true,
@@ -4411,7 +4571,7 @@ export class CodexAcpServer {
             await this.publishAvailableCommands(sessionState, requestedSessionGeneration);
         }
         await this.publishCurrentGoalBestEffort(sessionState, requestedSessionGeneration, true);
-        const sessionModelState: LegacySessionModelState = this.createModelState(models, currentModelId);
+        const sessionModelState = this.createModelState(sessionState.availableModels, sessionState.currentModelId);
         const sessionModeState: SessionModeState =
             sessionState.agentMode.toSessionModeState(
                 sessionState.clientCapabilities.airClient,
@@ -4647,6 +4807,7 @@ export class CodexAcpServer {
                 }
                 await this.streamStandardHistory(childId, history.items, state, isOpen, childThreadId,
                     new Set([...ancestry, childThreadId]), replayed, gaps);
+                await state.asyncTasks.reconcile(childThreadId, childId);
             } catch (error) {
                 if (error instanceof SessionClosedDuringLoadError) throw error;
                 gaps.add(childThreadId);
@@ -4867,7 +5028,7 @@ export class CodexAcpServer {
         const initialized: ReplayedEntities = new Map();
         // No session is attached here, so a collaboration call has no child sessions to reference.
         return (await this.renderHistoryItem(item, this.capabilities, cwd, collaboration => CollabAgentReporter.started(collaboration)))
-            .flatMap(toV2SessionUpdates)
+            .flatMap(update => toV2SessionUpdates(update))
             .flatMap(update => toV2ReplayUpdates(update, initialized));
     }
 
@@ -4880,6 +5041,8 @@ export class CodexAcpServer {
         const renderer = new AcpToolCallRenderer(clientCapabilities);
         switch (item.type) {
             case "userMessage":
+                // A question reply stays a user message with its structured parts (see alwith/codex/questionReplies);
+                // upstream replays it as a completed tool call instead.
                 return this.createUserMessageUpdates(item);
             case "hookPrompt":
             case "functionCallOutput":
@@ -4944,6 +5107,7 @@ export class CodexAcpServer {
     }
 
     private createUserMessageUpdates(item: ThreadItem & { type: "userMessage" }): UpdateSessionEvent[] {
+        if (item.clientId?.startsWith(PLAN_IMPLEMENTATION_MESSAGE_ID_PREFIX)) return [];
         // On v2, a message inserted via `session/prompt` is replayed under the id the client
         // provided then (`clientId`), so it round-trips as the same message on reconnect; v1 has
         // no such client-minted id and keeps using Codex's own item id.
@@ -5100,7 +5264,7 @@ export class CodexAcpServer {
         return [];
     }
 
-    private trackActivePrompt(sessionId: string): ActivePrompt {
+    private trackActivePrompt(sessionId: string, inputKind: PromptKind): ActivePrompt {
         let resolveCompletion: () => void = () => {};
         const completion = new Promise<void>((resolve) => {
             resolveCompletion = resolve;
@@ -5123,6 +5287,7 @@ export class CodexAcpServer {
         let completed = false;
         let closeRequested = false;
         const activePrompt: ActivePrompt = {
+            inputKind,
             completion,
             closeSignal,
             cancelSignal,
@@ -5469,6 +5634,25 @@ export class CodexAcpServer {
         return requestedId ?? randomUUID();
     }
 
+    /** Offers ordinary input to the active turn; commands wait for their own execution slot. */
+    private async steerOrWaitForV2Prompt(
+        request: acp.PromptRequest,
+        messageId: string,
+        reservation: TurnStartReservation,
+        canSteer: boolean,
+        signal: AbortSignal,
+    ): Promise<boolean> {
+        throwIfRequestCancelled(signal);
+        if (canSteer) {
+            const result = await this.executeOrQueueSteeringRequest({
+                ...request, _meta: {...request._meta, steering: {idleBehavior: "promptRequired"}},
+            }, {messageId, signal});
+            if (result.outcome === "injected") return true;
+        }
+        await withRequestCancellation(reservation.wait, signal);
+        return false;
+    }
+
     /**
      * v2 `session/prompt`: answers `{messageId}` once the user message is inserted and lets the
      * turn run on in the background. A Codex prompt is inserted when Codex records its user
@@ -5516,9 +5700,11 @@ export class CodexAcpServer {
         throwIfRequestCancelled(signal);
         const {sessionId} = request;
         const sessionState = this.getSessionState(sessionId);
+        const messageId = this.promptMessageId(params, sessionState, keyedMessageId);
         // A prompt overlapping a running one is queued behind it rather than rejected: take this
         // session's place in the shared turn-start FIFO now (before any await), then wait. Nothing
         // observable happens until it reaches the front, unless the ID already exists in history.
+        const promptKind = this.availableCommands.classifyPrompt(request.prompt);
         const reservation = this.acquireTurnStartReservation(sessionId);
         if (reservation.needsWait || findRetained) {
             const drop = new AbortController();
@@ -5530,7 +5716,10 @@ export class CodexAcpServer {
                     void reservation.wait.then(() => reservation.release());
                     return {messageId: keyedMessageId!};
                 }
-                if (reservation.needsWait) await withRequestCancellation(reservation.wait, waiting);
+                if (reservation.needsWait && await this.steerOrWaitForV2Prompt(request, messageId, reservation, promptKind.kind === "prompt", waiting)) {
+                    void reservation.wait.then(() => reservation.release());
+                    return {messageId};
+                }
                 throwIfRequestCancelled(waiting);
             } catch (error) {
                 void reservation.wait.then(() => reservation.release());
@@ -5546,14 +5735,6 @@ export class CodexAcpServer {
         // Once dispatched, Codex can still insert the message (even if interrupted), so answer
         // all attempts from the actual insertion result rather than prematurely forgetting the key.
         const inFlightSignal = findRetained === undefined ? signal : undefined;
-        let messageId: string;
-        try {
-            messageId = this.promptMessageId(params, sessionState, keyedMessageId);
-        } catch (error) {
-            reservation.release();
-            throw error;
-        }
-        const promptKind = this.availableCommands.classifyPrompt(request.prompt);
         const session = new ACPSessionConnection(this.connection, sessionId);
         let failure: acpV2.Error | null = null;
         const generation = this.getSessionGeneration(sessionId);
@@ -5576,6 +5757,7 @@ export class CodexAcpServer {
         };
         const sendIdle = async (response: acp.PromptResponse) => {
             if (this.getSessionGeneration(sessionId) !== generation) return;
+            this.finishSteerLandings(sessionId, response.stopReason === "cancelled");
             if (failure !== null && response.stopReason !== "cancelled") {
                 try {
                     await this.finishOutstandingToolCalls(sessionState);
@@ -5639,15 +5821,6 @@ export class CodexAcpServer {
                     {
                         clientUserMessageId: messageId,
                         onInserted,
-                        onSyntheticInserted: async (syntheticId, prompt, turnId) => {
-                            try {
-                                for (const block of prompt) {
-                                    await session.update(createUserMessageChunk(block, syntheticId, {codex: {turnId}}));
-                                }
-                            } catch (error) {
-                                logger.error(`Failed to send the synthetic user message for session ${sessionId}`, error);
-                            }
-                        },
                         onTurnStarted: (turn) => {
                             startedTurn = turn;
                             interruptPendingInsertion();
@@ -5786,7 +5959,7 @@ export class CodexAcpServer {
         // A prompt that starts no model work, such as /status or a cancellation before the turn, used no tokens.
         sessionState.promptTokenUsage = null;
         sessionState.interruptTurnId = null;
-        const activePrompt = this.trackActivePrompt(params.sessionId);
+        const activePrompt = this.trackActivePrompt(params.sessionId, this.availableCommands.classifyPrompt(params.prompt));
         let pendingTurnStart: PendingTurnStart | null = null;
         const ensurePendingTurnStart = (): PendingTurnStart => {
             if (pendingTurnStart === null) {
@@ -5815,16 +5988,6 @@ export class CodexAcpServer {
             ? activePrompt.signal
             : AbortSignal.any([activePrompt.signal, appServerLost.signal]);
         let pendingInsertion = insertion;
-        // Synthetic turns codex-acp starts itself inside this same prompt (the plan-implementation
-        // follow-up, a `/goal` continuation) each mint their own id and register here, so their
-        // userMessage can be told apart from the original prompt's once it lands.
-        const pendingSyntheticInsertions = new Map<string, (turnId: string) => Promise<void>>();
-        const registerSyntheticInsertion = (clientUserMessageId: string, prompt: acp.ContentBlock[]): void => {
-            if (insertion === undefined) {
-                return;
-            }
-            pendingSyntheticInsertions.set(clientUserMessageId, turnId => insertion.onSyntheticInserted(clientUserMessageId, prompt, turnId));
-        };
         const clearRecoveredSessionFailure = async (handler: CodexEventHandler): Promise<void> => {
             await handler.completeSuccessfulTurn(sessionState.currentTurnId);
             const current = sessionState.sessionFailure;
@@ -5920,14 +6083,6 @@ export class CodexAcpServer {
                     if (pendingInsertion !== undefined
                         && isInsertedUserMessage(event, params.sessionId, pendingInsertion.clientUserMessageId)) {
                         await resolvePendingInsertion(event.params.turnId);
-                    } else {
-                        for (const [clientUserMessageId, resolveSynthetic] of pendingSyntheticInsertions) {
-                            if (isInsertedUserMessage(event, params.sessionId, clientUserMessageId)) {
-                                pendingSyntheticInsertions.delete(clientUserMessageId);
-                                await resolveSynthetic(event.params.turnId);
-                                break;
-                            }
-                        }
                     }
                     await observeInteraction(event);
                     if (!promptNotificationsActive) {
@@ -6100,6 +6255,7 @@ export class CodexAcpServer {
                     },
                     () => this.promptShouldStop(params.sessionId, activePrompt),
                     insertion?.clientUserMessageId,
+                    activePrompt.interactionSignal,
                 ));
             void sendPromptPromise.catch((err) => {
                 if (this.activePrompts.get(params.sessionId) !== activePrompt) {
@@ -6188,12 +6344,7 @@ export class CodexAcpServer {
                     activePrompt.currentTurn = null;
                     sessionState.currentTurnId = null;
                     sessionState.interruptTurnId = null;
-                    // This second turn stays inside the original prompt's running…idle pair, so it
-                    // gets its own minted id rather than reusing the first turn's.
-                    const implementationClientUserMessageId = insertion !== undefined ? randomUUID() : undefined;
-                    if (implementationClientUserMessageId !== undefined) {
-                        registerSyntheticInsertion(implementationClientUserMessageId, implementationRequest.prompt);
-                    }
+                    const implementationClientUserMessageId = `${PLAN_IMPLEMENTATION_MESSAGE_ID_PREFIX}${randomUUID()}`;
                     const implementationPromise = this.runOnAppServer(promptGeneration, promptClient,
                         () => promptClient.sendPrompt(
                             implementationRequest,
@@ -6218,6 +6369,7 @@ export class CodexAcpServer {
                             },
                             () => this.promptShouldStop(params.sessionId, activePrompt),
                             implementationClientUserMessageId,
+                            activePrompt.interactionSignal,
                         ),
                     );
                     void implementationPromise.catch((err) => {
@@ -6454,7 +6606,7 @@ export class CodexAcpServer {
         let questions = this.asyncQuestions.get(sessionId);
         if (questions === undefined) {
             questions = new AsyncQuestionElicitations(sessionId, this.clientCapabilities, new AsyncQuestionClient(
-                sessionId, this.connection, this.clientCapabilities, () => this.codexAcpClient,
+                sessionId, this.connection, this.clientCapabilities, this,
             ));
             this.asyncQuestions.set(sessionId, questions);
         }

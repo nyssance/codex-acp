@@ -180,21 +180,6 @@
   },
   {
     "sessionUpdate": {
-      "messageId": "<implementationId>",
-      "content": {
-        "text": "Implement the approved plan.",
-        "type": "text"
-      },
-      "_meta": {
-        "codex": {
-          "turnId": "turn-2"
-        }
-      },
-      "sessionUpdate": "user_message_chunk"
-    }
-  },
-  {
-    "sessionUpdate": {
       "title": "Hello",
       "sessionUpdate": "session_info_update"
     }

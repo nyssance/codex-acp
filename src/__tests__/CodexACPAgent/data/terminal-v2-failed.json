@@ -29,21 +29,21 @@
   },
   {
     "terminalId": "item-shell",
-    "data": "bnBtIEVSUiEgVGVzdCBmYWlsZWQuCg==",
+    "data": "bnBtIEVSUiEgVGVzdCBmYWlsZWQuDQo=",
     "sessionUpdate": "terminal_output_chunk",
-    "decoded": "npm ERR! Test failed.\n"
+    "decoded": "npm ERR! Test failed.\r\n"
   },
   {
     "terminalId": "item-shell",
     "output": {
-      "data": "bnBtIEVSUiEgVGVzdCBmYWlsZWQuCg=="
+      "data": "bnBtIEVSUiEgVGVzdCBmYWlsZWQuDQo="
     },
     "exitStatus": {
       "exitCode": 1,
       "signal": null
     },
     "sessionUpdate": "terminal_update",
-    "decodedOutput": "npm ERR! Test failed.\n"
+    "decodedOutput": "npm ERR! Test failed.\r\n"
   },
   {
     "toolCallId": "item-shell",

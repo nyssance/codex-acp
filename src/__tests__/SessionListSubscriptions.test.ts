@@ -32,6 +32,7 @@ function thread(id: string, overrides: Partial<Thread> = {}): Thread {
         extra: null,
         canAcceptDirectInput: null,
         daybreakEnabled: null,
+        daybreakProgramPropagationEnrolled: null,
         id,
         sessionId: id,
         parentThreadId: null,

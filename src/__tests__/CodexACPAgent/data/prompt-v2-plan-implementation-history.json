@@ -1,0 +1,47 @@
+[
+  {
+    "messageId": "<messageId>",
+    "content": {
+      "text": "Implement the approved plan.",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "historyReplay": true,
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "user_message_chunk"
+  },
+  {
+    "messageId": "external-user",
+    "content": {
+      "text": "Implement the approved plan.",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "historyReplay": true,
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "user_message_chunk"
+  },
+  {
+    "messageId": "result",
+    "content": {
+      "text": "Done.",
+      "type": "text"
+    },
+    "_meta": {
+      "codex": {
+        "phase": "final_answer",
+        "delivery": null,
+        "questions": null,
+        "historyReplay": true,
+        "turnId": "turn-1"
+      }
+    },
+    "sessionUpdate": "agent_message_chunk"
+  }
+]

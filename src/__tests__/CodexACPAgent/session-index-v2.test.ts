@@ -30,6 +30,7 @@ function createThread(overrides?: Partial<Thread>): Thread {
         extra: null,
         canAcceptDirectInput: null,
         daybreakEnabled: null,
+        daybreakProgramPropagationEnrolled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,

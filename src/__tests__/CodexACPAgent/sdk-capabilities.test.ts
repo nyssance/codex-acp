@@ -33,7 +33,7 @@ it("sends method- and direction-valid v2 frames through setup, local work, repla
 });
 
 describe.each([1, 2] as const)("ACP v%s SDK upgrade capabilities", version => {
-    it("advertises title and auth status support without claiming other newly exposed SDK methods", async () => {
+    it("advertises title, options and auth status support without claiming other newly exposed SDK methods", async () => {
         const h = await connectSession(version);
         try {
             const initialize = h.wireMessages.find(frame =>
@@ -45,13 +45,15 @@ describe.each([1, 2] as const)("ACP v%s SDK upgrade capabilities", version => {
             // The fork serves the standard archive methods over v2.
             expect(session.archive).toEqual(version === 2 ? {} : undefined);
             expect(session.status).toBeUndefined();
-            expect(session.options).toBeUndefined();
+            expect(session.options).toEqual({});
             expect(session.prompt?.skill).toBeUndefined();
             expect(capabilities.auth.status).toEqual({});
             for (const method of ["session/status", ...(version === 1 ? ["session/archive", "session/unarchive"] : [])]) {
                 await expect(h.request(method, {sessionId})).rejects.toMatchObject({code: -32601});
             }
             if (version === 2) {
+                expect(h.setupUpdates.filter(update => update.sessionUpdate === "state_update")
+                    .every(update => Array.isArray((update as {background?: unknown}).background))).toBe(true);
                 await expect(h.request("tool_call/cancel", {sessionId, toolCallId: "tool"})).rejects.toMatchObject({code: -32601});
                 await expect(h.request("terminal/cancel", {sessionId, terminalId: "unknown"})).rejects.toMatchObject({code: -32602});
             }

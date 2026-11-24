@@ -20,6 +20,7 @@ function createThread(): Thread {
         extra: null,
         canAcceptDirectInput: null,
         daybreakEnabled: null,
+        daybreakProgramPropagationEnrolled: null,
         id: sessionId,
         sessionId,
         parentThreadId: null,

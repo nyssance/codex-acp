@@ -34,6 +34,7 @@ function thread(id: string) {
         extra: null,
         canAcceptDirectInput: null,
         daybreakEnabled: null,
+        daybreakProgramPropagationEnrolled: null,
         id,
         preview: "",
         ephemeral: false,

@@ -1,3 +1,11 @@
+## 0.7.87 (2026-11-24)
+
+- Merge upstream 2.10.0 and the three commits after it, and move to Codex 0.172.0.
+- From upstream: a v2 `session/prompt` sent while a turn runs is steered into that turn and answered when Codex records it; `session/options` previews a session's settings before it is opened, and `session/new`, `session/resume` and `session/fork` accept initial `configOptions`; each model option carries its reasoning efforts; v2 terminal output uses CRLF; v2 uses standard child sessions and background terminals, so `_subagent_update` and `_async_task_*` are no longer sent on v2.
+- The internal "Implement the approved plan." prompt is no longer shown as a user message, as upstream does.
+- Still the fork's own: a question reply stays a user message with its structured parts; upstream replays it as a completed tool call.
+- Codex's three spend-limit errors are reported as `quota_exhausted`.
+
 ## 0.7.86 (2026-11-22)
 
 - Every session runs in one Codex app-server, whatever its provider. The adapter no longer starts a separate app-server per gateway; Codex 0.168 and later keep each thread on its own provider in one process.

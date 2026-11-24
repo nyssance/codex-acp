@@ -59,9 +59,37 @@ describe("ACP v2 keyed prompts", () => {
         await h.promptRunFinished();
     });
 
-    // Upstream holds a prompt behind a running turn and has cases for dropping it while it is held.
-    // This adapter does not hold an ordinary prompt: it steers it into the running turn (see
-    // steering-v2.test.ts), so a keyed prompt there has no held state to drop.
+    it.each(["$/cancel_request", "session/cancel", "session/close"])(
+        "answers both attempts when %s drops a held command", async method => {
+            const held = {...params, prompt: [{type: "text", text: "/status"}]};
+            h = await connectSession();
+            const blocker = h.sendPrompt([{type: "text", text: "Block the queue"}]);
+            await vi.waitFor(() => expect(h!.turnStartParams).toHaveLength(1));
+            h.emit(turnStarted());
+            h.emit(itemCompleted(userMessageItem(h.turnStartParams[0]!["clientUserMessageId"] as string)));
+            await blocker;
+
+            const seen = vi.spyOn(h.agent, "promptV2");
+            const abort = new AbortController();
+            const first = expect(h.request("session/prompt", held)).rejects.toMatchObject({code: -32800});
+            const retry = expect(h.request("session/prompt", held, abort.signal)).rejects.toMatchObject({code: -32800});
+            await vi.waitFor(() => expect(seen).toHaveBeenCalledTimes(2));
+            if (method === "$/cancel_request") abort.abort();
+            else if (method === "session/cancel") await h.cancel();
+            else await h.request("session/close", {sessionId});
+            await Promise.all([first, retry]);
+            expect(h.turnStartParams).toHaveLength(1);
+            if (method === "$/cancel_request") expect(h.turnInterruptCalls()).toEqual([]);
+            if (method === "session/close") return;
+
+            h.emit(turnCompleted());
+            await h.promptRunFinished();
+            await expect(h.request("session/prompt", held)).resolves.toEqual({messageId: keyedPromptId(sessionId, key)});
+            await h.promptRunFinished(1);
+            expect(h.turnStartParams).toHaveLength(1);
+        },
+    );
+
     it("keeps the key unused on a pre-insertion failure and rejects malformed keys before starting work", async () => {
         h = await connectSession();
         for (const idempotencyKey of ["", "x".repeat(256), 7]) {

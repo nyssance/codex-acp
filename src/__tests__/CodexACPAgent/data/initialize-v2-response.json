@@ -21,6 +21,7 @@
       "systemPrompt": {},
       "fork": {},
       "archive": {},
+      "options": {},
       "title": {}
     },
     "auth": {
@@ -118,8 +119,6 @@
           "sessionFailure",
           "agentFileChangeReport",
           "customInstructions",
-          "nativeSubagentSessions",
-          "asyncTasks",
           "recommendedValue"
         ]
       }

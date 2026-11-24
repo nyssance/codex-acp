@@ -18,7 +18,7 @@ import {afterEach, beforeEach, expect, vi} from "vitest";
 import type {Model, ReasoningEffortOption} from "../app-server/v2";
 import {CodexSubagentEventRouter} from "../subagents/CodexSubagentEventRouter";
 import {CodexEventHandler, SessionFailureIds} from "../CodexEventHandler";
-import {CodexBackgroundTerminalTasks} from "../async-tasks/CodexBackgroundTerminalTasks";
+import {CodexBackgroundTasks} from "../async-tasks/CodexBackgroundTasks";
 import {CodexSessionCompactions} from "../CodexSessionCompactions";
 import {CodexSessionToolCalls} from "../CodexSessionToolCalls";
 import {AUTH_STATUS_UPDATE_METHOD} from "../AuthStatusMeta";
@@ -500,7 +500,7 @@ export function createTestSessionState(overrides?: Partial<SessionState>): Sessi
             () => {},
             () => ({currentModel: null, availableModels: []}),
         ),
-        asyncTasks: new CodexBackgroundTerminalTasks(
+        asyncTasks: new CodexBackgroundTasks(
             false,
             sessionId,
             {} as CodexAppServerClient,
