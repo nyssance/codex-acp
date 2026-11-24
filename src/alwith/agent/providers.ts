@@ -256,6 +256,12 @@ export class ProviderRouting {
     }
 
     /** Unknown gateway IDs must never fall through to native billing. */
+    /** Whether a model selection can be routed: any native model, or a gateway model that is still configured. */
+    offers(selectionId: string): boolean {
+        const gateway = this.gatewayFor(selectionId);
+        return !selectionId.startsWith("gateway:") || (gateway?.models.some(model => gatewayModelId(gateway.id, model.id) === selectionId) ?? false);
+    }
+
     upstreamModel(selectionId: string | null): string | null {
         if (!selectionId?.startsWith("gateway:")) return selectionId;
         const gateway = this.gatewayFor(selectionId);

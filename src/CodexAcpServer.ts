@@ -2833,7 +2833,7 @@ export class CodexAcpServer {
                         cwd: session.cwd,
                         additionalDirectories: session.additionalDirectories,
                         ...(session.mcpServers ? {mcpServers: session.mcpServers} : {}),
-                        _meta: {alwith: {model: selection}},
+                        configOptions: [{configId: MODEL_CONFIG_ID, value: selection}],
                     },
                     undefined,
                     session.instructions,

@@ -8,6 +8,7 @@
 - Background terminals follow upstream: `_codex/terminals/list` and `_codex/terminals/stopAll` are removed, with the client's `listBackgroundTerminals` and `stopBackgroundTerminals`. Upstream's `background` snapshot on state updates and `terminal/cancel` remain.
 - Prompt suggestions use the ACP standard: a client that declares `session.promptSuggestions` receives `prompt_suggestions_update`, and the browser client keeps the list as `Session.promptSuggestions`. The `_meta.alwith.capabilities` entry `promptSuggestions` and the `_meta.promptSuggestions` reading are removed; AIR is served as upstream serves it.
 - The browser client's `steer()` is removed. A message sent while a turn runs is an ordinary `session/prompt`, which the adapter steers into that turn; the pre-standard `_session/steering` method is still served.
+- A session's provider is chosen by the standard initial `model` entry of `configOptions` on session setup; `_meta.alwith.model` is removed. An initial gateway model that is no longer configured is skipped, as the standard says for a stale value. The browser client takes `configOptions` on `newSession`, `open` and `fork`.
 - Removed with no client using them: the hook methods on v2, the goal data on v2 session info, and the full terminal output re-sent on exit.
 
 ## 0.7.86 (2026-11-22)

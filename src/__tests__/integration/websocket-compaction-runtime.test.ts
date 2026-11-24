@@ -96,7 +96,7 @@ describe.skipIf(!enabled)("real Codex gateway compaction across transports", () 
             await port.initialize("codex");
             await port.acpRequest("codex", "auth/login", {methodId: "api-key", _meta: {"api-key": {apiKey: "sk-test-not-real"}}});
             await port.acpRequest("codex", "providers/set", {providerId: "openai", apiType: "openai", baseUrl, _meta: {codex: {id: "local-test", mode: "catalog", name: "Local test"}, alwith: {models: [{id: "gpt-5.6-terra", label: "Local test"}]}}});
-            const opened = await port.acpRequest<{sessionId: string}>("codex", "session/new", {cwd: runtime.workspace, mcpServers: [], _meta: {alwith: {model: "native:gpt-6-luna"}}});
+            const opened = await port.acpRequest<{sessionId: string}>("codex", "session/new", {cwd: runtime.workspace, mcpServers: [], configOptions: [{configId: "model", type: "id", value: "native:gpt-6-luna"}]});
             const sessionId = opened.sessionId;
             async function prompt(text: string): Promise<void> {
                 const start = updates.length;

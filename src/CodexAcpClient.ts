@@ -7,7 +7,6 @@ import {replayEntriesOfTurn, withReplayTurnMetadata} from "./ReplayHistory";
 import {hostThreadOptions} from "./alwith/hostSession";
 import {ResponsesRoutes} from "./alwith/codex/responsesRoutes";
 import {ProviderRouting} from "./alwith/agent/providers";
-import {isRecord} from "./permissions/json";
 import {
     type ApiKeyAuthRequest,
     CODEX_API_KEY_ENV_VAR,
@@ -108,7 +107,7 @@ import {
     listGatewayModels,
     narrowToListedModels,
 } from "./GatewayModelDiscovery";
-import {findSupportedEffort} from "./ModelConfigOption";
+import {findSupportedEffort, MODEL_CONFIG_ID} from "./ModelConfigOption";
 import {type ProviderStartupConfig, configOverride, expandConfigTables, NO_PROVIDER_STARTUP_CONFIG, workspaceOptionReader} from "./CodexConfigOverride";
 import {recordOrNull} from "./permissions/json";
 import {disableUnsupportedSkills, withoutUnsupportedSkills} from "./UnsupportedSkills";
@@ -1978,18 +1977,19 @@ export class CodexAcpClient {
         return ModelId.create(this.nativeModel(model.model, sessionId), model.effort as ReasoningEffort).toString();
     }
 
-    async sessionRoute(request: {sessionId?: string; _meta?: unknown}): Promise<{
+    /**
+     * The provider a session starts on. A thread's provider is fixed when Codex creates it, so the initial
+     * `model` config option decides it here; the standard application of initial options runs after setup.
+     */
+    async sessionRoute(request: {sessionId?: string; configOptions?: acp.InitialSessionConfigOption[] | null}): Promise<{
         model?: string;
         modelProvider: string | null;
         gatewayId: string | null;
         catalog?: true;
     }> {
-        const meta = isRecord(request._meta) ? request._meta : {};
-        const alwith = isRecord(meta["alwith"]) ? meta["alwith"] : {};
-        const selection = alwith["model"];
-        if (selection !== undefined && (typeof selection !== "string" || !selection)) {
-            throw RequestError.invalidParams(undefined, "Expected a non-empty initial model");
-        }
+        const requested = request.configOptions?.find(entry => entry.configId === MODEL_CONFIG_ID)?.value;
+        // A stale initial value is skipped, as for every initial option.
+        const selection = typeof requested === "string" && this.providerCatalog.offers(requested) ? requested : undefined;
         const catalog =
             this.providerCatalog.hasGateways || (request.sessionId !== undefined && this.catalogSessions.has(request.sessionId));
         const persisted =

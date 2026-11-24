@@ -92,6 +92,8 @@ export type SessionRequestOptions = {
     systemPrompt?: string;
     /** Merged into the request's `_meta` (one level deep per top-level key). */
     meta?: Record<string, unknown>;
+    /** Initial values the agent applies while it sets the session up, in order; a stale value is skipped. */
+    configOptions?: acp.InitialSessionConfigOption[];
 };
 
 export type NewSessionOptions = SessionRequestOptions & {
@@ -699,6 +701,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         bind?: (sessionId: string) => Promise<void>;
         mcpServers?: acp.McpServer[];
         systemPrompt?: acp.SystemPrompt;
+        configOptions?: acp.InitialSessionConfigOption[];
         _meta?: Record<string, unknown>;
     }> {
         const host = this.options.sessionContext ? await this.options.sessionContext(cwd, operation) : {};
@@ -710,6 +713,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             ...(host.bind === undefined ? {} : {bind: host.bind}),
             ...(mcpServers ? {mcpServers} : {}),
             ...(appended ? {systemPrompt: this.systemPrompt(appended)} : {}),
+            ...(options.configOptions?.length ? {configOptions: options.configOptions} : {}),
             ...(meta ? {_meta: meta} : {}),
         };
     }

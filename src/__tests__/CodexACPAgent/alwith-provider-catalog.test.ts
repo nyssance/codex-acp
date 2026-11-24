@@ -137,6 +137,27 @@ describe("ALwith session-scoped provider catalog", () => {
         ]);
         expect(resumes).not.toHaveBeenCalled();
     });
+    it("starts a session on the provider of its initial model option, and skips a stale one", async () => {
+        const {client, resumes} = await connect();
+        await client.request("providers/set", provider("one", "model-a"));
+        const starts: Array<Record<string, unknown>> = [];
+        client.setCodexResponse("thread/start", async (raw: unknown) => {
+            starts.push(raw as Record<string, unknown>);
+            return codexResponse("thread/start");
+        });
+        const cwd = process.cwd();
+        await client.request("session/new", {
+            cwd,
+            configOptions: [{configId: "model", type: "id", value: "gateway:one:model-a"}],
+        });
+        expect(starts[0]).toMatchObject({model: "gateway:one:model-a"});
+        await client.request("session/new", {
+            cwd,
+            configOptions: [{configId: "model", type: "id", value: "gateway:gone:model-x"}],
+        });
+        expect(starts[1]?.["model"]).not.toBe("gateway:gone:model-x");
+        expect(resumes).not.toHaveBeenCalled();
+    });
     it("does not fail a catalog change with the failure of the change before it", async () => {
         const {client, resumes} = await connect();
         await client.request("providers/set", provider("one", "model-a"));
