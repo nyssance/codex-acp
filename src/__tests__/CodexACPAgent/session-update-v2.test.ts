@@ -8,7 +8,6 @@ import {CodexAcpServer} from '../../CodexAcpServer';
 import {CodexAcpClient} from '../../CodexAcpClient';
 import {CodexAppServerClient} from '../../CodexAppServerClient';
 import {createMockConnections} from './test-utils';
-import {formatAsyncQuestionReply} from '../../CodexAsyncQuestions';
 import {checkV2SessionUpdate, expectConformingV2SessionUpdates} from './v2-session-update-guard';
 
 const usageUpdate: acp.SessionUpdate = {
@@ -90,23 +89,6 @@ describe('ACPSessionConnection - session/update over ACP v2', () => {
 
         await vi.waitFor(() => expect(received).toHaveLength(2));
         await expect(dump(received)).toMatchFileSnapshot('data/session-update-v2-pass-through.json');
-    });
-
-    it('keeps the notification metadata when a question reply becomes a v2 user message', async () => {
-        const {received, view} = await connectV2Client();
-        const text = formatAsyncQuestionReply([{questionItemId: "question-1", question: "Which environment?", answer: "Remote"}]);
-
-        await view.notify(acp.methods.client.session.update, {
-            sessionId: "session-1",
-            update: {sessionUpdate: "user_message_chunk", messageId: "message-1", content: {type: "text", text}},
-            _meta: {codex: {turnId: "turn-1"}},
-        });
-
-        await vi.waitFor(() => expect(received).toHaveLength(1));
-        expect(received[0]).toMatchObject({
-            update: {sessionUpdate: "user_message", messageId: "message-1"},
-            _meta: {codex: {turnId: "turn-1"}},
-        });
     });
 
     it('renders tool calls and agent chunks in the v2 shape', async () => {

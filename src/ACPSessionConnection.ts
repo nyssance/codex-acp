@@ -1,4 +1,3 @@
-import {questionReplyContent, withQuestionReplyParts} from "./alwith/codex/questionReplies";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {
@@ -109,20 +108,6 @@ export class AcpV2Connection {
             this.terminalsEndingInCR.set(sessionId, trailingCR);
         }
         for (let v2Update of toV2SessionUpdates(update, trailingCR)) {
-            if (acpV2.SessionUpdate.isUserMessageChunk(v2Update) && acpV2.ContentBlock.isText(v2Update.content)) {
-                const content = questionReplyContent(v2Update.content.text);
-                if (content) {
-                    const meta = withQuestionReplyParts(content, v2Update._meta as Record<string, unknown> | undefined);
-                    const reply: acpV2.SessionUpdate = {
-                        sessionUpdate: "user_message",
-                        messageId: v2Update.messageId,
-                        content,
-                        ...(meta ? {_meta: meta} : {}),
-                    };
-                    await this.sendLiveUpdate({sessionId, update: reply, ...(metadata !== undefined ? {_meta: metadata} : {})});
-                    continue;
-                }
-            }
             const configRevision = v2Update.sessionUpdate === "config_option_update" ? this.configRevision?.(sessionId) : null;
             if (configRevision != null) {
                 const meta = v2Update._meta && typeof v2Update._meta === "object" ? (v2Update._meta as Record<string, unknown>) : {};

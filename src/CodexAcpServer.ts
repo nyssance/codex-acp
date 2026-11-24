@@ -184,7 +184,7 @@ import packageJson from "../package.json";
 import {SteerLanding} from "./SteerLanding";
 import {isJetBrains2026_1Client} from "./JBUtils";
 import {clientSupportsNotices, createSessionNotice} from "./SessionNotice";
-import {AsyncQuestionClient, AsyncQuestionElicitations, renderAsyncQuestionReply} from "./CodexAsyncQuestions";
+import {asyncQuestionReplyHistory, AsyncQuestionClient, AsyncQuestionElicitations, renderAsyncQuestionReply} from "./CodexAsyncQuestions";
 import {
     createAgentTextMessageChunk,
     createAgentTextThoughtChunk,
@@ -2102,6 +2102,7 @@ export class CodexAcpServer {
      * Shows landed steering input on v2. An elicitation reply stays in its form summary.
      */
     private async emitLiveSteerUserMessage(sessionId: string, messageId: string, prompt: acp.ContentBlock[], turnId: string | undefined): Promise<void> {
+        if (prompt.length === 1 && prompt[0]?.type === "text" && renderAsyncQuestionReply(prompt[0].text) !== null) return;
         const session = new ACPSessionConnection(this.connection, sessionId);
         if (session.protocolVersion !== 2) {
             return;
@@ -5040,10 +5041,10 @@ export class CodexAcpServer {
     ): Promise<UpdateSessionEvent[]> {
         const renderer = new AcpToolCallRenderer(clientCapabilities);
         switch (item.type) {
-            case "userMessage":
-                // A question reply stays a user message with its structured parts (see alwith/codex/questionReplies);
-                // upstream replays it as a completed tool call instead.
-                return this.createUserMessageUpdates(item);
+            case "userMessage": {
+                const answer = this.protocolVersion === 2 ? asyncQuestionReplyHistory(item) : null;
+                return answer === null ? this.createUserMessageUpdates(item) : [renderer.render(answer)];
+            }
             case "hookPrompt":
             case "functionCallOutput":
             case "sleep":

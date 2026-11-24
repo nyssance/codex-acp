@@ -57,7 +57,6 @@ Upstream defines only `_codex/hooks/list`, `_codex/hooks/trust` and `_codex/sess
 | Shell | `_codex/shell/execute` | `thread/shellCommand` | module-chat composer |
 | Background terminals | `_codex/terminals/list`, `_codex/terminals/stopAll` (`src/BackgroundTerminals.ts`) | `thread/backgroundTerminals/list`, `thread/backgroundTerminals/terminate` | U terminal workspace |
 | Projects | `_codex/project_context`, `_meta.codex.projectId`, `_codex/projects_changed`, `_codex/thread_project_updated` (`src/projects`) | `project/*` | module-chat, U |
-| Async questions | question card over `session/request_permission`; over v2 a reply envelope becomes a `user_message` with `_meta.codex.questionReplyParts` | `request_user_input` | module-chat |
 | Browser client | `@nyssance/codex-acp-v2/client` (`src/client`) | none | module-chat re-exports it to U, TV, Desktop |
 
 ## Behavior that differs from upstream
@@ -80,7 +79,6 @@ Each item changes how an upstream feature behaves. Where a wire contract exists,
 - **Turn timing.** A completed v2 turn re-sends its last assistant message with `turnStartedAt`, `turnCompletedAt`, `turnDurationMs` and `workDurationMs`. A turn without Codex's start or completion time carries none.
 - **Failed turn message.** A failed v2 turn sends one `codex-error:<turnId>` `agent_message` with `_meta.codex.error.{kind,category,actions}` from upstream's own classification (`src/CodexFailures.ts`, moved out of `CodexEventHandler.ts` so the exported client can import it), live and on replay. Upstream sends the error as an `agent_message_chunk`.
 - **Guardian warnings.** Failures and interruptions of automatic approval review are shown as warnings; upstream drops every `guardianWarning` ([fallbacks.md](fallbacks.md) has the text match).
-- **Question replies.** An answer to an asynchronous question is a `user_message` with its structured parts (`_meta.codex.questionReplyParts`), live and on replay. Since 2.10.0 upstream replays it as a completed tool call and does not show it live; the shared chat UI renders the user-message form.
 - **Fast mode.** A model offers fast mode when its `additionalSpeedTiers` include `priority` as well as `fast`.
 
 **Subagents**
