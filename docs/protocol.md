@@ -210,3 +210,24 @@ Background work is upstream's: every v2 `state_update` carries the `background` 
 ## Local image attachments
 
 On a prompt or steer request, an ACP image block with `_meta["alwith.localImage"] = true` and an absolute `file:` URI selects the Codex app server's `localImage` input. The path must be readable on the Codex host. The block's MIME type and data describe its conversation preview. Image input capability checks apply as they do for inline images. An invalid file URI returns invalid parameters. Image blocks without this marker retain their existing URL or inline data behavior.
+
+## Framed history browsing
+
+An adapter advertising `sessionHistory.framedItems: true` also returns `framedItems: true`
+on browse turn pages. Read turn metadata with `itemsView: "summary"`. Read bodies with
+`_codex/session_history_items`, `mode: "browse"` and `framed: true`. Omit `maxBytes`.
+Export and clients requesting their own byte budget retain the existing contract.
+The optional `framed` and `fragment` fields treat `null` as omission.
+
+A normal item response carries its native continuation in `nextCursor`. The adapter
+reduces the requested count until the result and JSON-RPC envelope fit one 32 MiB frame.
+Legacy Codex stores supply items from inline turns, with continuation after the
+identified item. Empty turns and their errors come from the metadata page.
+
+An oversized single item returns an empty `items` array and a base64 `fragment` of
+the UTF-8 JSON item, its SHA-256 `fragmentDigest`, zero-based `fragmentPart`, and
+`nextFragment`. Repeat the original request with `fragment: nextFragment` until
+`nextFragment` is null. Decode and concatenate the parts, then parse one item and
+advance the item cursor. This preserves message IDs, tool patches, media and omissions.
+A changed item fails with `history_changed`; discard partial bytes and retry the
+original page. Ordinary item pages have no fragment fields.

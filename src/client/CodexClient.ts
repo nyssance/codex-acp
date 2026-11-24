@@ -1,3 +1,4 @@
+import {readFramedHistoryPage, readFramedItems} from "./framed-history";
 import type {AppsInstalledParams, AppsInstalledResponse} from "./codex-extensions";
 import {sessionGroup, type ProjectContext, type SessionGroup} from "../projects/projection";
 import type {NewSessionOptions} from "./protocol";
@@ -445,10 +446,20 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
         this.loadedHistoryTurns.delete(id);
     }
 
+    private get framedHistory(): boolean {
+        const flags = this.state.agent?.capabilities?._meta?.codex as {sessionHistory?: {framedItems?: boolean}} | undefined;
+        return flags?.sessionHistory?.framedItems === true;
+    }
+
+    private browsePage(id: string, cwd: string, cursor: string | null, request: (method: string, params: Record<string, unknown>) => Promise<unknown>) {
+        return this.framedHistory ? readFramedHistoryPage(id, cwd, cursor, request)
+            : readHistoryPage(id, cwd, cursor, params => request("_codex/session_history", params));
+    }
+
     /** The newest history page, read for a replay scope. */
     private readFirstHistoryPage(id: string, cwd: string, scope: ReplayScope) {
-        return readHistoryPage(id, cwd, null, params =>
-            scope.agent.request("_codex/session_history", params, {
+        return this.browsePage(id, cwd, null, (method, params) =>
+            scope.agent.request(method, params, {
                 cancellationSignal: scope.signal,
             }),
         );
@@ -563,7 +574,7 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
             },
         }));
         const current = () => this.agent === agent && this.holds(id) && this.historyRequests.get(id) === request;
-        const request = readHistoryPage(id, session.cwd, page.cursor, params => agent.request("_codex/session_history", params))
+        const request = this.browsePage(id, session.cwd, page.cursor, (method, params) => agent.request(method, params))
             .then(result => {
                 if (!current()) return;
                 const navigation = this.state.historyNavigation[id];
@@ -704,7 +715,7 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
             id,
             this.sessions.get(id).cwd,
             turn,
-            (method, params) => agent.request(method, params),
+            (method, params) => this.framedHistory ? readFramedItems(p => agent.request(method, p), params) : agent.request(method, params),
             check,
             preview,
         )
@@ -763,7 +774,7 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
         if (!this.historyCapability("browse")) throw new Error("Activity preview requires history browsing");
         const request = readActivityReply(
             sessionId,
-            params => agent.request("_codex/session_history_items", params),
+            params => this.framedHistory ? readFramedItems(p => agent.request("_codex/session_history_items", p), params) : agent.request("_codex/session_history_items", params),
             () => {
                 if (this.agent !== agent || !this.state.runStates[sessionId]) throw new Error("Activity preview was cancelled");
             },
@@ -798,7 +809,7 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
     ): Promise<{session: Session; cursor: string | null}> {
         if (!this.historyCapability("browse")) throw new Error("Session history browsing is unavailable");
         const agent = this.live();
-        const page = await readHistoryPage(threadId, cwd, cursor, params => agent.request("_codex/session_history", params));
+        const page = await this.browsePage(threadId, cwd, cursor, (method, params) => agent.request(method, params));
         if (this.agent !== agent) throw new Error("Codex disconnected during history load");
         return {session: page.session, cursor: page.cursor};
     }

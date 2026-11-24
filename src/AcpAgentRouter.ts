@@ -303,7 +303,7 @@ function createRouter(
     }
 
     for (const method of ALWITH_METHODS) {
-        v2Agent = v2Agent.onRequest(method, {parse: objectParams}, (ctx) => getAgent().alwithRequest(method, ctx.params, ctx.signal));
+        v2Agent = v2Agent.onRequest(method, {parse: objectParams}, (ctx) => getAgent().alwithRequest(method, ctx.params, ctx.signal, ctx.requestId));
     }
 
     const v1Connector: acp.AgentConnector = v1Agent;

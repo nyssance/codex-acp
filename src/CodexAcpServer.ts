@@ -983,6 +983,7 @@ export class CodexAcpServer {
                 _meta: {
                     codex: {
                         sessionHistory: {
+                            framedItems: true,
                             version: 2,
                             items: true,
                             modes: ["browse", "export"],
@@ -1093,7 +1094,7 @@ export class CodexAcpServer {
         return this.configRevisions.read(session, toV2ConfigOptions(this.createSessionConfigOptions(session)));
     }
 
-    async alwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    async alwithRequest(method: string, params: Record<string, unknown>, signal?: AbortSignal, requestId?: string | number | null): Promise<unknown> {
         if (!this.codexAcpClient.initialized) throw RequestError.invalidRequest(undefined, "Initialize before calling ALwith extensions");
         if (this.providerUpdate !== null) await this.waitForProviderUpdate();
         const ready = this.ensureAppServer();
@@ -1151,7 +1152,7 @@ export class CodexAcpServer {
             );
             return {};
         }
-        return this.runWithProcessCheck(() => this.alwith.request(method, params, signal));
+        return this.runWithProcessCheck(() => this.alwith.request(method, params, signal, requestId));
     }
 
     async nativeRequest(method: CodexNativeMethod, params: Record<string, unknown>): Promise<unknown> {

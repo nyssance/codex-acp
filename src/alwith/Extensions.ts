@@ -1,3 +1,5 @@
+import {itemPageReader} from "./agent/sessionHistory";
+import {framedItems} from "./agent/historyFrames";
 import {readSessionInputConfig, writeSessionInputConfig} from "./codex/sessionInputConfig";
 import {generateImage} from "./codex/images";
 import {projectsFor} from "../projects/registry";
@@ -112,7 +114,7 @@ export class AlwithExtensions {
         this.codex = new AppServerClient(current);
     }
 
-    async request(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    async request(method: string, params: Record<string, unknown>, signal?: AbortSignal, requestId: string | number | null = 0): Promise<unknown> {
         signal?.throwIfAborted();
         if (method === "_codex/plugin_service_auth") {
             const refresh = params["refreshToken"];
@@ -134,6 +136,23 @@ export class AlwithExtensions {
             return snapshot;
         }
         if (method === "_codex/project_context") return projectsFor(this.current()).context(params["createChatDirectory"] === true);
+        if (method === "_codex/session_history_items" && (params["framed"] === null || params["fragment"] === null)) {
+            params = {...params};
+            if (params["framed"] === null) delete params["framed"];
+            if (params["fragment"] === null) delete params["fragment"];
+        }
+        if (method === "_codex/session_history_items" && params["framed"] === true) {
+            const {framed: _framed, fragment, ...input} = params;
+            const parsed = parseSessionHistoryItemsParams(input);
+            if (parsed.mode !== "browse" || parsed.maxBytes !== undefined ||
+                (fragment !== undefined && (typeof fragment !== "string" || !/^[a-f0-9]{64}:[1-9]\d{0,9}$/.test(fragment))))
+                throw RequestError.invalidParams(undefined, "Invalid framed history request");
+            const read = await itemPageReader(this.codex, this.render, parsed, signal, true);
+            return framedItems(parsed.limit ?? 50, fragment as string | undefined, requestId, async limit => {
+                const page = await read.pageAt(limit);
+                return {...page, running: this.running(parsed.sessionId) || page.running};
+            });
+        }
         if (method === "_codex/session_history" || method === "_codex/session_history_items") {
             const request =
                 method === "_codex/session_history"
@@ -152,6 +171,7 @@ export class AlwithExtensions {
             assertIdle();
             return {
                 ...response,
+                ...(parsed.mode === "browse" && !request.items ? {framedItems: true} : {}),
                 running: this.running(parsed.sessionId) || response.running,
             };
         }
