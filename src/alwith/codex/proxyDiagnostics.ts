@@ -5,8 +5,10 @@ export const PROXY_DIAGNOSTIC_PREFIX = "[alwith-model-proxy] ";
 const ERROR_CODES = new Set([
     "ERR_INVALID_ARG_TYPE",
     "ERR_HTTP_REQUEST_BODY_TOO_LARGE",
-    "REQUEST_BODY_TOO_LARGE",
     "REQUEST_BODY_READ_FAILED",
+    "REQUEST_BODY_DECOMPRESS_FAILED",
+    "REQUEST_BODY_PARSE_FAILED",
+    "REQUEST_BODY_REWRITE_FAILED",
     "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH",
     "ERR_STREAM_PREMATURE_CLOSE",
     "NATIVE_NETWORK_CONNECT_FAILED",
@@ -69,7 +71,7 @@ export class ProxyDiagnostics {
     private readonly started = performance.now();
     private ended = false;
     private readonly data = {
-        version: 1,
+        version: 2,
         requestId: randomBytes(12).toString("hex"),
         transport: "http" as "http" | "websocket",
         destination: "native" as "native" | "external",
@@ -86,7 +88,8 @@ export class ProxyDiagnostics {
         requestBody: null as null | {
             declaredBytes: number | null;
             readBytes: number;
-            limitBytes: number;
+            /** The body's size after its content encoding is removed; null until that succeeded. */
+            decodedBytes: number | null;
             encoding: string;
             complete: boolean;
             aborted: boolean;
@@ -137,11 +140,11 @@ export class ProxyDiagnostics {
         this.data.stage = stage;
     }
 
-    requestBody(declared: string | undefined, encoding: string | undefined, limit: number): void {
+    requestBody(declared: string | undefined, encoding: string | undefined): void {
         this.data.requestBody = {
             declaredBytes: declared !== undefined && /^\d+$/.test(declared) && Number.isSafeInteger(Number(declared)) ? Number(declared) : null,
             readBytes: 0,
-            limitBytes: limit,
+            decodedBytes: null,
             encoding: ["identity", "zstd", "gzip", "deflate", "br"].includes(encoding ?? "identity") ? encoding ?? "identity" : "other",
             complete: false,
             aborted: false,
@@ -150,6 +153,10 @@ export class ProxyDiagnostics {
 
     requestRead(bytes: number): void {
         if (this.data.requestBody) this.data.requestBody.readBytes += bytes;
+    }
+
+    requestDecoded(bytes: number): void {
+        if (this.data.requestBody) this.data.requestBody.decodedBytes = bytes;
     }
 
     requestEnded(complete: boolean, aborted: boolean): void {

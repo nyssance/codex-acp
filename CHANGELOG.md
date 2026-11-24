@@ -1,3 +1,9 @@
+## Unreleased
+
+- The Responses proxy no longer caps an HTTP request at 64 MiB, before or after zstd decompression. A long conversation's compaction request exceeded it once decompressed and was refused locally as "Invalid Responses request body" without reaching the model. WebSocket messages keep their limit.
+- A request the proxy cannot use is answered with HTTP 400 and the step that failed: `REQUEST_BODY_DECOMPRESS_FAILED`, `REQUEST_BODY_PARSE_FAILED` or `REQUEST_BODY_REWRITE_FAILED`. These failures are now recorded as failed in the proxy diagnostics; they used to be recorded as completed.
+- Proxy diagnostics are version 2: `requestBody.decodedBytes` replaces `limitBytes`, and `REQUEST_BODY_TOO_LARGE` is gone. A host that validates these events must accept version 2.
+
 ## 0.7.88 (2026-11-24)
 
 - The browser client's draft sessions are back: `newSession` takes `draft`, `state.drafts`, `isDraft`, `discardDraft` and the `materializeDraft` / `onDraftMaterialized` hooks return, and a draft is listed with its first prompt. A draft stays a session created when a conversation opens.

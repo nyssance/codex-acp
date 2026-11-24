@@ -23,7 +23,19 @@ import {CompactionResponse, CompactionSink, summaryRequest} from "./externalComp
 import {GatewayWebSearch, type SearchUpstream} from "./gatewayWebSearch";
 import {compatibleResponsesRequest} from "./responsesCompatibility";
 
-const MAX_BODY_BYTES = 64 * 1024 * 1024;
+/** One WebSocket message, and the bytes a stalled peer may leave queued before the connection is dropped. */
+const MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
+/** Failures of a request body the proxy read whole but could not use; Codex gets 400 with the code. */
+const INVALID_REQUEST_CODES = new Set(["REQUEST_BODY_DECOMPRESS_FAILED", "REQUEST_BODY_PARSE_FAILED", "REQUEST_BODY_REWRITE_FAILED"]);
+
+/** Runs one step of preparing a request; a failure keeps its cause and names the step. */
+function requestStep<T>(code: string, step: () => T): T {
+    try {
+        return step();
+    } catch (cause) {
+        throw Object.assign(new Error("Cannot prepare Responses request body", {cause}), {code});
+    }
+}
 /**
  * DeepSeek reports an exhausted balance as HTTP 402. Codex treats any status it does not know as a
  * retryable connection failure, so the proxy forwards Codex's own usage-limit form instead: 429
@@ -98,19 +110,15 @@ function forwardingHeaders(headers: IncomingHttpHeaders, websocket: boolean): In
 
 async function requestBody(request: IncomingMessage, diagnostic: ProxyDiagnostics): Promise<Buffer> {
     const chunks: Buffer[] = [];
-    let length = 0;
-    diagnostic.requestBody(request.headers["content-length"], request.headers["content-encoding"], MAX_BODY_BYTES);
+    diagnostic.requestBody(request.headers["content-length"], request.headers["content-encoding"]);
     try {
+        // Codex is the only client and its largest request is a conversation's own history, so the size is not capped.
         for await (const chunk of request) {
             const bytes = Buffer.from(chunk as Uint8Array);
-            length += bytes.length;
             diagnostic.requestRead(bytes.length);
-            if (length > MAX_BODY_BYTES)
-                throw Object.assign(new Error("Responses request is too large"), {code: "REQUEST_BODY_TOO_LARGE"});
             chunks.push(bytes);
         }
     } catch (cause) {
-        if (cause instanceof Error && "code" in cause && cause.code === "REQUEST_BODY_TOO_LARGE") throw cause;
         throw Object.assign(new Error("Cannot read Responses request body", {cause}), {code: "REQUEST_BODY_READ_FAILED"});
     } finally {
         diagnostic.requestEnded(request.complete, request.aborted);
@@ -128,7 +136,7 @@ export class ResponsesProxy {
     private readonly nativeNetwork = NativeNetworkTransport.fromEnvironment();
     private readonly websocket = new WebSocketServer({
         noServer: true,
-        maxPayload: MAX_BODY_BYTES,
+        maxPayload: MAX_MESSAGE_BYTES,
     });
     private readonly routes = new Map<string, string | (() => Promise<string>)>();
     private readonly routeHeaders = new Map<string, Record<string, string>>();
@@ -158,8 +166,9 @@ export class ResponsesProxy {
                 if (!response.writableFinished) setImmediate(() => diagnostic.end("cancelled"));
             });
             void this.forwardHttp(request, response, diagnostic).catch((error: unknown) => {
-                const tooLarge = transportErrors(error).includes("REQUEST_BODY_TOO_LARGE");
-                if (tooLarge) diagnostic.forwarded(413);
+                // A request the proxy itself cannot use is the client's error; everything else failed in transport.
+                const invalid = transportErrors(error).some(code => INVALID_REQUEST_CODES.has(code));
+                if (invalid) diagnostic.forwarded(400);
                 diagnostic.end("failed", error);
                 if (response.destroyed) return;
                 if (response.headersSent) {
@@ -168,7 +177,7 @@ export class ResponsesProxy {
                 }
                 // Transport errors must not expose upstream URLs, headers or conversation content.
                 if (!response.headersSent)
-                    response.writeHead(tooLarge ? 413 : 502, {
+                    response.writeHead(invalid ? 400 : 502, {
                         "content-type": "text/plain",
                     });
                 const code =
@@ -342,25 +351,21 @@ export class ResponsesProxy {
                 headers["content-type"] = "application/json";
                 delete headers["content-encoding"];
             }
-        } else
-            try {
-                const decoded =
-                    encoding === "zstd"
-                        ? zstdDecompressSync(bytes, {
-                              maxOutputLength: MAX_BODY_BYTES,
-                          })
-                        : bytes;
+        } else {
+            const decoded = requestStep("REQUEST_BODY_DECOMPRESS_FAILED", () => (encoding === "zstd" ? zstdDecompressSync(bytes) : bytes));
+            diagnostic.requestDecoded(decoded.length);
+            const {compatible, parsed} = requestStep("REQUEST_BODY_PARSE_FAILED", () => {
                 const compatible = compatibleResponsesRequest(decoded.toString("utf8"), this.destination);
-                const parsed: unknown = this.destination === "external" ? JSON.parse(compatible) : null;
+                return {compatible, parsed: this.destination === "external" ? (JSON.parse(compatible) as unknown) : null};
+            });
+            body = requestStep("REQUEST_BODY_REWRITE_FAILED", () => {
                 const summary = isRecord(parsed) ? summaryRequest(parsed) : null;
                 compaction = summary !== null;
                 if (!summary && isRecord(parsed) && this.protocol === "openai" && this.searchRoutes.has((request.url ?? "").slice(1, 49)))
                     search = this.webSearch.request(parsed);
-                body = Buffer.from(summary ? JSON.stringify(summary) : search ? JSON.stringify(search) : compatible);
-            } catch {
-                response.writeHead(400).end("Invalid Responses request body");
-                return;
-            }
+                return Buffer.from(summary ? JSON.stringify(summary) : search ? JSON.stringify(search) : compatible);
+            });
+        }
         if (transformResponses) delete headers["content-encoding"];
         headers["content-length"] = String(body.length);
         const abort = new AbortController();
@@ -587,7 +592,7 @@ export class ResponsesProxy {
             },
             followRedirects: false,
             handshakeTimeout: native ? 40_000 : 15_000,
-            maxPayload: MAX_BODY_BYTES,
+            maxPayload: MAX_MESSAGE_BYTES,
         });
         this.peers.add(upstream);
         upstream.once("close", () => this.peers.delete(upstream));
@@ -703,7 +708,7 @@ export class ResponsesProxy {
                 if (error) fail(error);
             });
             // Bound pending writes while retaining ws's ordered send queue.
-            if (upstream.bufferedAmount > MAX_BODY_BYTES) fail();
+            if (upstream.bufferedAmount > MAX_MESSAGE_BYTES) fail();
         });
         upstream.on("message", (data, binary) => {
             diagnostic.received(messageBytes(data).length);
@@ -738,7 +743,7 @@ export class ResponsesProxy {
             else for (const message of converted) downstream.send(message, error => {
                 if (error) upstream.terminate();
             });
-            if (downstream.bufferedAmount > MAX_BODY_BYTES) fail();
+            if (downstream.bufferedAmount > MAX_MESSAGE_BYTES) fail();
         });
         const closePeer = (peer: WebSocket, code: number): void => {
             if (peer.readyState === WebSocket.CONNECTING) peer.terminate();

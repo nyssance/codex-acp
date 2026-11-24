@@ -46,15 +46,23 @@ HTTP status, WebSocket close code and a syntax-checked `x-request-id` when avail
 contain at most four allowlisted transport codes and `errorNames` contains the
 corresponding bounded exception classes, never messages or stacks.
 
-HTTP ingestion adds optional `requestBody` metadata: `declaredBytes` (null when
-absent or invalid), `readBytes`, `limitBytes`, the allowlisted `encoding`, and the
-`IncomingMessage` flags `complete` and `aborted`. These are wire bytes before
-request decompression or rewriting, separate from upstream `sentBytes`. Exceeding
-the local limit returns HTTP 413 with `REQUEST_BODY_TOO_LARGE` and records
-`forwardedStatus: 413`. Other upload-read failures record `REQUEST_BODY_READ_FAILED`
-followed by the cause codes. WebSocket receiver errors retain their allowlisted
-codes, including `WS_ERR_UNSUPPORTED_MESSAGE_LENGTH`. Older events can omit the
-new metadata; hosts must continue accepting them.
+HTTP ingestion adds `requestBody` metadata: `declaredBytes` (null when absent or
+invalid), `readBytes`, `decodedBytes`, the allowlisted `encoding`, and the
+`IncomingMessage` flags `complete` and `aborted`. `readBytes` are wire bytes before
+decompression; `decodedBytes` is the size after the content encoding is removed and
+stays null until that succeeded; both are separate from upstream `sentBytes`.
+
+The proxy does not cap an HTTP request: Codex is its only client, and its largest
+request is a conversation's own history sent for compaction. A request the proxy
+read whole but cannot use is answered with HTTP 400 and `forwardedStatus: 400`, and
+names the step that failed: `REQUEST_BODY_DECOMPRESS_FAILED`,
+`REQUEST_BODY_PARSE_FAILED` or `REQUEST_BODY_REWRITE_FAILED`. An upload that could not
+be read records `REQUEST_BODY_READ_FAILED`. Each is followed by its cause codes.
+WebSocket messages keep a 64 MiB limit, and receiver errors retain their allowlisted
+codes, including `WS_ERR_UNSUPPORTED_MESSAGE_LENGTH`.
+
+The event `version` is 2. Version 1 had `limitBytes` in place of `decodedBytes` and
+the `REQUEST_BODY_TOO_LARGE` code.
 
 No prompt, response text, authorization headers, URL paths or queries, local route
 tokens, model identifiers, proxy addresses or environment values are emitted.

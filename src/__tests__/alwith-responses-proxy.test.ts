@@ -737,7 +737,45 @@ describe("an exhausted balance reported as HTTP 402", () => {
 });
 
 describe("request ingestion diagnostics", () => {
-    it("returns 413 with measured bytes for oversized bodies without contacting the upstream", async () => {
+    /** A Responses request whose JSON is exactly `bytes` long. */
+    function requestOfSize(bytes: number): Buffer {
+        const frame = JSON.stringify({model: "m", input: [{type: "message", role: "user", content: [{type: "input_text", text: ""}]}]});
+        return Buffer.from(frame.replace('"text":""', `"text":"${"x".repeat(bytes - frame.length)}"`));
+    }
+
+    function events(log: {mock: {calls: unknown[][]}}): Array<Record<string, any>> {
+        return log.mock.calls.map(call => JSON.parse(String(call[0]).slice(PROXY_DIAGNOSTIC_PREFIX.length)));
+    }
+
+    it.each(["identity", "zstd"] as const)("forwards a %s request larger than 64 MiB whole", async encoding => {
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        let received = 0;
+        let receivedEncoding: string | undefined;
+        const upstream = createServer((request, response) => {
+            receivedEncoding = request.headers["content-encoding"];
+            request.on("data", (chunk: Buffer) => (received += chunk.length));
+            request.on("end", () => response.end("{}"));
+        });
+        const route = await proxy().route(await listen(upstream));
+        const body = requestOfSize(64 * 1024 * 1024 + 1);
+        const sent = encoding === "zstd" ? zstdCompressSync(body) : body;
+        const response = await fetch(`${route}/responses`, {
+            method: "POST",
+            headers: encoding === "zstd" ? {"content-encoding": "zstd"} : {},
+            body: new Uint8Array(sent),
+        });
+        expect(response.status).toBe(200);
+        // The proxy forwards the decoded JSON, so the upstream gets every byte and no content encoding.
+        expect(received).toBe(body.length);
+        expect(receivedEncoding).toBeUndefined();
+        const completed = events(log).find(event => event.phase === "completed");
+        expect(completed).toMatchObject({sentBytes: body.length, requestBody: {readBytes: sent.length, decodedBytes: body.length, encoding, complete: true}});
+    });
+
+    it.each([
+        ["a body that does not decompress", {"content-encoding": "zstd"}, Buffer.from("not zstd"), "REQUEST_BODY_DECOMPRESS_FAILED", null],
+        ["a body that is not JSON", {}, Buffer.from("{not json"), "REQUEST_BODY_PARSE_FAILED", 9],
+    ] as const)("answers 400 with its own code for %s, without contacting the upstream", async (_name, headers, body, code, decodedBytes) => {
         const log = vi.spyOn(console, "error").mockImplementation(() => {});
         let contacted = false;
         const upstream = createServer((_request, response) => {
@@ -745,18 +783,16 @@ describe("request ingestion diagnostics", () => {
             response.end("unexpected");
         });
         const route = await proxy().route(await listen(upstream));
-        const bytes = 64 * 1024 * 1024 + 1;
-        const response = await fetch(`${route}/responses`, {method: "POST", body: Buffer.alloc(bytes, 120)});
-        expect(response.status).toBe(413);
-        expect(await response.text()).toContain("REQUEST_BODY_TOO_LARGE");
+        const response = await fetch(`${route}/responses`, {method: "POST", headers, body: new Uint8Array(body)});
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain(code);
         expect(contacted).toBe(false);
-        const events = log.mock.calls.map(call => JSON.parse(String(call[0]).slice(PROXY_DIAGNOSTIC_PREFIX.length)));
-        const failed = events.find(event => event.phase === "failed");
-        expect(failed).toMatchObject({stage: "read_request", sentBytes: 0, errors: ["REQUEST_BODY_TOO_LARGE"], requestBody: {declaredBytes: bytes, limitBytes: 67108864, encoding: "identity"}});
-        expect(failed.requestBody.readBytes).toBeGreaterThan(67108864);
+        // The cause follows the step's code; a parser or decoder error has no transport code of its own.
+        const failed = events(log).find(event => event.phase === "failed");
+        expect(failed).toMatchObject({stage: "prepare_request", sentBytes: 0, forwardedStatus: 400, errors: [code, "UNKNOWN"], requestBody: {readBytes: body.length, decodedBytes, complete: true}});
     });
 
-    it("distinguishes interrupted small uploads from the size limit", async () => {
+    it("reports an interrupted upload as a read failure with the bytes read", async () => {
         const log = vi.spyOn(console, "error").mockImplementation(() => {});
         const read = vi.spyOn(ProxyDiagnostics.prototype, "requestRead");
         const route = await proxy().route("http://127.0.0.1:1");
