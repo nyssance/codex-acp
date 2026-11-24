@@ -226,6 +226,7 @@ import {
 import {randomUUID} from "node:crypto";
 import {TitleGenerator} from "./TitleGenerator";
 import {PromptSuggestionGenerator, promptSuggestionsEnabled, promptSuggestionsMeta} from "./PromptSuggestionGenerator";
+import {ALWITH_MODEL_EFFORTS_KEY, clientSupportsAlwithCapability} from "./alwith/agent/sessionList";
 import {
     AIR_AGENT_FILE_CHANGE_REPORT_KEY,
     AIR_CUSTOM_INSTRUCTIONS_KEY,
@@ -2553,7 +2554,10 @@ export class CodexAcpServer {
         const {configOptions} = await this.sessionOptions(params);
         return {
             ...(configOptions && {configOptions: toV2ConfigOptions(configOptions)}),
-            availableCommands: toV2AvailableCommands(this.availableCommands.getBuiltinCommands(this.capabilities.airClient)),
+            // Codex lists skills by directory, so the preview offers the same commands as the session would.
+            availableCommands: toV2AvailableCommands(
+                await this.availableCommands.previewCommands(params.cwd, params.additionalDirectories ?? [], this.capabilities.airClient),
+            ),
         };
     }
 
@@ -4201,7 +4205,8 @@ export class CodexAcpServer {
                     sessionState.availableModels,
                     currentModelId.model,
                     recommendedModelId,
-                    isAirClient(this.clientCapabilities),
+                    isAirClient(this.clientCapabilities)
+                        || (clientSupportsAlwithCapability(this.clientCapabilities, ALWITH_MODEL_EFFORTS_KEY) && "codex"),
                     this.codexAcpClient.providerCatalog.gatewayGroups(),
                 ),
             );

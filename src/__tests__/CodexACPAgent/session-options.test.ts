@@ -72,6 +72,20 @@ describe.each([1, 2] as const)("ACP v%s session options", version => {
         expect(restored.configOptions).toEqual(active.configOptions);
     });
 
+    it("previews the skills Codex finds in the directory as commands", async () => {
+        if (version === 1) return;
+        const {start} = await connect();
+        const listed: unknown[] = [];
+        h.setCodexResponse("skills/list", async (params: unknown) => {
+            listed.push(params);
+            return {data: [{cwd, skills: [{name: "deploy", description: "Deploy the project", shortDescription: null, path: "/skills/deploy/SKILL.md", scope: "repo", enabled: true}], errors: []}]};
+        });
+        const fresh = await h.request("session/options", {cwd, additionalDirectories: ["/extra"]});
+        expect(fresh.availableCommands).toContainEqual(expect.objectContaining({name: "$deploy", description: "Deploy the project"}));
+        expect(listed.at(-1)).toEqual({cwds: [cwd, "/extra"]});
+        expect(start).not.toHaveBeenCalled();
+    });
+
     it("returns Resource not found for an unknown session", async () => {
         await connect();
         h.setCodexResponse("thread/read", async () => { throw new Error("no rollout found for thread id missing"); });

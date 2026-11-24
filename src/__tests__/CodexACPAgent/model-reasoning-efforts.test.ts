@@ -6,7 +6,7 @@ import {codexResponse, connectSession, createThread, cwd, sessionId} from "./v2-
 /** An AIR client that declares no AIR capability. */
 const AIR_CLIENT = {_meta: {jetbrains: {air: {version: 1}}}};
 
-async function connect(version: 1 | 2, airClient: boolean) {
+async function connect(version: 1 | 2, airClient: boolean, capabilities: Record<string, unknown> | null = airClient ? AIR_CLIENT : null) {
     const luna = createTestModel({
         id: "gpt-5.6-luna",
         displayName: "GPT-5.6-Luna",
@@ -30,7 +30,7 @@ async function connect(version: 1 | 2, airClient: boolean) {
     });
     const start = async () => ({...codexResponse("thread/start") as object, model: luna.id});
     return connectSession(version, {
-        ...(airClient ? version === 2 ? {clientCapabilities: AIR_CLIENT} : {v1ClientCapabilities: AIR_CLIENT} : {}),
+        ...(capabilities ? version === 2 ? {clientCapabilities: capabilities} : {v1ClientCapabilities: capabilities} : {}),
         codexResponses: {
             "thread/start": start,
             "thread/resume": start,
@@ -70,6 +70,17 @@ describe.each([1, 2] as const)("ACP v%s model reasoning efforts", version => {
             const entries = modelEntries(sessionNewResponse(h.wireMessages).configOptions) as Array<object>;
             expect(entries).toHaveLength(3);
             for (const entry of entries) expect(entry).not.toHaveProperty("_meta");
+        } finally { h.connection.close(); }
+    });
+
+    it("carries the efforts under codex for a client that declares the ALwith capability", async () => {
+        const h = await connect(version, false, {_meta: {alwith: {capabilities: ["modelReasoningEfforts"]}}});
+        try {
+            expect(modelEntries(sessionNewResponse(h.wireMessages).configOptions)).toMatchObject([
+                {value: "gpt-5.6-luna", _meta: {codex: {reasoningEfforts: {values: ["low", "medium", "high", "xhigh"], recommended: "medium"}}}},
+                {value: "gpt-5.6-sol", _meta: {codex: {reasoningEfforts: {values: ["high"]}}}},
+                {value: "plain-model"},
+            ]);
         } finally { h.connection.close(); }
     });
 

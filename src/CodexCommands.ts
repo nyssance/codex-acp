@@ -188,6 +188,12 @@ export class CodexCommands {
         }
     }
 
+    /** The commands a session opened in `cwd` would start with: the built-in ones and the skills Codex finds there. */
+    async previewCommands(cwd: string, additionalDirectories: string[], airClient: boolean): Promise<AvailableCommand[]> {
+        const skills = await this.runWithProcessCheck(() => this.codexAcpClient.listSkills({cwds: [cwd, ...additionalDirectories]}));
+        return this.buildAvailableCommands(skills?.data ?? [], airClient);
+    }
+
     private createSkillsListParams(sessionState: SessionState): SkillsListParams {
         return {
             cwds: [sessionState.cwd, ...sessionState.additionalDirectories],

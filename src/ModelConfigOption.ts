@@ -68,21 +68,23 @@ function modelOptions(availableModels: ReadonlyArray<Model>, currentBaseModelId:
 }
 
 /**
- * The session `model` option. With `withReasoningEfforts`, each model entry carries the AIR effort list of the
- * model in `_meta.jetbrains.air.reasoningEfforts`. An entry of a model without efforts gets no `_meta`.
+ * The session `model` option. With `withReasoningEfforts`, each model entry carries the effort list of the
+ * model: `true` in `_meta.jetbrains.air.reasoningEfforts` (AIR), `"codex"` in `_meta.codex.reasoningEfforts`
+ * (a client that asked for it). An entry of a model without efforts gets no `_meta`.
  */
 export function createModelConfigOption(
     availableModels: Array<Model>,
     currentBaseModelId: string,
     recommendedModelId?: string,
-    withReasoningEfforts: boolean = false,
+    withReasoningEfforts: boolean | "codex" = false,
     groups: GatewayGroup[] = [],
 ): SessionConfigOption {
     const options = modelOptions(availableModels, currentBaseModelId).map(option => {
         if (!withReasoningEfforts) return option;
         const model = availableModels.find(candidate => candidate.id === option.value);
         const efforts = model ? modelReasoningEfforts(model) : null;
-        return efforts ? {...option, _meta: withAirMeta(undefined, AIR_MODEL_REASONING_EFFORTS_KEY, efforts)} : option;
+        if (!efforts) return option;
+        return {...option, _meta: withReasoningEfforts === "codex" ? {codex: {reasoningEfforts: efforts}} : withAirMeta(undefined, AIR_MODEL_REASONING_EFFORTS_KEY, efforts)};
     });
 
     const recommendation = recommendedModelId && options.some(option => option.value === recommendedModelId)
