@@ -1,6 +1,5 @@
 import type {AppsInstalledParams, AppsInstalledResponse} from "./codex-extensions";
 import {sessionGroup, type ProjectContext, type SessionGroup} from "../projects/projection";
-import type {NewSessionOptions} from "./protocol";
 // The Codex client owns the ACP SessionClient and everything codex-acp-v2 adds on top
 // of ACP (`_codex/*`): the full session list and archive, history browsing and export, skills and
 // plugin marketplaces, rate limits, file search, retries, fork lineage and realtime.
@@ -18,6 +17,8 @@ import {
     type ReplayScope,
     SessionClient,
     type SessionOperation,
+    type SessionPreview,
+    type SessionPreviewOptions,
     type SessionRequestOptions,
     type SessionSummary,
 } from "./protocol";
@@ -81,6 +82,17 @@ export type CodexClientState = ClientState & {
     historyPages: Record<string, HistoryPageState>;
     historyNavigation: Record<string, HistoryNavigationState>;
 };
+
+const FAST_MODE_CONFIG_ID = "fast-mode";
+
+/**
+ * New chats use standard speed even when Codex's global default is priority: the request starts the session with Fast off
+ * unless the caller chose a value. A model without Fast skips the entry, as the standard says for one that does not apply.
+ */
+function withStandardSpeed(options: SessionRequestOptions): SessionRequestOptions {
+    if (options.configOptions?.some(option => option.configId === FAST_MODE_CONFIG_ID)) return options;
+    return {...options, configOptions: [...(options.configOptions ?? []), {configId: FAST_MODE_CONFIG_ID, type: "boolean", value: false}]};
+}
 
 /** `session/resume` answered from the read path because another Codex client holds the writer. */
 function isReadOnlyResume(response: acp.ResumeSessionResponse): boolean {
@@ -254,13 +266,26 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
         return sessionGroup(context, row);
     }
 
-    override async newSession(cwd?: string, options: NewSessionOptions = {}): Promise<string> {
-        if (cwd !== undefined) return super.newSession(cwd, options);
+    override async newSession(cwd?: string, options: SessionRequestOptions = {}): Promise<string> {
+        const standard = withStandardSpeed(options);
+        if (cwd !== undefined) return super.newSession(cwd, standard);
         const context = await this.refreshProjectContext(true);
         return super.newSession(context.chatDirectory, {
-            ...options,
-            meta: mergeMeta(options.meta, {codex: {projectId: null}}),
+            ...standard,
+            meta: mergeMeta(standard.meta, {codex: {projectId: null}}),
         });
+    }
+
+    /** A new session's preview shows the speed it starts with: standard, unless the caller chooses Fast. */
+    override async previewSession(cwd: string, options: SessionPreviewOptions = {}): Promise<SessionPreview> {
+        const preview = await super.previewSession(cwd, options);
+        if (options.sessionId !== undefined) return preview;
+        return {
+            ...preview,
+            configOptions: preview.configOptions.map(option =>
+                option.configId === FAST_MODE_CONFIG_ID && isBooleanOption(option) ? {...option, currentValue: false} : option,
+            ),
+        };
     }
 
     // ── List dialect ──
@@ -309,7 +334,7 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
         if (generation !== this.archivedGeneration) return;
         const page = response.sessions
             .map(info => this.summaryOf(info))
-            .filter(item => item.archived && !this.state.drafts[item.sessionId]);
+            .filter(item => item.archived);
         const nextCursor = response.nextCursor ?? null;
         this.set(current => {
             const after = new Map([...current.sessionList, ...current.archivedSessions].map(item => [item.sessionId, item] as const));
@@ -347,7 +372,6 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
                 });
                 for (const info of response.sessions) {
                     const item = this.summaryOf(info);
-                    if (this.state.drafts[item.sessionId]) continue;
                     if ((project === undefined || item.cwd === project) && item.archived === archived) sessions.set(item.sessionId, item);
                 }
                 cursor = response.nextCursor ?? undefined;
@@ -391,24 +415,6 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
 
     protected override promptMeta(_id: string, options: PromptOptions): Record<string, unknown> | undefined {
         return mergeMeta({codex: {messageSentAt: Date.now()}}, options.meta);
-    }
-
-    /** New chats use standard speed even when Codex's global default is priority. */
-    protected override async afterSessionCreated(id: string): Promise<void> {
-        const fast = this.session(id).configOptions.find(option => option.configId === "fast-mode");
-        if (!fast || !isBooleanOption(fast) || !fast.currentValue) return;
-        try {
-            await this.setConfig(id, fast.configId, false);
-        } catch (error) {
-            try {
-                await this.delete(id);
-            } catch (cleanupError) {
-                throw new AggregateError([error, cleanupError], "Failed to initialize and clean up the new session", {
-                    cause: cleanupError,
-                });
-            }
-            throw error;
-        }
     }
 
     /** Old project indexes and a retry after a successful remote delete may outlive the rollout. */

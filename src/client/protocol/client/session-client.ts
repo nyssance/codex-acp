@@ -3,8 +3,8 @@
 // stop, delete, fork, list) and publishes state through a framework-agnostic store.
 //
 // Engines extend it: an adapter's own `_<engine>/*` methods, metadata and list dialect go into a
-// subclass shipped with that adapter (`@nyssance/codex-acp-v2/client`). Product behaviour (draft
-// slots per window, model memory, project grouping) stays in the application, also as a subclass.
+// subclass shipped with that adapter (`@nyssance/codex-acp-v2/client`). Product behaviour (unsent
+// drafts per window, model memory, project grouping) stays in the application, also as a subclass.
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import {SessionUpdate as SessionUpdateGuard} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
@@ -96,9 +96,16 @@ export type SessionRequestOptions = {
     configOptions?: acp.InitialSessionConfigOption[];
 };
 
-export type NewSessionOptions = SessionRequestOptions & {
-    /** A session created before any message; it stays out of the list until its first prompt is dispatched. */
-    draft?: boolean;
+/** Where `session/options` previews a session: extra workspace roots, or the existing session a resume or fork would set up. */
+export type SessionPreviewOptions = {
+    additionalDirectories?: string[];
+    sessionId?: string;
+};
+
+/** What a session would start with, before it exists: its config options and the commands the agent knows of. */
+export type SessionPreview = {
+    configOptions: acp.SessionConfigOption[];
+    commands: acp.AvailableCommand[];
 };
 
 export type PromptOptions = {
@@ -119,8 +126,6 @@ export type ClientState = {
     sessionListLoaded: boolean;
     sessionListLoading: boolean;
     sessionListError: string | null;
-    /** Sessions created as drafts that have not carried a message yet; never listed. */
-    drafts: Record<string, true>;
     /** A configuration write is queued or running for the session. */
     configPending: Record<string, boolean>;
     actions: PendingAction[];
@@ -255,8 +260,6 @@ export class SessionClient<State extends ClientState = ClientState> {
     private stopGap: (() => void) | undefined;
     private readonly openPort: () => Promise<RuntimeClient<Launch>>;
     private readonly contextRevisions = new Map<string, string | undefined>();
-    /** Retain native response metadata until a draft enters the catalog. */
-    private readonly draftMetadata = new Map<string, Record<string, unknown>>();
     private listRequest: Promise<void> | null = null;
     private listGeneration = 0;
     private readonly retiredChildren = new Set<string>();
@@ -278,7 +281,6 @@ export class SessionClient<State extends ClientState = ClientState> {
             sessionListLoaded: false,
             sessionListLoading: false,
             sessionListError: null,
-            drafts: {},
             configPending: {},
             actions: [],
             runStates: {},
@@ -312,11 +314,6 @@ export class SessionClient<State extends ClientState = ClientState> {
     /** The session is held by this client (opened, created, or seen through a fork). */
     holds(id: string): boolean {
         return this.sessions.sessions.has(id);
-    }
-
-    /** A session created as a draft that has not carried a message yet. */
-    isDraft(id: string): boolean {
-        return this.state.drafts[id] === true;
     }
 
     // ── Connection ──
@@ -618,7 +615,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         try {
             const page = (await this.fetchSessionList())
                 .map(info => this.summaryOf(info))
-                .filter(item => !item.archived && !this.state.drafts[item.sessionId]);
+                .filter(item => !item.archived);
             if (generation !== this.listGeneration) return;
             this.patch(current => {
                 // Preserve mutations made after dispatch, including removal and reordering.
@@ -726,7 +723,24 @@ export class SessionClient<State extends ClientState = ClientState> {
         return {mode: "append", content: [{type: "text", text}]};
     }
 
-    async newSession(cwd: string, options: NewSessionOptions = {}): Promise<string> {
+    /**
+     * What `session/new` (or, with `sessionId`, `session/resume`) would set up, without creating anything: `session/options`.
+     * The agent must advertise `session.options`.
+     */
+    async previewSession(cwd: string, options: SessionPreviewOptions = {}): Promise<SessionPreview> {
+        const agent = this.live();
+        if (!agent.initialized.capabilities?.session?.options) throw new Error("The agent does not advertise capabilities.session.options");
+        const response = await agent.request("session/options", {
+            cwd,
+            ...(options.additionalDirectories?.length ? {additionalDirectories: options.additionalDirectories} : {}),
+            ...(options.sessionId === undefined ? {} : {sessionId: options.sessionId}),
+        });
+        if (agent !== this.agent) throw new AgentGoneError(agent.agentId, "session preview belongs to a disconnected agent");
+        const {configOptions, commands} = sessionSetupOf(response);
+        return {configOptions, commands};
+    }
+
+    async newSession(cwd: string, options: SessionRequestOptions = {}): Promise<string> {
         const {revision, bind, ...context} = await this.requestContext(cwd, {kind: "new"}, options);
         const response = await this.born(
             () =>
@@ -742,20 +756,14 @@ export class SessionClient<State extends ClientState = ClientState> {
                     ...sessionSetupOf(response),
                 };
                 this.publishSession(session);
-                if (options.draft) {
-                    if (response._meta) this.draftMetadata.set(session.id, response._meta);
-                    this.patch(state => ({
-                        drafts: {...state.drafts, [session.id]: true},
-                    }));
-                } else
-                    this.listSession({
-                        ...this.summaryOf({
-                            sessionId: session.id,
-                            cwd,
-                            ...(response._meta ? {_meta: response._meta} : {}),
-                        }),
-                        updatedAt: new Date().toISOString(),
-                    });
+                this.listSession({
+                    ...this.summaryOf({
+                        sessionId: session.id,
+                        cwd,
+                        ...(response._meta ? {_meta: response._meta} : {}),
+                    }),
+                    updatedAt: new Date().toISOString(),
+                });
             },
         );
         await bind?.(response.sessionId);
@@ -779,34 +787,6 @@ export class SessionClient<State extends ClientState = ClientState> {
             (id, update) => this.onUpdate(id, update),
             id => this.sessions.sessions.has(id),
         );
-    }
-
-    /** A draft that carried its first message enters the list for good. */
-    protected materializeDraft(id: string): void {
-        if (!this.state.drafts[id]) return;
-        const meta = this.draftMetadata.get(id);
-        this.draftMetadata.delete(id);
-        this.patch(state => {
-            const {[id]: _draft, ...drafts} = state.drafts;
-            return {drafts};
-        });
-        const session = this.session(id);
-        this.listSession({
-            ...this.summaryOf({
-                sessionId: id,
-                cwd: session.cwd,
-                title: session.title,
-                ...(meta ? {_meta: meta} : {}),
-            }),
-            updatedAt: new Date().toISOString(),
-        });
-        this.onDraftMaterialized(id);
-    }
-
-    /** Deletes a draft that never carried a message; a no-op for anything else. */
-    async discardDraft(id: string): Promise<void> {
-        if (!this.state.drafts[id]) return;
-        await this.delete(id);
     }
 
     async open(id: string, cwd: string, options: SessionRequestOptions = {}): Promise<void> {
@@ -971,9 +951,6 @@ export class SessionClient<State extends ClientState = ClientState> {
         const generation = this.lifecycle.capture(id);
         const localId = this.sessions.addPrompt(id, options.display ?? prompt);
         this.publishSession(this.sessions.get(id));
-        // Once a request leaves the client, transport failure cannot prove it was not accepted.
-        // Retire draft cleanup eligibility before dispatch so a lost receipt can never erase a conversation.
-        this.materializeDraft(id);
         const bound = promptConfigMeta(agent.initialized, this.sessions.get(id));
         const meta = mergeMeta(this.promptMeta(id, options), Object.keys(bound).length > 0 ? {alwith: bound} : undefined);
         const response = this.lifecycle.submissions.submit(
@@ -1242,7 +1219,6 @@ export class SessionClient<State extends ClientState = ClientState> {
         this.dropChildren(id);
         this.lifecycle.retire(id);
         this.contextRevisions.delete(id);
-        this.draftMetadata.delete(id);
         this.updates.remove(id);
         this.requests.cancelSession(id);
         if (this.sessions.sessions.get(id)?.subagent) this.retiredChildren.add(id);
@@ -1250,8 +1226,7 @@ export class SessionClient<State extends ClientState = ClientState> {
         this.onSessionDropped(id);
         this.patch(state => {
             const {[id]: _removed, ...sessions} = state.sessions;
-            const {[id]: _draft, ...drafts} = state.drafts;
-            return {sessions, drafts};
+            return {sessions};
         });
     }
 
@@ -1334,7 +1309,6 @@ export class SessionClient<State extends ClientState = ClientState> {
     protected onSessionChanged(_session: Session): void {}
     protected onConfigChanged(_id: string, _configId: string, _response: acp.SetSessionConfigOptionResponse): void {}
     protected onForked(_id: string, _response: acp.ForkSessionResponse): void {}
-    protected onDraftMaterialized(_id: string): void {}
     protected onCancel(_id: string): void {}
     protected onSessionDropped(_id: string): void {}
 }

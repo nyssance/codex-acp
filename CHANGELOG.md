@@ -11,6 +11,8 @@
 - A session's provider is chosen by the standard initial `model` entry of `configOptions` on session setup; `_meta.alwith.model` is removed. An initial gateway model that is no longer configured is skipped, as the standard says for a stale value. The browser client takes `configOptions` on `newSession`, `open` and `fork`.
 - A `session/options` preview lists the skills Codex finds in the directory among its commands, and a client that declares the ALwith capability `modelReasoningEfforts` gets each model's reasoning efforts in `_meta.codex.reasoningEfforts` on the `model` option's entries. The browser client declares it.
 - A disabled skill is no longer offered as a `$name` command.
+- The browser client has no draft sessions: `NewSessionOptions` with its `draft` flag, `state.drafts`, `isDraft`, `discardDraft` and the `materializeDraft` / `onDraftMaterialized` hooks are removed, and `newSession` lists every session it creates. `previewSession(cwd, {additionalDirectories?, sessionId?})` reads `session/options` instead, without creating anything; an application keeps an unsent conversation as its own data and creates the session with its first message.
+- `CodexClient.newSession` starts at standard speed by sending `fast-mode: false` as an initial option, unless the caller chose a value, instead of switching Fast off after the session was created; a new-session preview shows that value.
 - Removed with no client using them: the hook methods on v2, the goal data on v2 session info, and the full terminal output re-sent on exit.
 
 ## 0.7.86 (2026-11-22)
