@@ -922,26 +922,6 @@ export class SessionClient<State extends ClientState = ClientState> {
         );
     }
 
-    /**
-     * Upstream's `_session/steering`: delivers input into the turn that is running. `injected` means the agent
-     * took it, and the message arrives as a `user_message` update once the agent records it. `promptRequired`
-     * means no turn can take it: send the input with `prompt()`.
-     */
-    async steer(id: string, prompt: acp.ContentBlock[]): Promise<"injected" | "promptRequired"> {
-        this.assertRootSession(id);
-        if (!this.sessions.get(id).attached) throw new Error("Open the session before sending");
-        if (prompt.length === 0) throw new Error("Enter a message");
-        const agent = this.live();
-        assertPromptSupported(agent.initialized, prompt);
-        const {outcome} = await agent.request<{outcome: string}>("_session/steering", {
-            sessionId: id,
-            prompt,
-            _meta: {steering: {idleBehavior: "promptRequired"}},
-        });
-        if (outcome !== "injected" && outcome !== "promptRequired") throw new Error(`The agent could not steer the turn: ${outcome}`);
-        return outcome;
-    }
-
     private async preparePrompt(id: string, prompt: acp.ContentBlock[], checkpoint: () => void): Promise<void> {
         const session = this.sessions.get(id);
         if (!session.attached) throw new Error("Open the session before sending");
