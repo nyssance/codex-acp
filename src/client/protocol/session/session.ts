@@ -183,6 +183,8 @@ export type Session = {
     lastStopReason: string | null;
     commands: acp.AvailableCommand[];
     terminals: Record<string, Terminal>;
+    /** The prompts the agent suggests next, most likely first; each `prompt_suggestions_update` replaces the list. */
+    promptSuggestions: acp.PromptSuggestion[];
     updatedAt: string | null;
     /** The session's own metadata from `session_info_update`, patched like `ItemBase._meta`. */
     _meta: Record<string, unknown> | null;
@@ -220,6 +222,7 @@ export function createSession(id: string, cwd: string, title: string | null = nu
         lastStopReason: null,
         commands: [],
         terminals: {},
+        promptSuggestions: [],
         updatedAt: null,
         _meta: null,
         appliedThrough: -1,
@@ -840,6 +843,8 @@ function fold(session: Session, update: acp.SessionUpdate, options: ApplyOptions
                 configRevision: revision ?? session.configRevision,
             };
         }
+        case "prompt_suggestions_update":
+            return {...session, promptSuggestions: (update as acp.PromptSuggestionsUpdate).suggestions};
         case "session_info_update": {
             const frame = update as acp.SessionInfoUpdate;
             return {

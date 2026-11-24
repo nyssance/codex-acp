@@ -13,7 +13,7 @@ import {
 import type {ThreadItem} from "../../app-server/v2";
 
 const airCapabilities = {_meta: {jetbrains: {air: {version: 1}}}};
-const alwithCapabilities = {_meta: {alwith: {capabilities: ["promptSuggestions"]}}};
+const standardCapabilities = {session: {promptSuggestions: {}}};
 
 function agentMessage(text: string, phase: "commentary" | "final_answer" | null): ThreadItem {
     return {type: "agentMessage", id: `msg-${phase}`, text, phase, moderation: null, memoryCitation: null, delivery: null, questions: null};
@@ -104,14 +104,21 @@ describe.each([1, 2] as const)("predicted follow-up prompt over ACP v%i", (proto
         expect(sampleParams[0]).toMatchObject({threadId: sessionId, expectedTurnId: "turn-1"});
     });
 
-    /** A client that declares the ALwith `promptSuggestions` capability gets the same prediction as AIR. */
-    it("publishes to a client that declares the ALwith capability", async () => {
-        const client = await connect(alwithCapabilities);
+    /** A client that declares the standard capability gets the standard update, and a withdrawal when the next prompt starts. */
+    it("publishes the standard update to a client that declares the standard capability", async () => {
+        const client = await connect(standardCapabilities);
         closeClient = () => client.connection.close();
+        const standard = () => client.scopedUpdates.flatMap(({update}) =>
+            (update.sessionUpdate as string) === "prompt_suggestions_update" ? [(update as unknown as {suggestions: unknown}).suggestions] : []);
 
         await runTurn(client, protocolVersion, 0, "Fix the bug", "Fixed the bug.");
-        await vi.waitFor(() => expect(suggestionUpdates(client)).toEqual([{suggestions: [{text: "Run the tests"}]}]));
+        await vi.waitFor(() => expect(standard()).toEqual([[{prompt: [{type: "text", text: "Run the tests"}]}]]));
+        expect(suggestionUpdates(client)).toEqual([]);
         expect(sampleParams[0]).toMatchObject({threadId: sessionId, expectedTurnId: "turn-1"});
+
+        await runTurn(client, protocolVersion, 1, "Run the tests", "Tests pass.");
+        await vi.waitFor(() => expect(standard()).toHaveLength(3));
+        expect(standard()[1]).toEqual([]);
     });
 
     /** A client that is neither AIR nor declares the capability never receives a prediction and no sample is requested. */

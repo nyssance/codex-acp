@@ -102,7 +102,8 @@ function withAlwithCapabilities(capabilities: Record<string, unknown> = CLIENT_C
         typeof capabilities._meta === "object" && capabilities._meta !== null ? (capabilities._meta as Record<string, unknown>) : {};
     return {
         ...capabilities,
-        _meta: {...meta, alwith: {capabilities: ["sessionIndex", "promptSuggestions"]}},
+        session: {...(capabilities.session as Record<string, unknown> | undefined), promptSuggestions: {}},
+        _meta: {...meta, alwith: {capabilities: ["sessionIndex"]}},
     };
 }
 

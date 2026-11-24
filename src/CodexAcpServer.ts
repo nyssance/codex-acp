@@ -226,7 +226,6 @@ import {
 import {randomUUID} from "node:crypto";
 import {TitleGenerator} from "./TitleGenerator";
 import {PromptSuggestionGenerator, promptSuggestionsEnabled, promptSuggestionsMeta} from "./PromptSuggestionGenerator";
-import {ALWITH_PROMPT_SUGGESTIONS_KEY, clientSupportsAlwithCapability} from "./alwith/agent/sessionList";
 import {
     AIR_AGENT_FILE_CHANGE_REPORT_KEY,
     AIR_CUSTOM_INSTRUCTIONS_KEY,
@@ -570,6 +569,8 @@ export class CodexAcpServer {
     private availableCommands: CodexCommands;
     private clientInfo: acp.Implementation | null;
     private clientCapabilities: acp.ClientCapabilities | null;
+    /** The client declared the standard `session.promptSuggestions` capability. */
+    private standardPromptSuggestions = false;
     /** The capability choices of the client for tool call and plan reports. */
     private capabilities: ClientCapabilities;
     private booleanConfigOptionsSupported: boolean;
@@ -894,6 +895,7 @@ export class CodexAcpServer {
         await this.runWithProcessCheck(() => this.codexAcpClient.initialize(_params));
         this.clientInfo = _params.clientInfo ?? null;
         this.clientCapabilities = _params.clientCapabilities ?? null;
+        this.standardPromptSuggestions = _params.clientCapabilities?.session?.promptSuggestions != null;
         this.initializeRequest = _params;
         this.capabilities = ClientCapabilities.from(_params.clientCapabilities);
         this.clientDelivery.reports.compareMeta = this.capabilities.airToolCallContract;
@@ -960,6 +962,7 @@ export class CodexAcpServer {
         await this.runWithProcessCheck(() => this.codexAcpClient.initialize({clientInfo: params.info}));
         this.clientInfo = params.info;
         this.clientCapabilities = clientCapabilities;
+        this.standardPromptSuggestions = params.capabilities?.session?.promptSuggestions != null;
         this.initializeRequest = {clientInfo: params.info};
         this.capabilities = ClientCapabilities.fromV2(clientCapabilities);
         this.clientDelivery.reports.compareMeta = this.capabilities.airToolCallContract;
@@ -4938,16 +4941,15 @@ export class CodexAcpServer {
     }
 
     private createPromptSuggestions(sessionState: SessionState): PromptSuggestionGenerator | undefined {
-        // AIR asks for predictions by identity; an ALwith client declares the capability, as it does for the session index.
-        const alwith = clientSupportsAlwithCapability(this.clientCapabilities, ALWITH_PROMPT_SUGGESTIONS_KEY);
-        if ((!sessionState.clientCapabilities.airClient && !alwith) || !promptSuggestionsEnabled()) return undefined;
+        // AIR asks for predictions by identity and reads them from session info; any other client declares the standard capability.
+        const air = sessionState.clientCapabilities.airClient;
+        if ((!air && !this.standardPromptSuggestions) || !promptSuggestionsEnabled()) return undefined;
         return new PromptSuggestionGenerator(
             this.codexAcpClient.appServerClient,
             async text => {
-                await new ACPSessionConnection(this.connection, sessionState.sessionId).update({
-                    sessionUpdate: "session_info_update",
-                    _meta: promptSuggestionsMeta(text),
-                });
+                await new ACPSessionConnection(this.connection, sessionState.sessionId).update(air
+                    ? {sessionUpdate: "session_info_update", _meta: promptSuggestionsMeta(text)}
+                    : {sessionUpdate: "prompt_suggestions_update", suggestions: text === null ? [] : [{prompt: [{type: "text", text}]}]});
             },
         );
     }

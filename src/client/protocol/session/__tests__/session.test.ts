@@ -100,6 +100,18 @@ describe("ACP transcript", () => {
         expect((session.items[0] as typeof tool).title).toBeNull();
     });
 
+    test("each prompt suggestions update replaces the list, and an empty one withdraws it", () => {
+        let session = createSession("a", "/tmp");
+        expect(session.promptSuggestions).toEqual([]);
+        session = applyUpdate(session, {
+            sessionUpdate: "prompt_suggestions_update",
+            suggestions: [{prompt: [{type: "text", text: "Run the tests"}]}],
+        });
+        expect(session.promptSuggestions).toEqual([{prompt: [{type: "text", text: "Run the tests"}]}]);
+        session = applyUpdate(session, {sessionUpdate: "prompt_suggestions_update", suggestions: []});
+        expect(session.promptSuggestions).toEqual([]);
+    });
+
     test("a failed turn keeps stopReason and the raw _meta until the next turn starts", () => {
         let session = createSession("a", "/tmp");
         session = applyUpdate(session, {

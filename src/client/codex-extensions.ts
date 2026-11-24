@@ -199,20 +199,14 @@ export function codexRetryNotice(meta: SessionMeta): {message: string; capacity:
 type SessionMeta = Record<string, unknown> | null;
 
 /**
- * The predicted follow-up prompt the adapter published on the session (`_meta.promptSuggestions`, the key upstream
- * uses for AIR), or `null` when it sent none or cleared it. Published after a completed turn, cleared when a prompt starts.
+ * The text of the first prompt the agent suggests next (`prompt_suggestions_update`), or `null` when it offers none.
+ * A suggestion with a block other than text is skipped whole, as the specification asks.
  */
-export function promptSuggestion(meta: Record<string, unknown> | null): string | null {
-    const value = meta?.promptSuggestions;
-    if (value === undefined || value === null) return null;
-    if (typeof value !== "object") throw new Error("Invalid prompt suggestions");
-    const {suggestions} = value as Record<string, unknown>;
-    if (!Array.isArray(suggestions)) throw new Error("Invalid prompt suggestions");
-    if (suggestions.length === 0) return null;
-    const [first] = suggestions as unknown[];
-    if (typeof first !== "object" || first === null || typeof (first as {text?: unknown}).text !== "string")
-        throw new Error("Invalid prompt suggestion");
-    return (first as {text: string}).text;
+export function promptSuggestion(suggestions: readonly acp.PromptSuggestion[]): string | null {
+    for (const {prompt} of suggestions) {
+        if (prompt.every(block => block.type === "text")) return prompt.map(block => (block as {text: string}).text).join("");
+    }
+    return null;
 }
 
 /** Effective application availability from Codex, without credentials. */
