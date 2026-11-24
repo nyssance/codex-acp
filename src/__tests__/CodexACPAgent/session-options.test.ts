@@ -91,6 +91,28 @@ describe.each([1, 2] as const)("ACP v%s session options", version => {
         expect(start).not.toHaveBeenCalled();
     });
 
+    it("previews the options a draft's choices lead to, without opening a thread", async () => {
+        const {start} = await connect();
+        const preview = (configOptions: unknown[]) => h.request("session/options", {cwd, _meta: {codex: {configOptions}}});
+        const chosen = await preview([
+            idValue("unknown", "stale"),
+            idValue("model", "advanced"),
+            idValue("reasoning_effort", "high"),
+            idValue("collaboration_mode", "plan"),
+        ]);
+        // The efforts and the speed option are those of the chosen model, not of the workspace default.
+        expect(chosen.configOptions).toEqual(expect.arrayContaining([
+            expect.objectContaining({[idKey]: "model", currentValue: "advanced"}),
+            expect.objectContaining({[idKey]: "reasoning_effort", currentValue: "high"}),
+            expect.objectContaining({[idKey]: "collaboration_mode", currentValue: "plan"}),
+            expect.objectContaining({[idKey]: "fast-mode"}),
+        ]));
+        const stale = await preview([idValue("model", "retired")]);
+        expect(stale.configOptions).toContainEqual(expect.objectContaining({[idKey]: "model", currentValue: "default"}));
+        await expect(preview([idValue("model", "advanced"), idValue("model", "default")])).rejects.toMatchObject({code: -32602});
+        expect(start).not.toHaveBeenCalled();
+    });
+
     it("returns Resource not found for an unknown session", async () => {
         await connect();
         h.setCodexResponse("thread/read", async () => { throw new Error("no rollout found for thread id missing"); });

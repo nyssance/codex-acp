@@ -100,6 +100,8 @@ export type SessionRequestOptions = {
 export type SessionPreviewOptions = {
     additionalDirectories?: string[];
     sessionId?: string;
+    /** The choices a draft holds. The agent returns the options they lead to; a stale one is skipped. */
+    configOptions?: acp.InitialSessionConfigOption[];
 };
 
 /** What a session would start with, before it exists: its config options and the commands the agent knows of. */
@@ -734,6 +736,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             cwd,
             ...(options.additionalDirectories?.length ? {additionalDirectories: options.additionalDirectories} : {}),
             ...(options.sessionId === undefined ? {} : {sessionId: options.sessionId}),
+            ...(options.configOptions?.length ? {_meta: {codex: {configOptions: options.configOptions}}} : {}),
         });
         if (agent !== this.agent) throw new AgentGoneError(agent.agentId, "session preview belongs to a disconnected agent");
         const {configOptions, commands} = sessionSetupOf(response);

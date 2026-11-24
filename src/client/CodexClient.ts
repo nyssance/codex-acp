@@ -115,7 +115,7 @@ function withAlwithCapabilities(capabilities: Record<string, unknown> = CLIENT_C
     return {
         ...capabilities,
         session: {...(capabilities.session as Record<string, unknown> | undefined), promptSuggestions: {}},
-        _meta: {...meta, alwith: {capabilities: ["sessionIndex", "modelReasoningEfforts"]}},
+        _meta: {...meta, alwith: {capabilities: ["sessionIndex"]}},
     };
 }
 

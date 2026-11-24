@@ -9,8 +9,6 @@ export const ALWITH_META_KEY = "alwith";
 export const ALWITH_CAPABILITIES_KEY = "capabilities";
 /** The upstream session index served to a client that is not AIR, with the standard ACP list rows. */
 export const ALWITH_SESSION_INDEX_KEY = "sessionIndex";
-/** Each entry of the `model` option carries its model's reasoning efforts in `_meta.codex.reasoningEfforts`, as AIR's does in its own key. */
-export const ALWITH_MODEL_EFFORTS_KEY = "modelReasoningEfforts";
 
 export function clientSupportsAlwithCapability(capabilities: {_meta?: unknown} | null | undefined, capability: string): boolean {
     const meta = capabilities?._meta;
