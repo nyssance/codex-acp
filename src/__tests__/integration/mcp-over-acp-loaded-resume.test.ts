@@ -12,6 +12,7 @@ import {CodexAppServerClient} from "../../CodexAppServerClient";
 import {startCodexConnection} from "../../CodexJsonRpcConnection";
 import {removeDirectoryWithRetry, writeCodexHomeConfig} from "../acp-test-utils";
 import {describeIntegration} from "./integration-fixture";
+import {startMockResponsesServer, textResponse} from "./mock-responses-server";
 
 const cache = {ttlMs: 0, cacheScope: "private"};
 
@@ -35,16 +36,16 @@ function server(tag: string, tools: () => string[], calls: string[]) {
     };
 }
 
-// What Codex does with the MCP servers of `session/resume` while the thread is still loaded. A client
-// that re-declares its tools on every resume depends on this, so the test pins it: when it fails, Codex
-// or the adapter changed and the client's handling of loaded sessions can be simplified.
+// A loaded Codex thread ignores the MCP servers of a later `thread/resume`, so the adapter rebuilds an idle,
+// persisted thread whose declared servers changed. A thread it cannot rebuild keeps the servers it has.
 describeIntegration("integration: MCP-over-ACP on a loaded thread", () => {
-    it("keeps the endpoint and the tool list it loaded with, whatever a later resume declares", async () => {
+    it("applies the servers of a resume to an idle persisted session, and leaves any other session as loaded", async () => {
+        const mock = await startMockResponsesServer();
         const cwd = mkdtempSync(join(tmpdir(), "codex-acp-mcp-loaded-"));
         writeCodexHomeConfig(cwd, {
             model_provider: "offline",
             "model_providers.offline.name": "Offline test",
-            "model_providers.offline.base_url": "http://127.0.0.1:1/v1",
+            "model_providers.offline.base_url": mock.baseUrl,
             "model_providers.offline.wire_api": "responses",
         });
         const codex = startCodexConnection(undefined, {...process.env, CODEX_HOME: cwd});
@@ -59,6 +60,7 @@ describeIntegration("integration: MCP-over-ACP on a loaded thread", () => {
         const calls: string[] = [];
         try {
             const {agent} = acpV2.client().onRequest(acpV2.methods.client.mcp.message, provider.handleRequest)
+                .onNotification(acpV2.methods.client.session.update, () => {})
                 .connect(acp.ndJsonStream(incoming.writable, outgoing.readable));
             await agent.request(acpV2.methods.agent.initialize, {protocolVersion: 2, info: {name: "test", version: "1"}});
             let listed = ["echo"];
@@ -75,28 +77,39 @@ describeIntegration("integration: MCP-over-ACP on a loaded thread", () => {
             };
             expect(await toolsCodexLists()).toEqual(["echo"]);
 
-            // The same server now offers one more tool. Codex does not ask again, on resume or otherwise.
+            // The same declaration is the same server: Codex is not asked to look at it again.
             listed = ["echo", "added"];
             await agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, mcpServers: [first.declaration]});
             expect(await toolsCodexLists()).toEqual(["echo"]);
 
-            // A resume that declares another server is answered as a success and changes nothing.
+            // Before its first turn the session has nothing on disk to rebuild from, so it stays as loaded.
             const second = provider.registerServer(agent, {name: "tools", handler: server("second", () => ["other"], calls)});
             await agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, mcpServers: [second.declaration]});
             expect(await toolsCodexLists()).toEqual(["echo"]);
             await call("echo");
             expect(calls).toEqual(["first:echo"]);
 
-            // So a client that disposes the server it replaced leaves the thread without its tools.
+            mock.enqueue(textResponse("done"));
+            await agent.request(acpV2.methods.agent.session.prompt, {sessionId, prompt: [{type: "text", text: "hello"}]});
+            await expect.poll(async () => (await codex.connection.sendRequest("thread/read", {threadId: sessionId}) as
+                {thread: {status: {type: string}}}).thread.status.type, {timeout: 20000}).toBe("idle");
+
+            // Idle and persisted: the servers of the request replace the ones the thread was loaded with.
+            const third = provider.registerServer(agent, {name: "tools", handler: server("third", () => ["fresh"], calls)});
+            await agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, mcpServers: [third.declaration]});
+            await appServer.mcpStartup.await(["tools"], 0, {threadId: sessionId, signal: AbortSignal.timeout(10000)});
+            expect(await toolsCodexLists()).toEqual(["fresh"]);
             await first.dispose();
-            await expect(call("echo")).rejects.toThrow("MCP server registration unavailable");
-            expect(calls).toEqual(["first:echo"]);
+            await second.dispose();
+            await call("fresh");
+            expect(calls).toEqual(["first:echo", "third:fresh"]);
         } finally {
             await incoming.writable.close();
             await routed.closed;
             await outgoing.writable.close();
             codex.process.stdin.end();
             await exited;
+            await mock.close();
             removeDirectoryWithRetry(cwd);
         }
     });

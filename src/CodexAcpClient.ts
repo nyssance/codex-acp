@@ -197,6 +197,8 @@ export class CodexAcpClient {
     private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null = null;
     private readonly readOnlySessions = new Set<string>();
     private readonly catalogSessions = new Set<string>();
+    /** The MCP servers each session's thread was loaded with. A loaded thread ignores the servers of a later resume. */
+    private readonly loadedMcpServers = new Map<string, string>();
     private readonly nativeToolSettings = new Map<string, NativeToolSettings>();
     private readonly inputConfigClient = new AppServerClient(() => this.codexClient);
     private readonly sessionNotificationQueues = new Map<string, Promise<void>>();
@@ -254,6 +256,7 @@ export class CodexAcpClient {
             this.responsesRoutes = previous.responsesRoutes;
         }
         for (const [id, settings] of previous.nativeToolSettings) this.nativeToolSettings.set(id, settings);
+        for (const [id, servers] of previous.loadedMcpServers) this.loadedMcpServers.set(id, servers);
         this.providerCatalog = previous.providerCatalog;
         this.gatewayConfig = previous.gatewayConfig;
         this.gatewayConfigSource = previous.gatewayConfigSource;
@@ -903,6 +906,7 @@ export class CodexAcpClient {
             const modelProvider = route.gatewayId ?? (await this.getResumeModelProvider());
             if (nativeTools !== undefined) this.nativeToolSettings.set(forked.sessionId, nativeTools);
             if (route.catalog) this.catalogSessions.add(forked.sessionId);
+            this.loadedMcpServers.set(forked.sessionId, JSON.stringify(request.mcpServers ?? []));
             return {...forked, modelProvider};
         } catch (error) {
             try {
@@ -1242,6 +1246,7 @@ export class CodexAcpClient {
 
         if (nativeTools !== undefined) this.nativeToolSettings.set(response.thread.id, nativeTools);
         if (route.catalog) this.catalogSessions.add(response.thread.id);
+        this.loadedMcpServers.set(response.thread.id, JSON.stringify(request.mcpServers ?? []));
         const codexModels = await this.fetchAvailableModels();
         if (codexModels.length === 0 && !this.isNarrowedByGateway()) {
             throw new Error("Codex did not return any models");
@@ -1297,16 +1302,35 @@ export class CodexAcpClient {
         };
     }
 
+    /**
+     * Resumes a thread, rebuilding a loaded one when the request changes what a loaded thread ignores:
+     * the system prompt, or the MCP servers it was loaded with. A changed system prompt that cannot be
+     * applied is an error. Changed MCP servers that cannot be applied leave the thread as it is, and the
+     * next resume of the idle session applies them.
+     */
     private async resumeThreadWithInstructions(
         params: ThreadResumeParams,
-        request: {sessionId: string; systemPrompt?: unknown; _meta?: unknown},
+        request: {sessionId: string; systemPrompt?: unknown; mcpServers?: unknown; _meta?: unknown},
         previous?: SessionInstructions,
         allowReadOnly = false,
     ): Promise<ResumedThread> {
-        if (!changesSystemPrompt(request, previous)) return this.resumeThread(params, allowReadOnly);
+        const declared = JSON.stringify(request.mcpServers ?? []);
+        const loaded = this.loadedMcpServers.get(request.sessionId);
+        const prompt = changesSystemPrompt(request, previous);
+        if (!prompt && (loaded === undefined || loaded === declared)) {
+            const response = await this.resumeThread(params, allowReadOnly);
+            // This process has not loaded the thread before, so Codex took the servers of this request.
+            if (loaded === undefined && !response.readOnly) this.loadedMcpServers.set(request.sessionId, declared);
+            return response;
+        }
         const {thread} = await this.codexClient.threadRead({threadId: request.sessionId});
-        if (thread.status.type === "notLoaded") return this.resumeThread(params);
+        if (thread.status.type === "notLoaded") {
+            const response = await this.resumeThread(params);
+            this.loadedMcpServers.set(request.sessionId, declared);
+            return response;
+        }
         if (thread.status.type !== "idle" || thread.path === null) {
+            if (!prompt) return this.resumeThread(params, allowReadOnly);
             throw acp.RequestError.invalidParams(
                 undefined,
                 "Changing systemPrompt requires an idle, persisted session; finish the turn or create a new session",
@@ -1314,6 +1338,7 @@ export class CodexAcpClient {
         }
         const terminals = await this.codexClient.threadBackgroundTerminalsList({threadId: request.sessionId, limit: 1});
         if (terminals.data.length > 0) {
+            if (!prompt) return this.resumeThread(params, allowReadOnly);
             throw RequestError.invalidParams(undefined, "Cannot change systemPrompt while background terminals are running");
         }
         // A start response contains a planned rollout path even before the file exists.
@@ -1321,6 +1346,7 @@ export class CodexAcpClient {
             await this.codexClient.threadTurnsList({threadId: request.sessionId, limit: 1, itemsView: "notLoaded"});
         } catch (error) {
             if (!isMissingRolloutError(error) && !isThreadNotMaterializedError(error)) throw error;
+            if (!prompt) return this.resumeThread(params, allowReadOnly);
             throw RequestError.invalidParams(undefined, "Changing systemPrompt requires a persisted session; create a new session instead");
         }
         // Subscribed threads ignore resume overrides. Idle, detached threads can be rebuilt.
@@ -1344,6 +1370,10 @@ export class CodexAcpClient {
             detached = true;
             // Codex refuses to resume a thread that is still closing, so wait until it reports the unload.
             if (detachment.status === "unsubscribed" && !unloaded && (await settledWithin(unloading.promise, 10_000)) === "pending") {
+                if (!prompt) {
+                    resumed = true;
+                    return await this.resumeThread(params, allowReadOnly);
+                }
                 throw RequestError.invalidRequest(undefined, "Timed out waiting for the session to unload; systemPrompt could not be changed. Retry when idle");
             }
             const response = await this.resumeThread(params).catch(async error => {
@@ -1352,6 +1382,8 @@ export class CodexAcpClient {
                 return this.resumeThread(params);
             });
             resumed = true;
+            if (unloaded) this.loadedMcpServers.set(request.sessionId, declared);
+            else if (!prompt) return response;
             if (!unloaded) {
                 throw RequestError.invalidParams(
                     undefined,
@@ -1422,6 +1454,7 @@ export class CodexAcpClient {
     }
 
     async deleteSession(sessionId: string): Promise<void> {
+        this.loadedMcpServers.delete(sessionId);
         const closed = Promise.withResolvers<void>();
         const release = this.codexClient.onClientTransportEvent(event => {
             if (event.eventType === "notification" && event.method === "thread/closed" && event.params.threadId === sessionId) closed.resolve();
