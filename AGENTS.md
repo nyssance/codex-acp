@@ -79,3 +79,9 @@ create isolated homes remain valid; they must never fall back to the real home.
 ## Pending work
 
 The open items of this repository are listed in [docs/ALWITH-MIGRATION.md § Pending](docs/ALWITH-MIGRATION.md#pending), each with what unblocks it. Add new items there. ALwith's cross-repository plan index (`alwith-desktop/docs/plans/index.md`, private) links to that section; it is not required to work here.
+
+## Rust formatting: stable only, never nightly
+
+- Format Rust with stable `cargo fmt` only. `rustfmt.toml` keeps options that only nightly applies; on stable they are ignored with a warning, which is known and accepted.
+- Never run `cargo +nightly`, `rustfmt +nightly` or `rustup toolchain install nightly`, and never install a nightly toolchain to make those warnings go away.
+- Origin: user instruction (2026-07-25 in alwith-desktop; repeated here 2026-11-25 after a session auto-installed nightly through `cargo +nightly fmt`).
