@@ -51,6 +51,8 @@ import type {
     ThreadStatus,
     ThreadStatusChangedNotification,
     ThreadArchiveParams,
+    ThreadRevertParams,
+    ThreadRevertResponse,
     ThreadArchiveResponse,
     ThreadDeleteParams,
     ThreadDeleteResponse,
@@ -848,6 +850,11 @@ export class CodexAppServerClient {
             }
             yield page;
         }
+    }
+
+    /** Removes a turn and every later turn from the thread's history. Files the turns changed stay changed. */
+    async threadRevert(params: ThreadRevertParams): Promise<ThreadRevertResponse> {
+        return await this.sendRequest({ method: "thread/revert", params: params });
     }
 
     async threadArchive(params: ThreadArchiveParams): Promise<ThreadArchiveResponse> {

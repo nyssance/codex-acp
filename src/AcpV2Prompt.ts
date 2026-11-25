@@ -107,6 +107,28 @@ export interface V2SteeringPrompt {
 
 const SUPPORTED_PROMPT_CONTENT_TYPES = new Set(["text", "image", "resource_link", "resource"]);
 
+/** The user message a prompt replaces, and the last user message its client saw. */
+export type ReplacedMessage = {messageId: string; tail: string};
+
+/**
+ * Reads `_meta.codex.replace` from a `session/prompt`: the prompt replaces the user message `messageId`
+ * and everything after it. Fork extension, declared in `capabilities.session.prompt._meta.codex.replace`;
+ * ACP has no method that rewinds a session yet.
+ */
+export function replacedMessageOf(params: {prompt: Array<{type: string}>; _meta?: unknown}): ReplacedMessage | undefined {
+    const codex = (params._meta as {codex?: unknown} | null | undefined)?.codex;
+    const replace = (codex as {replace?: unknown} | null | undefined)?.replace;
+    if (replace === undefined) return undefined;
+    const {messageId, tail} = (replace ?? {}) as {messageId?: unknown; tail?: unknown};
+    if (typeof messageId !== "string" || messageId === "" || typeof tail !== "string" || tail === "") {
+        throw acp.RequestError.invalidParams(undefined, "_meta.codex.replace needs the messageId to replace and the tail message the client saw");
+    }
+    if (params.prompt.length === 0 || params.prompt.some(block => block.type !== "text")) {
+        throw acp.RequestError.invalidParams(undefined, "A prompt that replaces a message carries its new text only; the other input of the message is kept");
+    }
+    return {messageId, tail};
+}
+
 export function assertPromptContentSupported(params: {prompt: Array<{type: string}>}): void {
     for (const block of params.prompt) {
         if (!SUPPORTED_PROMPT_CONTENT_TYPES.has(block.type)) {

@@ -197,6 +197,8 @@ export class CodexAcpClient {
     private pendingAccountUpdated: Promise<AccountUpdatedNotification> | null = null;
     private readonly readOnlySessions = new Set<string>();
     private readonly catalogSessions = new Set<string>();
+    /** The Codex input of a prompt that replaces an earlier user message; see {@link replaceUserMessage}. */
+    private readonly replacementInputs = new WeakMap<acp.PromptRequest, UserInput[]>();
     /** The MCP servers each session's thread was loaded with. A loaded thread ignores the servers of a later resume. */
     private readonly loadedMcpServers = new Map<string, string>();
     private readonly nativeToolSettings = new Map<string, NativeToolSettings>();
@@ -1098,6 +1100,59 @@ export class CodexAcpClient {
     }
 
     /** Read IDs from the same history that backs ACP replay, without publishing any of it. */
+    /**
+     * Removes the turn that holds a user message, and every later turn, and makes `request` start the
+     * turn that replaces it: the removed turn's input with its text replaced by the text of the prompt.
+     * The other input (images, files, mentions) is kept in order, because only Codex still has it whole.
+     * A turn that took follow-up messages while it ran is one turn, so all of its user input is replaced
+     * together. `tail` is the last user message the client saw; a history that has moved on is refused
+     * before anything is removed. Returns the input Codex will record for the new message.
+     */
+    async replaceUserMessage(request: acp.PromptRequest, messageId: string, tail: string): Promise<UserInput[]> {
+        const sessionId = request.sessionId;
+        const text = request.prompt.map(block => block.type === "text" ? block.text : "").join("");
+        const {thread} = await this.codexClient.threadRead({threadId: sessionId});
+        if (thread.status.type !== "idle") {
+            throw RequestError.invalidRequest(undefined, "A message can be replaced only while the session is idle");
+        }
+        const users = (turn: Turn) => turn.items.filter(item => item.type === "userMessage");
+        const idOf = (item: ThreadItem & {type: "userMessage"}) => item.clientId ?? item.id;
+        let last: string | undefined;
+        let target: Turn | undefined;
+        const visit = (turn: Turn): boolean => {
+            const messages = users(turn);
+            last ??= messages.length > 0 ? idOf(messages.at(-1)!) : undefined;
+            if (!messages.some(message => idOf(message) === messageId)) return false;
+            target = turn;
+            return true;
+        };
+        if (thread.historyMode === "legacy") {
+            const {thread: stored} = await this.codexClient.threadRead({threadId: sessionId, includeTurns: true});
+            stored.turns.toReversed().some(visit);
+        } else {
+            pages: for await (const turns of this.codexClient.threadTurnPages({
+                threadId: sessionId, limit: 20, sortDirection: "desc", itemsView: "full",
+            })) {
+                for (const turn of turns) if (visit(turn)) break pages;
+            }
+        }
+        if (target === undefined) {
+            throw RequestError.invalidParams(undefined, `Message ${messageId} is not a user message in the history of session ${sessionId}`);
+        }
+        if (last !== tail) {
+            throw RequestError.invalidRequest(undefined, "The history changed since the message was edited; nothing was replaced");
+        }
+        const replaced: Turn = target;
+        const kept = users(replaced).flatMap(message => message.content);
+        const first = kept.findIndex(item => item.type === "text");
+        const input: UserInput[] = kept.filter(item => item.type !== "text");
+        input.splice(first === -1 ? 0 : kept.slice(0, first).filter(item => item.type !== "text").length, 0,
+            {type: "text", text, text_elements: []});
+        await this.codexClient.threadRevert({threadId: sessionId, beforeTurnId: replaced.id});
+        this.replacementInputs.set(request, input);
+        return input;
+    }
+
     async readRetainedPromptIds(sessionId: string): Promise<Set<string>> {
         const ids = new Set<string>();
         const record = (items: ThreadItem[]) => {
@@ -1906,7 +1961,7 @@ export class CodexAcpClient {
         clientUserMessageId?: string,
         stopSignal?: AbortSignal,
     ): Promise<TurnCompletedNotification | null> {
-        const input = buildPromptItems(request.prompt);
+        const input = this.replacementInputs.get(request) ?? buildPromptItems(request.prompt);
         const additionalContext = applicationContextOf(request._meta);
         const effort = modelId.effort as ReasoningEffort | null; //TODO remove unsafe conversion
         await this.refreshSkills(cwd, additionalDirectories);

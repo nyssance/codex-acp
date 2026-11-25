@@ -9,7 +9,12 @@
     "session": {
       "prompt": {
         "image": {},
-        "embeddedContext": {}
+        "embeddedContext": {},
+        "_meta": {
+          "codex": {
+            "replace": {}
+          }
+        }
       },
       "mcp": {
         "stdio": {},

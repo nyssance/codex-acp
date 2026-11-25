@@ -80,6 +80,7 @@ import {
     isInsertedUserMessage,
     keyedPromptId,
     postInsertionFailureText,
+    replacedMessageOf,
     toV1PromptRequest,
     assertPromptContentSupported,
     toV2Failure,
@@ -1015,6 +1016,8 @@ export class CodexAcpServer {
                     prompt: {
                         embeddedContext: {},
                         image: {},
+                        // A prompt can replace an earlier user message and everything after it.
+                        _meta: {codex: {replace: {}}},
                     },
                     mcp: {
                         stdio: {},
@@ -5712,7 +5715,14 @@ export class CodexAcpServer {
         // session's place in the shared turn-start FIFO now (before any await), then wait. Nothing
         // observable happens until it reaches the front, unless the ID already exists in history.
         const promptKind = this.availableCommands.classifyPrompt(request.prompt);
+        const replace = replacedMessageOf(params);
         const reservation = this.acquireTurnStartReservation(sessionId);
+        if (replace !== undefined && reservation.needsWait) {
+            // History cannot be cut while a turn runs, and a replacement is never steered into one.
+            void reservation.wait.then(() => reservation.release());
+            if (findRetained && await findRetained()) return {messageId: keyedMessageId!};
+            throw RequestError.invalidRequest(undefined, "A message can be replaced only while the session is idle");
+        }
         if (reservation.needsWait || findRetained) {
             const drop = new AbortController();
             const waiting = signal ? AbortSignal.any([signal, drop.signal]) : drop.signal;
@@ -5743,6 +5753,19 @@ export class CodexAcpServer {
         // all attempts from the actual insertion result rather than prematurely forgetting the key.
         const inFlightSignal = findRetained === undefined ? signal : undefined;
         const session = new ACPSessionConnection(this.connection, sessionId);
+        // The replaced history is gone before the new turn starts; the client shows the message with
+        // the input it kept, and learns from the first chunk which message it replaces.
+        let replacement: acp.ContentBlock[] | undefined;
+        if (replace !== undefined) {
+            try {
+                const content = await this.runWithProcessCheck(() =>
+                    this.codexAcpClient.replaceUserMessage(request, replace.messageId, replace.tail));
+                replacement = this.userMessageContent({type: "userMessage", id: messageId, content} as ThreadItem & {type: "userMessage"});
+            } catch (error) {
+                reservation.release();
+                throw error;
+            }
+        }
         let failure: acpV2.Error | null = null;
         const generation = this.getSessionGeneration(sessionId);
         this.v2PromptsInFlight.add(sessionId);
@@ -5803,8 +5826,12 @@ export class CodexAcpServer {
             const onInserted = async (turnId?: string) => {
                 inserted = true;
                 try {
-                    for (const block of request.prompt) {
-                        await session.update(createUserMessageChunk(block, messageId, turnId === undefined ? undefined : {codex: {turnId}}));
+                    for (const [index, block] of (replacement ?? request.prompt).entries()) {
+                        const codex = {
+                            ...(turnId === undefined ? {} : {turnId}),
+                            ...(replace !== undefined && index === 0 ? {replaces: replace.messageId} : {}),
+                        };
+                        await session.update(createUserMessageChunk(block, messageId, Object.keys(codex).length > 0 ? {codex} : undefined));
                     }
                 } catch (error) {
                     logger.error(`Failed to send the user message for session ${sessionId}`, error);
