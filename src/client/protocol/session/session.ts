@@ -565,6 +565,13 @@ function fold(session: Session, update: acp.SessionUpdate, options: ApplyOptions
             throw new Error(`${update.sessionUpdate} without a messageId in session ${session.id}`);
         const messageId = frame.messageId;
         if (messageKind === "user") {
+            // The agent removed part of the history before this message: it replaces the user message it
+            // names and everything after it, so the copy on screen ends there too.
+            const replaces = (frame._meta?.["codex"] as {replaces?: unknown} | undefined)?.replaces;
+            const cut = typeof replaces === "string"
+                ? session.items.findIndex(item => item.kind === "user" && item.id === replaces)
+                : -1;
+            if (cut !== -1) session = {...session, items: session.items.slice(0, cut)};
             const acknowledged = session.items.find(item => item.kind === "user" && item.id === messageId && item.echo === "acknowledged");
             if (acknowledged?.kind === "user") {
                 return {

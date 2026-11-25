@@ -1106,9 +1106,14 @@ export class CodexAcpClient {
      * The other input (images, files, mentions) is kept in order, because only Codex still has it whole.
      * A turn that took follow-up messages while it ran is one turn, so all of its user input is replaced
      * together. `tail` is the last user message the client saw; a history that has moved on is refused
-     * before anything is removed. Returns the input Codex will record for the new message.
+     * before anything is removed. Returns the input Codex will record for the new message, and the first
+     * user message of the removed turn: a copy of the history ends before that message.
      */
-    async replaceUserMessage(request: acp.PromptRequest, messageId: string, tail: string): Promise<UserInput[]> {
+    async replaceUserMessage(
+        request: acp.PromptRequest,
+        messageId: string,
+        tail: string,
+    ): Promise<{input: UserInput[]; first: string}> {
         const sessionId = request.sessionId;
         const text = request.prompt.map(block => block.type === "text" ? block.text : "").join("");
         const {thread} = await this.codexClient.threadRead({threadId: sessionId});
@@ -1150,7 +1155,7 @@ export class CodexAcpClient {
             {type: "text", text, text_elements: []});
         await this.codexClient.threadRevert({threadId: sessionId, beforeTurnId: replaced.id});
         this.replacementInputs.set(request, input);
-        return input;
+        return {input, first: idOf(users(replaced)[0]!)};
     }
 
     async readRetainedPromptIds(sessionId: string): Promise<Set<string>> {

@@ -129,6 +129,46 @@ test("a refused prompt takes the local copy off screen again", async () => {
     expect(client.session(id).items.filter(item => item.kind === "user")).toHaveLength(1);
 });
 
+function userTexts(client: SessionClient, id: string): string[] {
+    return client.session(id).items.flatMap(item =>
+        item.kind === "user" ? [item.content.map(block => (block.type === "text" ? block.text : block.type)).join("")] : []);
+}
+
+test("a prompt that replaces a message changes nothing on screen until the agent reports the new message", async () => {
+    const {client, fake} = await make();
+    const id = await client.newSession("/tmp/a");
+    for (const text of ["one", "two", "three"]) {
+        await client.prompt(id, [{type: "text", text}]);
+        await until(() => client.session(id).state === "idle");
+    }
+    const before = client.session(id).items;
+    const sending = client.prompt(id, [{type: "text", text: "two, edited"}], {replace: "u2"});
+    // No local copy: the old messages stay until the agent has cut its own history.
+    expect(client.session(id).items).toBe(before);
+    expect(await sending).toBe("u4");
+    expect(fake.replaced).toEqual([{messageId: "u2", tail: "u3"}]);
+    await until(() => client.session(id).state === "idle");
+    expect(userTexts(client, id)).toEqual(["one", "two, edited"]);
+});
+
+test("a refused replacement leaves the conversation as it was", async () => {
+    const {client} = await make(fake => {
+        fake.rejectPrompt.current = text => (text === "refuse" ? new Error("history changed") : null);
+    });
+    const id = await client.newSession("/tmp/a");
+    for (const text of ["one", "two"]) {
+        await client.prompt(id, [{type: "text", text}]);
+        await until(() => client.session(id).state === "idle");
+    }
+    const before = client.session(id).items;
+    const refusal = await client.prompt(id, [{type: "text", text: "refuse"}], {replace: "u"}).then(() => null, (error: unknown) => error);
+    expect(String(refusal)).toContain("history changed");
+    expect(client.session(id).items).toEqual(before);
+    const unknown = await Promise.resolve().then(() => client.prompt(id, [{type: "text", text: "x"}], {replace: "nope"}))
+        .then(() => null, (error: unknown) => error);
+    expect(String(unknown)).toContain("not in the conversation");
+});
+
 test("prompt acknowledgement is not completion; cancelling one session leaves the other running", async () => {
     const turns = Promise.withResolvers<void>();
     const {client} = await make(fake => {

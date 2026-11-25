@@ -106,6 +106,12 @@ export type PromptOptions = {
     display?: acp.ContentBlock[];
     /** Merged into `session/prompt`'s `_meta`; the agent echoes it with the user message. */
     meta?: Record<string, unknown>;
+    /**
+     * A user message this prompt replaces, together with everything after it. The prompt is the new text;
+     * the agent keeps the rest of what the message carried. Nothing changes on screen until the agent has
+     * cut its history and reports the new message, so a refused replacement leaves the conversation as it was.
+     */
+    replace?: string;
 };
 
 export type ListSessionsOptions = {reset?: boolean};
@@ -969,13 +975,17 @@ export class SessionClient<State extends ClientState = ClientState> {
         const agent = this.live();
         assertPromptSupported(agent.initialized, prompt);
         const generation = this.lifecycle.capture(id);
-        const localId = this.sessions.addPrompt(id, options.display ?? prompt);
-        this.publishSession(this.sessions.get(id));
+        const replace = options.replace === undefined ? undefined : this.replacedMessage(id, options.replace);
+        const localId = replace ? null : this.sessions.addPrompt(id, options.display ?? prompt);
+        if (localId !== null) this.publishSession(this.sessions.get(id));
         // Once a request leaves the client, transport failure cannot prove it was not accepted.
         // Retire draft cleanup eligibility before dispatch so a lost receipt can never erase a conversation.
         this.materializeDraft(id);
         const bound = promptConfigMeta(agent.initialized, this.sessions.get(id));
-        const meta = mergeMeta(this.promptMeta(id, options), Object.keys(bound).length > 0 ? {alwith: bound} : undefined);
+        const meta = mergeMeta(
+            mergeMeta(this.promptMeta(id, options), Object.keys(bound).length > 0 ? {alwith: bound} : undefined),
+            replace ? {codex: {replace}} : undefined,
+        );
         const response = this.lifecycle.submissions.submit(
             id,
             () =>
@@ -993,9 +1003,19 @@ export class SessionClient<State extends ClientState = ClientState> {
         };
     }
 
+    /** What the agent needs to replace a user message: the message, and the last user message on screen. */
+    private replacedMessage(id: string, messageId: string): {messageId: string; tail: string} {
+        const codex = this.state.agent?.capabilities?.session?.prompt?._meta?.["codex"] as {replace?: unknown} | undefined;
+        if (codex?.replace === undefined) throw new Error("The agent cannot replace a sent message");
+        const users = this.sessions.get(id).items.flatMap(item => (item.kind === "user" ? [item] : []));
+        if (users.some(item => item.echo === "pending")) throw new Error("Wait for the last message to be sent");
+        if (!users.some(item => item.id === messageId)) throw new Error(`Message ${messageId} is not in the conversation`);
+        return {messageId, tail: users.at(-1)!.id};
+    }
+
     private async acceptPromptReceipt(
         id: string,
-        localId: string,
+        localId: string | null,
         agent: Agent,
         generation: SessionGeneration,
         response: Promise<acp.PromptResponse>,
@@ -1032,6 +1052,7 @@ export class SessionClient<State extends ClientState = ClientState> {
             throw error;
         }
         assertCurrent();
+        if (localId === null) return accepted.messageId;
         this.sessions.acknowledgePrompt(id, localId, accepted.messageId);
         this.publishSession(this.sessions.get(id));
         return accepted.messageId;

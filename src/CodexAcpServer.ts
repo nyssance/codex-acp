@@ -5755,12 +5755,13 @@ export class CodexAcpServer {
         const session = new ACPSessionConnection(this.connection, sessionId);
         // The replaced history is gone before the new turn starts; the client shows the message with
         // the input it kept, and learns from the first chunk which message it replaces.
-        let replacement: acp.ContentBlock[] | undefined;
+        let replacement: {content: acp.ContentBlock[]; first: string} | undefined;
         if (replace !== undefined) {
             try {
-                const content = await this.runWithProcessCheck(() =>
+                const {input, first} = await this.runWithProcessCheck(() =>
                     this.codexAcpClient.replaceUserMessage(request, replace.messageId, replace.tail));
-                replacement = this.userMessageContent({type: "userMessage", id: messageId, content} as ThreadItem & {type: "userMessage"});
+                const content = this.userMessageContent({type: "userMessage", id: messageId, content: input} as ThreadItem & {type: "userMessage"});
+                replacement = {content, first};
             } catch (error) {
                 reservation.release();
                 throw error;
@@ -5826,10 +5827,10 @@ export class CodexAcpServer {
             const onInserted = async (turnId?: string) => {
                 inserted = true;
                 try {
-                    for (const [index, block] of (replacement ?? request.prompt).entries()) {
+                    for (const [index, block] of (replacement?.content ?? request.prompt).entries()) {
                         const codex = {
                             ...(turnId === undefined ? {} : {turnId}),
-                            ...(replace !== undefined && index === 0 ? {replaces: replace.messageId} : {}),
+                            ...(replacement !== undefined && index === 0 ? {replaces: replacement.first} : {}),
                         };
                         await session.update(createUserMessageChunk(block, messageId, Object.keys(codex).length > 0 ? {codex} : undefined));
                     }

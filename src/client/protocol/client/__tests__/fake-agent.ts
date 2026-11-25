@@ -6,6 +6,8 @@ import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 export type FakeAgent = {
     app: acp.AgentApp;
     deleted: Set<string>;
+    /** What each replacing `session/prompt` named: the message to replace and the client's last user message. */
+    replaced: Array<{messageId: string; tail: string}>;
     forks: acp.ForkSessionRequest[];
     /** Every `session/new` request, for asserting what the client sent. */
     created: acp.NewSessionRequest[];
@@ -57,6 +59,7 @@ export function createFakeAgent(): FakeAgent {
     const app = new acp.AgentApp();
     const active = new Map<string, AbortController>();
     const deleted = new Set<string>();
+    const replaced: Array<{messageId: string; tail: string}> = [];
     const forks: acp.ForkSessionRequest[] = [];
     const created: acp.NewSessionRequest[] = [];
     const resumed: acp.ResumeSessionRequest[] = [];
@@ -88,7 +91,7 @@ export function createFakeAgent(): FakeAgent {
         return {
             protocolVersion: 2,
             info: {name: "fake-agent", version: "1"},
-            capabilities: {session: {fork: {}, systemPrompt: {}}},
+            capabilities: {session: {fork: {}, systemPrompt: {}, prompt: {_meta: {codex: {replace: {}}}}}},
             authMethods: [{type: "agent", methodId: "chat-gpt", name: "ChatGPT"}],
         };
     });
@@ -203,6 +206,8 @@ export function createFakeAgent(): FakeAgent {
         const sequence = (promptSequence.get(id) ?? 0) + 1;
         promptSequence.set(id, sequence);
         const messageId = sequence === 1 ? "u" : `u${sequence}`;
+        const replace = (params._meta?.["codex"] as {replace?: {messageId: string; tail: string}} | undefined)?.replace;
+        if (replace) replaced.push(replace);
         if (active.has(id)) return {messageId};
         const controller = new AbortController();
         active.set(id, controller);
@@ -214,6 +219,7 @@ export function createFakeAgent(): FakeAgent {
                     sessionUpdate: "user_message",
                     messageId,
                     content: [{type: "text", text}],
+                    ...(replace && {_meta: {codex: {replaces: replace.messageId}}}),
                 });
                 if (text === "permission") {
                     await emit({
@@ -325,6 +331,7 @@ export function createFakeAgent(): FakeAgent {
     return {
         app,
         deleted,
+        replaced,
         forks,
         created,
         resumed,
