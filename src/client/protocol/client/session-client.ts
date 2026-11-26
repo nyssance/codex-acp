@@ -94,6 +94,8 @@ export type SessionRequestOptions = {
     meta?: Record<string, unknown>;
     /** Initial values the agent applies while it sets the session up, in order; a stale value is skipped. */
     configOptions?: acp.InitialSessionConfigOption[];
+    /** `session/fork` only: the fork holds what lies before this session cursor; the whole session otherwise. */
+    cursorId?: string;
 };
 
 export type NewSessionOptions = SessionRequestOptions & {
@@ -1195,6 +1197,7 @@ export class SessionClient<State extends ClientState = ClientState> {
                     sessionId: id,
                     cwd,
                     ...context,
+                    ...(options.cursorId !== undefined ? {cursorId: options.cursorId} : {}),
                 }),
             // Fork history arrives before the new session id is known: it waits in the creation buffer and is applied as replay below.
             response =>

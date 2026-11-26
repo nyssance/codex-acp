@@ -67,7 +67,7 @@ import {asError, CLIENT_CAPABILITIES} from "./protocol/client/session-client";
 export type ForkOrigin = {sourceId: string; boundaryTurnId: string | null};
 
 export type ForkOptions = SessionRequestOptions & {
-    /** Fork after this native turn (requires the `forkAtTurn` capability); the whole record otherwise. */
+    /** Fork after this native turn: the fork holds it and what came before. The whole session otherwise. */
     lastTurnId?: string;
 };
 
@@ -837,12 +837,30 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
     /** One fork at a time; an application subclass wraps this to name the fork from what it already lists. */
     protected async forkInternal(id: string, cwd: string, options: ForkOptions): Promise<string> {
         const {lastTurnId, ...rest} = options;
-        if (lastTurnId !== undefined && (!lastTurnId || !codexExtensionCapabilities(this.state.agent).forkAtTurn))
+        if (lastTurnId !== undefined && this.state.agent?.capabilities?.session?.fork == null)
             throw new Error("The agent does not support forking at this turn");
-        return super.fork(id, cwd, {
-            ...rest,
-            meta: mergeMeta(rest.meta, lastTurnId === undefined ? undefined : {codex: {lastTurnId}}),
-        });
+        const cursorId = lastTurnId === undefined ? undefined : this.cursorAfterTurn(id, lastTurnId);
+        return super.fork(id, cwd, {...rest, ...(cursorId !== undefined ? {cursorId} : {})});
+    }
+
+    /**
+     * The session cursor that lies after the native turn `turnId`, which is the one before the turn that
+     * follows it; `undefined` after the last turn, where a fork is the whole session. The adapter names
+     * the cursor before a turn `before:<turnId>` and keeps that name across replays and restarts
+     * (docs/session-cursors.md), so a turn that this client did not load with its cursor has one too. The
+     * adapter refuses a position it cannot fork at, such as before a turn that starts with a command.
+     */
+    private cursorAfterTurn(id: string, turnId: string): string | undefined {
+        const turns = (this.state.historyNavigation[id]?.turns ?? []).map(turn => turn.turnId);
+        // Live turns follow the turns the navigation index listed.
+        for (const item of this.session(id).items) {
+            const native = nativeTurnId(item);
+            if (native !== null && !turns.includes(native)) turns.push(native);
+        }
+        const index = turns.indexOf(turnId);
+        if (index === -1) throw new Error(`Turn ${turnId} is not in the conversation`);
+        const next = turns[index + 1];
+        return next === undefined ? undefined : `before:${next}`;
     }
 
     protected override onForked(id: string, response: acp.ForkSessionResponse): void {

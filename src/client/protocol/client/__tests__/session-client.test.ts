@@ -341,13 +341,11 @@ test("fork replays the source's history into the new session and lists it", asyn
         messageId: "f",
         content: [{type: "text", text: "from the source"}],
     });
-    const id = await client.fork(source, "/tmp/fork", {
-        meta: {codex: {lastTurnId: "t9"}},
-    });
+    const id = await client.fork(source, "/tmp/fork", {cursorId: "before:t10"});
     expect(fake.forks[0]).toMatchObject({
         sessionId: source,
         cwd: "/tmp/fork",
-        _meta: {codex: {lastTurnId: "t9"}},
+        cursorId: "before:t10",
     });
     expect(client.session(id)).toMatchObject({
         attached: true,
