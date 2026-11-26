@@ -1,11 +1,16 @@
 import {expect, test} from "vitest";
 import {buildPromptItems} from "../CodexAcpClient";
+import {desktopAttachmentHistory} from "../DesktopAttachmentHistory";
 
-test("app references are native mentions; ordinary file links remain text", () => {
+test("app references remain native mentions alongside replayable file attachments", () => {
+    const file = {type: "resource_link" as const, name: "notes", uri: "file:///tmp/notes"};
     const result = buildPromptItems([
         {type: "resource_link", name: "Sites", uri: "app://connector_sites"},
-        {type: "resource_link", name: "notes", uri: "file:///tmp/notes"},
+        file,
     ]);
-    expect(result[0]).toEqual({type: "mention", name: "Sites", path: "app://connector_sites"});
-    expect(result[1]?.type).toBe("text");
+    expect(result).toHaveLength(2);
+    expect(result).toContainEqual({type: "mention", name: "Sites", path: "app://connector_sites"});
+    const attachment = result.find(input => input.type === "text");
+    if (!attachment) throw new Error("Expected a file attachment envelope");
+    expect(desktopAttachmentHistory(attachment.text)).toEqual([file]);
 });
