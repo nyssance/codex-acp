@@ -27,6 +27,7 @@ A turn gets a cursor when it starts with a visible user message and is not the f
 - Live, v1: v1 does not report the prompt that the client sent, so the cursor is anchored `after` the last entity that the client holds: an agent message or thought, a tool call, a compaction or a user message with an id. If the client holds none, the prompt gets no cursor. A replay resets the entities, so after a load the anchor is the last replayed entity.
   When a turn reports no entity (it was cancelled or failed before any output), the next prompt's cursor has the same `after <entity>` anchor, with a different `cursorId`: the client uses the latest.
 - Live, v2: when the user message is inserted, anchored `before` it.
+- History pages (`_codex/session_history`, a fork extension): in the `updates` of the turn, as in a replay. A summary page holds the cursor alone. A client that read turns this way holds them as after a replay, so its next prompt gets a cursor.
 
 ## Fork at a cursor
 

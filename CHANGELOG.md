@@ -1,3 +1,8 @@
+## 0.7.93 (2026-11-26)
+
+- `_codex/session_history` announces session cursors as a replay does: a turn's `updates` hold the `cursor_update` of the cursor before it, after its first user message in a full page and alone in a summary page. A turn that starts with a command or with a message the client does not see has none, and neither has the first turn. A client that read turns this way holds them, so the first prompt of a session resumed without a replay gets its cursor too.
+- The browser client keeps the announced cursors in `session.cursors` and in the turn index (`cursorId`), and `canForkAfterTurn(id, turnId)` says whether a fork can start after a turn, so an application offers the action only there.
+
 ## 0.7.92 (2026-11-26)
 
 - The browser client forks at a turn with the standard `cursorId` of `session/fork`: `fork(id, cwd, {lastTurnId})` sends the cursor before the turn that follows, and nothing after the last turn. `_meta.codex.lastTurnId` is no longer sent by the client; the adapter still accepts it.

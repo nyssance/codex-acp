@@ -1199,7 +1199,13 @@ export class CodexAcpServer {
             );
             return {};
         }
-        return this.runWithProcessCheck(() => this.alwith.request(method, params, signal, requestId));
+        const response = await this.runWithProcessCheck(() => this.alwith.request(method, params, signal, requestId));
+        // A client that read turns here holds them as it would after a replay, so its next prompt has a cursor before it.
+        if (method === "_codex/session_history" && (response as {turns: unknown[]}).turns.length > 0) {
+            const session = this.sessions.get(params["sessionId"] as string);
+            if (session) session.hasTurn = true;
+        }
+        return response;
     }
 
     async nativeRequest(method: CodexNativeMethod, params: Record<string, unknown>): Promise<unknown> {

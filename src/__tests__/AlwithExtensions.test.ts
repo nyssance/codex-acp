@@ -147,6 +147,56 @@ describe("ALwith extensions on the upstream connection", () => {
         });
     });
 
+    it("announces the cursor before each turn that starts with a visible user message, except the first", async () => {
+        const upstream = peer();
+        const thread = {id: "one", cwd: "/work", name: null, preview: "", createdAt: 1, updatedAt: 2, forkedFromId: null, status: {type: "idle"}};
+        const turn = (id: string, items: object[]) => ({
+            id, status: "completed", error: null, startedAt: 1, completedAt: 2, durationMs: 1, itemsView: "summary", items,
+        });
+        const message = (id: string, hidden = false) => ({type: "userMessage", id, hidden});
+        upstream.sendRequest.mockImplementation(async (method: string) =>
+            method === "thread/read"
+                ? {thread}
+                : {
+                      data: [
+                          turn("t3", [message("m3")]),
+                          turn("t2", [message("m2", true)]),
+                          turn("t1", [{type: "contextCompaction", id: "c1"}]),
+                          turn("t0", [message("m0")]),
+                      ],
+                      nextCursor: null,
+                  },
+        );
+        const extensions = new AlwithExtensions(
+            () => upstream.client,
+            vi.fn(),
+            () => false,
+            async item =>
+                item.type === "userMessage" && !(item as unknown as {hidden: boolean}).hidden
+                    ? [{sessionUpdate: "user_message", messageId: item.id, content: []}]
+                    : [],
+        );
+        const page = (await extensions.request("_codex/session_history", {sessionId: "one", sortDirection: "desc"})) as {
+            turns: Array<{turnId: string; updates: unknown[]}>;
+        };
+        expect(page.turns.map(({turnId, updates}) => [turnId, updates])).toEqual([
+            [
+                "t3",
+                [
+                    {
+                        sessionUpdate: "cursor_update",
+                        cursorId: "before:t3",
+                        capabilities: {fork: {}},
+                        anchor: {type: "user_message", messageId: "m3", position: "before"},
+                    },
+                ],
+            ],
+            ["t2", []],
+            ["t1", []],
+            ["t0", []],
+        ]);
+    });
+
     it("does not report a plugin write as success when configuration overrides it", async () => {
         const upstream = peer();
         upstream.sendRequest.mockResolvedValue({status: "okOverridden"});

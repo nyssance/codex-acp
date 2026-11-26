@@ -153,6 +153,7 @@ export function prependHistory(current: Session, page: Session, baseline?: Sessi
                 : current.lastStopReason,
         title: current.title === baseline?.title ? (page.title ?? current.title) : (current.title ?? page.title),
         items: [...prefix, ...merged, ...current.items.filter(item => !pageIds.has(identity(item)) && !prefixIds.has(identity(item)))],
+        cursors: [...new Set([...page.cursors, ...current.cursors])],
         clock: Math.max(current.clock, page.clock),
         terminals,
         turnUsage: {...page.turnUsage, ...current.turnUsage},

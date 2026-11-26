@@ -98,6 +98,30 @@ test("indexes every turn using summary-only pages without fetching transcript bo
     expect(request.mock.calls[1][1].cursor).toBe("older");
 });
 
+test("keeps the session cursors that the index and the pages announce", async () => {
+    const cursor = (turnId: string) => ({
+        sessionUpdate: "cursor_update",
+        cursorId: `before:${turnId}`,
+        capabilities: {fork: {}},
+        anchor: {type: "user_message", messageId: `u-${turnId}`, position: "before"},
+    });
+    const index = vi
+        .fn<(method: string, params: Record<string, unknown>) => Promise<unknown>>()
+        .mockResolvedValueOnce(response({turns: [{...summary("new"), updates: [cursor("new")]}, summary("old")]}));
+    expect((await readHistoryIndex("s", index, () => {})).map(turn => turn.cursorId)).toEqual([undefined, "before:new"]);
+    const page = await readHistoryPage("s", "/work", null, async () =>
+        response({
+            title: null,
+            turns: [
+                {...summary("new"), itemsView: "full", updates: [user("new"), cursor("new"), answer("new")]},
+                {...summary("old"), itemsView: "full", updates: [user("old"), answer("old")]},
+            ],
+        }),
+    );
+    expect(page.session.cursors).toEqual(["before:new"]);
+    expect(page.session.items.map(item => item.id)).toEqual(["u-old", "a-old", "u-new", "a-new"]);
+});
+
 test("rejects cross-session indexes, repeated cursors and duplicate turns", async () => {
     for (const pages of [
         [{...response({turns: []}), sessionId: "wrong"}],

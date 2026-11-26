@@ -863,6 +863,20 @@ export class CodexClient<State extends CodexClientState = CodexClientState> exte
         return next === undefined ? undefined : `before:${next}`;
     }
 
+    /**
+     * Whether a fork can start after the native turn `turnId`: after the last turn, or where the agent
+     * announced the cursor before the turn that follows. A turn that starts with a command or with a
+     * message the client does not see has no cursor.
+     */
+    canForkAfterTurn(id: string, turnId: string): boolean {
+        const cursorId = this.cursorAfterTurn(id, turnId);
+        return (
+            cursorId === undefined ||
+            this.session(id).cursors.includes(cursorId) ||
+            (this.state.historyNavigation[id]?.turns ?? []).some(turn => turn.cursorId === cursorId)
+        );
+    }
+
     protected override onForked(id: string, response: acp.ForkSessionResponse): void {
         this.recordForkOrigin(id, response._meta as Record<string, unknown> | null | undefined);
     }

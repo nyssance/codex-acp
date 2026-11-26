@@ -1,3 +1,4 @@
+import {SessionUpdate} from "@agentclientprotocol/sdk/experimental/v2/unstable";
 import type * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable";
 
 import type {ThreadItemEntry, Turn} from "../../app-server/v2";
@@ -5,6 +6,7 @@ import type {AppServerClient} from "../codex/AppServerClient";
 import {type HistoryOmission, type HistoryRenderer, projectHistoryItem} from "./historyProjection";
 import {historyError, type HistoryPage, HistoryRead, type SessionHistoryItemsParams, type SessionHistoryParams} from "./historyProtocol";
 import {turnErrorUpdate} from "./turnErrors";
+import {beforeUserMessageCursorUpdate} from "../../SessionCursors";
 export {
     parseSessionHistoryParams,
     parseSessionHistoryItemsParams,
@@ -38,6 +40,15 @@ export interface SessionHistoryItemsResponse extends HistoryPage {
     items: SessionHistoryItem[];
 }
 
+/**
+ * The cursor before a turn, given the updates that its first item replays as: the one that a replay
+ * announces after the first visible user message of the turn (docs/session-cursors.md).
+ */
+function turnCursor(turnId: string, opening: readonly acp.SessionUpdate[]): acp.SessionUpdate[] {
+    const message = opening.findLast(update => SessionUpdate.isUserMessage(update));
+    return message === undefined ? [] : [beforeUserMessageCursorUpdate(turnId, message.messageId) as acp.SessionUpdate];
+}
+
 export async function readSessionHistory(
     codex: AppServerClient,
     render: HistoryRenderer,
@@ -62,7 +73,11 @@ export async function readSessionHistory(
             throw historyError("history_incomplete", "Codex did not return full history items; update Codex and retry", false, {}, -32603);
         const turns = await read.call(() =>
             Promise.all(
-                page.data.map(async turn => {
+                page.data.map(async (turn, index) => {
+                    // Nothing is before the first turn of the thread, so it has no cursor.
+                    const first =
+                        read.direction === "desc" ? page.nextCursor === null && index === page.data.length - 1 : read.after === null && index === 0;
+                    const opening = turn.items[0];
                     const projections =
                         view === "full"
                             ? await Promise.all(
@@ -80,7 +95,11 @@ export async function readSessionHistory(
                         durationMs: turn.durationMs,
                         itemsView: view === "summary" ? ("summary" as const) : turn.itemsView,
                         updates: [
-                            ...projections.flatMap(p => p.updates),
+                            ...(projections[0]?.updates ?? []),
+                            ...(first || opening?.type !== "userMessage"
+                                ? []
+                                : turnCursor(turn.id, projections[0]?.updates ?? (await render(opening, start.thread.cwd)))),
+                            ...projections.slice(1).flatMap(p => p.updates),
                             ...(turn.status === "failed" && turn.error !== null ? [turnErrorUpdate(turn.id, turn.error)] : []),
                         ],
                         omissions: projections.flatMap(p => p.omissions),

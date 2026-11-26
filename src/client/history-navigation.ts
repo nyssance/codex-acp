@@ -12,6 +12,8 @@ export type HistoryTurnSummary = {
     startedAt?: number | null;
     completedAt?: number | null;
     durationMs?: number | null;
+    /** The session cursor before the turn, if the agent announced one. */
+    cursorId?: string;
     errorUpdates?: acp.SessionUpdate[];
 };
 export type HistoryTurnPreview = {
@@ -91,6 +93,7 @@ export async function readHistoryIndex(sessionId: string, request: Request, chec
                 startedAt: turn.startedAt as number | null,
                 completedAt: turn.completedAt as number | null,
                 durationMs: turn.durationMs as number | null,
+                cursorId: (turn.updates as acp.SessionUpdate[]).find(update => SessionUpdate.isCursorUpdate(update))?.cursorId,
                 errorUpdates: turn.updates.filter((rawUpdate: unknown): rawUpdate is acp.SessionUpdate => {
                     const update = object(rawUpdate) as acp.SessionUpdate;
                     if (!SessionUpdate.isAgentMessage(update)) return false;

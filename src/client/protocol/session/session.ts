@@ -167,6 +167,8 @@ export type Session = {
     readOnly: boolean;
     error: TurnError | null;
     items: Item[];
+    /** The `cursorId` of each session cursor that the agent announced: the positions that a fork can start at. */
+    cursors: string[];
     configOptions: acp.SessionConfigOption[];
     usage: acp.UsageUpdate | null;
     lastTurnUsage: acp.Usage | null;
@@ -213,6 +215,7 @@ export function createSession(id: string, cwd: string, title: string | null = nu
         readOnly: false,
         error: null,
         items: [],
+        cursors: [],
         configOptions: [],
         usage: null,
         lastTurnUsage: null,
@@ -877,6 +880,10 @@ function fold(session: Session, update: acp.SessionUpdate, options: ApplyOptions
                 ...session,
                 commands: (update as acp.AvailableCommandsUpdate).availableCommands,
             };
+        case "cursor_update": {
+            const {cursorId} = update as acp.CursorUpdate;
+            return session.cursors.includes(cursorId) ? session : {...session, cursors: [...session.cursors, cursorId]};
+        }
         default:
             return session;
     }
