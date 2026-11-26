@@ -1,3 +1,8 @@
+## Unreleased
+
+- Merged upstream 2.11.0 and 2.12.0: session cursors (`cursor_update`, `cursorId = "before:<turnId>"`), `session/fork` with a `cursorId`, and `_session/rewind` for v1 clients that declare the AIR extension. A v2 client now receives `cursor_update` on live turns and on replay.
+- Replacing a sent message is refused while the session has background terminals: `thread/revert` reloads the thread, which ends them.
+
 ## 0.7.91 (2026-11-25)
 
 - The browser client replaces a sent message with `prompt(id, text, {replace: messageId})`. It names the last user message on screen as the tail, shows no local copy, and cuts its history when the agent reports the new message, so a refused replacement leaves the conversation as it was.

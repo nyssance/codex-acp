@@ -1155,6 +1155,11 @@ export class CodexAcpClient {
         if (last !== tail) {
             throw RequestError.invalidRequest(undefined, "The history changed since the message was edited; nothing was replaced");
         }
+        // `thread/revert` reloads the thread, which ends its background processes.
+        const terminals = await this.codexClient.threadBackgroundTerminalsList({threadId: sessionId, limit: 1});
+        if (terminals.data.length > 0) {
+            throw RequestError.invalidRequest(undefined, "A message cannot be replaced while background terminals are running; stop them first");
+        }
         const replaced: Turn = target;
         const kept = users(replaced).flatMap(message => message.content);
         const first = kept.findIndex(item => item.type === "text");
