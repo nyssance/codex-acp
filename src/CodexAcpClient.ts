@@ -79,7 +79,8 @@ import {createCodexCollaborationMode} from "./CollaborationModeConfig";
 import type {ModeKind} from "./app-server/ModeKind";
 import {arePathBasenamesEqual, arePathsEqual, isAbsolutePathLike, isAbsoluteProtocolPath} from "./PathUtils";
 import {CodexSubagentSubscriptions} from "./subagents/CodexSubagentSubscriptions";
-import {forkSession as runForkSession} from "./SessionFork";
+import {isRewindableThread} from "./SessionRewind";
+import {forkSession as runForkSession, type SessionForkDependencies} from "./SessionFork";
 import type {SessionMetadata, SessionMetadataWithThread, SessionOptionMetadata} from "./SessionMetadata";
 import {StoredSessionSettings} from "./StoredSessionSettings";
 import {isArchivedRolloutPath} from "./SessionIndexMutations";
@@ -843,6 +844,7 @@ export class CodexAcpClient {
             ...this.resumedSessionOptions(response, defaultPermissionProfileId, live),
             threadStatus: response.thread.status,
             sessionTitle: normalizeSessionTitle(listedSessionTitle(response.thread)),
+            rewindable: isRewindableThread(response.thread),
             modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()),
             permissionProfile: response.permissionProfile,
             threadApprovalsReviewer: response.threadApprovalsReviewer,
@@ -858,9 +860,10 @@ export class CodexAcpClient {
         releaseFailedFork: (threadId: string) => Promise<void> = threadId => this.closeSession(threadId),
         forkCreated: (threadId: string) => void = () => {},
         previousInstructions?: SessionInstructions,
+        resolveCursorTurn?: SessionForkDependencies["resolveCursorTurn"],
     ): Promise<SessionMetadata> {
         return this.restoreCatalogRoute(request.sessionId, () =>
-            this.forkSessionWithRoute(request, releaseFailedFork, forkCreated, previousInstructions),
+            this.forkSessionWithRoute(request, releaseFailedFork, forkCreated, previousInstructions, resolveCursorTurn),
         );
     }
 
@@ -869,6 +872,7 @@ export class CodexAcpClient {
         releaseFailedFork: (threadId: string) => Promise<void> = threadId => this.closeSession(threadId),
         forkCreated: (threadId: string) => void = () => {},
         previousInstructions?: SessionInstructions,
+        resolveCursorTurn?: SessionForkDependencies["resolveCursorTurn"],
     ): Promise<SessionMetadata> {
         const nativeTools = this.sessionNativeTools(request);
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
@@ -899,6 +903,9 @@ export class CodexAcpClient {
                 getCollaborationMode: sessionId => this.getCollaborationMode(sessionId),
                 releaseFailedFork,
                 forkCreated,
+                resolveCursorTurn: resolveCursorTurn ?? (async () => {
+                    throw new Error("Forking at a session cursor needs a cursor resolver");
+                }),
             },
             instructions,
         );
@@ -1028,6 +1035,7 @@ export class CodexAcpClient {
             permissionProfile: response.permissionProfile,
             threadApprovalsReviewer: response.threadApprovalsReviewer,
             thread,
+            rewindable: isRewindableThread(response.thread),
             threadStatus: response.thread.status,
             history,
             additionalDirectories,
@@ -1323,6 +1331,7 @@ export class CodexAcpClient {
             lineage: await readSessionLineage(this.codexClient, response.thread),
             collaborationMode: this.getCollaborationMode(response.thread.id),
             ...(response.thread.status?.type === "active" ? {threadStatus: response.thread.status} : {}),
+            rewindable: isRewindableThread(response.thread),
             modelProvider: route.gatewayId ?? (await this.getResumeModelProvider()),
             currentServiceTier: response.serviceTier ?? null,
             permissionProfile: response.activePermissionProfile?.id,

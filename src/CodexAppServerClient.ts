@@ -717,6 +717,11 @@ export class CodexAppServerClient {
         return await this.sendRequest({ method: "thread/read", params: params });
     }
 
+    /** Drops the turn `beforeTurnId` and every later one. Reloads the thread, which interrupts its running turn. */
+    async threadRevert(params: ThreadRevertParams): Promise<ThreadRevertResponse> {
+        return await this.sendRequest({method: "thread/revert", params});
+    }
+
     async threadTurnsList(params: ThreadTurnsListParams): Promise<ThreadTurnsListResponse> {
         return await this.sendRequest({method: "thread/turns/list", params});
     }
@@ -850,11 +855,6 @@ export class CodexAppServerClient {
             }
             yield page;
         }
-    }
-
-    /** Removes a turn and every later turn from the thread's history. Files the turns changed stay changed. */
-    async threadRevert(params: ThreadRevertParams): Promise<ThreadRevertResponse> {
-        return await this.sendRequest({ method: "thread/revert", params: params });
     }
 
     async threadArchive(params: ThreadArchiveParams): Promise<ThreadArchiveResponse> {

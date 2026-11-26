@@ -43,6 +43,8 @@ export type SessionMetadata = SessionOptionMetadata & {
     mcpStartupFailures?: McpStartupFailure[],
     instructions?: SessionInstructions,
     sessionTitle?: string | null,
+    /** Whether `thread/revert` takes the thread, see `isRewindableThread`. */
+    rewindable?: boolean,
 }
 
 export type SessionMetadataWithThread = SessionMetadata & {
