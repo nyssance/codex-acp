@@ -1,3 +1,4 @@
+import {localImagePaths, readLocalImage} from "./alwith/codex/userImages";
 import {requestCodexNative, realtimeUpdate, CODEX_REALTIME_UPDATE, type CodexNativeMethod} from "./CodexNativeExtensions";
 import {AsyncLocalStorage} from "node:async_hooks";
 import type {ReplayEntry} from "./ReplayHistory";
@@ -8,7 +9,7 @@ import {AlwithExtensions} from "./alwith/Extensions";
 import * as acp from "@agentclientprotocol/sdk/unstable";
 import {RequestError, type SessionId, type SessionModeState} from "@agentclientprotocol/sdk/unstable";
 import {CodexEventHandler, type CompletedPlan, failureWasShownAsMessage, SessionFailureIds} from "./CodexEventHandler";
-import {attachmentFileUri, desktopAttachmentHistory} from "./DesktopAttachmentHistory";
+import {attachmentFileUri, desktopAttachmentHistory, legacyMixedFileLink} from "./DesktopAttachmentHistory";
 import {CodexApprovalHandler} from "./permissions/CodexApprovalHandler";
 import {isRecord} from "./permissions/json";
 import {validateInitialConfigOptions} from "./SessionConfigOptions";
@@ -5254,8 +5255,17 @@ export class CodexAcpServer {
     ): Promise<UpdateSessionEvent[]> {
         const renderer = new AcpToolCallRenderer(clientCapabilities);
         switch (item.type) {
-            case "userMessage":
-                return this.replayedUserMessageUpdates(item, clientCapabilities);
+            case "userMessage": {
+                const updates = this.replayedUserMessageUpdates(item, clientCapabilities);
+                if (this.protocolVersion !== 2) return updates;
+                const paths = localImagePaths(item.content);
+                for (const update of updates) {
+                    if (update.sessionUpdate !== "user_message_chunk" || update.content.type !== "resource_link") continue;
+                    const path = paths.get(update.content.uri);
+                    if (path !== undefined) update.content = await readLocalImage(path, update.content.uri);
+                }
+                return updates;
+            }
             case "hookPrompt":
             case "functionCallOutput":
             case "sleep":
@@ -5342,7 +5352,13 @@ export class CodexAcpServer {
             item.content[index]?.type === "text"
                 ? blocks.flatMap(block => block.type === "resource_link" ? [block.uri] : [])
                 : []));
+        const hasAttachmentEnvelope = attachmentUris.size > 0;
         for (const [index, input] of item.content.entries()) {
+            const legacyLink = hasAttachmentEnvelope && input.type === "text" ? legacyMixedFileLink(input.text) : null;
+            if (legacyLink !== null) {
+                if (!attachmentUris.has(legacyLink.uri)) content.push(legacyLink);
+                continue;
+            }
             const nativePath = input.type === "localImage" || input.type === "localAudio" || input.type === "mention"
                 ? input.path
                 : (input.type === "image" || input.type === "audio") && "url" in input ? input.url : null;

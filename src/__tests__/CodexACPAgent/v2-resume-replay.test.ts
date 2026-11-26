@@ -1,3 +1,7 @@
+import {mkdtempSync, rmSync, writeFileSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {pathToFileURL} from "node:url";
 import {testThreadPermissions} from "../native-thread-permissions";
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import * as acp from '@agentclientprotocol/sdk/unstable';
@@ -322,6 +326,43 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
         closeClient = null;
         vi.clearAllMocks();
         expectConformingV2SessionUpdates();
+    });
+
+    it.each([false, true])("replays a mixed message with its file, folder, body and native image (legacy links: %s)", async (legacy) => {
+        const directory = mkdtempSync(join(tmpdir(), "codex-mixed-input-"));
+        try {
+            const image = join(directory, "photo.png");
+            const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+iG7sAAAAASUVORK5CYII=";
+            writeFileSync(image, Buffer.from(data, "base64"));
+            const request = "Compare the attachments.";
+            const prefix = "# Files mentioned by the user:\n\n";
+            const folder = "## docs: /workspace/docs/";
+            const file = "## notes.txt: /workspace/notes.txt";
+            const replayTurns: Thread["turns"] = [{
+                ...createTurn("completed", T_ID),
+                items: [{
+                    type: "userMessage",
+                    id: "mixed-message",
+                    clientId: null,
+                    content: [
+                        ...(legacy ? [{type: "text" as const, text: "[@notes.txt](file:///workspace/notes.txt)", text_elements: []}] : []),
+                        {type: "text", text: `${prefix}${legacy ? "" : `${file}\n\n`}${folder}\n\n## My request:\n${request}`, text_elements: []},
+                        {type: "localImage", path: image},
+                    ],
+                }],
+            }];
+            const {connection, updates} = await connectV2Client({replayTurns});
+            closeClient = () => connection.close();
+            await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, replayFrom: {type: "start"}});
+            expect(updates.map(({update}) => update).filter(acpV2.SessionUpdate.isUserMessageChunk).map(update => update.content)).toEqual([
+                {type: "resource_link", name: "notes.txt", uri: "file:///workspace/notes.txt"},
+                {type: "resource_link", name: "docs", uri: "file:///workspace/docs/"},
+                {type: "text", text: request},
+                {type: "image", mimeType: "image/png", data, uri: pathToFileURL(image).href},
+            ]);
+        } finally {
+            rmSync(directory, {recursive: true, force: true});
+        }
     });
 
     it('gives review-mode chunks a stable messageId, hides only the minted-after reviewer prompt, and primes every replayed chunk', async () => {

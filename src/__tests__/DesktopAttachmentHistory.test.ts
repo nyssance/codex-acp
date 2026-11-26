@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest";
-import {desktopAttachmentHistory} from "../DesktopAttachmentHistory";
+import {buildPromptItems} from "../CodexAcpClient";
+import {desktopAttachmentHistory, legacyMixedFileLink} from "../DesktopAttachmentHistory";
 
 describe("Desktop attachment history", () => {
     it("restores a pasted file and preserves the request verbatim", () => {
@@ -51,6 +52,57 @@ describe("Desktop attachment history", () => {
         expect(desktopAttachmentHistory('# Files mentioned by the user:\n\n## image.png: /workspace/image.png\nImage attachment: true\n\n## My request:\n')).toEqual([
             {type: "resource_link", name: "image.png", uri: "file:///workspace/image.png"},
         ]);
+    });
+
+    it.each([
+        ["docs", "file:///workspace/docs/", "/workspace/docs/"],
+        ["项目 #1%", "file:///workspace/%E9%A1%B9%E7%9B%AE%20%231%25/", "/workspace/项目 #1%/"],
+        ["Project #1", "file:///C:/Users/test/Project%20%231/", "C:\\Users\\test\\Project #1\\"],
+        ["Shared folder", "file://server/share/Shared%20folder/", "\\\\server\\share\\Shared folder\\"],
+        ['"docs: notes"', "file:///workspace/%22docs:%20notes%22/", '/workspace/"docs: notes"/'],
+        ['"docs', "file:///workspace/%22docs/", '/workspace/"docs/'],
+        ["/", "file:///", "/"],
+    ])("sends and replays the folder %s", (name, uri, path) => {
+        const folder = {type: "resource_link" as const, name, uri};
+        const request = {type: "text" as const, text: "Read it\n\nKeep this line."};
+        const [input] = buildPromptItems([folder, request]);
+        if (input?.type !== "text") throw new Error("Expected a text input");
+        expect(input.text).toBe(`# Files mentioned by the user:\n\n## ${name}: ${path}\n\n## My request:\n${request.text}`);
+        expect(desktopAttachmentHistory(input.text)).toEqual([folder, request]);
+    });
+
+    it("replays a legacy quoted folder label", () => {
+        const text = '# Files mentioned by the user:\n\n## "docs": /workspace/docs/\n\n## My request:\nRead it';
+        expect(desktopAttachmentHistory(text)).toEqual([
+            {type: "resource_link", name: "docs", uri: "file:///workspace/docs/"},
+            {type: "text", text: "Read it"},
+        ]);
+    });
+
+    it("preserves directory names that contain a line break", () => {
+        const folder = {type: "resource_link" as const, name: "two\nlines", uri: "file:///workspace/two%0Alines/"};
+        const [input] = buildPromptItems([folder]);
+        if (input?.type !== "text") throw new Error("Expected a text input");
+        expect(desktopAttachmentHistory(input.text)).toEqual([folder]);
+    });
+
+    it("keeps a file, folder, image, and request separate across sending and replay", () => {
+        const folder = {type: "resource_link" as const, name: "Project", uri: "file:///workspace/Project/"};
+        const file = {type: "resource_link" as const, name: "guide.md", uri: "file:///workspace/guide.md"};
+        const image = {type: "image" as const, mimeType: "image/png", data: "AA=="};
+        const request = {type: "text" as const, text: "Compare both attachments."};
+        const [input, ...other] = buildPromptItems([file, folder, request, image]);
+        if (input?.type !== "text") throw new Error("Expected a text input");
+        expect(desktopAttachmentHistory(input.text)).toEqual([file, folder, request]);
+        expect(other).toEqual(buildPromptItems([image]));
+    });
+
+    it("recognizes only a standalone legacy file reference", () => {
+        expect(legacyMixedFileLink("[@readme.md](file:///workspace/readme.md)")).toEqual({
+            type: "resource_link", name: "readme.md", uri: "file:///workspace/readme.md",
+        });
+        expect(legacyMixedFileLink("Open [@readme.md](file:///workspace/readme.md)")).toBeNull();
+        expect(legacyMixedFileLink("[@readme.md](file:///workspace/readme.md#L12)")).toBeNull();
     });
 
     it.each([

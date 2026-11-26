@@ -18,19 +18,14 @@ export async function hydrateLocalImages(
     inputs: readonly UserInput[],
     signal: AbortSignal,
 ): Promise<acp.SessionUpdate[]> {
-    const paths = new Map<string, string>();
-    for (const input of inputs) {
-        if (input.type !== "localImage") continue;
-        const uri = attachmentFileUri(input.path);
-        if (uri !== null) paths.set(uri, input.path);
-    }
+    const paths = localImagePaths(inputs);
     const result: acp.SessionUpdate[] = [];
     for (const update of updates) {
         signal.throwIfAborted();
         if (acp.SessionUpdate.isUserMessageChunk(update) && acp.ContentBlock.isResourceLink(update.content)) {
             const path = paths.get(update.content.uri);
             if (path !== undefined) {
-                result.push({...update, content: await readImage(path)});
+                result.push({...update, content: await readLocalImage(path, update.content.uri)});
                 continue;
             }
         }
@@ -39,7 +34,21 @@ export async function hydrateLocalImages(
     return result;
 }
 
-async function readImage(path: string): Promise<acp.ContentBlock> {
+export function localImagePaths(inputs: readonly UserInput[]): Map<string, string> {
+    const paths = new Map<string, string>();
+    for (const input of inputs) {
+        if (input.type !== "localImage") continue;
+        const uri = attachmentFileUri(input.path);
+        if (uri !== null) paths.set(uri, input.path);
+    }
+    return paths;
+}
+
+type LocalImageBlock =
+    | {type: "image"; mimeType: string; data: string; uri: string}
+    | {type: "resource_link"; name: string; uri: string; _meta: {codex: {imageUnavailable: true; reason: string}}};
+
+export async function readLocalImage(path: string, uri: string): Promise<LocalImageBlock> {
     try {
         // Nonblocking open avoids hanging replay on a stale path replaced by a FIFO.
         const file = await open(path.startsWith("file:") ? fileURLToPath(path) : path, constants.O_RDONLY | constants.O_NONBLOCK);
@@ -57,7 +66,7 @@ async function readImage(path: string): Promise<acp.ContentBlock> {
             }
             const mimeType = imageMimeType(data);
             return mimeType
-                ? {type: "image", mimeType, data: data.toString("base64")}
+                ? {type: "image", mimeType, data: data.toString("base64"), uri}
                 : unavailable("not a PNG, JPEG, GIF, WebP or BMP image");
         } finally {
             await file.close();
@@ -69,7 +78,7 @@ async function readImage(path: string): Promise<acp.ContentBlock> {
     }
 }
 
-function unavailable(reason: string): acp.ContentBlock {
+function unavailable(reason: string): LocalImageBlock {
     return {
         type: "resource_link",
         name: "Image unavailable",

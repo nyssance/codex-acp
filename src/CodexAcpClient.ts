@@ -1,3 +1,4 @@
+import {desktopAttachmentLine, desktopAttachmentPrompt} from "./DesktopAttachmentHistory";
 import {applicationContextOf, nativeToolsOf, nativeToolsConfig, type NativeToolSettings} from "./alwith/codex/hostExecution";
 import {AppServerClient} from "./alwith/codex/AppServerClient";
 import {readSessionInputConfig, writeSessionInputConfig} from "./alwith/codex/sessionInputConfig";
@@ -2339,10 +2340,21 @@ export type SessionConfig = {
 }
 
 export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
-    return prompt.map((block): UserInput | null => {
+    const attachmentLinks = new Map<acp.ContentBlock, string>();
+    for (const block of prompt) {
+        if (block.type !== "resource_link") continue;
+        const line = desktopAttachmentLine(block.name, block.uri);
+        if (line !== null) attachmentLinks.set(block, line);
+    }
+    const attachments = [...attachmentLinks.values()];
+    let needsAttachmentPrompt = attachments.length > 0;
+    const items = prompt.map((block): UserInput | null => {
         switch (block.type) {
-            case "text":
-                return {type: "text", text: block.text, text_elements: []};
+            case "text": {
+                const text = needsAttachmentPrompt ? desktopAttachmentPrompt(attachments, block.text) : block.text;
+                needsAttachmentPrompt = false;
+                return {type: "text", text, text_elements: []};
+            }
             case "image": {
                 if (block._meta?.["alwith.localImage"] === true) {
                     try {
@@ -2357,6 +2369,7 @@ export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
                 return {type: "image", url};
             }
             case "resource_link":
+                if (attachmentLinks.has(block)) return null;
                 if (/^app:\/\/[^/?#\s]+$/.test(block.uri)) {
                     return {type: "mention", name: block.name, path: block.uri};
                 }
@@ -2380,6 +2393,8 @@ export function buildPromptItems(prompt: acp.ContentBlock[]): UserInput[] {
                 return null;
         }
     }).filter((block): block is UserInput => block !== null);
+    if (needsAttachmentPrompt) items.unshift({type: "text", text: desktopAttachmentPrompt(attachments), text_elements: []});
+    return items;
 }
 
 function imageDataUrl(block: acp.ContentBlock & { type: "image" }): string {
