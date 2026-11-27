@@ -5,3 +5,7 @@ export {formatErrorResponse} from "./node_modules/@bitkyc08/opencodex/src/bridge
 export {bridgeToResponsesSSE} from "./node_modules/@bitkyc08/opencodex/src/bridge/sse";
 export {createTranslatorBudget} from "./node_modules/@bitkyc08/opencodex/src/lib/translator-budget";
 export {parseRequest} from "./node_modules/@bitkyc08/opencodex/src/responses/parser";
+// The Claude subscription login: the authorization URL, the code exchange and the token renewal.
+export {AnthropicOAuthFlow, refreshAnthropicToken} from "./node_modules/@bitkyc08/opencodex/src/oauth/anthropic";
+// How much of the subscription's limits the login has used.
+export {readAnthropicUsageQuota} from "./node_modules/@bitkyc08/opencodex/src/providers/claude-cli-usage";

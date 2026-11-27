@@ -8,6 +8,7 @@ import type {InputModality} from "../../app-server/InputModality";
 import type {Model, ReasoningEffortOption} from "../../app-server/v2";
 import type {JsonObject} from "../../CodexAcpClient";
 import {isRecord} from "../../permissions/json";
+import {CLAUDE_LOGIN_HEADER} from "../codex/claudeLoginHeader";
 
 /** The one provider slot Codex exposes: where its OpenAI-protocol traffic goes. */
 export const OPENAI_PROVIDER_ID = "openai";
@@ -170,7 +171,15 @@ export class ProviderRouting {
                 `_meta.codex.id "${hints.id}" is Codex's own provider; pick another gateway id`,
             );
         }
-        if (apiType === "anthropic" && hints.bearerToken === null) {
+        const headers = Object.fromEntries(Object.entries(request.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value]));
+        const claudeLogin = headers["x-alwith-anthropic-auth-mode"] === "oauth";
+        if (claudeLogin && (apiType !== "anthropic" || hints.bearerToken !== null || typeof headers[CLAUDE_LOGIN_HEADER] !== "string")) {
+            throw acp.RequestError.invalidParams(
+                undefined,
+                `A Claude login gateway is an anthropic gateway with the ${CLAUDE_LOGIN_HEADER} header and no _meta.codex.bearerToken`,
+            );
+        }
+        if (apiType === "anthropic" && !claudeLogin && hints.bearerToken === null) {
             throw acp.RequestError.invalidParams(undefined, "An anthropic gateway needs _meta.codex.bearerToken: the Anthropic API key");
         }
         this.gateways.set(hints.id, {

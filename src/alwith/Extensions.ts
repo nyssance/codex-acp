@@ -37,6 +37,10 @@ export const CATALOG_METHODS = {
     "_codex/fuzzy_file_search": "fuzzyFileSearch",
 } as const;
 export const ALWITH_METHODS = [
+    "_codex/claude_login",
+    "_codex/claude_logout",
+    "_codex/claude_status",
+    "_codex/claude_usage",
     "_codex/plugin_service_auth",
     "_codex/project_context",
     "_codex/images/generate",
@@ -124,6 +128,19 @@ export class AlwithExtensions {
             } catch (error) {
                 if (error instanceof RequestError) throw error;
                 throw new RequestError(-32000, error instanceof Error ? error.message : "Plugin authentication failed");
+            }
+        }
+        if (method === "_codex/claude_login" || method === "_codex/claude_logout" || method === "_codex/claude_status" || method === "_codex/claude_usage") {
+            const login = params["login"];
+            if (typeof login !== "string" || !login) throw RequestError.invalidParams(undefined, "login is required: the file that holds the Claude login");
+            // The login needs Bun; loading it here keeps it out of every other route.
+            const {claudeLogin, claudeLogout, claudeLoginStatus, claudeUsage} = await import("./codex/claudeLogin");
+            try {
+                if (method === "_codex/claude_login") return await claudeLogin(login, signal);
+                if (method === "_codex/claude_usage") return await claudeUsage(login);
+                return method === "_codex/claude_logout" ? await claudeLogout(login) : await claudeLoginStatus(login);
+            } catch (error) {
+                throw new RequestError(-32000, error instanceof Error ? error.message : "Claude sign-in failed");
             }
         }
         if (method === "_codex/images/generate") return generateImage(this.codex, params, signal);

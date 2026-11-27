@@ -22,6 +22,7 @@ import {isRecord} from "../../permissions/json";
 import {CompactionResponse, CompactionSink, summaryRequest} from "./externalCompaction";
 import {GatewayWebSearch, type SearchUpstream} from "./gatewayWebSearch";
 import {compatibleResponsesRequest} from "./responsesCompatibility";
+import {CLAUDE_LOGIN_HEADER} from "./claudeLoginHeader";
 
 /** One WebSocket message, and the bytes a stalled peer may leave queued before the connection is dropped. */
 const MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
@@ -517,18 +518,34 @@ export class ResponsesProxy {
             response.writeHead(404).end();
             return;
         }
-        const apiKey = /^Bearer (.+)$/.exec(String(headers["authorization"]))?.[1];
-        if (apiKey === undefined) {
-            response.writeHead(401).end("The Anthropic provider has no credential");
-            return;
-        }
         const authMode = headers["x-alwith-anthropic-auth-mode"] ?? "key";
         if (authMode !== "key" && authMode !== "oauth") {
             response.writeHead(400).end("Unknown Anthropic authentication mode");
             return;
         }
         // The translation core needs Bun; loading it here keeps it out of every other route.
-        const {anthropicResponses} = await import("./anthropicMessages");
+        const {anthropicResponses, credentialError} = await import("./anthropicMessages");
+        let apiKey: string | undefined;
+        if (authMode === "oauth") {
+            // The subscription login is read for every request: Codex holds no token that could expire in its configuration.
+            const login = headers[CLAUDE_LOGIN_HEADER];
+            if (typeof login !== "string") {
+                response.writeHead(400).end("The Claude login gateway names no login file");
+                return;
+            }
+            try {
+                const {claudeAccessToken} = await import("./claudeLogin");
+                apiKey = await claudeAccessToken(decodeURIComponent(login));
+            } catch (error) {
+                const refused = credentialError(error instanceof Error ? error.message : String(error));
+                response.writeHead(refused.status, Object.fromEntries(refused.headers)).end(await refused.text());
+                return;
+            }
+        } else apiKey = /^Bearer (.+)$/.exec(String(headers["authorization"]))?.[1];
+        if (apiKey === undefined) {
+            response.writeHead(401).end("The Anthropic provider has no credential");
+            return;
+        }
         const translated = await anthropicResponses(body.toString("utf8"), {
             baseUrl: target.href.slice(0, -"/responses".length),
             apiKey,

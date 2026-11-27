@@ -473,6 +473,17 @@ describe("ALwith providers/set validation", () => {
         expect(listed.providers[0]!._meta?.codex?.gateway?.id).toBe("claude");
     });
 
+    it("registers a Claude login gateway that names its login file and carries no key", async () => {
+        const login = {"X-Alwith-Anthropic-Auth-Mode": "oauth", "X-Alwith-Anthropic-Login": "%2Ftmp%2Fclaude-login.json"};
+        await invalid(request => ({...request, apiType: "anthropic", headers: {"X-Alwith-Anthropic-Auth-Mode": "oauth"}}));
+        await invalid(request => ({...request, apiType: "anthropic", headers: login, _meta: {...request._meta, codex: {...request._meta.codex, bearerToken: "sk-ant-test"}}}));
+        await invalid(request => ({...request, headers: login}));
+        const {client} = await connect();
+        await client.request("providers/set", {...provider("claude", "model-a"), apiType: "anthropic", headers: login});
+        const listed = (await client.request("providers/list", {})) as {providers: Array<{_meta?: {codex?: {gateway?: {id: string}}}}>};
+        expect(listed.providers[0]!._meta?.codex?.gateway?.id).toBe("claude");
+    });
+
     it("rejects a model without a label", () =>
         invalid(request => ({
             ...request,

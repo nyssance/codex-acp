@@ -33,6 +33,11 @@ function toolNames(parsed: OcxParsedRequest) {
     return {namespaced, freeform, search};
 }
 
+/** The answer Codex reads as "the credential is refused", so it stops instead of retrying. */
+export function credentialError(message: string): Response {
+    return formatErrorResponse(401, "authentication_error", message);
+}
+
 /**
  * Answers one Codex Responses request from an Anthropic Messages endpoint.
  * The only Responses-to-Messages translation in this adapter: another translator replaces this function.
