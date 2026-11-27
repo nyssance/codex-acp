@@ -3,6 +3,6 @@
     "private": true,
     "type": "module",
     "dependencies": {
-        "@bitkyc08/opencodex": "2.100.3"
+        "@bitkyc08/opencodex": "2.100.10"
     }
 }
